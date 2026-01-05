@@ -1099,7 +1099,7 @@ const App: FC = () => {
             </div>
         );
 
-        const DashboardView: FC<{ tasks: any[]; orderKey: string; orderDetails: any }> = ({ tasks, orderKey, orderDetails }) => {
+        const DashboardView: FC<{ tasks: CrmOrder['tasks']; orderKey: string; orderDetails: CrmOrder }> = ({ tasks, orderKey, orderDetails }) => {
             const statusData = useMemo(() => {
                 const statuses: { [key: string]: number } = { 'TO DO': 0, 'IN PROGRESS': 0, 'COMPLETE': 0 };
                 tasks.forEach(task => {
@@ -1158,11 +1158,11 @@ const App: FC = () => {
             )
         };
 
-        const ListView: FC<{ tasks: any[] }> = ({ tasks }) => {
+        const ListView: FC<{ tasks: CrmOrder['tasks'] }> = ({ tasks }) => {
             const completedTasks = tasks.filter(t => t.status === 'COMPLETE');
             const todoTasks = tasks.filter(t => t.status === 'TO DO');
             const inProgressTasks = tasks.filter(t => t.status === 'IN PROGRESS');
-            const calculateTotals = (tasks: any[]) => {
+            const calculateTotals = (tasks: CrmOrder['tasks']) => {
                 return tasks.reduce((acc, task) => {
                     acc.qty += task.quantity || 0;
                     return acc;
@@ -1170,7 +1170,7 @@ const App: FC = () => {
             }
             const totals = calculateTotals(completedTasks);
 
-            const TaskGroup: FC<{ title: string; tasks: any[]; showTotals?: boolean; totalsData?: any }> = ({ title, tasks, showTotals, totalsData }) => {
+            const TaskGroup: FC<{ title: string; tasks: CrmOrder['tasks']; showTotals?: boolean; totalsData?: any }> = ({ title, tasks, showTotals, totalsData }) => {
                 const isCompletedGroup = title === 'COMPLETE';
                 const groupHeaderColor = isCompletedGroup ? 'text-green-600' : 'text-gray-600';
                 return (
@@ -1225,14 +1225,14 @@ const App: FC = () => {
             );
         };
 
-        const BoardView: FC<{ tasks: any[] }> = ({ tasks }) => {
+        const BoardView: FC<{ tasks: CrmOrder['tasks'] }> = ({ tasks }) => {
             const columns: { [key: string]: any[] } = {
                 'TO DO': tasks.filter(t => t.status === 'TO DO'),
                 'IN PROGRESS': tasks.filter(t => t.status === 'IN PROGRESS'),
                 'COMPLETE': tasks.filter(t => t.status === 'COMPLETE'),
             };
 
-            const TaskCard: FC<{ task: any }> = ({ task }) => (
+            const TaskCard: FC<{ task: CrmOrder['tasks'][0] }> = ({ task }) => (
                 <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm mb-3">
                     <p className="font-semibold text-sm text-gray-800">{task.name}</p>
                     <p className="text-xs text-gray-500 mt-1">Due: {task.plannedEndDate}</p>
@@ -1265,7 +1265,7 @@ const App: FC = () => {
             )
         }
 
-        const GanttChartView: FC<{ tasks: any[] }> = ({ tasks }) => {
+        const GanttChartView: FC<{ tasks: CrmOrder['tasks'] }> = ({ tasks }) => {
             const parseDate = (str: string) => new Date(str);
             const diffDays = (date1: Date, date2: Date) => Math.ceil(Math.abs(date1.getTime() - date2.getTime()) / (1000 * 60 * 60 * 24));
 
@@ -1334,12 +1334,12 @@ const App: FC = () => {
             )
         }
 
-        const TNAView: FC<{ tasks: any[] }> = ({ tasks }) => {
+        const TNAView: FC<{ tasks: CrmOrder['tasks'] }> = ({ tasks }) => {
             const parseDate = (str: string | null) => str ? new Date(str) : null;
             const today = new Date();
             today.setHours(0, 0, 0, 0); // Normalize today's date
 
-            const calculateDelay = (task: any) => {
+            const calculateDelay = (task: CrmOrder['tasks'][0]) => {
                 const plannedEnd = parseDate(task.plannedEndDate);
                 if (!plannedEnd) return { days: 0, status: 'ontime' };
 
@@ -1407,7 +1407,7 @@ const App: FC = () => {
             )
         };
 
-        const OrderDetailsView: FC<{ order: any }> = ({ order }) => {
+        const OrderDetailsView: FC<{ order: CrmOrder }> = ({ order }) => {
             const factory = allFactories.find(f => f.id === order.factoryId);
             const getDocIcon = (type: string) => {
                 switch(type) {
@@ -1433,7 +1433,7 @@ const App: FC = () => {
                              <div className="bg-white p-6 rounded-xl shadow-sm border">
                                 <h3 className="text-lg font-semibold text-gray-800 mb-4">Order Documents</h3>
                                 <div className="space-y-3">
-                                    {order.documents.map((doc: any, index: number) => (
+                                    {order.documents.map((doc, index: number) => (
                                         <div key={index} className="border rounded-lg p-3 flex items-center justify-between hover:bg-gray-50 transition-colors">
                                             <div className="flex items-center gap-3">
                                                 {getDocIcon(doc.type)}
