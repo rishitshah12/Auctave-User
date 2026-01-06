@@ -1,0 +1,101 @@
+export interface UserProfile {
+    name: string;
+    companyName: string;
+    phone: string;
+    email: string;
+    country: string;
+    jobRole: string;
+    categorySpecialization: string;
+    yearlyEstRevenue: string;
+}
+
+export interface OrderFormData {
+    category: string;
+    fabricQuality: string;
+    weightGSM: string;
+    styleOption: string;
+    qty: string;
+    targetPrice: string;
+    shippingDest: string;
+    packagingReqs: string;
+    labelingReqs: string;
+}
+
+export interface MachineSlot {
+    machineType: string;
+    availableSlots: number;
+    totalSlots: number;
+    nextAvailable: string;
+}
+
+export interface FactoryCatalog {
+    productCategories: {
+        name: string;
+        description: string;
+        imageUrl: string;
+    }[];
+    fabricOptions: {
+        name: string;
+        composition: string;
+        useCases: string;
+    }[];
+}
+
+export interface Factory {
+    id: string;
+    name: string;
+    specialties: string[];
+    rating: number;
+    turnaround: string;
+    offer: string | null;
+    imageUrl: string;
+    gallery: string[];
+    location: string;
+    tags: string[];
+    description: string;
+    minimumOrderQuantity: number;
+    certifications: string[];
+    machineSlots: MachineSlot[];
+    catalog: FactoryCatalog;
+}
+
+export interface QuoteRequest {
+    id: string;
+    factory: {
+        id: string;
+        name: string;
+        location: string;
+        imageUrl: string;
+    };
+    order: OrderFormData;
+    status: 'Pending' | 'Responded' | 'Accepted' | 'Declined' | 'In Negotiation';
+    submittedAt: string;
+    userId: string;
+    files?: string[];
+}
+
+export interface CrmOrder {
+    customer: string;
+    product: string;
+    factoryId: string;
+    documents: { name: string; type: string; lastUpdated: string }[];
+    tasks: {
+        id: number;
+        name: string;
+        responsible: string;
+        plannedStartDate: string;
+        plannedEndDate: string;
+        actualStartDate: string | null;
+        actualEndDate: string | null;
+        status: 'TO DO' | 'IN PROGRESS' | 'COMPLETE';
+        color?: string;
+        quantity?: number;
+    }[];
+}
+
+
+export interface ToastState {
+    show: boolean;
+    message: string;
+    type: 'success' | 'error';
+}

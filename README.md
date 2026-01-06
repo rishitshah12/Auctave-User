@@ -48,13 +48,40 @@ The application is built as a single-page application (SPA) and features a rich,
 3.  **Set up Environment Variables:**
     The application uses the Google Gemini API for its AI features. You will need to get an API key from Google AI Studio.
 
-    Create a `.env.local` file in the root of the project and add your API key:
+    Create a `.env.local` file in the root of the project and add your Supabase and Gemini API keys:
     ```
-    VITE_GEMINI_API_KEY=YOUR_API_KEY_HERE
+    VITE_SUPABASE_URL=your_supabase_project_url
+    VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+    VITE_GEMINI_API_KEY=your_gemini_api_key
     ```
-    *Note: The code currently has the API key hardcoded as an empty string. To use the AI features, you'll need to modify the `callGeminiAPI` function to read this environment variable.*
+    *Note: You can find your Supabase URL and Anon Key in your Supabase project settings under API.*
 
-4.  **Run the development server:**
+4.  **Database Setup:**
+    Run the following SQL in your Supabase SQL Editor to create the profiles table:
+    ```sql
+    create table profiles (
+      id uuid references auth.users not null primary key,
+      updated_at timestamp with time zone,
+      name text,
+      company_name text,
+      phone text,
+      email text,
+      country text,
+      job_role text,
+      category_specialization text,
+      yearly_est_revenue text
+    );
+
+    -- Enable Row Level Security (RLS)
+    alter table profiles enable row level security;
+
+    -- Create policies to allow users to manage their own data
+    create policy "Users can view their own profile" on profiles for select using (auth.uid() = id);
+    create policy "Users can insert their own profile" on profiles for insert with check (auth.uid() = id);
+    create policy "Users can update their own profile" on profiles for update using (auth.uid() = id);
+    ```
+
+5.  **Run the development server:**
     ```bash
     npm run dev
     ```
