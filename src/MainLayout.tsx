@@ -1,7 +1,7 @@
 import React, { FC, ReactNode } from 'react';
 import {
     Search, DollarSign, Plus, ChevronLeft, ChevronsLeft, ChevronsRight,
-    Menu, X, List, Truck, User as UserIcon, LogOut, Settings, Flame, FileQuestion
+    Menu, X, List, Truck, User as UserIcon, LogOut, Settings, Flame, FileQuestion, LayoutDashboard, Users, Building
 } from 'lucide-react';
 
 interface MainLayoutProps {
@@ -16,12 +16,13 @@ interface MainLayoutProps {
     handleSetCurrentPage: (page: string) => void;
     handleSignOut: () => void;
     hideSidebar?: boolean;
+    isAdmin?: boolean;
 }
 
 const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'>> = (
-    { currentPage, isMenuOpen, isSidebarCollapsed, toggleMenu, setIsSidebarCollapsed, handleSetCurrentPage, handleSignOut }
+    { currentPage, isMenuOpen, isSidebarCollapsed, toggleMenu, setIsSidebarCollapsed, handleSetCurrentPage, handleSignOut, isAdmin }
 ) => {
-    const menuItems = [
+    const clientMenuItems = [
         { name: 'Sourcing', page: 'sourcing', icon: <Search className="h-5 w-5" /> },
         { name: 'My Quotes', page: 'myQuotes', icon: <FileQuestion className="h-5 w-5" /> },
         { name: 'CRM Portal', page: 'crm', icon: <List className="h-5 w-5" /> },
@@ -32,6 +33,16 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'>> = (
         { name: 'Settings', page: 'settings', icon: <Settings className="h-5 w-5" /> },
         { name: "What's Trending", page: 'trending', icon: <Flame className="h-5 w-5" /> },
     ];
+
+    const adminMenuItems = [
+        { name: 'Dashboard', page: 'adminDashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
+        { name: 'User Management', page: 'adminUsers', icon: <Users className="h-5 w-5" /> },
+        { name: 'Factory CMS', page: 'adminFactories', icon: <Building className="h-5 w-5" /> },
+        { name: 'Settings', page: 'settings', icon: <Settings className="h-5 w-5" /> },
+    ];
+
+    const menuItems = isAdmin ? adminMenuItems : clientMenuItems;
+
     return (<>
         {isMenuOpen && <div className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden" onClick={toggleMenu}></div>}
         <aside className={`fixed inset-y-0 left-0 bg-gray-900 text-white flex flex-col shadow-lg z-50 transition-all duration-300 ease-in-out md:relative ${isMenuOpen ? 'w-64' : '-translate-x-full w-64'} md:translate-x-0 ${isSidebarCollapsed ? 'md:w-20' : 'md:w-64'}`}>

@@ -59,14 +59,8 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
     useEffect(() => {
         const fetchFactories = async () => {
             setIsFiltering(true);
-            const { data, error } = await supabase.from('factories').select(`
-                id, name, location, description, rating, turnaround_time, minimum_order_quantity, offer_text, cover_image_url,
-                gallery:factory_gallery_images(image_url),
-                tags:factory_tags(tags(name)),
-                certifications:factory_certifications(certifications(name)),
-                specialties:factory_specialties(garment_categories(name)),
-                machineSlots:factory_machine_slots(*)
-            `);
+            // Fetch from the new flat schema columns (Arrays & JSONB)
+            const { data, error } = await supabase.from('factories').select('*');
 
             if (error) {
                 showToast('Could not fetch factories.', 'error');
@@ -79,16 +73,16 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                     location: f.location,
                     description: f.description,
                     rating: f.rating,
-                    turnaround: f.turnaround_time,
+                    turnaround: f.turnaround,
                     minimumOrderQuantity: f.minimum_order_quantity,
-                    offer: f.offer_text,
+                    offer: f.offer,
                     imageUrl: f.cover_image_url,
-                    gallery: f.gallery.map((g: any) => g.image_url),
-                    tags: f.tags.map((t: any) => t.tags.name),
-                    certifications: f.certifications.map((c: any) => c.certifications.name),
-                    specialties: f.specialties.map((s: any) => s.garment_categories.name),
-                    machineSlots: f.machineSlots.map((m: any) => ({ machineType: m.machine_type, availableSlots: m.available_slots, totalSlots: m.total_slots, nextAvailable: m.next_available_date })),
-                    catalog: { productCategories: [], fabricOptions: [] } // Catalog would need a separate fetch
+                    gallery: f.gallery || [],
+                    tags: f.tags || [],
+                    certifications: f.certifications || [],
+                    specialties: f.specialties || [],
+                    machineSlots: f.machine_slots || [],
+                    catalog: f.catalog || { productCategories: [], fabricOptions: [] }
                 }));
                 setAllFactories(transformedFactories);
             }

@@ -7,7 +7,7 @@ import {
     GanttChartSquare, LayoutDashboard, MoreHorizontal, Info, Settings, LifeBuoy,
     History, Edit, Anchor, Ship, Warehouse, PackageCheck, Award, Users, Activity, Shield,
     PlayCircle, BarChart as BarChartIcon, FileQuestion, ClipboardCheck, Lock,
-    Tag, Weight, Palette, Box, Map as MapIcon, Download, BookOpen
+    Tag, Weight, Palette, Box, Map as MapIcon, Download, BookOpen, Building, Trash2, Upload
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Pie, Cell, PieChart
@@ -138,12 +138,12 @@ const App: FC = () => {
                 setUser(session?.user ?? null);
                 
                 // Check for Admin Domain
-                const isUserAdmin = !!session?.user?.email?.endsWith('@auctaveexports.com');
+                const isUserAdmin = session?.user?.email?.toLowerCase().endsWith('@auctaveexports.com') ?? false;
                 setIsAdmin(isUserAdmin);
 
                 if (session?.user) {
                     // 1. Force password creation for new admins before profile check
-                    if (isUserAdmin && !session.user.user_metadata?.password_set && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN')) {
+                    if (isUserAdmin && !session.user.user_metadata?.password_set && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY')) {
                         setCurrentPage('createPassword');
                         setIsAuthReady(true);
                         return;
@@ -177,7 +177,7 @@ const App: FC = () => {
                             console.error('Error fetching profile:', error.message);
                         }
                         if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
-                            setCurrentPage('profile');
+                            setCurrentPage(isUserAdmin ? 'adminDashboard' : 'profile');
                         }
                     }
                 } else {
@@ -916,7 +916,309 @@ const App: FC = () => {
         )
     };
 
+    const AdminFactoriesPage: FC = () => {
+        const [factories, setFactories] = useState<any[]>([]);
+        const [isLoading, setIsLoading] = useState(true);
+        const [isModalOpen, setIsModalOpen] = useState(false);
+        const [editingFactory, setEditingFactory] = useState<any>({
+            name: '', location: '', description: '', minimum_order_quantity: 0, rating: 0, cover_image_url: '',
+            turnaround: '', offer: '',
+            specialties: [], tags: [], certifications: [], gallery: [],
+            machine_slots: [], catalog: { productCategories: [], fabricOptions: [] }
+        });
+        // Local state for JSON textareas to allow editing without constant parsing errors
+        const [jsonStrings, setJsonStrings] = useState({ catalog: '' });
+
+        useEffect(() => {
+            fetchFactories();
+        }, []);
+
+        useEffect(() => {
+            if (isModalOpen) {
+                setJsonStrings({
+                    catalog: JSON.stringify(editingFactory.catalog || { productCategories: [], fabricOptions: [] }, null, 2)
+                });
+            }
+        }, [isModalOpen, editingFactory]);
+
+        const fetchFactories = async () => {
+            setIsLoading(true);
+            const { data, error } = await supabase.from('factories').select('*').order('created_at', { ascending: false });
+            if (error) showToast('Error fetching factories', 'error');
+            else setFactories(data || []);
+            setIsLoading(false);
+        };
+
+        const handleSave = async (e: React.FormEvent) => {
+            e.preventDefault();
+            const factoryData = {
+                name: editingFactory.name,
+                location: editingFactory.location,
+                description: editingFactory.description,
+                minimum_order_quantity: editingFactory.minimum_order_quantity,
+                cover_image_url: editingFactory.cover_image_url,
+                rating: editingFactory.rating,
+                turnaround: editingFactory.turnaround,
+                offer: editingFactory.offer,
+                specialties: editingFactory.specialties,
+                tags: editingFactory.tags,
+                certifications: editingFactory.certifications,
+                gallery: editingFactory.gallery,
+                machine_slots: editingFactory.machine_slots,
+                catalog: editingFactory.catalog
+            };
+
+            if (editingFactory.id) {
+                const { error } = await supabase.from('factories').update(factoryData).eq('id', editingFactory.id);
+                if (error) showToast(error.message, 'error');
+                else { showToast('Factory updated'); setIsModalOpen(false); fetchFactories(); }
+            } else {
+                const { error } = await supabase.from('factories').insert([factoryData]);
+                if (error) showToast(error.message, 'error');
+                else { showToast('Factory created'); setIsModalOpen(false); fetchFactories(); }
+            }
+        };
+
+        const handleDelete = async (id: string) => {
+            if(!confirm('Delete this factory?')) return;
+            const { error } = await supabase.from('factories').delete().eq('id', id);
+            if(error) showToast(error.message, 'error');
+            else { showToast('Factory deleted'); fetchFactories(); }
+        };
+
+        const handleArrayInput = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>, field: string) => {
+            setEditingFactory({ ...editingFactory, [field]: e.target.value.split(',').map(s => s.trim()) });
+        };
+
+        const handleJsonBlur = (field: 'catalog') => {
+            try {
+                const parsed = JSON.parse(jsonStrings[field]);
+                setEditingFactory({ ...editingFactory, [field]: parsed });
+            } catch (e) {
+                showToast(`Invalid JSON in ${field}`, 'error');
+            }
+        };
+
+        // Machine Slot Helpers
+        const addMachineSlot = () => {
+            setEditingFactory(prev => ({
+                ...prev,
+                machine_slots: [...(prev.machine_slots || []), { machineType: '', totalSlots: 0, availableSlots: 0, nextAvailable: '' }]
+            }));
+        };
+
+        const updateMachineSlot = (index: number, field: string, value: any) => {
+            const newSlots = [...(editingFactory.machine_slots || [])];
+            newSlots[index] = { ...newSlots[index], [field]: value };
+            setEditingFactory(prev => ({ ...prev, machine_slots: newSlots }));
+        };
+
+        const removeMachineSlot = (index: number) => {
+            const newSlots = [...(editingFactory.machine_slots || [])];
+            newSlots.splice(index, 1);
+            setEditingFactory(prev => ({ ...prev, machine_slots: newSlots }));
+        };
+
+        // Gallery Helpers
+        const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+            if (!e.target.files || e.target.files.length === 0) return;
+            const file = e.target.files[0];
+            const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.]/g, '')}`;
+            
+            // Optimistic UI update (Local Preview)
+            const localUrl = URL.createObjectURL(file);
+            setEditingFactory(prev => ({
+                ...prev,
+                gallery: [...(prev.gallery || []), localUrl]
+            }));
+
+            // Attempt upload
+            try {
+                const { data, error } = await supabase.storage.from('factory_images').upload(fileName, file);
+                if (error) throw error;
+                
+                const { data: { publicUrl } } = supabase.storage.from('factory_images').getPublicUrl(fileName);
+                
+                // Replace local URL with public URL
+                setEditingFactory(prev => ({
+                    ...prev,
+                    gallery: (prev.gallery || []).map((url: string) => url === localUrl ? publicUrl : url)
+                }));
+                showToast('Image uploaded successfully');
+            } catch (error: any) {
+                console.error('Upload failed:', error);
+                showToast('Upload failed (Storage not configured?), keeping local preview.', 'error');
+            }
+        };
+
+        const removeGalleryImage = (index: number) => {
+            const newGallery = [...(editingFactory.gallery || [])];
+            newGallery.splice(index, 1);
+            setEditingFactory(prev => ({ ...prev, gallery: newGallery }));
+        };
+
+        return (
+            <MainLayout {...layoutProps}>
+                <div className="flex justify-between items-center mb-6">
+                    <div>
+                        <h1 className="text-3xl font-bold text-gray-800">Factory CMS</h1>
+                        <p className="text-gray-500">Manage factory profiles, media, and capabilities.</p>
+                    </div>
+                    <button onClick={() => { setEditingFactory({ name: '', location: '', description: '', minimum_order_quantity: 0, rating: 0, cover_image_url: '', turnaround: '', offer: '', specialties: [], tags: [], certifications: [], gallery: [], machine_slots: [], catalog: { productCategories: [], fabricOptions: [] } }); setIsModalOpen(true); }} className="bg-purple-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-700">
+                        <Plus size={18} /> Add Factory
+                    </button>
+                </div>
+
+                <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
+                    <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Location</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">MOQ</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rating</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Turnaround</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Offer</th>
+                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                            {isLoading ? <tr><td colSpan={5} className="p-4 text-center">Loading...</td></tr> : factories.map(f => (
+                                <tr key={f.id} className="hover:bg-gray-50">
+                                    <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{f.name}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-gray-500">{f.location}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-gray-500">{f.minimum_order_quantity}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-gray-500">{f.rating}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-gray-500">{f.turnaround || '-'}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-gray-500"><span className="px-2 py-1 rounded-full bg-blue-100 text-blue-800 text-xs font-semibold">{f.offer || 'None'}</span></td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                        <button onClick={() => { setEditingFactory(f); setIsModalOpen(true); }} className="text-indigo-600 hover:text-indigo-900 mr-4">Edit</button>
+                                        <button onClick={() => handleDelete(f.id)} className="text-red-600 hover:text-red-900">Delete</button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+
+                {isModalOpen && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                        <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                            <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-2xl font-bold">{editingFactory.id ? 'Edit Factory' : 'Add New Factory'}</h2>
+                                <button onClick={() => setIsModalOpen(false)} className="text-gray-500 hover:text-gray-700"><X size={24} /></button>
+                            </div>
+                            <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {/* Basic Info */}
+                                <div className="md:col-span-2 border-b pb-2 mb-2 font-semibold text-gray-700">Basic Information</div>
+                                <div className="md:col-span-2"> <label className="block text-sm font-medium text-gray-700 mb-1">Factory Name</label> <input type="text" required value={editingFactory.name} onChange={e => setEditingFactory({...editingFactory, name: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md" /> </div>
+                                <div> <label className="block text-sm font-medium text-gray-700 mb-1">Location</label> <input type="text" required value={editingFactory.location} onChange={e => setEditingFactory({...editingFactory, location: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md" /> </div>
+                                <div> <label className="block text-sm font-medium text-gray-700 mb-1">Rating (0-5)</label> <input type="number" step="0.1" max="5" required value={editingFactory.rating} onChange={e => setEditingFactory({...editingFactory, rating: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md" /> </div>
+                                <div className="md:col-span-2"> <label className="block text-sm font-medium text-gray-700 mb-1">Description</label> <textarea rows={3} value={editingFactory.description || ''} onChange={e => setEditingFactory({...editingFactory, description: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md" /> </div>
+                                
+                                {/* Commercial & Operational */}
+                                <div className="md:col-span-2 border-b pb-2 mb-2 mt-4 font-semibold text-gray-700">Commercial & Operational</div>
+                                <div> <label className="block text-sm font-medium text-gray-700 mb-1">MOQ</label> <input type="number" required value={editingFactory.minimum_order_quantity} onChange={e => setEditingFactory({...editingFactory, minimum_order_quantity: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md" /> </div>
+                                <div> <label className="block text-sm font-medium text-gray-700 mb-1">Turnaround Time</label> <input type="text" placeholder="e.g. 25-35 days" value={editingFactory.turnaround || ''} onChange={e => setEditingFactory({...editingFactory, turnaround: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md" /> </div>
+                                <div> <label className="block text-sm font-medium text-gray-700 mb-1">Promotional Offer</label> <input type="text" placeholder="e.g. 10% OFF" value={editingFactory.offer || ''} onChange={e => setEditingFactory({...editingFactory, offer: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md" /> </div>
+                                
+                                {/* Arrays */}
+                                <div className="md:col-span-2 border-b pb-2 mb-2 mt-4 font-semibold text-gray-700">Tags & Categories (Comma Separated)</div>
+                                <div className="md:col-span-2"> <label className="block text-sm font-medium text-gray-700 mb-1">Specialties</label> <input type="text" placeholder="T-shirt, Denim, Hoodies" value={editingFactory.specialties?.join(', ') || ''} onChange={e => handleArrayInput(e, 'specialties')} className="w-full p-2 border border-gray-300 rounded-md" /> </div>
+                                <div className="md:col-span-2"> <label className="block text-sm font-medium text-gray-700 mb-1">Tags</label> <input type="text" placeholder="Prime, Sustainable, Tech Enabled" value={editingFactory.tags?.join(', ') || ''} onChange={e => handleArrayInput(e, 'tags')} className="w-full p-2 border border-gray-300 rounded-md" /> </div>
+                                <div className="md:col-span-2"> <label className="block text-sm font-medium text-gray-700 mb-1">Certifications</label> <input type="text" placeholder="Sedex, BCI, ISO 9001" value={editingFactory.certifications?.join(', ') || ''} onChange={e => handleArrayInput(e, 'certifications')} className="w-full p-2 border border-gray-300 rounded-md" /> </div>
+
+                                {/* Media */}
+                                <div className="md:col-span-2 border-b pb-2 mb-2 mt-4 font-semibold text-gray-700">Media Assets</div>
+                                <div className="md:col-span-2"> <label className="block text-sm font-medium text-gray-700 mb-1">Main Hero Image URL</label> <input type="text" value={editingFactory.cover_image_url || ''} onChange={e => setEditingFactory({...editingFactory, cover_image_url: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md" /> </div>
+                                <div className="md:col-span-2"> 
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Gallery Images</label> 
+                                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mb-3">
+                                        {editingFactory.gallery?.map((url: string, index: number) => (
+                                            <div key={index} className="relative group aspect-video bg-gray-100 rounded-md overflow-hidden border border-gray-200">
+                                                <img src={url} alt="Gallery" className="w-full h-full object-cover" />
+                                                <button type="button" onClick={() => removeGalleryImage(index)} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"><X size={12} /></button>
+                                            </div>
+                                        ))}
+                                        <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 aspect-video transition-colors">
+                                            <Upload size={20} className="text-gray-400" />
+                                            <span className="text-xs text-gray-500 mt-1">Upload</span>
+                                            <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                                        </label>
+                                    </div>
+                                    <textarea rows={2} placeholder="Or paste URLs (comma separated)" value={editingFactory.gallery?.join(', ') || ''} onChange={e => handleArrayInput(e, 'gallery')} className="w-full p-2 border border-gray-300 rounded-md text-sm" /> 
+                                </div>
+
+                                {/* Complex JSON Data */}
+                                <div className="md:col-span-2 border-b pb-2 mb-2 mt-4 font-semibold text-gray-700">Production Capacity</div>
+                                <div className="md:col-span-2"> 
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Machine Slots</label> 
+                                    <div className="space-y-3">
+                                        {editingFactory.machine_slots?.map((slot: any, index: number) => (
+                                            <div key={index} className="flex flex-col sm:flex-row gap-2 items-start bg-gray-50 p-3 rounded-md border border-gray-200">
+                                                <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-2 w-full">
+                                                    <input type="text" placeholder="Machine Type" value={slot.machineType} onChange={e => updateMachineSlot(index, 'machineType', e.target.value)} className="p-2 border rounded text-sm w-full" />
+                                                    <input type="number" placeholder="Total" value={slot.totalSlots} onChange={e => updateMachineSlot(index, 'totalSlots', parseInt(e.target.value))} className="p-2 border rounded text-sm w-full" />
+                                                    <input type="number" placeholder="Available" value={slot.availableSlots} onChange={e => updateMachineSlot(index, 'availableSlots', parseInt(e.target.value))} className="p-2 border rounded text-sm w-full" />
+                                                    <input type="date" placeholder="Next Available" value={slot.nextAvailable} onChange={e => updateMachineSlot(index, 'nextAvailable', e.target.value)} className="p-2 border rounded text-sm w-full" />
+                                                </div>
+                                                <button type="button" onClick={() => removeMachineSlot(index)} className="text-red-500 p-2 hover:bg-red-50 rounded self-end sm:self-center"><Trash2 size={16} /></button>
+                                            </div>
+                                        ))}
+                                        <button type="button" onClick={addMachineSlot} className="text-sm text-purple-600 font-semibold flex items-center gap-1 hover:text-purple-800"><Plus size={16} /> Add Machine Slot</button>
+                                    </div>
+                                </div>
+
+                                <div className="md:col-span-2 border-b pb-2 mb-2 mt-4 font-semibold text-gray-700">Advanced Data (JSON)</div>
+                                <div className="md:col-span-2"> <label className="block text-sm font-medium text-gray-700 mb-1">Product Catalog (JSON)</label> <textarea rows={6} value={jsonStrings.catalog} onChange={e => setJsonStrings({...jsonStrings, catalog: e.target.value})} onBlur={() => handleJsonBlur('catalog')} className="w-full p-2 border border-gray-300 rounded-md font-mono text-xs" /> </div>
+
+                                <div className="md:col-span-2 flex justify-end gap-4 mt-4">
+                                    <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg">Cancel</button>
+                                    <button type="submit" className="px-4 py-2 bg-purple-600 text-white rounded-lg">Save Factory</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
+            </MainLayout>
+        );
+    };
+
     const AdminDashboardPage: FC = () => {
+        // Stats only dashboard
+        const stats = [
+            { title: 'Total Clients', value: '12', icon: <Users className="text-blue-600" />, color: 'bg-blue-100' },
+            { title: 'Active Orders', value: '342', icon: <Package className="text-purple-600" />, color: 'bg-purple-100' },
+            { title: 'Total Revenue', value: '$4.2M', icon: <DollarSign className="text-green-600" />, color: 'bg-green-100' },
+            { title: 'Platform Activity', value: 'High', icon: <Activity className="text-orange-600" />, color: 'bg-orange-100' },
+        ];
+
+        return (
+            <MainLayout {...layoutProps}>
+                <div className="space-y-8">
+                    <div>
+                        <h1 className="text-3xl font-bold text-gray-800">Admin Dashboard</h1>
+                        <p className="text-gray-500 mt-1">Overview of platform activity.</p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {stats.map((stat, index) => (
+                            <div key={index} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-gray-500">{stat.title}</p>
+                                    <p className="text-2xl font-bold text-gray-800 mt-1">{stat.value}</p>
+                                </div>
+                                <div className={`p-3 rounded-lg ${stat.color}`}>
+                                    {stat.icon}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </MainLayout>
+        );
+    };
+
+    const AdminUsersPage: FC = () => {
         const [clients, setClients] = useState<any[]>([]);
         const [isLoading, setIsLoading] = useState(true);
         const [editingClient, setEditingClient] = useState<any>(null);
@@ -987,34 +1289,12 @@ const App: FC = () => {
              }
         }
 
-        const stats = [
-            { title: 'Total Clients', value: clients.length.toString(), icon: <Users className="text-blue-600" />, color: 'bg-blue-100' },
-            { title: 'Active Orders', value: '342', icon: <Package className="text-purple-600" />, color: 'bg-purple-100' },
-            { title: 'Total Revenue', value: '$4.2M', icon: <DollarSign className="text-green-600" />, color: 'bg-green-100' },
-            { title: 'Platform Activity', value: 'High', icon: <Activity className="text-orange-600" />, color: 'bg-orange-100' },
-        ];
-
         return (
             <MainLayout {...layoutProps}>
                 <div className="space-y-8">
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-800">Admin Dashboard</h1>
-                        <p className="text-gray-500 mt-1">Overview of platform activity and client management.</p>
-                    </div>
-
-                    {/* Stats Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        {stats.map((stat, index) => (
-                            <div key={index} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm font-medium text-gray-500">{stat.title}</p>
-                                    <p className="text-2xl font-bold text-gray-800 mt-1">{stat.value}</p>
-                                </div>
-                                <div className={`p-3 rounded-lg ${stat.color}`}>
-                                    {stat.icon}
-                                </div>
-                            </div>
-                        ))}
+                        <h1 className="text-3xl font-bold text-gray-800">User Management</h1>
+                        <p className="text-gray-500 mt-1">Manage client accounts and permissions.</p>
                     </div>
 
                     {/* Client Management Section */}
@@ -1117,14 +1397,21 @@ const App: FC = () => {
         switch (currentPage) {
             case 'login': return <LoginPage showToast={showToast} setAuthError={setAuthError} authError={authError} onLoginSuccess={async (session) => {
                 const activeSession = session || (await supabase.auth.getSession()).data.session;
-                if (activeSession?.user?.email?.endsWith('@auctaveexports.com')) {
-                    if (!activeSession?.user?.user_metadata?.password_set) {
-                        handleSetCurrentPage('createPassword');
+                
+                if (activeSession?.user) {
+                    setUser(activeSession.user);
+                    const isUserAdmin = activeSession.user.email?.toLowerCase().endsWith('@auctaveexports.com');
+                    setIsAdmin(!!isUserAdmin);
+
+                    if (isUserAdmin) {
+                        if (!activeSession.user.user_metadata?.password_set) {
+                            handleSetCurrentPage('createPassword');
+                        } else {
+                            handleSetCurrentPage('adminDashboard');
+                        }
                     } else {
-                        handleSetCurrentPage('adminDashboard');
+                        handleSetCurrentPage('sourcing');
                     }
-                } else {
-                    handleSetCurrentPage('sourcing');
                 }
             }} />;
             case 'profile': return <ProfilePage />;
@@ -1161,8 +1448,8 @@ const App: FC = () => {
             case 'quoteDetail': return <QuoteDetailPage />;
             case 'billing': return <BillingPage />;
             case 'adminDashboard': return <AdminDashboardPage />;
-            case 'adminClients': return <AdminDashboardPage />; // Reusing for now
-            case 'adminActivity': return <AdminDashboardPage />; // Reusing for now
+            case 'adminUsers': return <AdminUsersPage />;
+            case 'adminFactories': return <AdminFactoriesPage />;
             default: return <SourcingPage
                 {...layoutProps}
                 userProfile={userProfile}

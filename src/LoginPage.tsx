@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
-import { Mail, Phone, Chrome, ArrowRight, Lock, Globe, Shield, User, Key } from 'lucide-react';
+import { Mail, Phone, Chrome, ArrowRight, Lock, Globe, Shield, User, Key, RefreshCw } from 'lucide-react';
 
 interface LoginPageProps {
     showToast: (message: string, type?: 'success' | 'error') => void;
     setAuthError: (error: string) => void;
     authError: string;
-    onLoginSuccess?: (session?: any) => void;
+    onLoginSuccess?: (session?: any) => void | Promise<void>;
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, authError, onLoginSuccess }) => {
@@ -20,8 +20,20 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
     const [otp, setOtp] = useState('');
     const [isOtpSent, setIsOtpSent] = useState(false);
     const [isAdminOtpSent, setIsAdminOtpSent] = useState(false);
+    const [adminSignInMethod, setAdminSignInMethod] = useState<'password' | 'otp'>('password');
     const [loading, setLoading] = useState(false);
     const [submittedPhone, setSubmittedPhone] = useState('');
+    const [resendTimer, setResendTimer] = useState(0);
+
+    useEffect(() => {
+        let interval: any;
+        if (resendTimer > 0) {
+            interval = setInterval(() => {
+                setResendTimer((prev) => prev - 1);
+            }, 1000);
+        }
+        return () => clearInterval(interval);
+    }, [resendTimer]);
 
     const countryCodes = [
         { code: '+1', label: 'US/CA' },
@@ -58,9 +70,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
     const handleUserEmailSignIn = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
+        const normalizedEmail = email.toLowerCase().trim();
         // User Magic Link Login
         const { error } = await supabase.auth.signInWithOtp({
-            email,
+            email: normalizedEmail,
             options: {
                 emailRedirectTo: window.location.origin,
             }
@@ -78,40 +91,92 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
     const handleAdminSignIn = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
+        setAuthError('');
 
-        if (!email.endsWith('@auctaveexports.com')) {
-            setAuthError('Admin access is restricted to @auctaveexports.com emails.');
-            showToast('Invalid admin email domain', 'error');
-            setLoading(false);
-            return;
-        }
+        try {
+            const normalizedEmail = email.toLowerCase().trim();
 
-        const { data, error } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-        });
+            if (!normalizedEmail.endsWith('@auctaveexports.com')) {
+                throw new Error('Admin access is restricted to @auctaveexports.com emails.');
+            }
 
-        if (error) {
+            if (adminSignInMethod === 'password') {
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email: normalizedEmail,
+                    password,
+                });
+                if (error) throw error;
+                showToast('Signed in successfully!', 'success');
+                if (onLoginSuccess) await onLoginSuccess(data.session);
+            } else {
+                const { error } = await supabase.auth.signInWithOtp({
+                    email: normalizedEmail,
+                    options: {
+                        shouldCreateUser: false,
+                        emailRedirectTo: window.location.origin,
+                    }
+                });
+                if (error) throw error;
+                setIsAdminOtpSent(true);
+                setResendTimer(60);
+                setOtp('');
+                showToast('Magic link sent to your email!', 'success');
+            }
+        } catch (error: any) {
             setAuthError(error.message);
             showToast(error.message, 'error');
+        } finally {
             setLoading(false);
-        } else {
-            showToast('Signed in successfully!', 'success');
+        }
+    };
+
+    const handleResendAdminOtp = async () => {
+        if (resendTimer > 0 || loading) return;
+        setLoading(true);
+        try {
+            const normalizedEmail = email.toLowerCase().trim();
+            const options = adminMode === 'signin' 
+                ? { shouldCreateUser: false, emailRedirectTo: window.location.origin }
+                : { shouldCreateUser: true, data: { password_set: false }, emailRedirectTo: window.location.origin };
+
+            const { error } = await supabase.auth.signInWithOtp({
+                email: normalizedEmail,
+                options
+            });
+            
+            if (error) throw error;
+            setResendTimer(60);
+            showToast('Link resent successfully!', 'success');
+        } catch (error: any) {
+            showToast(error.message, 'error');
+        } finally {
             setLoading(false);
-            if (onLoginSuccess) onLoginSuccess(data.session);
         }
     };
 
     const handleAdminSignUp = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
+        setAuthError('');
+
         try {
-            if (!email.endsWith('@auctaveexports.com')) {
+            const normalizedEmail = email.toLowerCase().trim();
+            if (!normalizedEmail.endsWith('@auctaveexports.com')) {
                 throw new Error('Admin access is restricted to @auctaveexports.com emails.');
             }
 
+            // Check if account exists by attempting sign-in with user creation disabled
+            const checkResult = await supabase.auth.signInWithOtp({
+                email: normalizedEmail,
+                options: { shouldCreateUser: false }
+            });
+
+            if (!checkResult.error) {
+                throw new Error('Account already exists. Please sign in.');
+            }
+
             const { error } = await supabase.auth.signInWithOtp({
-                email,
+                email: normalizedEmail,
                 options: {
                     shouldCreateUser: true,
                     data: { password_set: false },
@@ -122,6 +187,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
             if (error) throw error;
 
             setIsAdminOtpSent(true);
+            setResendTimer(60);
+            setOtp('');
             showToast('Email verification link sent to your email!', 'success');
             setAuthError('');
         } catch (error: any) {
@@ -135,11 +202,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
     const handleVerifyAdminOtp = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
+        setAuthError('');
+
         try {
             const token = otp.trim();
-            // For admin signup, the OTP type is 'signup'. We try this first.
+            const normalizedEmail = email.toLowerCase().trim();
             let { data, error } = await supabase.auth.verifyOtp({
-                email,
+                email: normalizedEmail,
                 token,
                 type: 'signup',
             });
@@ -149,7 +218,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
             if (error) {
                 // Try 'email' type (Magic Link OTP) - likely if user exists
                 const emailResult = await supabase.auth.verifyOtp({
-                    email,
+                    email: normalizedEmail,
                     token,
                     type: 'email',
                 });
@@ -159,7 +228,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
                     error = null;
                 } else {
                     const recoveryResult = await supabase.auth.verifyOtp({
-                        email,
+                        email: normalizedEmail,
                         token,
                         type: 'recovery',
                     });
@@ -183,8 +252,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
             }
 
             showToast('Verified successfully!', 'success');
-            setLoading(false);
-            if (onLoginSuccess) onLoginSuccess(session);
+            if (onLoginSuccess) await onLoginSuccess(session);
         } catch (error: any) {
             setLoading(false);
             setAuthError(error.message);
@@ -269,6 +337,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
                     {authError && (
                         <div className="mb-6 p-4 bg-red-50 border border-red-100 text-red-600 rounded-lg text-sm">
                             {authError}
+                            {authError.includes('already exists') && (
+                                <button onClick={() => { setAdminMode('signin'); setAuthError(''); }} className="block mt-2 font-bold underline hover:text-red-800">
+                                    Go to Sign In
+                                </button>
+                            )}
                         </div>
                     )}
 
@@ -361,46 +434,137 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
                             </div>
 
                             {adminMode === 'signin' ? (
-                                <form onSubmit={handleAdminSignIn} className="space-y-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-                                        <div className="relative">
-                                            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                                            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all" placeholder="admin@auctaveexports.com" />
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                                        <div className="relative">
-                                            <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                                            <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all" placeholder="Enter your password" />
-                                        </div>
-                                    </div>
-                                    <button type="submit" disabled={loading} className="w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-70">
-                                        {loading ? 'Signing In...' : 'Sign In'} <ArrowRight size={20} />
-                                    </button>
-                                </form>
-                            ) : (
                                 isAdminOtpSent ? (
-                                    <div className="text-center py-6">
-                                        <div className="mx-auto w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mb-4">
-                                            <Mail className="w-8 h-8 text-purple-600" />
+                                    <form onSubmit={handleVerifyAdminOtp} className="space-y-4">
+                                        <div className="text-center mb-6">
+                                            <div className="mx-auto w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mb-4">
+                                                <Mail className="w-8 h-8 text-purple-600" />
+                                            </div>
+                                            <h3 className="text-xl font-bold text-gray-900 mb-2">Verify your email</h3>
+                                            <p className="text-gray-600">
+                                                Enter the 6-digit code sent to <br/>
+                                                <span className="font-semibold text-gray-900">{email}</span>
+                                            </p>
                                         </div>
-                                        <h3 className="text-xl font-bold text-gray-900 mb-2">Check your email</h3>
-                                        <p className="text-gray-600 mb-6">
-                                            We've sent a confirmation link to <br/>
-                                            <span className="font-semibold text-gray-900">{email}</span>
-                                        </p>
-                                        <p className="text-sm text-gray-500 mb-6">
-                                            Click the link in the email to verify your account and set your password.
-                                        </p>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Verification Code</label>
+                                            <div className="relative">
+                                                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                                                <input type="text" required value={otp} onChange={(e) => setOtp(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all tracking-widest text-lg text-center" placeholder="000000" maxLength={6} />
+                                            </div>
+                                        </div>
+                                        <button type="submit" disabled={loading || otp.length !== 6} className="w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-70">
+                                            {loading ? 'Verifying...' : 'Verify & Sign In'} <ArrowRight size={20} />
+                                        </button>
+                                        <button type="button" onClick={() => setIsAdminOtpSent(false)} className="w-full text-purple-600 font-semibold hover:text-purple-700 text-sm flex items-center justify-center gap-1 mt-4">
+                                            <ArrowRight className="rotate-180" size={16} /> Back to Sign In
+                                        </button>
+                                        <div className="mt-6 pt-6 border-t border-gray-100 text-center">
+                                            <p className="text-sm text-gray-500 mb-3">Didn't receive the email?</p>
+                                            <button 
+                                                type="button"
+                                                onClick={handleResendAdminOtp}
+                                                disabled={resendTimer > 0 || loading}
+                                                className="text-gray-600 hover:text-purple-600 text-sm font-medium flex items-center justify-center gap-2 mx-auto disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                            >
+                                                <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+                                                {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend Magic Link'}
+                                            </button>
+                                        </div>
+                                    </form>
+                                ) : (
+                                    <>
+                                    <form onSubmit={handleAdminSignIn} className="space-y-4">
+                                        <div className="flex gap-4 mb-4">
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <input type="radio" name="authMethod" checked={adminSignInMethod === 'password'} onChange={() => setAdminSignInMethod('password')} className="text-purple-600 focus:ring-purple-500" />
+                                                <span className="text-sm font-medium text-gray-700">Password</span>
+                                            </label>
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <input type="radio" name="authMethod" checked={adminSignInMethod === 'otp'} onChange={() => setAdminSignInMethod('otp')} className="text-purple-600 focus:ring-purple-500" />
+                                                <span className="text-sm font-medium text-gray-700">One-Time Password</span>
+                                            </label>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                                            <div className="relative">
+                                                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                                                <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all" placeholder="admin@auctaveexports.com" />
+                                            </div>
+                                        </div>
+                                        {adminSignInMethod === 'password' && (
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                                                <div className="relative">
+                                                    <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                                                    <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all" placeholder="Enter your password" />
+                                                </div>
+                                            </div>
+                                        )}
+                                        <button type="submit" disabled={loading} className="w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-70">
+                                            {loading ? (adminSignInMethod === 'password' ? 'Signing In...' : 'Sending Link...') : (adminSignInMethod === 'password' ? 'Sign In' : 'Send Magic Link')} <ArrowRight size={20} />
+                                        </button>
+                                    </form>
+                                    <div className="mt-4 pt-4 border-t border-gray-100">
                                         <button 
-                                            onClick={() => setIsAdminOtpSent(false)}
-                                            className="text-purple-600 font-semibold hover:text-purple-700 text-sm flex items-center justify-center gap-1 mx-auto"
+                                            type="button"
+                                            onClick={() => {
+                                                if (onLoginSuccess) {
+                                                    onLoginSuccess({
+                                                        user: {
+                                                            id: 'dev-admin',
+                                                            email: 'admin@auctaveexports.com',
+                                                            user_metadata: { password_set: true }
+                                                        }
+                                                    });
+                                                }
+                                            }}
+                                            className="w-full bg-gray-800 text-white font-bold py-3 px-4 rounded-xl hover:bg-gray-900 transition-colors flex items-center justify-center gap-2"
                                         >
-                                            <ArrowRight className="rotate-180" size={16} /> Back to Sign Up
+                                            <Shield size={20} /> Test Admin Access (Bypass)
                                         </button>
                                     </div>
+                                    </>
+                                )
+                            ) : (
+                                isAdminOtpSent ? (
+                                    <form onSubmit={handleVerifyAdminOtp} className="space-y-4">
+                                        <div className="text-center mb-6">
+                                            <div className="mx-auto w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mb-4">
+                                                <Mail className="w-8 h-8 text-purple-600" />
+                                            </div>
+                                            <h3 className="text-xl font-bold text-gray-900 mb-2">Verify your email</h3>
+                                            <p className="text-gray-600">
+                                                Enter the 6-digit code sent to <br/>
+                                                <span className="font-semibold text-gray-900">{email}</span>
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Verification Code</label>
+                                            <div className="relative">
+                                                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                                                <input type="text" required value={otp} onChange={(e) => setOtp(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all tracking-widest text-lg text-center" placeholder="000000" maxLength={6} />
+                                            </div>
+                                        </div>
+                                        <button type="submit" disabled={loading || otp.length !== 6} className="w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-70">
+                                            {loading ? 'Verifying...' : 'Verify & Sign Up'} <ArrowRight size={20} />
+                                        </button>
+                                        <button type="button" onClick={() => setIsAdminOtpSent(false)} className="w-full text-purple-600 font-semibold hover:text-purple-700 text-sm flex items-center justify-center gap-1 mt-4">
+                                            <ArrowRight className="rotate-180" size={16} /> Back to Sign Up
+                                        </button>
+                                        <div className="mt-6 pt-6 border-t border-gray-100 text-center">
+                                            <p className="text-sm text-gray-500 mb-3">Didn't receive the email?</p>
+                                            <button 
+                                                type="button"
+                                                onClick={handleResendAdminOtp}
+                                                disabled={resendTimer > 0 || loading}
+                                                className="text-gray-600 hover:text-purple-600 text-sm font-medium flex items-center justify-center gap-2 mx-auto disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                            >
+                                                <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+                                                {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend Verification Link'}
+                                            </button>
+                                        </div>
+                                    </form>
                                 ) : (
                                     <form onSubmit={handleAdminSignUp} className="space-y-4">
                                         <div>
