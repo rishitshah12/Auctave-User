@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Supabase Connection Test</title>
+    <style>
+        body { font-family: Arial; padding: 20px; max-width: 800px; margin: 0 auto; }
+        .test { margin: 20px 0; padding: 15px; border-radius: 8px; }
+        .success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .pending { background: #fff3cd; border: 1px solid #ffeaa7; color: #856404; }
+        button { padding: 10px 20px; margin: 10px 5px; cursor: pointer; }
+        pre { background: #f5f5f5; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Supabase Connection Diagnostics</h1>
+    
+    <div id="test1" class="test pending">
+        <h3>Test 1: Basic Network Connectivity</h3>
+        <p>Testing if browser can reach Supabase...</p>
+        <div id="test1-result"></div>
+    </div>
+
+    <div id="test2" class="test pending">
+        <h3>Test 2: Supabase Auth Health</h3>
+        <p>Testing Supabase auth endpoint...</p>
+        <div id="test2-result"></div>
+    </div>
+
+    <div id="test3" class="test pending">
+        <h3>Test 3: CORS Check</h3>
+        <p>Testing if CORS is configured correctly...</p>
+        <div id="test3-result"></div>
+    </div>
+
+    <button onclick="runTests()">Run Tests Again</button>
+    <button onclick="testSignup()">Test Signup Directly</button>
+
+    <div id="signup-test" style="margin-top: 20px;"></div>
+
+    <script type="module">
+        const SUPABASE_URL = 'https://nhvbnfpzykdokqcnljth.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5odmJuZnB6eWtkb2txY25sanRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc2MDYxODUsImV4cCI6MjA4MzE4MjE4NX0.BYzfvjZlE2ppW7JKC8yU-WrG4m8gfDprIonU96XK59U';
+
+        async function runTest(testId, testFn) {
+            const testDiv = document.getElementById(testId);
+            const resultDiv = document.getElementById(testId + '-result');
+            
+            try {
+                const result = await testFn();
+                testDiv.className = 'test success';
+                resultDiv.innerHTML = '✅ ' + result;
+            } catch (error) {
+                testDiv.className = 'test error';
+                resultDiv.innerHTML = '❌ ' + error.message + '<br><pre>' + JSON.stringify(error, null, 2) + '</pre>';
+            }
+        }
+
+        async function test1() {
+            const response = await fetch(SUPABASE_URL);
+            if (!response.ok) {
+                return `Connected! Status: ${response.status} (This is expected - Supabase is reachable)`;
+            }
+            return 'Connected successfully';
+        }
+
+        async function test2() {
+            const response = await fetch(`${SUPABASE_URL}/auth/v1/health`, {
+                headers: {
+                    'apikey': SUPABASE_KEY
+                }
+            });
+            
+            const status = response.status;
+            return `Auth endpoint reachable! Status: ${status}`;
+        }
+
+        async function test3() {
+            const response = await fetch(`${SUPABASE_URL}/rest/v1/`, {
+                headers: {
+                    'apikey': SUPABASE_KEY,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            return `CORS configured correctly! Status: ${response.status}`;
+        }
+
+        window.runTests = async function() {
+            await runTest('test1', test1);
+            await runTest('test2', test2);
+            await runTest('test3', test3);
+        };
+
+        window.testSignup = async function() {
+            const signupDiv = document.getElementById('signup-test');
+            signupDiv.innerHTML = '<div class="test pending"><h3>Testing Signup...</h3></div>';
+            
+            try {
+                const response = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': SUPABASE_KEY,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: 'test' + Date.now() + '@auctaveexports.com',
+                        password: 'TestPassword123!',
+                        options: {
+                            data: {
+                                password_set: false,
+                                is_admin: true
+                            }
+                        }
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    signupDiv.innerHTML = `
+                        <div class="test success">
+                            <h3>✅ Signup Works!</h3>
+                            <p>The signup endpoint is functioning correctly.</p>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                } else {
+                    signupDiv.innerHTML = `
+                        <div class="test error">
+                            <h3>⚠️ Signup Response (Status: ${response.status})</h3>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                signupDiv.innerHTML = `
+                    <div class="test error">
+                        <h3>❌ Signup Failed</h3>
+                        <p><strong>Error:</strong> ${error.message}</p>
+                        <p>This is the same error you're seeing in the app.</p>
+                        <h4>Most Likely Causes:</h4>
+                        <ul>
+                            <li><strong>Browser Extension:</strong> Ad blocker or privacy extension blocking the request</li>
+                            <li><strong>Network/Firewall:</strong> Corporate network or firewall blocking Supabase</li>
+                            <li><strong>VPN:</strong> VPN interfering with the connection</li>
+                        </ul>
+                    </div>
+                `;
+            }
+        };
+
+        // Run tests automatically on load
+        window.addEventListener('load', () => {
+            runTests();
+        });
+    </script>
+</body>
+</html>

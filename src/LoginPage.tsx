@@ -1,20 +1,25 @@
 import React, { useState } from 'react';
 import { supabase } from './supabaseClient';
-import { Mail, Phone, Chrome, ArrowRight, Lock, Globe } from 'lucide-react';
+import { Mail, Phone, Chrome, ArrowRight, Lock, Globe, Shield, User, Key } from 'lucide-react';
 
 interface LoginPageProps {
     showToast: (message: string, type?: 'success' | 'error') => void;
     setAuthError: (error: string) => void;
     authError: string;
+    onLoginSuccess?: (session?: any) => void;
 }
 
-export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, authError }) => {
+export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, authError, onLoginSuccess }) => {
+    const [loginType, setLoginType] = useState<'user' | 'admin'>('user');
+    const [adminMode, setAdminMode] = useState<'signin' | 'signup'>('signin');
     const [method, setMethod] = useState<'email' | 'phone'>('email');
     const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
     const [phone, setPhone] = useState('');
     const [countryCode, setCountryCode] = useState('+1');
     const [otp, setOtp] = useState('');
     const [isOtpSent, setIsOtpSent] = useState(false);
+    const [isAdminOtpSent, setIsAdminOtpSent] = useState(false);
     const [loading, setLoading] = useState(false);
     const [submittedPhone, setSubmittedPhone] = useState('');
 
@@ -50,9 +55,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
         }
     };
 
-    const handleEmailSignIn = async (e: React.FormEvent) => {
+    const handleUserEmailSignIn = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
+        // User Magic Link Login
         const { error } = await supabase.auth.signInWithOtp({
             email,
             options: {
@@ -66,6 +72,123 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
         } else {
             showToast('Magic link sent to your email!', 'success');
             setAuthError('');
+        }
+    };
+
+    const handleAdminSignIn = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+
+        if (!email.endsWith('@auctaveexports.com')) {
+            setAuthError('Admin access is restricted to @auctaveexports.com emails.');
+            showToast('Invalid admin email domain', 'error');
+            setLoading(false);
+            return;
+        }
+
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+        });
+
+        if (error) {
+            setAuthError(error.message);
+            showToast(error.message, 'error');
+            setLoading(false);
+        } else {
+            showToast('Signed in successfully!', 'success');
+            setLoading(false);
+            if (onLoginSuccess) onLoginSuccess(data.session);
+        }
+    };
+
+    const handleAdminSignUp = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            if (!email.endsWith('@auctaveexports.com')) {
+                throw new Error('Admin access is restricted to @auctaveexports.com emails.');
+            }
+
+            const { error } = await supabase.auth.signInWithOtp({
+                email,
+                options: {
+                    shouldCreateUser: true,
+                    data: { password_set: false },
+                    emailRedirectTo: window.location.origin
+                }
+            });
+
+            if (error) throw error;
+
+            setIsAdminOtpSent(true);
+            showToast('Email verification link sent to your email!', 'success');
+            setAuthError('');
+        } catch (error: any) {
+            setAuthError(error.message);
+            showToast(error.message, 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleVerifyAdminOtp = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            const token = otp.trim();
+            // For admin signup, the OTP type is 'signup'. We try this first.
+            let { data, error } = await supabase.auth.verifyOtp({
+                email,
+                token,
+                type: 'signup',
+            });
+
+            // If 'signup' fails, it might be because the user already exists.
+            // Supabase might send a 'recovery' OTP in that case. Let's try that as a fallback.
+            if (error) {
+                // Try 'email' type (Magic Link OTP) - likely if user exists
+                const emailResult = await supabase.auth.verifyOtp({
+                    email,
+                    token,
+                    type: 'email',
+                });
+
+                if (!emailResult.error) {
+                    data = emailResult.data;
+                    error = null;
+                } else {
+                    const recoveryResult = await supabase.auth.verifyOtp({
+                        email,
+                        token,
+                        type: 'recovery',
+                    });
+                    if (!recoveryResult.error) {
+                        data = recoveryResult.data;
+                        error = null;
+                    }
+                }
+            }
+
+            if (error) throw error;
+
+            let session = data?.session;
+            if (!session) {
+                const { data: localData } = await supabase.auth.getSession();
+                session = localData.session;
+            }
+
+            if (!session) {
+                throw new Error("Could not establish a session after OTP verification.");
+            }
+
+            showToast('Verified successfully!', 'success');
+            setLoading(false);
+            if (onLoginSuccess) onLoginSuccess(session);
+        } catch (error: any) {
+            setLoading(false);
+            setAuthError(error.message);
+            showToast(error.message, 'error');
         }
     };
 
@@ -98,17 +221,27 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
     const handleVerifyOtp = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
-        const { error } = await supabase.auth.verifyOtp({
-            phone: submittedPhone,
-            token: otp,
-            type: 'sms',
-        });
-        setLoading(false);
-        if (error) {
+        try {
+            const { data, error } = await supabase.auth.verifyOtp({
+                phone: submittedPhone,
+                token: otp,
+                type: 'sms',
+            });
+            if (error) throw error;
+
+            let session = data?.session;
+            if (!session) {
+                const { data: localData } = await supabase.auth.getSession();
+                session = localData.session;
+            }
+
+            showToast('Phone verified successfully!', 'success');
+            setLoading(false);
+            if (onLoginSuccess) onLoginSuccess(session);
+        } catch (error: any) {
+            setLoading(false);
             setAuthError(error.message);
             showToast(error.message, 'error');
-        } else {
-            showToast('Phone verified successfully!', 'success');
         }
     };
 
@@ -116,7 +249,19 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
         <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
             <div className="max-w-md w-full bg-white rounded-2xl shadow-xl overflow-hidden">
                 <div className="p-8">
-                    <div className="text-center mb-8">
+                    {/* Login Type Tabs */}
+                    <div className="flex p-1 bg-gray-100 rounded-xl mb-8">
+                        <button onClick={() => { setLoginType('user'); setAuthError(''); }} className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2 ${loginType === 'user' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
+                            <User size={16} />
+                            User
+                        </button>
+                        <button onClick={() => { setLoginType('admin'); setAuthError(''); setAdminMode('signin'); }} className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2 ${loginType === 'admin' ? 'bg-white shadow-sm text-purple-700' : 'text-gray-500 hover:text-gray-700'}`}>
+                            <Shield size={16} />
+                            Admin
+                        </button>
+                    </div>
+
+                    <div className="text-center mb-6">
                         <h1 className="text-3xl font-bold text-gray-900">Welcome Back</h1>
                         <p className="text-gray-500 mt-2">Sign in to access your sourcing dashboard</p>
                     </div>
@@ -127,67 +272,149 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
                         </div>
                     )}
 
-                    <button onClick={handleGoogleSignIn} disabled={loading} className="w-full flex items-center justify-center gap-3 bg-white border border-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-xl hover:bg-gray-50 transition-colors mb-6">
-                        <Chrome size={20} className="text-blue-500" /> Sign in with Google
-                    </button>
+                    {loginType === 'user' && (
+                        <>
+                            <button onClick={handleGoogleSignIn} disabled={loading} className="w-full flex items-center justify-center gap-3 bg-white border border-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-xl hover:bg-gray-50 transition-colors mb-6">
+                                <Chrome size={20} className="text-blue-500" /> Sign in with Google
+                            </button>
 
-                    <div className="relative mb-6">
-                        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200"></div></div>
-                        <div className="relative flex justify-center text-sm"><span className="px-2 bg-white text-gray-500">Or continue with</span></div>
-                    </div>
-
-                    <div className="flex p-1 bg-gray-100 rounded-xl mb-6">
-                        <button onClick={() => { setMethod('email'); setIsOtpSent(false); setAuthError(''); }} className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${method === 'email' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Email</button>
-                        <button onClick={() => { setMethod('phone'); setIsOtpSent(false); setAuthError(''); }} className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${method === 'phone' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Mobile</button>
-                    </div>
-
-                    {method === 'email' ? (
-                        <form onSubmit={handleEmailSignIn} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-                                <div className="relative">
-                                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                                    <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all" placeholder="you@company.com" />
-                                </div>
+                            <div className="relative mb-6">
+                                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200"></div></div>
+                                <div className="relative flex justify-center text-sm"><span className="px-2 bg-white text-gray-500">Or continue with</span></div>
                             </div>
-                            <button type="submit" disabled={loading} className="w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-70">{loading ? 'Sending...' : 'Send Login Link'} <ArrowRight size={20} /></button>
-                        </form>
-                    ) : (
-                        <div className="space-y-4">
-                            {!isOtpSent ? (
-                                <form onSubmit={handlePhoneSignIn} className="space-y-4">
+
+                            <div className="flex p-1 bg-gray-100 rounded-xl mb-6">
+                                <button onClick={() => { setMethod('email'); setIsOtpSent(false); setAuthError(''); }} className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${method === 'email' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Email</button>
+                                <button onClick={() => { setMethod('phone'); setIsOtpSent(false); setAuthError(''); }} className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${method === 'phone' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Mobile</button>
+                            </div>
+
+                            {method === 'email' ? (
+                                <form onSubmit={handleUserEmailSignIn} className="space-y-4">
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Mobile Number</label>
-                                        <div className="flex gap-2">
-                                            <div className="relative w-1/3">
-                                                <select value={countryCode} onChange={(e) => setCountryCode(e.target.value)} disabled={isOtpSent} className="w-full appearance-none bg-white border border-gray-200 text-gray-700 py-3 pl-3 pr-8 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:bg-gray-100">
-                                                    {countryCodes.map((c) => (<option key={c.code} value={c.code}>{c.code} ({c.label})</option>))}
-                                                </select>
-                                                <Globe className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
-                                            </div>
-                                            <div className="relative flex-1">
-                                                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                                                <input type="tel" required value={phone} onChange={(e) => setPhone(e.target.value)} disabled={isOtpSent} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all disabled:bg-gray-100" placeholder="Mobile Number" />
-                                            </div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                                        <div className="relative">
+                                            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                                            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all" placeholder="you@company.com" />
                                         </div>
                                     </div>
-                                    <button type="submit" disabled={loading} className="w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-70">{loading ? 'Sending...' : 'Get Verification Code'} <ArrowRight size={20} /></button>
+                                    <button type="submit" disabled={loading} className="w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-70">
+                                        {loading ? 'Processing...' : 'Send Login Link'} <ArrowRight size={20} />
+                                    </button>
                                 </form>
                             ) : (
-                                <form onSubmit={handleVerifyOtp} className="space-y-4">
-                                    <div className="text-center mb-4">
-                                        <p className="text-sm text-gray-600">Enter the code sent to {submittedPhone}</p>
-                                        <button type="button" onClick={() => setIsOtpSent(false)} className="text-xs text-purple-600 hover:underline mt-1">Change Number</button>
-                                    </div>
+                                <div className="space-y-4">
+                                    {!isOtpSent ? (
+                                        <form onSubmit={handlePhoneSignIn} className="space-y-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Mobile Number</label>
+                                                <div className="flex gap-2">
+                                                    <div className="relative w-1/3">
+                                                        <select value={countryCode} onChange={(e) => setCountryCode(e.target.value)} disabled={isOtpSent} className="w-full appearance-none bg-white border border-gray-200 text-gray-700 py-3 pl-3 pr-8 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:bg-gray-100">
+                                                            {countryCodes.map((c) => (<option key={c.code} value={c.code}>{c.code} ({c.label})</option>))}
+                                                        </select>
+                                                        <Globe className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+                                                    </div>
+                                                    <div className="relative flex-1">
+                                                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                                                        <input type="tel" required value={phone} onChange={(e) => setPhone(e.target.value)} disabled={isOtpSent} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all disabled:bg-gray-100" placeholder="Mobile Number" />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <button type="submit" disabled={loading} className="w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-70">{loading ? 'Sending...' : 'Get Verification Code'} <ArrowRight size={20} /></button>
+                                        </form>
+                                    ) : (
+                                        <form onSubmit={handleVerifyOtp} className="space-y-4">
+                                            <div className="text-center mb-4">
+                                                <p className="text-sm text-gray-600">Enter the code sent to {submittedPhone}</p>
+                                                <button type="button" onClick={() => setIsOtpSent(false)} className="text-xs text-purple-600 hover:underline mt-1">Change Number</button>
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Verification Code</label>
+                                                <div className="relative">
+                                                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                                                    <input type="text" required value={otp} onChange={(e) => setOtp(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all tracking-widest text-lg" placeholder="Enter code" maxLength={6} />
+                                                </div>
+                                            </div>
+                                            <button type="submit" disabled={loading} className="w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-70">{loading ? 'Verifying...' : 'Verify & Sign In'} <ArrowRight size={20} /></button>
+                                        </form>
+                                    )}
+                                </div>
+                            )}
+                        </>
+                    )}
+
+                    {loginType === 'admin' && (
+                        <div>
+                            <div className="flex border-b border-gray-200 mb-6">
+                                <button 
+                                    className={`flex-1 pb-2 text-sm font-medium ${adminMode === 'signin' ? 'border-b-2 border-purple-600 text-purple-600' : 'text-gray-500'}`}
+                                    onClick={() => { setAdminMode('signin'); setIsAdminOtpSent(false); setAuthError(''); }}
+                                >
+                                    Sign In
+                                </button>
+                                <button 
+                                    className={`flex-1 pb-2 text-sm font-medium ${adminMode === 'signup' ? 'border-b-2 border-purple-600 text-purple-600' : 'text-gray-500'}`}
+                                    onClick={() => { setAdminMode('signup'); setIsAdminOtpSent(false); setAuthError(''); }}
+                                >
+                                    Sign Up
+                                </button>
+                            </div>
+
+                            {adminMode === 'signin' ? (
+                                <form onSubmit={handleAdminSignIn} className="space-y-4">
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Verification Code</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
                                         <div className="relative">
-                                            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                                            <input type="text" required value={otp} onChange={(e) => setOtp(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all tracking-widest text-lg" placeholder="Enter code" maxLength={6} />
+                                            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                                            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all" placeholder="admin@auctaveexports.com" />
                                         </div>
                                     </div>
-                                    <button type="submit" disabled={loading} className="w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-70">{loading ? 'Verifying...' : 'Verify & Sign In'} <ArrowRight size={20} /></button>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                                        <div className="relative">
+                                            <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                                            <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all" placeholder="Enter your password" />
+                                        </div>
+                                    </div>
+                                    <button type="submit" disabled={loading} className="w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-70">
+                                        {loading ? 'Signing In...' : 'Sign In'} <ArrowRight size={20} />
+                                    </button>
                                 </form>
+                            ) : (
+                                isAdminOtpSent ? (
+                                    <div className="text-center py-6">
+                                        <div className="mx-auto w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mb-4">
+                                            <Mail className="w-8 h-8 text-purple-600" />
+                                        </div>
+                                        <h3 className="text-xl font-bold text-gray-900 mb-2">Check your email</h3>
+                                        <p className="text-gray-600 mb-6">
+                                            We've sent a confirmation link to <br/>
+                                            <span className="font-semibold text-gray-900">{email}</span>
+                                        </p>
+                                        <p className="text-sm text-gray-500 mb-6">
+                                            Click the link in the email to verify your account and set your password.
+                                        </p>
+                                        <button 
+                                            onClick={() => setIsAdminOtpSent(false)}
+                                            className="text-purple-600 font-semibold hover:text-purple-700 text-sm flex items-center justify-center gap-1 mx-auto"
+                                        >
+                                            <ArrowRight className="rotate-180" size={16} /> Back to Sign Up
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <form onSubmit={handleAdminSignUp} className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                                            <div className="relative">
+                                                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                                                <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all" placeholder="admin@auctaveexports.com" />
+                                            </div>
+                                        </div>
+                                        <button type="submit" disabled={loading} className="w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-70">
+                                            {loading ? 'Sending Link...' : 'Send Verification Link'} <ArrowRight size={20} />
+                                        </button>
+                                    </form>
+                                )
                             )}
                         </div>
                     )}

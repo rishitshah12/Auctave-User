@@ -5,8 +5,8 @@ import {
     ChevronRight, ChevronDown, X, Bot, Send, CheckCircle, Shirt,
     BadgePercent, BrainCircuit, MessageSquare, ClipboardCopy, FileText, DollarSign,
     GanttChartSquare, LayoutDashboard, MoreHorizontal, Info, Settings, LifeBuoy,
-    History, Edit, Anchor, Ship, Warehouse, PackageCheck, Award,
-    PlayCircle, BarChart as BarChartIcon, FileQuestion, ClipboardCheck,
+    History, Edit, Anchor, Ship, Warehouse, PackageCheck, Award, Users, Activity, Shield,
+    PlayCircle, BarChart as BarChartIcon, FileQuestion, ClipboardCheck, Lock,
     Tag, Weight, Palette, Box, Map as MapIcon, Download, BookOpen
 } from 'lucide-react';
 import {
@@ -65,6 +65,7 @@ const App: FC = () => {
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
     const [toast, setToast] = useState<ToastState>({ show: false, message: '', type: 'success' });
     const [pageKey, setPageKey] = useState<number>(0);
+    const [isAdmin, setIsAdmin] = useState<boolean>(false);
 
     // --- App Logic & Data States ---
     const [orderFormData, setOrderFormData] = useState<OrderFormData>({
@@ -135,10 +136,23 @@ const App: FC = () => {
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
             try {
                 setUser(session?.user ?? null);
+                
+                // Check for Admin Domain
+                const isUserAdmin = !!session?.user?.email?.endsWith('@auctaveexports.com');
+                setIsAdmin(isUserAdmin);
+
                 if (session?.user) {
-                    // Fetch profile from Supabase
+                    // 1. Force password creation for new admins before profile check
+                    if (isUserAdmin && !session.user.user_metadata?.password_set && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN')) {
+                        setCurrentPage('createPassword');
+                        setIsAuthReady(true);
+                        return;
+                    }
+
+                    // Fetch profile from Supabase (admins or clients table)
+                    const tableName = isUserAdmin ? 'admins' : 'clients';
                     const { data, error } = await supabase
-                        .from('profiles')
+                        .from(tableName)
                         .select('*')
                         .eq('id', session.user.id)
                         .single();
@@ -154,8 +168,9 @@ const App: FC = () => {
                             categorySpecialization: data.category_specialization,
                             yearlyEstRevenue: data.yearly_est_revenue
                         } as UserProfile);
+                        
                         if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
-                            setCurrentPage('sourcing');
+                            setCurrentPage(isUserAdmin ? 'adminDashboard' : 'sourcing');
                         }
                     } else {
                         if (error && error.code !== 'PGRST116') {
@@ -184,9 +199,11 @@ const App: FC = () => {
     // --- Connection Test ---
     useEffect(() => {
         const testConnection = async () => {
-            const { error } = await supabase.from('factories').select('count', { count: 'exact', head: true });
+            // Test connection by checking if we can reach the Supabase instance
+            const { error } = await supabase.from('clients').select('count', { count: 'exact', head: true });
             if (error) {
-                console.error('❌ Supabase connection failed:', error.message);
+                // It might fail if table doesn't exist yet, which is expected on fresh start
+                console.log('Supabase connection check:', error.message);
             } else {
                 console.log('✅ Supabase connection successful!');
             }
@@ -211,6 +228,7 @@ const App: FC = () => {
         await supabase.auth.signOut();
         setUser(null);
         setUserProfile(null);
+        setIsAdmin(false);
         handleSetCurrentPage('login');
     };
 
@@ -231,19 +249,20 @@ const App: FC = () => {
             updated_at: new Date().toISOString(),
         };
 
-        const { error } = await supabase.from('profiles').upsert(updates);
+        const tableName = isAdmin ? 'admins' : 'clients';
+        const { error } = await supabase.from(tableName).upsert(updates);
 
         if (error) {
             console.error("Profile save error:", error);
             if (error.message.includes("Could not find the table") || error.code === '42P01') {
-                showToast("Setup Error: 'profiles' table missing. Run the SQL script in Supabase.", 'error');
+                showToast(`Setup Error: '${tableName}' table missing. Run the SQL script in Supabase.`, 'error');
             } else {
                 showToast(error.message, 'error');
             }
         } else {
             setUserProfile(prev => ({ ...prev, ...profileData } as UserProfile));
             showToast('Profile saved successfully!');
-            handleSetCurrentPage('sourcing');
+            handleSetCurrentPage(isAdmin ? 'adminDashboard' : 'sourcing');
         }
         setIsProfileLoading(false);
     };
@@ -330,7 +349,59 @@ const App: FC = () => {
         toggleMenu,
         setIsSidebarCollapsed,
         handleSetCurrentPage,
-        handleSignOut
+        handleSignOut,
+        isAdmin
+    };
+
+    const CreatePasswordPage: FC = () => {
+        const [newPassword, setNewPassword] = useState('');
+        const [confirmPassword, setConfirmPassword] = useState('');
+        const [loading, setLoading] = useState(false);
+
+        const handleSavePassword = async (e: React.FormEvent) => {
+            e.preventDefault();
+            if (newPassword !== confirmPassword) {
+                showToast("Passwords do not match.", "error");
+                return;
+            }
+            if (newPassword.length < 6) {
+                showToast("Password must be at least 6 characters.", "error");
+                return;
+            }
+            setLoading(true);
+            const { error } = await supabase.auth.updateUser({ 
+                password: newPassword,
+                data: { password_set: true }
+            });
+            setLoading(false);
+            if (error) {
+                showToast(error.message, "error");
+            } else {
+                showToast("Password set successfully! You can now login with password.", "success");
+                handleSetCurrentPage('adminDashboard');
+            }
+        };
+
+        return (
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md">
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="p-2 bg-purple-100 rounded-lg">
+                            <Lock className="w-6 h-6 text-purple-600" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-gray-800">Create New Password</h2>
+                    </div>
+                    <p className="text-gray-600 mb-6">
+                        Since this is your first time signing in (or you used a one-time code), please set a secure password for future logins.
+                    </p>
+                    <form onSubmit={handleSavePassword} className="space-y-4">
+                        <div> <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label> <input type="password" required value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" /> </div>
+                        <div> <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label> <input type="password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" /> </div>
+                        <button type="submit" disabled={loading} className="w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-purple-700 transition-colors disabled:opacity-70"> {loading ? 'Saving...' : 'Create Password'} </button>
+                    </form>
+                </div>
+            </div>
+        );
     };
 
     const ProfilePage: FC = () => {
@@ -845,6 +916,198 @@ const App: FC = () => {
         )
     };
 
+    const AdminDashboardPage: FC = () => {
+        const [clients, setClients] = useState<any[]>([]);
+        const [isLoading, setIsLoading] = useState(true);
+        const [editingClient, setEditingClient] = useState<any>(null);
+        const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+        useEffect(() => {
+            const fetchClients = async () => {
+                setIsLoading(true);
+                const { data, error } = await supabase
+                    .from('clients')
+                    .select('*')
+                    .order('updated_at', { ascending: false });
+                
+                if (error) {
+                    console.error('Error fetching clients:', error);
+                    showToast('Failed to fetch clients', 'error');
+                } else {
+                    setClients(data || []);
+                }
+                setIsLoading(false);
+            };
+            fetchClients();
+        }, []);
+
+        const handleEditClick = (client: any) => {
+            setEditingClient(client);
+            setIsEditModalOpen(true);
+        };
+
+        const handleSaveClient = async (e: React.FormEvent) => {
+            e.preventDefault();
+            if (!editingClient) return;
+
+            const updates = {
+                name: editingClient.name,
+                company_name: editingClient.company_name,
+                phone: editingClient.phone,
+                country: editingClient.country,
+                job_role: editingClient.job_role,
+                category_specialization: editingClient.category_specialization,
+                yearly_est_revenue: editingClient.yearly_est_revenue,
+                updated_at: new Date().toISOString(),
+            };
+
+            const { error } = await supabase
+                .from('clients')
+                .update(updates)
+                .eq('id', editingClient.id);
+
+            if (error) {
+                showToast('Failed to update client: ' + error.message, 'error');
+            } else {
+                setClients(prev => prev.map(c => c.id === editingClient.id ? { ...c, ...updates } : c));
+                setIsEditModalOpen(false);
+                showToast('Client updated successfully');
+            }
+        };
+
+        const handleDeleteClient = async (id: string) => {
+             if (window.confirm('Are you sure you want to delete this client? This action cannot be undone.')) {
+                const { error } = await supabase.from('clients').delete().eq('id', id);
+                if (error) {
+                    showToast('Failed to delete client: ' + error.message, 'error');
+                } else {
+                    setClients(prev => prev.filter(c => c.id !== id));
+                    showToast('Client deleted successfully');
+                }
+             }
+        }
+
+        const stats = [
+            { title: 'Total Clients', value: clients.length.toString(), icon: <Users className="text-blue-600" />, color: 'bg-blue-100' },
+            { title: 'Active Orders', value: '342', icon: <Package className="text-purple-600" />, color: 'bg-purple-100' },
+            { title: 'Total Revenue', value: '$4.2M', icon: <DollarSign className="text-green-600" />, color: 'bg-green-100' },
+            { title: 'Platform Activity', value: 'High', icon: <Activity className="text-orange-600" />, color: 'bg-orange-100' },
+        ];
+
+        return (
+            <MainLayout {...layoutProps}>
+                <div className="space-y-8">
+                    <div>
+                        <h1 className="text-3xl font-bold text-gray-800">Admin Dashboard</h1>
+                        <p className="text-gray-500 mt-1">Overview of platform activity and client management.</p>
+                    </div>
+
+                    {/* Stats Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {stats.map((stat, index) => (
+                            <div key={index} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-gray-500">{stat.title}</p>
+                                    <p className="text-2xl font-bold text-gray-800 mt-1">{stat.value}</p>
+                                </div>
+                                <div className={`p-3 rounded-lg ${stat.color}`}>
+                                    {stat.icon}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Client Management Section */}
+                    <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
+                        <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+                            <h2 className="text-xl font-bold text-gray-800">Client Management</h2>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {isLoading ? (
+                                        <tr><td colSpan={5} className="px-6 py-4 text-center text-gray-500">Loading clients...</td></tr>
+                                    ) : clients.length === 0 ? (
+                                        <tr><td colSpan={5} className="px-6 py-4 text-center text-gray-500">No clients found.</td></tr>
+                                    ) : (
+                                        clients.map((client) => (
+                                            <tr key={client.id} className="hover:bg-gray-50">
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{client.name || 'N/A'}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{client.company_name || 'N/A'}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{client.email}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{client.job_role || 'N/A'}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                    <button onClick={() => handleEditClick(client)} className="text-indigo-600 hover:text-indigo-900 mr-4">Edit</button>
+                                                    <button onClick={() => handleDeleteClient(client.id)} className="text-red-600 hover:text-red-900">Delete</button>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Edit Client Modal */}
+                {isEditModalOpen && editingClient && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                        <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                            <h2 className="text-2xl font-bold mb-6">Edit Client</h2>
+                            <form onSubmit={handleSaveClient} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                                    <input type="text" value={editingClient.name || ''} onChange={e => setEditingClient({...editingClient, name: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
+                                    <input type="text" value={editingClient.company_name || ''} onChange={e => setEditingClient({...editingClient, company_name: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                                    <input type="email" value={editingClient.email || ''} onChange={e => setEditingClient({...editingClient, email: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                                    <input type="text" value={editingClient.phone || ''} onChange={e => setEditingClient({...editingClient, phone: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                                    <input type="text" value={editingClient.country || ''} onChange={e => setEditingClient({...editingClient, country: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Job Role</label>
+                                    <input type="text" value={editingClient.job_role || ''} onChange={e => setEditingClient({...editingClient, job_role: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Specialization</label>
+                                    <input type="text" value={editingClient.category_specialization || ''} onChange={e => setEditingClient({...editingClient, category_specialization: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Est. Revenue</label>
+                                    <input type="text" value={editingClient.yearly_est_revenue || ''} onChange={e => setEditingClient({...editingClient, yearly_est_revenue: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md" />
+                                </div>
+                                <div className="md:col-span-2 flex justify-end gap-4 mt-4">
+                                    <button type="button" onClick={() => setIsEditModalOpen(false)} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg">Cancel</button>
+                                    <button type="submit" className="px-4 py-2 bg-purple-600 text-white rounded-lg">Save Changes</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
+            </MainLayout>
+        );
+    };
+
     // --- Page Renderer ---
     const renderPage = () => {
         if (!isAuthReady) {
@@ -852,8 +1115,20 @@ const App: FC = () => {
         }
 
         switch (currentPage) {
-            case 'login': return <LoginPage showToast={showToast} setAuthError={setAuthError} authError={authError} />;
+            case 'login': return <LoginPage showToast={showToast} setAuthError={setAuthError} authError={authError} onLoginSuccess={async (session) => {
+                const activeSession = session || (await supabase.auth.getSession()).data.session;
+                if (activeSession?.user?.email?.endsWith('@auctaveexports.com')) {
+                    if (!activeSession?.user?.user_metadata?.password_set) {
+                        handleSetCurrentPage('createPassword');
+                    } else {
+                        handleSetCurrentPage('adminDashboard');
+                    }
+                } else {
+                    handleSetCurrentPage('sourcing');
+                }
+            }} />;
             case 'profile': return <ProfilePage />;
+            case 'createPassword': return <CreatePasswordPage />;
             case 'sourcing': return <SourcingPage
                 {...layoutProps}
                 userProfile={userProfile}
@@ -885,6 +1160,9 @@ const App: FC = () => {
             case 'quoteRequest': return <QuoteRequestPage />;
             case 'quoteDetail': return <QuoteDetailPage />;
             case 'billing': return <BillingPage />;
+            case 'adminDashboard': return <AdminDashboardPage />;
+            case 'adminClients': return <AdminDashboardPage />; // Reusing for now
+            case 'adminActivity': return <AdminDashboardPage />; // Reusing for now
             default: return <SourcingPage
                 {...layoutProps}
                 userProfile={userProfile}
@@ -1447,7 +1725,7 @@ const App: FC = () => {
             `}</style>
             <Toast {...toast} />
             {renderPage()}
-            {user && <AIChatSupport />}
+            {user && userProfile && !isAdmin && <AIChatSupport />}
         </div>
     );
 };
