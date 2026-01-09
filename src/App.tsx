@@ -1,5 +1,8 @@
+// Import React library and hooks for state management (useState), side effects (useEffect), references (useRef), memoization (useMemo), and types (FC, ReactNode)
 import React, { useState, useEffect, useRef, useMemo, FC, ReactNode } from 'react';
+// Import the configured Supabase client for backend database and auth interactions
 import { supabase } from './supabaseClient';
+// Import UI icons from lucide-react library
 import {
     Star, Clock, MapPin, Package, Truck, List, Plus, ChevronLeft,
     ChevronRight, ChevronDown, X, Bot, Send, CheckCircle, Shirt,
@@ -9,10 +12,13 @@ import {
     PlayCircle, BarChart as BarChartIcon, FileQuestion, ClipboardCheck, Lock,
     Tag, Weight, Palette, Box, Map as MapIcon, Download, BookOpen, Building, Trash2, Upload
 } from 'lucide-react';
+// Import charting components from recharts for data visualization
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Pie, Cell, PieChart
 } from 'recharts';
+// Import TypeScript interfaces/types for data structures used in the app
 import { UserProfile, OrderFormData, Factory, QuoteRequest, CrmOrder, ToastState, MachineSlot } from './types';
+// Import custom components for specific pages and UI elements
 import { Toast } from '../src/Toast';
 import { MainLayout } from '../src/MainLayout';
 import { LoginPage } from '../src/LoginPage';
@@ -20,10 +26,19 @@ import { SourcingPage } from '../src/SourcingPage';
 import { FactoryCard } from '../src/FactoryCard';
 import { OrderFormPage } from './OrderFormPage';
 import { CRMPage } from './CRMPage';
+import CrmDashboard from './CrmDashboard';
 import { AiCard } from '../src/AiCard';
+import { masterController } from './masterController';
+import './index'; // Register Factory Module
+import { AdminDashboardPage } from './AdminDashboardPage';
+import { AdminUsersPage } from './AdminUsersPage';
+import { AdminFactoriesPage } from './AdminFactoriesPage';
+import { AdminCRMPage } from './AdminCRMPage';
+import { AdminTrendingPage } from './AdminTrendingPage';
 
 // --- Type Definitions ---
 
+// Extend the global Window interface to include a custom showToast function
 declare global {
     interface Window {
         showToast: (message: string, type?: 'success' | 'error') => void;
@@ -31,59 +46,94 @@ declare global {
 }
 
 // --- Helper Functions ---
+
+// Function to copy text to the system clipboard
 const copyToClipboard = (text: string, successMessage: string = 'Copied to clipboard!') => {
+    // Create a temporary textarea element to hold the text
     const textArea = document.createElement("textarea");
     textArea.value = text;
+    // Hide the textarea from view
     textArea.style.position = "fixed";
     textArea.style.opacity = "0";
     document.body.appendChild(textArea);
     textArea.focus();
     textArea.select();
     try {
+        // Execute the copy command
         document.execCommand('copy');
+        // Show success message
         if (window.showToast) window.showToast(successMessage);
         else alert(successMessage);
     } catch (err) {
+        // Handle errors
         console.error('Failed to copy: ', err);
         if (window.showToast) window.showToast('Failed to copy text.', 'error');
         else alert('Failed to copy text.');
     }
+    // Clean up by removing the textarea
     document.body.removeChild(textArea);
 };
 
 // --- Main App Component ---
+// This is the root component of the application
 const App: FC = () => {
     // --- State Management ---
+    
+    // State to track which page is currently displayed (default is 'login')
     const [currentPage, setCurrentPage] = useState<string>('login');
-    // Auth state is now managed by Supabase
+    // State to store the authenticated user object from Supabase
     const [user, setUser] = useState<any>(null);
+    // State to store the user's extended profile data (name, company, etc.)
     const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+    // State to indicate if the authentication check has completed
     const [isAuthReady, setIsAuthReady] = useState<boolean>(false);
+    // State to show loading indicator when saving profile
     const [isProfileLoading, setIsProfileLoading] = useState<boolean>(false);
+    // State to store authentication error messages
     const [authError, setAuthError] = useState<string>('');
+    // State to manage the visibility of the mobile menu
     const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
+    // State to manage if the sidebar is collapsed or expanded
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
+    // State to manage toast notifications (visibility, message, type)
     const [toast, setToast] = useState<ToastState>({ show: false, message: '', type: 'success' });
+    // State used to force re-render of components by changing the key
     const [pageKey, setPageKey] = useState<number>(0);
+    // State to check if the current user is an admin
     const [isAdmin, setIsAdmin] = useState<boolean>(false);
 
     // --- App Logic & Data States ---
+    
+    // State to store data entered in the Order Form
     const [orderFormData, setOrderFormData] = useState<OrderFormData>({
         category: 'T-shirt', fabricQuality: '100% Cotton', weightGSM: '180', styleOption: 'Crew Neck, Short Sleeve', qty: '5000', targetPrice: '4.50', shippingDest: 'Los Angeles, USA', packagingReqs: 'Individually folded and poly-bagged', labelingReqs: 'Custom neck labels'
     });
+    // State to store files uploaded during order creation
     const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+    // State to store factories that match the user's order criteria
     const [suggestedFactories, setSuggestedFactories] = useState<Factory[]>([]);
+    // State to store the currently selected factory for viewing details
     const [selectedFactory, setSelectedFactory] = useState<Factory | null>(null);
+    // State to filter factories by garment category
     const [selectedGarmentCategory, setSelectedGarmentCategory] = useState<string>('All');
+    // State to store the list of quote requests made by the user
     const [quoteRequests, setQuoteRequests] = useState<QuoteRequest[]>([]);
+    // State to store the currently selected quote for viewing details
     const [selectedQuote, setSelectedQuote] = useState<QuoteRequest | null>(null);
 
     // --- Gemini (AI) Feature States ---
+    
+    // State to store the AI-generated contract brief
     const [contractBrief, setContractBrief] = useState<string>('');
+    // State to store AI-generated optimization suggestions
     const [optimizationSuggestions, setOptimizationSuggestions] = useState<string>('');
+    // State to store the AI-drafted outreach email
     const [outreachEmail, setOutreachEmail] = useState<string>('');
+    // State to store AI-generated market trends
     const [marketTrends, setMarketTrends] = useState<string>('');
+    // State to store AI-generated negotiation tips
     const [negotiationTips, setNegotiationTips] = useState<string>('');
+    // Loading states for each AI feature
     const [isLoadingBrief, setIsLoadingBrief] = useState<boolean>(false);
     const [isLoadingOptimizations, setIsLoadingOptimizations] = useState<boolean>(false);
     const [isLoadingEmail, setIsLoadingEmail] = useState<boolean>(false);
@@ -91,13 +141,18 @@ const App: FC = () => {
     const [isLoadingNegotiation, setIsLoadingNegotiation] = useState<boolean>(false);
 
     // --- CRM State ---
+    
+    // State to store CRM order data, keyed by Order ID
     const [crmData, setCrmData] = useState<{ [key: string]: CrmOrder }>({
+        // Mock data for demonstration purposes
         "PO-2024-001": { customer: 'Acme Corp', product: '5000 Classic Tees', factoryId: 'F001', documents: [ { name: 'Purchase Order', type: 'PO', lastUpdated: '2025-10-25' }, { name: 'Shipping Bill', type: 'Logistics', lastUpdated: '2025-11-29' }, { name: 'Insurance Policy', type: 'Finance', lastUpdated: '2025-10-30' }, ], tasks: [ { id: 1, name: 'Sample Approval', responsible: 'Jane D.', plannedStartDate: '2025-11-01', plannedEndDate: '2025-11-05', actualStartDate: '2025-11-01', actualEndDate: '2025-11-04', status: 'COMPLETE', color: 'bg-purple-500', quantity: 10 }, { id: 2, name: 'Fabric Sourcing', responsible: 'Merch Team', plannedStartDate: '2025-11-03', plannedEndDate: '2025-11-10', actualStartDate: '2025-11-04', actualEndDate: '2025-11-09', status: 'COMPLETE', color: 'bg-blue-500', quantity: 5000 }, { id: 3, name: 'Cutting', responsible: 'Prod. Team', plannedStartDate: '2025-11-11', plannedEndDate: '2025-11-15', actualStartDate: '2025-11-11', actualEndDate: null, status: 'IN PROGRESS', color: 'bg-pink-500', quantity: 5000 }, { id: 4, name: 'Stitching', responsible: 'Prod. Team', plannedStartDate: '2025-11-16', plannedEndDate: '2025-11-25', actualStartDate: '2025-11-18', actualEndDate: null, status: 'IN PROGRESS', color: 'bg-orange-500', quantity: 2500 }, { id: 5, name: 'Quality Check', responsible: 'QA Team', plannedStartDate: '2025-11-26', plannedEndDate: '2025-11-28', actualStartDate: null, actualEndDate: null, status: 'TO DO', color: 'bg-green-500', quantity: 0 }, { id: 6, name: 'Packing & Shipping', responsible: 'Logistics', plannedStartDate: '2025-11-29', plannedEndDate: '2025-12-02', actualStartDate: null, actualEndDate: null, status: 'TO DO', color: 'bg-yellow-500', quantity: 0 }, ] },
         "PO-2024-002": { customer: 'Stark Industries', product: '10000 Hoodies', factoryId: 'F003', documents: [ { name: 'Purchase Order', type: 'PO', lastUpdated: '2025-11-15' } ], tasks: [ { id: 7, name: 'Fabric Sourcing', responsible: 'Merch Team', plannedStartDate: '2025-12-01', plannedEndDate: '2025-12-10', actualStartDate: '2025-12-02', actualEndDate: '2025-12-10', status: 'COMPLETE', color: 'bg-blue-500', quantity: 10000 }, { id: 8, name: 'Lab Dips', responsible: 'Jane D.', plannedStartDate: '2025-12-05', plannedEndDate: '2025-12-12', actualStartDate: '2025-12-06', actualEndDate: null, status: 'IN PROGRESS', color: 'bg-pink-500', quantity: 20 }, { id: 9, name: 'Production', responsible: 'Prod. Team', plannedStartDate: '2025-12-13', plannedEndDate: '2026-01-05', actualStartDate: null, actualEndDate: null, status: 'TO DO', color: 'bg-green-500', quantity: 0 }, ] },
         "PO-2024-003": { customer: 'Wayne Enterprises', product: '2500 Jackets', factoryId: 'F004', documents: [ { name: 'Purchase Order', type: 'PO', lastUpdated: '2025-07-20' }, { name: 'Insurance Policy', type: 'Finance', lastUpdated: '2025-07-25' } ], tasks: [ { id: 10, name: 'Order Confirmation', responsible: 'Admin', plannedStartDate: '2025-08-01', plannedEndDate: '2025-08-01', actualStartDate: '2025-08-01', actualEndDate: '2025-08-01', status: 'COMPLETE' }, { id: 11, name: 'Fit Sample', responsible: 'Tech Team', plannedStartDate: '2025-08-05', plannedEndDate: '2025-08-10', actualStartDate: '2025-08-06', actualEndDate: '2025-08-11', status: 'COMPLETE' }, { id: 12, name: 'Fabric Approval', responsible: 'Merch Team', plannedStartDate: '2025-08-12', plannedEndDate: '2025-08-15', actualStartDate: '2025-08-12', actualEndDate: null, status: 'IN PROGRESS' }, { id: 13, name: 'Bulk Production', responsible: 'Prod. Team', plannedStartDate: '2025-08-16', plannedEndDate: '2025-09-10', actualStartDate: null, actualEndDate: null, status: 'TO DO' }, { id: 14, name: 'Midline Inspection', responsible: 'QA Team', plannedStartDate: '2025-08-30', plannedEndDate: '2025-08-31', actualStartDate: null, actualEndDate: null, status: 'TO DO' }, { id: 15, name: 'Final Inspection', responsible: 'QA Team', plannedStartDate: '2025-09-11', plannedEndDate: '2025-09-12', actualStartDate: null, actualEndDate: null, status: 'TO DO' }, { id: 16, name: 'Shipment', responsible: 'Logistics', plannedStartDate: '2025-09-15', plannedEndDate: '2025-09-15', actualStartDate: null, actualEndDate: null, status: 'TO DO' }, ] }
     });
+    // State to track which order is currently active in the CRM view
     const [activeCrmOrderKey, setActiveCrmOrderKey] = useState<string | null>(null);
 
+    // Function to add a new order to the CRM state
     const addNewOrderToCrm = (orderId: string, orderData: CrmOrder) => {
         setCrmData(prev => ({
             ...prev,
@@ -107,48 +162,64 @@ const App: FC = () => {
     };
 
     // --- Global Functions ---
+    
+    // Function to toggle the sidebar menu visibility
     const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
+    
+    // Function to display a toast notification
     const showToast = (message: string, type: 'success' | 'error' = 'success') => {
         setToast({ show: true, message, type });
+        // Hide toast after 3 seconds
         setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3000);
     };
+    
+    // Function to handle navigation between pages
     const handleSetCurrentPage = (page: string, data: any = null) => {
+        // Increment pageKey to force re-render of components if needed
         setPageKey(prevKey => prevKey + 1);
+        // If navigating to specific detail pages, set the selected data
         if (page === 'quoteRequest' || page === 'factoryDetail' || page === 'factoryCatalog') {
             setSelectedFactory(data as Factory);
         }
         if (page === 'quoteDetail') {
             setSelectedQuote(data as QuoteRequest);
         }
+        // Reset active CRM order if leaving CRM page
         if (page !== 'crm') {
-            setActiveCrmOrderKey(null); // Reset active key when leaving CRM page
+            setActiveCrmOrderKey(null); 
         }
+        // Update the current page state
         setCurrentPage(page);
     };
 
+    // Effect to expose showToast to the global window object
     useEffect(() => { window.showToast = showToast; }, []);
 
     // --- Supabase Auth Listener ---
     useEffect(() => {
+        // Boot CMS modules (e.g., register factories)
+        masterController.boot().catch(err => {
+            console.error("CMS Boot Failed:", err);
+            showToast(`CMS Startup Error: ${err.message}`, 'error');
+        });
+    }, []);
+
+    // Effect to handle authentication state changes
+    useEffect(() => {
         // Safety timeout to prevent infinite loading if auth callback hangs
         const safetyTimer = setTimeout(() => setIsAuthReady(true), 5000);
 
+        // Subscribe to Supabase auth changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
             try {
+                // Update user state
                 setUser(session?.user ?? null);
                 
-                // Check for Admin Domain
+                // Check if the user is an admin based on email domain
                 const isUserAdmin = session?.user?.email?.toLowerCase().endsWith('@auctaveexports.com') ?? false;
                 setIsAdmin(isUserAdmin);
 
                 if (session?.user) {
-                    // 1. Force password creation for new admins before profile check
-                    if (isUserAdmin && !session.user.user_metadata?.password_set && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY')) {
-                        setCurrentPage('createPassword');
-                        setIsAuthReady(true);
-                        return;
-                    }
-
                     // Fetch profile from Supabase (admins or clients table)
                     const tableName = isUserAdmin ? 'admins' : 'clients';
                     const { data, error } = await supabase
@@ -157,8 +228,11 @@ const App: FC = () => {
                         .eq('id', session.user.id)
                         .single();
 
+                    let currentProfile: UserProfile | null = null;
+
                     if (data) {
-                        setUserProfile({
+                        // Map database fields to UserProfile interface
+                        currentProfile = {
                             name: data.name,
                             companyName: data.company_name,
                             phone: data.phone,
@@ -167,29 +241,37 @@ const App: FC = () => {
                             jobRole: data.job_role,
                             categorySpecialization: data.category_specialization,
                             yearlyEstRevenue: data.yearly_est_revenue
-                        } as UserProfile);
-                        
-                        if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
-                            setCurrentPage(isUserAdmin ? 'adminDashboard' : 'sourcing');
-                        }
+                        };
+                        setUserProfile(currentProfile);
                     } else {
                         if (error && error.code !== 'PGRST116') {
                             console.error('Error fetching profile:', error.message);
                         }
-                        if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
-                            setCurrentPage(isUserAdmin ? 'adminDashboard' : 'profile');
+                    }
+
+                    // Enforce Onboarding Flow via MasterController
+                    if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY') {
+                        const redirectRoute = masterController.getOnboardingRedirect(session.user, currentProfile);
+                        if (redirectRoute) {
+                            setCurrentPage(redirectRoute);
+                        } else {
+                            // Default redirect based on role
+                            setCurrentPage(isUserAdmin ? 'adminDashboard' : 'sourcing');
                         }
                     }
                 } else {
+                    // If no session, go to login
                     setCurrentPage('login');
                 }
             } catch (error) {
                 console.error("Auth state change error:", error);
             } finally {
+                // Clear timeout and set auth ready
                 clearTimeout(safetyTimer);
                 setIsAuthReady(true);
             }
         });
+        // Cleanup subscription on unmount
         return () => {
             subscription.unsubscribe();
             clearTimeout(safetyTimer);
@@ -197,6 +279,7 @@ const App: FC = () => {
     }, []);
 
     // --- Connection Test ---
+    // Effect to test Supabase connection on mount
     useEffect(() => {
         const testConnection = async () => {
             // Test connection by checking if we can reach the Supabase instance
@@ -212,8 +295,8 @@ const App: FC = () => {
     }, []);
 
     // --- Mock Data Fetching ---
+    // Effect to load mock quotes when user is logged in
     useEffect(() => {
-        // Mock fetching quote requests
         if (user) {
             const mockQuotes: QuoteRequest[] = [
                 { id: 'QR001', factory: { id: 'F001', name: 'AU Global Garment Solutions', location: 'Dhaka, Bangladesh', imageUrl: 'https://images.unsplash.com/photo-1576566588028-4147f3842f27?q=80&w=2864&auto=format&fit=crop' }, order: { category: 'T-shirt', qty: '5000', targetPrice: '4.50', fabricQuality: '100% Cotton', weightGSM: '180', styleOption: 'Crew Neck', shippingDest: 'LA, USA', packagingReqs: 'Polybag', labelingReqs: 'Custom' }, status: 'Responded', submittedAt: new Date(new Date().setDate(new Date().getDate() - 5)).toISOString(), userId: 'previewUser' },
@@ -224,6 +307,8 @@ const App: FC = () => {
     }, [user]);
 
     // --- Authentication & Profile Functions (Mocked) ---
+    
+    // Function to handle user sign out
     const handleSignOut = async () => {
         await supabase.auth.signOut();
         setUser(null);
@@ -232,10 +317,12 @@ const App: FC = () => {
         handleSetCurrentPage('login');
     };
 
+    // Function to save or update user profile in Supabase
     const saveUserProfile = async (profileData: Partial<UserProfile>) => {
         if (!user) return;
         setIsProfileLoading(true);
         
+        // Prepare data for database update
         const updates = {
             id: user.id,
             name: profileData.name,
@@ -250,6 +337,7 @@ const App: FC = () => {
         };
 
         const tableName = isAdmin ? 'admins' : 'clients';
+        // Perform upsert (insert or update)
         const { error } = await supabase.from(tableName).upsert(updates);
 
         if (error) {
@@ -260,6 +348,7 @@ const App: FC = () => {
                 showToast(error.message, 'error');
             }
         } else {
+            // Update local state on success
             setUserProfile(prev => ({ ...prev, ...profileData } as UserProfile));
             showToast('Profile saved successfully!');
             handleSetCurrentPage(isAdmin ? 'adminDashboard' : 'sourcing');
@@ -268,9 +357,13 @@ const App: FC = () => {
     };
 
     // --- Quote Request Functions (Mocked) ---
+    
+    // Function to simulate submitting a quote request
     const submitQuoteRequest = async (quoteData: Omit<QuoteRequest, 'id' | 'status' | 'submittedAt' | 'userId'>) => {
         showToast('Submitting quote request...', 'success');
+        // Simulate network delay
         await new Promise(resolve => setTimeout(resolve, 1500));
+        // Create new quote object
         const newQuote: QuoteRequest = {
             ...quoteData,
             id: `QR${Math.floor(Math.random() * 1000)}`,
@@ -278,12 +371,15 @@ const App: FC = () => {
             submittedAt: new Date().toISOString(),
             userId: user.uid,
         };
+        // Update state
         setQuoteRequests(prev => [newQuote, ...prev]);
         showToast('Quote request submitted successfully!');
         handleSetCurrentPage('myQuotes');
     };
 
     // --- Gemini API Call (Live) ---
+    
+    // Function to call the Gemini AI API via Supabase Edge Function
     const callGeminiAPI = async (prompt: string): Promise<string> => {
         try {
             // Securely call the Gemini API via a Supabase Edge Function
@@ -318,6 +414,7 @@ const App: FC = () => {
     // We keep it here for other pages that haven't been refactored yet.
     const [allFactories, setAllFactories] = useState<Factory[]>([]);
 
+    // Function to handle order form submission
     const handleSubmitOrderForm = (submittedData: OrderFormData, files: File[]) => {
         setOrderFormData(submittedData);
         setUploadedFiles(files);
@@ -327,19 +424,28 @@ const App: FC = () => {
         handleSetCurrentPage('factorySuggestions');
     };
 
+    // Function to handle factory selection
     const handleSelectFactory = (factory: Factory) => {
         setSelectedFactory(factory);
+        // Reset AI states for new factory
         setContractBrief(''); setOutreachEmail(''); setOptimizationSuggestions(''); setNegotiationTips('');
         handleSetCurrentPage('factoryDetail', factory);
     };
 
     // --- Gemini Feature Functions ---
+    
+    // Function to generate a contract brief using AI
     const generateContractBrief = async () => { setIsLoadingBrief(true); const prompt = `Generate a concise, professional contract brief for a garment manufacturing request with these specs: Category: ${orderFormData.category}, Fabric: ${orderFormData.fabricQuality}, Weight: ${orderFormData.weightGSM} GSM, Style: ${orderFormData.styleOption}, Quantity: ${orderFormData.qty} units. The brief should be suitable for an initial inquiry to ${selectedFactory?.name}.`; try { setContractBrief(await callGeminiAPI(prompt)); } catch (error) { showToast('Error generating brief: ' + (error as Error).message, 'error'); } finally { setIsLoadingBrief(false); } };
+    // Function to suggest optimizations using AI
     const suggestOptimizations = async () => { setIsLoadingOptimizations(true); const prompt = `For a garment order (${orderFormData.category}, ${orderFormData.fabricQuality}, ${orderFormData.weightGSM} GSM), suggest material or process optimizations for cost-efficiency, sustainability, or quality, keeping in mind we are contacting ${selectedFactory?.name} in ${selectedFactory?.location}. Format as a bulleted list.`; try { setOptimizationSuggestions(await callGeminiAPI(prompt)); } catch (error) { showToast('Error suggesting optimizations: ' + (error as Error).message, 'error'); } finally { setIsLoadingOptimizations(false); } };
+    // Function to draft an outreach email using AI
     const generateOutreachEmail = async () => { if (!contractBrief || !selectedFactory || !userProfile) { showToast('Please generate a brief first.', 'error'); return; } setIsLoadingEmail(true); const prompt = `Draft a professional outreach email from ${userProfile.name} of ${userProfile.companyName} to ${selectedFactory.name}. The email should introduce the company and the order, referencing the attached contract brief. Keep it concise and aim to start a conversation. The contract brief is as follows:\n\n---\n${contractBrief}\n---`; try { setOutreachEmail(await callGeminiAPI(prompt)); } catch (error) { showToast('Error drafting email: ' + (error as Error).message, 'error'); } finally { setIsLoadingEmail(false); } };
+    // Function to fetch market trends using AI
     const getMarketTrends = async () => { setIsLoadingTrends(true); const date = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }); const prompt = `As a fashion industry analyst, provide a brief summary of key market trends in global garment manufacturing for ${date}. Focus on sustainability, technology, and consumer behavior. Format as a bulleted list.`; try { setMarketTrends(await callGeminiAPI(prompt)); } catch (error) { setMarketTrends('Error fetching market trends: ' + (error as Error).message); showToast('Error fetching market trends.', 'error'); } finally { setIsLoadingTrends(false); } };
+    // Function to get negotiation tips using AI
     const getNegotiationTips = async () => { if (!selectedFactory) return; setIsLoadingNegotiation(true); const prompt = `As a sourcing expert, provide key negotiation points and cultural tips for an upcoming discussion with ${selectedFactory.name} in ${selectedFactory.location} regarding an order of ${orderFormData.qty} ${orderFormData.category}s. Focus on pricing strategies, payment terms, and quality assurance questions. Format as a bulleted list with bold headings.`; try { setNegotiationTips(await callGeminiAPI(prompt)); } catch(error) { setNegotiationTips('Error fetching negotiation tips: ' + (error as Error).message); showToast('Error fetching negotiation tips.', 'error'); } finally { setIsLoadingNegotiation(false); } };
 
+    // Props to be passed to the MainLayout component
     const layoutProps = {
         pageKey,
         user,
@@ -350,9 +456,13 @@ const App: FC = () => {
         setIsSidebarCollapsed,
         handleSetCurrentPage,
         handleSignOut,
-        isAdmin
+        isAdmin,
+        supabase
     };
 
+    // --- Sub-Components ---
+
+    // Component for creating a password (for new admins)
     const CreatePasswordPage: FC = () => {
         const [newPassword, setNewPassword] = useState('');
         const [confirmPassword, setConfirmPassword] = useState('');
@@ -369,6 +479,7 @@ const App: FC = () => {
                 return;
             }
             setLoading(true);
+            // Update user password in Supabase
             const { error } = await supabase.auth.updateUser({ 
                 password: newPassword,
                 data: { password_set: true }
@@ -404,7 +515,9 @@ const App: FC = () => {
         );
     };
 
+    // Component for editing user profile
     const ProfilePage: FC = () => {
+        // Initialize profile data from state or defaults
         const [profileData, setProfileData] = useState<Partial<UserProfile>>({
             name: userProfile?.name || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.displayName || '',
             companyName: userProfile?.companyName || '',
@@ -415,13 +528,18 @@ const App: FC = () => {
             categorySpecialization: userProfile?.categorySpecialization || '',
             yearlyEstRevenue: userProfile?.yearlyEstRevenue || ''
         });
+        // Dropdown options
         const countries = ["Afghanistan","India","United States of America","China","Bangladesh", "Vietnam", "Turkey", "Portugal"];
         const jobRoles = ["Owner/Founder", "CEO/President", "Sourcing Manager", "Designer"];
         const revenueRanges = ["<$1M", "$1M - $5M", "$5M - $10M", "$10M+"];
+        
+        // Handle input changes
         const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
             const { name, value } = e.target;
             setProfileData(prevData => ({ ...prevData, [name]: value }));
         };
+        
+        // Handle form submission
         const handleSaveProfile = async (e: React.FormEvent) => {
             e.preventDefault();
             if (!profileData.name || !profileData.companyName || !profileData.phone || !profileData.email) {
@@ -433,6 +551,7 @@ const App: FC = () => {
         return ( <MainLayout {...layoutProps} hideSidebar={!userProfile}> <div className="max-w-2xl mx-auto"> <div className="bg-white p-6 sm:p-8 rounded-xl shadow-lg"> <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">{userProfile ? 'Update Your Profile' : 'Complete Your Profile'}</h2> <p className="text-center text-gray-500 mb-6">Fields marked with * are required to access the platform.</p> {authError && <p className="text-red-500 mb-4">{authError}</p>} <form onSubmit={handleSaveProfile} className="grid grid-cols-1 md:grid-cols-2 gap-6"> <div> <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Name <span className="text-red-500">*</span></label> <input type="text" id="name" name="name" value={profileData.name} onChange={handleProfileChange} required className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" /> </div> <div> <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-1">Company Name <span className="text-red-500">*</span></label> <input type="text" id="companyName" name="companyName" value={profileData.companyName} onChange={handleProfileChange} required className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" /> </div> <div className="md:col-span-2"> <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email <span className="text-red-500">*</span></label> <input type="email" id="email" name="email" value={profileData.email} onChange={handleProfileChange} required className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" /> </div> <div> <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">Phone <span className="text-red-500">*</span></label> <input type="tel" id="phone" name="phone" value={profileData.phone} onChange={handleProfileChange} required className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" /> </div> <div> <label htmlFor="country" className="block text-sm font-medium text-gray-700 mb-1">Country</label> <select id="country" name="country" value={profileData.country} onChange={handleProfileChange} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"> <option value="">Select a country</option> {countries.map(country => (<option key={country} value={country}>{country}</option>))} </select> </div> <div> <label htmlFor="jobRole" className="block text-sm font-medium text-gray-700 mb-1">Job Role</label> <select id="jobRole" name="jobRole" value={profileData.jobRole} onChange={handleProfileChange} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"> <option value="">Select a role</option> {jobRoles.map(role => (<option key={role} value={role}>{role}</option>))} </select> </div> <div> <label htmlFor="categorySpecialization" className="block text-sm font-medium text-gray-700 mb-1">Category Specialization</label> <input type="text" id="categorySpecialization" name="categorySpecialization" placeholder="e.g., Activewear, Denim" value={profileData.categorySpecialization} onChange={handleProfileChange} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" /> </div> <div> <label htmlFor="yearlyEstRevenue" className="block text-sm font-medium text-gray-700 mb-1">Est. Yearly Revenue (USD)</label> <select id="yearlyEstRevenue" name="yearlyEstRevenue" value={profileData.yearlyEstRevenue} onChange={handleProfileChange} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"> <option value="">Select a revenue range</option> {revenueRanges.map(range => (<option key={range} value={range}>{range}</option>))} </select> </div> <div className="md:col-span-2 text-right mt-4"> <button type="submit" disabled={isProfileLoading} className="w-full md:w-auto px-6 py-3 text-white rounded-md font-semibold bg-purple-600 hover:bg-purple-700 transition shadow-md disabled:opacity-50"> {isProfileLoading ? 'Saving...' : (userProfile ? 'Save Profile' : 'Complete Profile & Continue')} </button> </div> </form> </div> </div> </MainLayout> );
     };
 
+    // Component for user settings
     const SettingsPage: FC = () => {
         const [location, setLocation] = useState(userProfile?.country || 'Your Location');
         const handleLocationSave = () => {
@@ -481,6 +600,7 @@ const App: FC = () => {
         )
     }
 
+    // Component to display suggested factories based on order
     const FactorySuggestionsPage: FC = () => (
         <MainLayout {...layoutProps}>
             <div className="space-y-6">
@@ -513,6 +633,7 @@ const App: FC = () => {
         </MainLayout>
     );
 
+   // Component to display details of a selected factory
    const FactoryDetailPage: FC = () => {
         const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
@@ -520,6 +641,7 @@ const App: FC = () => {
 
         const { gallery } = selectedFactory;
 
+        // Navigation for image gallery
         const nextImage = () => {
             setCurrentImageIndex((prevIndex) => (prevIndex + 1) % gallery.length);
         };
@@ -528,6 +650,7 @@ const App: FC = () => {
             setCurrentImageIndex((prevIndex) => (prevIndex - 1 + gallery.length) % gallery.length);
         };
 
+        // Helper component for certification badges
         const CertificationBadge: FC<{ cert: string }> = ({ cert }) => {
             const certStyles: { [key: string]: string } = {
                 'Sedex': 'bg-blue-100 text-blue-800',
@@ -538,6 +661,7 @@ const App: FC = () => {
             };
             return <span className={`text-sm font-semibold px-3 py-1 rounded-full ${certStyles[cert] || 'bg-gray-100 text-gray-800'}`}>{cert}</span>
         }
+        // Helper component for machine capacity rows
         const MachineSlotRow: FC<{ slot: MachineSlot }> = ({ slot }) => {
             const usagePercentage = (slot.availableSlots / slot.totalSlots) * 100;
             return (
@@ -655,6 +779,7 @@ const App: FC = () => {
         );
     };
 
+    // Component to display the product catalog of a factory
     const FactoryCatalogPage: FC = () => {
         if (!selectedFactory) {
             handleSetCurrentPage('sourcing');
@@ -728,6 +853,7 @@ const App: FC = () => {
         );
     };
 
+    // Component for AI tools related to a factory
     const FactoryToolsPage: FC = () => {
         if (!selectedFactory) {
             handleSetCurrentPage('sourcing');
@@ -784,7 +910,9 @@ const App: FC = () => {
         );
     };
 
+    // Component for tracking order status
     const OrderTrackingPage: FC = () => {
+        // Mock tracking data
         const trackingData: { [key: string]: any[] } = {
             "PO-2024-001": [ { status: 'In Production', date: 'June 15, 2025', isComplete: true, icon: <PackageCheck/> }, { status: 'Quality Checked', date: 'June 20, 2025', isComplete: true, icon: <CheckCircle/> }, { status: 'Transport to Origin Port', date: 'June 22, 2025', isComplete: true, icon: <Truck/> }, { status: 'In Transit', date: 'June 25, 2025', isComplete: false, isInProgress: true, icon: <Ship/> }, { status: 'Reached Destination Port', date: 'Est. July 10, 2025', isComplete: false, icon: <Anchor/> }, { status: 'Delivered', date: 'Est. July 12, 2025', isComplete: false, icon: <Warehouse/> }, ],
             "PO-2024-002": [ { status: 'In Production', date: 'June 18, 2025', isComplete: true, icon: <PackageCheck/> }, { status: 'Quality Checked', date: 'June 24, 2025', isComplete: false, isInProgress: true, icon: <CheckCircle/> }, { status: 'Transport to Origin Port', date: 'Est. June 26, 2025', isComplete: false, icon: <Truck/> }, { status: 'In Transit', date: 'Est. June 28, 2025', isComplete: false, icon: <Ship/> }, { status: 'Reached Destination Port', date: 'Est. July 15, 2025', isComplete: false, icon: <Anchor/> }, { status: 'Delivered', date: 'Est. July 17, 2025', isComplete: false, icon: <Warehouse/> }, ]
@@ -844,6 +972,7 @@ const App: FC = () => {
         );
     };
 
+    // Component for the AI Chatbot
     const AIChatSupport: FC = () => {
         const [isOpen, setIsOpen] = useState(false);
         const [messages, setMessages] = useState<{ text: string; sender: 'ai' | 'user' }[]>([]);
@@ -851,6 +980,7 @@ const App: FC = () => {
         const [isLoading, setIsLoading] = useState(false);
         const chatEndRef = useRef<HTMLDivElement>(null);
 
+        // Scroll to bottom on new message
         useEffect(() => {
             chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
             if (isOpen && messages.length === 0) {
@@ -858,6 +988,7 @@ const App: FC = () => {
             }
         }, [isOpen, messages.length]);
 
+        // Handle sending a message
         const handleSend = async () => {
             if (!input.trim() || isLoading) return;
             const userMessage = { text: input, sender: 'user' as 'user' };
@@ -916,484 +1047,21 @@ const App: FC = () => {
         )
     };
 
-    const AdminFactoriesPage: FC = () => {
-        const [factories, setFactories] = useState<any[]>([]);
-        const [isLoading, setIsLoading] = useState(true);
-        const [isModalOpen, setIsModalOpen] = useState(false);
-        const [editingFactory, setEditingFactory] = useState<any>({
-            name: '', location: '', description: '', minimum_order_quantity: 0, rating: 0, cover_image_url: '',
-            turnaround: '', offer: '',
-            specialties: [], tags: [], certifications: [], gallery: [],
-            machine_slots: [], catalog: { productCategories: [], fabricOptions: [] }
-        });
-        // Local state for JSON textareas to allow editing without constant parsing errors
-        const [jsonStrings, setJsonStrings] = useState({ catalog: '' });
-
-        useEffect(() => {
-            fetchFactories();
-        }, []);
-
-        useEffect(() => {
-            if (isModalOpen) {
-                setJsonStrings({
-                    catalog: JSON.stringify(editingFactory.catalog || { productCategories: [], fabricOptions: [] }, null, 2)
-                });
-            }
-        }, [isModalOpen, editingFactory]);
-
-        const fetchFactories = async () => {
-            setIsLoading(true);
-            const { data, error } = await supabase.from('factories').select('*').order('created_at', { ascending: false });
-            if (error) showToast('Error fetching factories', 'error');
-            else setFactories(data || []);
-            setIsLoading(false);
-        };
-
-        const handleSave = async (e: React.FormEvent) => {
-            e.preventDefault();
-            const factoryData = {
-                name: editingFactory.name,
-                location: editingFactory.location,
-                description: editingFactory.description,
-                minimum_order_quantity: editingFactory.minimum_order_quantity,
-                cover_image_url: editingFactory.cover_image_url,
-                rating: editingFactory.rating,
-                turnaround: editingFactory.turnaround,
-                offer: editingFactory.offer,
-                specialties: editingFactory.specialties,
-                tags: editingFactory.tags,
-                certifications: editingFactory.certifications,
-                gallery: editingFactory.gallery,
-                machine_slots: editingFactory.machine_slots,
-                catalog: editingFactory.catalog
-            };
-
-            if (editingFactory.id) {
-                const { error } = await supabase.from('factories').update(factoryData).eq('id', editingFactory.id);
-                if (error) showToast(error.message, 'error');
-                else { showToast('Factory updated'); setIsModalOpen(false); fetchFactories(); }
-            } else {
-                const { error } = await supabase.from('factories').insert([factoryData]);
-                if (error) showToast(error.message, 'error');
-                else { showToast('Factory created'); setIsModalOpen(false); fetchFactories(); }
-            }
-        };
-
-        const handleDelete = async (id: string) => {
-            if(!confirm('Delete this factory?')) return;
-            const { error } = await supabase.from('factories').delete().eq('id', id);
-            if(error) showToast(error.message, 'error');
-            else { showToast('Factory deleted'); fetchFactories(); }
-        };
-
-        const handleArrayInput = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>, field: string) => {
-            setEditingFactory({ ...editingFactory, [field]: e.target.value.split(',').map(s => s.trim()) });
-        };
-
-        const handleJsonBlur = (field: 'catalog') => {
-            try {
-                const parsed = JSON.parse(jsonStrings[field]);
-                setEditingFactory({ ...editingFactory, [field]: parsed });
-            } catch (e) {
-                showToast(`Invalid JSON in ${field}`, 'error');
-            }
-        };
-
-        // Machine Slot Helpers
-        const addMachineSlot = () => {
-            setEditingFactory(prev => ({
-                ...prev,
-                machine_slots: [...(prev.machine_slots || []), { machineType: '', totalSlots: 0, availableSlots: 0, nextAvailable: '' }]
-            }));
-        };
-
-        const updateMachineSlot = (index: number, field: string, value: any) => {
-            const newSlots = [...(editingFactory.machine_slots || [])];
-            newSlots[index] = { ...newSlots[index], [field]: value };
-            setEditingFactory(prev => ({ ...prev, machine_slots: newSlots }));
-        };
-
-        const removeMachineSlot = (index: number) => {
-            const newSlots = [...(editingFactory.machine_slots || [])];
-            newSlots.splice(index, 1);
-            setEditingFactory(prev => ({ ...prev, machine_slots: newSlots }));
-        };
-
-        // Gallery Helpers
-        const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-            if (!e.target.files || e.target.files.length === 0) return;
-            const file = e.target.files[0];
-            const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.]/g, '')}`;
-            
-            // Optimistic UI update (Local Preview)
-            const localUrl = URL.createObjectURL(file);
-            setEditingFactory(prev => ({
-                ...prev,
-                gallery: [...(prev.gallery || []), localUrl]
-            }));
-
-            // Attempt upload
-            try {
-                const { data, error } = await supabase.storage.from('factory_images').upload(fileName, file);
-                if (error) throw error;
-                
-                const { data: { publicUrl } } = supabase.storage.from('factory_images').getPublicUrl(fileName);
-                
-                // Replace local URL with public URL
-                setEditingFactory(prev => ({
-                    ...prev,
-                    gallery: (prev.gallery || []).map((url: string) => url === localUrl ? publicUrl : url)
-                }));
-                showToast('Image uploaded successfully');
-            } catch (error: any) {
-                console.error('Upload failed:', error);
-                showToast('Upload failed (Storage not configured?), keeping local preview.', 'error');
-            }
-        };
-
-        const removeGalleryImage = (index: number) => {
-            const newGallery = [...(editingFactory.gallery || [])];
-            newGallery.splice(index, 1);
-            setEditingFactory(prev => ({ ...prev, gallery: newGallery }));
-        };
-
-        return (
-            <MainLayout {...layoutProps}>
-                <div className="flex justify-between items-center mb-6">
-                    <div>
-                        <h1 className="text-3xl font-bold text-gray-800">Factory CMS</h1>
-                        <p className="text-gray-500">Manage factory profiles, media, and capabilities.</p>
-                    </div>
-                    <button onClick={() => { setEditingFactory({ name: '', location: '', description: '', minimum_order_quantity: 0, rating: 0, cover_image_url: '', turnaround: '', offer: '', specialties: [], tags: [], certifications: [], gallery: [], machine_slots: [], catalog: { productCategories: [], fabricOptions: [] } }); setIsModalOpen(true); }} className="bg-purple-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-700">
-                        <Plus size={18} /> Add Factory
-                    </button>
-                </div>
-
-                <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                            <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Location</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">MOQ</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rating</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Turnaround</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Offer</th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            {isLoading ? <tr><td colSpan={5} className="p-4 text-center">Loading...</td></tr> : factories.map(f => (
-                                <tr key={f.id} className="hover:bg-gray-50">
-                                    <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{f.name}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-gray-500">{f.location}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-gray-500">{f.minimum_order_quantity}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-gray-500">{f.rating}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-gray-500">{f.turnaround || '-'}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-gray-500"><span className="px-2 py-1 rounded-full bg-blue-100 text-blue-800 text-xs font-semibold">{f.offer || 'None'}</span></td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <button onClick={() => { setEditingFactory(f); setIsModalOpen(true); }} className="text-indigo-600 hover:text-indigo-900 mr-4">Edit</button>
-                                        <button onClick={() => handleDelete(f.id)} className="text-red-600 hover:text-red-900">Delete</button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-
-                {isModalOpen && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                        <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                            <div className="flex justify-between items-center mb-6">
-                                <h2 className="text-2xl font-bold">{editingFactory.id ? 'Edit Factory' : 'Add New Factory'}</h2>
-                                <button onClick={() => setIsModalOpen(false)} className="text-gray-500 hover:text-gray-700"><X size={24} /></button>
-                            </div>
-                            <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {/* Basic Info */}
-                                <div className="md:col-span-2 border-b pb-2 mb-2 font-semibold text-gray-700">Basic Information</div>
-                                <div className="md:col-span-2"> <label className="block text-sm font-medium text-gray-700 mb-1">Factory Name</label> <input type="text" required value={editingFactory.name} onChange={e => setEditingFactory({...editingFactory, name: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md" /> </div>
-                                <div> <label className="block text-sm font-medium text-gray-700 mb-1">Location</label> <input type="text" required value={editingFactory.location} onChange={e => setEditingFactory({...editingFactory, location: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md" /> </div>
-                                <div> <label className="block text-sm font-medium text-gray-700 mb-1">Rating (0-5)</label> <input type="number" step="0.1" max="5" required value={editingFactory.rating} onChange={e => setEditingFactory({...editingFactory, rating: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md" /> </div>
-                                <div className="md:col-span-2"> <label className="block text-sm font-medium text-gray-700 mb-1">Description</label> <textarea rows={3} value={editingFactory.description || ''} onChange={e => setEditingFactory({...editingFactory, description: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md" /> </div>
-                                
-                                {/* Commercial & Operational */}
-                                <div className="md:col-span-2 border-b pb-2 mb-2 mt-4 font-semibold text-gray-700">Commercial & Operational</div>
-                                <div> <label className="block text-sm font-medium text-gray-700 mb-1">MOQ</label> <input type="number" required value={editingFactory.minimum_order_quantity} onChange={e => setEditingFactory({...editingFactory, minimum_order_quantity: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md" /> </div>
-                                <div> <label className="block text-sm font-medium text-gray-700 mb-1">Turnaround Time</label> <input type="text" placeholder="e.g. 25-35 days" value={editingFactory.turnaround || ''} onChange={e => setEditingFactory({...editingFactory, turnaround: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md" /> </div>
-                                <div> <label className="block text-sm font-medium text-gray-700 mb-1">Promotional Offer</label> <input type="text" placeholder="e.g. 10% OFF" value={editingFactory.offer || ''} onChange={e => setEditingFactory({...editingFactory, offer: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md" /> </div>
-                                
-                                {/* Arrays */}
-                                <div className="md:col-span-2 border-b pb-2 mb-2 mt-4 font-semibold text-gray-700">Tags & Categories (Comma Separated)</div>
-                                <div className="md:col-span-2"> <label className="block text-sm font-medium text-gray-700 mb-1">Specialties</label> <input type="text" placeholder="T-shirt, Denim, Hoodies" value={editingFactory.specialties?.join(', ') || ''} onChange={e => handleArrayInput(e, 'specialties')} className="w-full p-2 border border-gray-300 rounded-md" /> </div>
-                                <div className="md:col-span-2"> <label className="block text-sm font-medium text-gray-700 mb-1">Tags</label> <input type="text" placeholder="Prime, Sustainable, Tech Enabled" value={editingFactory.tags?.join(', ') || ''} onChange={e => handleArrayInput(e, 'tags')} className="w-full p-2 border border-gray-300 rounded-md" /> </div>
-                                <div className="md:col-span-2"> <label className="block text-sm font-medium text-gray-700 mb-1">Certifications</label> <input type="text" placeholder="Sedex, BCI, ISO 9001" value={editingFactory.certifications?.join(', ') || ''} onChange={e => handleArrayInput(e, 'certifications')} className="w-full p-2 border border-gray-300 rounded-md" /> </div>
-
-                                {/* Media */}
-                                <div className="md:col-span-2 border-b pb-2 mb-2 mt-4 font-semibold text-gray-700">Media Assets</div>
-                                <div className="md:col-span-2"> <label className="block text-sm font-medium text-gray-700 mb-1">Main Hero Image URL</label> <input type="text" value={editingFactory.cover_image_url || ''} onChange={e => setEditingFactory({...editingFactory, cover_image_url: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md" /> </div>
-                                <div className="md:col-span-2"> 
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Gallery Images</label> 
-                                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mb-3">
-                                        {editingFactory.gallery?.map((url: string, index: number) => (
-                                            <div key={index} className="relative group aspect-video bg-gray-100 rounded-md overflow-hidden border border-gray-200">
-                                                <img src={url} alt="Gallery" className="w-full h-full object-cover" />
-                                                <button type="button" onClick={() => removeGalleryImage(index)} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"><X size={12} /></button>
-                                            </div>
-                                        ))}
-                                        <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 aspect-video transition-colors">
-                                            <Upload size={20} className="text-gray-400" />
-                                            <span className="text-xs text-gray-500 mt-1">Upload</span>
-                                            <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-                                        </label>
-                                    </div>
-                                    <textarea rows={2} placeholder="Or paste URLs (comma separated)" value={editingFactory.gallery?.join(', ') || ''} onChange={e => handleArrayInput(e, 'gallery')} className="w-full p-2 border border-gray-300 rounded-md text-sm" /> 
-                                </div>
-
-                                {/* Complex JSON Data */}
-                                <div className="md:col-span-2 border-b pb-2 mb-2 mt-4 font-semibold text-gray-700">Production Capacity</div>
-                                <div className="md:col-span-2"> 
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Machine Slots</label> 
-                                    <div className="space-y-3">
-                                        {editingFactory.machine_slots?.map((slot: any, index: number) => (
-                                            <div key={index} className="flex flex-col sm:flex-row gap-2 items-start bg-gray-50 p-3 rounded-md border border-gray-200">
-                                                <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-2 w-full">
-                                                    <input type="text" placeholder="Machine Type" value={slot.machineType} onChange={e => updateMachineSlot(index, 'machineType', e.target.value)} className="p-2 border rounded text-sm w-full" />
-                                                    <input type="number" placeholder="Total" value={slot.totalSlots} onChange={e => updateMachineSlot(index, 'totalSlots', parseInt(e.target.value))} className="p-2 border rounded text-sm w-full" />
-                                                    <input type="number" placeholder="Available" value={slot.availableSlots} onChange={e => updateMachineSlot(index, 'availableSlots', parseInt(e.target.value))} className="p-2 border rounded text-sm w-full" />
-                                                    <input type="date" placeholder="Next Available" value={slot.nextAvailable} onChange={e => updateMachineSlot(index, 'nextAvailable', e.target.value)} className="p-2 border rounded text-sm w-full" />
-                                                </div>
-                                                <button type="button" onClick={() => removeMachineSlot(index)} className="text-red-500 p-2 hover:bg-red-50 rounded self-end sm:self-center"><Trash2 size={16} /></button>
-                                            </div>
-                                        ))}
-                                        <button type="button" onClick={addMachineSlot} className="text-sm text-purple-600 font-semibold flex items-center gap-1 hover:text-purple-800"><Plus size={16} /> Add Machine Slot</button>
-                                    </div>
-                                </div>
-
-                                <div className="md:col-span-2 border-b pb-2 mb-2 mt-4 font-semibold text-gray-700">Advanced Data (JSON)</div>
-                                <div className="md:col-span-2"> <label className="block text-sm font-medium text-gray-700 mb-1">Product Catalog (JSON)</label> <textarea rows={6} value={jsonStrings.catalog} onChange={e => setJsonStrings({...jsonStrings, catalog: e.target.value})} onBlur={() => handleJsonBlur('catalog')} className="w-full p-2 border border-gray-300 rounded-md font-mono text-xs" /> </div>
-
-                                <div className="md:col-span-2 flex justify-end gap-4 mt-4">
-                                    <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg">Cancel</button>
-                                    <button type="submit" className="px-4 py-2 bg-purple-600 text-white rounded-lg">Save Factory</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                )}
-            </MainLayout>
-        );
-    };
-
-    const AdminDashboardPage: FC = () => {
-        // Stats only dashboard
-        const stats = [
-            { title: 'Total Clients', value: '12', icon: <Users className="text-blue-600" />, color: 'bg-blue-100' },
-            { title: 'Active Orders', value: '342', icon: <Package className="text-purple-600" />, color: 'bg-purple-100' },
-            { title: 'Total Revenue', value: '$4.2M', icon: <DollarSign className="text-green-600" />, color: 'bg-green-100' },
-            { title: 'Platform Activity', value: 'High', icon: <Activity className="text-orange-600" />, color: 'bg-orange-100' },
-        ];
-
-        return (
-            <MainLayout {...layoutProps}>
-                <div className="space-y-8">
-                    <div>
-                        <h1 className="text-3xl font-bold text-gray-800">Admin Dashboard</h1>
-                        <p className="text-gray-500 mt-1">Overview of platform activity.</p>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        {stats.map((stat, index) => (
-                            <div key={index} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm font-medium text-gray-500">{stat.title}</p>
-                                    <p className="text-2xl font-bold text-gray-800 mt-1">{stat.value}</p>
-                                </div>
-                                <div className={`p-3 rounded-lg ${stat.color}`}>
-                                    {stat.icon}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </MainLayout>
-        );
-    };
-
-    const AdminUsersPage: FC = () => {
-        const [clients, setClients] = useState<any[]>([]);
-        const [isLoading, setIsLoading] = useState(true);
-        const [editingClient, setEditingClient] = useState<any>(null);
-        const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-
-        useEffect(() => {
-            const fetchClients = async () => {
-                setIsLoading(true);
-                const { data, error } = await supabase
-                    .from('clients')
-                    .select('*')
-                    .order('updated_at', { ascending: false });
-                
-                if (error) {
-                    console.error('Error fetching clients:', error);
-                    showToast('Failed to fetch clients', 'error');
-                } else {
-                    setClients(data || []);
-                }
-                setIsLoading(false);
-            };
-            fetchClients();
-        }, []);
-
-        const handleEditClick = (client: any) => {
-            setEditingClient(client);
-            setIsEditModalOpen(true);
-        };
-
-        const handleSaveClient = async (e: React.FormEvent) => {
-            e.preventDefault();
-            if (!editingClient) return;
-
-            const updates = {
-                name: editingClient.name,
-                company_name: editingClient.company_name,
-                phone: editingClient.phone,
-                country: editingClient.country,
-                job_role: editingClient.job_role,
-                category_specialization: editingClient.category_specialization,
-                yearly_est_revenue: editingClient.yearly_est_revenue,
-                updated_at: new Date().toISOString(),
-            };
-
-            const { error } = await supabase
-                .from('clients')
-                .update(updates)
-                .eq('id', editingClient.id);
-
-            if (error) {
-                showToast('Failed to update client: ' + error.message, 'error');
-            } else {
-                setClients(prev => prev.map(c => c.id === editingClient.id ? { ...c, ...updates } : c));
-                setIsEditModalOpen(false);
-                showToast('Client updated successfully');
-            }
-        };
-
-        const handleDeleteClient = async (id: string) => {
-             if (window.confirm('Are you sure you want to delete this client? This action cannot be undone.')) {
-                const { error } = await supabase.from('clients').delete().eq('id', id);
-                if (error) {
-                    showToast('Failed to delete client: ' + error.message, 'error');
-                } else {
-                    setClients(prev => prev.filter(c => c.id !== id));
-                    showToast('Client deleted successfully');
-                }
-             }
-        }
-
-        return (
-            <MainLayout {...layoutProps}>
-                <div className="space-y-8">
-                    <div>
-                        <h1 className="text-3xl font-bold text-gray-800">User Management</h1>
-                        <p className="text-gray-500 mt-1">Manage client accounts and permissions.</p>
-                    </div>
-
-                    {/* Client Management Section */}
-                    <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
-                        <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-                            <h2 className="text-xl font-bold text-gray-800">Client Management</h2>
-                        </div>
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-gray-50">
-                                    <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
-                                    {isLoading ? (
-                                        <tr><td colSpan={5} className="px-6 py-4 text-center text-gray-500">Loading clients...</td></tr>
-                                    ) : clients.length === 0 ? (
-                                        <tr><td colSpan={5} className="px-6 py-4 text-center text-gray-500">No clients found.</td></tr>
-                                    ) : (
-                                        clients.map((client) => (
-                                            <tr key={client.id} className="hover:bg-gray-50">
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{client.name || 'N/A'}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{client.company_name || 'N/A'}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{client.email}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{client.job_role || 'N/A'}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                    <button onClick={() => handleEditClick(client)} className="text-indigo-600 hover:text-indigo-900 mr-4">Edit</button>
-                                                    <button onClick={() => handleDeleteClient(client.id)} className="text-red-600 hover:text-red-900">Delete</button>
-                                                </td>
-                                            </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Edit Client Modal */}
-                {isEditModalOpen && editingClient && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                        <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                            <h2 className="text-2xl font-bold mb-6">Edit Client</h2>
-                            <form onSubmit={handleSaveClient} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                                    <input type="text" value={editingClient.name || ''} onChange={e => setEditingClient({...editingClient, name: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
-                                    <input type="text" value={editingClient.company_name || ''} onChange={e => setEditingClient({...editingClient, company_name: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                                    <input type="email" value={editingClient.email || ''} onChange={e => setEditingClient({...editingClient, email: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                                    <input type="text" value={editingClient.phone || ''} onChange={e => setEditingClient({...editingClient, phone: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
-                                    <input type="text" value={editingClient.country || ''} onChange={e => setEditingClient({...editingClient, country: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Job Role</label>
-                                    <input type="text" value={editingClient.job_role || ''} onChange={e => setEditingClient({...editingClient, job_role: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Specialization</label>
-                                    <input type="text" value={editingClient.category_specialization || ''} onChange={e => setEditingClient({...editingClient, category_specialization: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Est. Revenue</label>
-                                    <input type="text" value={editingClient.yearly_est_revenue || ''} onChange={e => setEditingClient({...editingClient, yearly_est_revenue: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md" />
-                                </div>
-                                <div className="md:col-span-2 flex justify-end gap-4 mt-4">
-                                    <button type="button" onClick={() => setIsEditModalOpen(false)} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg">Cancel</button>
-                                    <button type="submit" className="px-4 py-2 bg-purple-600 text-white rounded-lg">Save Changes</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                )}
-            </MainLayout>
-        );
-    };
-
     // --- Page Renderer ---
+    // Function to determine which page component to render based on state
     const renderPage = () => {
+        // Show loading spinner if auth is not ready
         if (!isAuthReady) {
             return <div className="flex items-center justify-center min-h-screen bg-gray-100"><div className="animate-spin rounded-full h-16 w-16 border-b-4 border-purple-500"></div></div>;
         }
 
+        // 1. Check Dynamic Routes from MasterController (Enables Extensibility)
+        const DynamicComponent = masterController.getRouteComponent(currentPage);
+        if (DynamicComponent) {
+            return <DynamicComponent {...layoutProps} />;
+        }
+
+        // Switch statement to render the appropriate component
         switch (currentPage) {
             case 'login': return <LoginPage showToast={showToast} setAuthError={setAuthError} authError={authError} onLoginSuccess={async (session) => {
                 const activeSession = session || (await supabase.auth.getSession()).data.session;
@@ -1428,14 +1096,11 @@ const App: FC = () => {
                 {...layoutProps}
                 handleSubmitOrderForm={handleSubmitOrderForm}
             />;
-            case 'crm': return <CRMPage 
-                {...layoutProps}
-                crmData={crmData}
-                activeCrmOrderKey={activeCrmOrderKey}
-                allFactories={allFactories}
-                callGeminiAPI={callGeminiAPI}
-                showToast={showToast}
-            />;
+            case 'crm': return (
+                <MainLayout {...layoutProps}>
+                    <CrmDashboard callGeminiAPI={callGeminiAPI} handleSetCurrentPage={handleSetCurrentPage} />
+                </MainLayout>
+            );
             case 'factorySuggestions': return <FactorySuggestionsPage />;
             case 'factoryDetail': return <FactoryDetailPage />;
             case 'factoryCatalog': return <FactoryCatalogPage />;
@@ -1447,9 +1112,11 @@ const App: FC = () => {
             case 'quoteRequest': return <QuoteRequestPage />;
             case 'quoteDetail': return <QuoteDetailPage />;
             case 'billing': return <BillingPage />;
-            case 'adminDashboard': return <AdminDashboardPage />;
-            case 'adminUsers': return <AdminUsersPage />;
-            case 'adminFactories': return <AdminFactoriesPage />;
+            case 'adminDashboard': return <AdminDashboardPage {...layoutProps} />;
+            case 'adminUsers': return <AdminUsersPage {...layoutProps} />;
+            case 'adminFactories': return <AdminFactoriesPage {...layoutProps} />;
+            case 'adminCRM': return <AdminCRMPage {...layoutProps} />;
+            case 'adminTrending': return <AdminTrendingPage {...layoutProps} />;
             default: return <SourcingPage
                 {...layoutProps}
                 userProfile={userProfile}
@@ -1461,6 +1128,7 @@ const App: FC = () => {
         }
     };
 
+    // Component for the Trending/News page
     const TrendingPage: FC = () => {
         const trendBlogs = [
             { id: 1, title: 'The Rise of Sustainable Denim', category: 'Materials', author: 'Vogue Business', date: 'June 24, 2025', imageUrl: 'https://ninelondon.co.uk/cdn/shop/articles/Guide_on_Sustainable_Jeans-_The_Future_of_Ethical_Fashion.jpg?v=1742809387' },
@@ -1547,6 +1215,7 @@ const App: FC = () => {
         )
     }
 
+    // Component to display user's quotes
     const MyQuotesPage: FC = () => {
         const [filterStatus, setFilterStatus] = useState('All');
     
@@ -1661,6 +1330,7 @@ const App: FC = () => {
         );
     };
 
+    // Component to create a new quote request
     const QuoteRequestPage: FC = () => {
         if (!selectedFactory) {
             handleSetCurrentPage('sourcing');
@@ -1739,6 +1409,7 @@ const App: FC = () => {
         );
     };
 
+    // Component to view details of a specific quote
     const QuoteDetailPage: FC = () => {
         const [isNegotiationModalOpen, setIsNegotiationModalOpen] = useState(false);
     
@@ -1870,6 +1541,7 @@ const App: FC = () => {
         );
     };
 
+    // Modal component for negotiating a quote
     const NegotiationModal: FC<{ onSubmit: (counterPrice: string, details: string) => void; onClose: () => void; }> = ({ onSubmit, onClose }) => {
         const [counterPrice, setCounterPrice] = useState('');
         const [details, setDetails] = useState('');
@@ -1915,6 +1587,7 @@ const App: FC = () => {
         );
     };
 
+    // Component for billing and escrow management
     const BillingPage: FC = () => {
         const billingData = [
             { id: 'ESC-001', orderId: 'PO-2024-001', product: '5000 Classic Tees', totalAmount: 21250, amountReleased: 10625, amountHeld: 10625, status: 'Partially Paid' },
@@ -1995,8 +1668,10 @@ const App: FC = () => {
         );
     };
 
+    // Render the main application structure
     return (
         <div className="antialiased">
+            {/* Global styles for fonts and animations */}
             <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
                 body {
@@ -2010,11 +1685,15 @@ const App: FC = () => {
                 .scrollbar-hide::-webkit-scrollbar { display: none; }
                 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
             `}</style>
+            {/* Toast notification component */}
             <Toast {...toast} />
+            {/* Render the current page content */}
             {renderPage()}
+            {/* Render AI Chat Support for non-admin users */}
             {user && userProfile && !isAdmin && <AIChatSupport />}
         </div>
     );
 };
 
+// Export the App component as the default export
 export default App;

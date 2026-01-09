@@ -1,4 +1,6 @@
+// Import React and necessary hooks for state and side effects
 import React, { FC, useState, useMemo, useEffect, useRef, ReactNode } from 'react';
+// Import icons for UI elements
 import {
     Search, Star, SlidersHorizontal, ChevronDown, Menu, User as UserIcon, LogOut, Briefcase, Truck, DollarSign,
     Building, ChevronLeft, ChevronRight, Package, Trash2, X
@@ -28,12 +30,19 @@ interface SourcingPageProps {
 export const SourcingPage: FC<SourcingPageProps> = (props) => {
     const { pageKey, user, userProfile, handleSelectFactory, toggleMenu, selectedGarmentCategory, setSelectedGarmentCategory, handleSetCurrentPage, handleSignOut, showToast } = props;
     
+    // State to hold the complete list of factories fetched from the database
     const [allFactories, setAllFactories] = useState<Factory[]>([]);
+    // Default values for filters to allow easy resetting
     const initialFilters = { rating: 0, maxMoq: 10000, tags: [] as string[], categories: [] as string[], location: '', certifications: [] as string[] };
+    // State for the text typed in the search bar
     const [searchTerm, setSearchTerm] = useState('');
+    // State to track active filters (rating, location, etc.)
     const [filters, setFilters] = useState(initialFilters);
+    // State to control visibility of the side filter panel
     const [showFilterPanel, setShowFilterPanel] = useState(false);
+    // State to show loading indicators while data is being fetched
     const [isFiltering, setIsFiltering] = useState(true);
+    // State for the user profile dropdown menu
     const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
     const profileDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -55,18 +64,21 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    // Fetch factories from Supabase
+    // Effect to fetch factory data from the database when the page loads
     useEffect(() => {
         const fetchFactories = async () => {
+            // Show loading state (skeletons)
             setIsFiltering(true);
-            // Fetch from the new flat schema columns (Arrays & JSONB)
+            
+            // Fetch all rows from the 'factories' table in Supabase
             const { data, error } = await supabase.from('factories').select('*');
 
             if (error) {
                 showToast('Could not fetch factories.', 'error');
                 console.error(error);
             } else if (data) {
-                // Transform the data from Supabase to match the frontend's Factory interface
+                // Transform the raw database data (snake_case) into the format our app uses (camelCase)
+                // This ensures the rest of the app doesn't break if DB column names change
                 const transformedFactories: Factory[] = data.map((f: any) => ({
                     id: f.id,
                     name: f.name,
@@ -84,22 +96,34 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                     machineSlots: f.machine_slots || [],
                     catalog: f.catalog || { productCategories: [], fabricOptions: [] }
                 }));
+                // Update state with the processed list of factories
                 setAllFactories(transformedFactories);
             }
+            // Hide loading state
             setIsFiltering(false);
         };
         fetchFactories();
     }, [showToast]);
 
+    // Core Filtering Logic: Determines which factories to display
+    // useMemo ensures this calculation only runs when dependencies (filters, search, etc.) change
     const filteredFactories = useMemo(() => {
         return allFactories
+            // 1. Filter by the main category selected in the top carousel (e.g., "T-shirt")
             .filter(f => selectedGarmentCategory === 'All' || f.specialties.includes(selectedGarmentCategory))
+            // 2. Filter by search text (checks both factory name and location)
             .filter(f => f.name.toLowerCase().includes(searchTerm.toLowerCase()) || f.location.toLowerCase().includes(searchTerm.toLowerCase()))
+            // 3. Filter by minimum star rating
             .filter(f => f.rating >= filters.rating)
+            // 4. Filter by Maximum Order Quantity (MOQ) - ensures factory accepts the user's order size
             .filter(f => f.minimumOrderQuantity <= filters.maxMoq)
+            // 5. Filter by Tags (e.g., "Sustainable") - factory must have ALL selected tags
             .filter(f => filters.tags.length === 0 || filters.tags.every(tag => f.tags.includes(tag as string)))
+            // 6. Filter by specific categories from the detailed filter panel
             .filter(f => filters.categories.length === 0 || filters.categories.some(cat => f.specialties.includes(cat as string)))
+            // 7. Filter by specific location text from the filter panel
             .filter(f => filters.location === '' || f.location.toLowerCase().includes(filters.location.toLowerCase()))
+            // 8. Filter by certifications (e.g., "ISO 9001") - factory must have ALL selected certs
             .filter(f => filters.certifications.length === 0 || filters.certifications.every(cert => f.certifications.includes(cert as string)));
     }, [selectedGarmentCategory, searchTerm, filters, allFactories]);
 
@@ -122,6 +146,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
         { name: 'Fast Turnaround', type: 'tag', value: 'Fast Turnaround' }
     ];
 
+    // Function to handle clicks on the quick filter buttons (top bar)
     const handleQuickFilter = (type: string, value: any) => {
         if (type === 'rating') {
             setFilters(f => f.rating === value ? { ...f, rating: 0 } : { ...f, rating: value });
@@ -274,6 +299,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
 
     return (
         <MainLayout {...props}>
+            {/* Header Section: Contains title, search bar, and profile menu */}
             <header className="mb-6">
                 <div className="flex items-center justify-between">
                     <div>
@@ -286,6 +312,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                         <ProfileDropdown />
                     </div>
                 </div>
+                {/* Search Bar and Filter Button Row */}
                 <div className="relative mt-6 flex flex-col sm:flex-row gap-2">
                     <div className="relative flex-grow">
                         <Search className="h-5 w-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -294,8 +321,14 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                     <button onClick={() => setShowFilterPanel(true)} className="flex-shrink-0 px-4 py-3 bg-white border border-gray-200 rounded-xl flex items-center justify-center gap-2 hover:bg-gray-100 font-semibold shadow-sm"><SlidersHorizontal size={16} /> <span className="hidden sm:inline">Filters</span></button>
                 </div>
             </header>
+
+            {/* Dashboard Stats: Displays key metrics like Active Orders */}
             <Dashboard />
+
+            {/* Category Carousel: Horizontal scrollable list of garment types */}
             <section className="mb-6"><CategoryCarousel /></section>
+
+            {/* Quick Filters: Sticky bar with easy-access filters (Rating, Sustainable, etc.) */}
             <section className="mb-6 sticky top-0 bg-white/80 backdrop-blur-sm py-3 z-30 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
                 <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide max-w-7xl mx-auto">
                     <button onClick={() => setShowFilterPanel(true)} className="flex-shrink-0 px-4 py-2 border rounded-lg text-sm font-semibold transition-colors bg-white border-gray-300 hover:bg-gray-100 flex items-center gap-2"><SlidersHorizontal size={16} />Filters</button>
@@ -305,9 +338,12 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                     })}
                 </div>
             </section>
+
+            {/* Factory Grid: The main content area displaying the list of factories */}
             <section>
                 <h2 className="text-xl font-bold text-gray-800 mb-4">Recommended For You</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {/* Conditional Rendering: Show Skeletons while loading, Cards if data exists, or 'No Results' message */}
                     {isFiltering ? (
                         Array.from({ length: 6 }).map((_, index) => <SkeletonCard key={index} />)
                     ) : filteredFactories.length > 0 ? (
@@ -323,6 +359,8 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                     )}
                 </div>
             </section>
+
+            {/* Filter Panel: The slide-out modal for detailed filtering options */}
             <FilterPanel />
         </MainLayout>
     );

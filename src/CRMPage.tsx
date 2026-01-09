@@ -1,4 +1,4 @@
-import React, { FC, useState, useEffect, useMemo } from 'react';
+import React, { FC, useState, useEffect, useMemo, ReactNode } from 'react';
 import {
     List, TrendingUp, CheckCircle, Package, PieChart as PieChartIcon,
     BarChart as BarChartIcon, Info, LayoutDashboard, ClipboardCheck,
@@ -9,6 +9,7 @@ import {
 } from 'recharts';
 import { MainLayout } from '../src/MainLayout';
 import { CrmOrder, Factory } from '../src/types';
+import { crmService } from './crm.service';
 
 interface CRMPageProps {
     pageKey: number;
@@ -21,111 +22,29 @@ interface CRMPageProps {
     handleSetCurrentPage: (page: string, data?: any) => void;
     handleSignOut: () => void;
     crmData: { [key: string]: CrmOrder };
-    activeCrmOrderKey: string | null;
+    activeCrmOrderKey: string | null; // This prop is for the initial active order
     allFactories: Factory[];
     callGeminiAPI: (prompt: string) => Promise<string>;
     showToast: (message: string, type?: 'success' | 'error') => void;
 }
 
-export const CRMPage: FC<CRMPageProps> = (props) => {
-    const { 
-        crmData, activeCrmOrderKey, allFactories, callGeminiAPI, showToast, handleSetCurrentPage
-    } = props;
-
-    const [activeOrderKey, setActiveOrderKey] = useState(activeCrmOrderKey || Object.keys(crmData)[0]);
-    
-    useEffect(() => {
-        if (activeCrmOrderKey) {
-            setActiveOrderKey(activeCrmOrderKey);
-        }
-    }, [activeCrmOrderKey]);
-
-    const [activeView, setActiveView] = useState('Details');
-    const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
-    const [orderSummary, setOrderSummary] = useState('');
-    const [isSummaryLoading, setIsSummaryLoading] = useState(false);
-
-    const activeOrder = crmData[activeOrderKey];
-
-    const generateOrderSummary = async () => {
-        setIsSummaryModalOpen(true);
-        setIsSummaryLoading(true);
-        setOrderSummary('');
-        const taskDetails = activeOrder.tasks.map(t => `- ${t.name}: ${t.status} (Due: ${t.plannedEndDate})`).join('\n');
-        const prompt = `
-            Generate a professional project report and order summary for the following garment production order:
-            
-            **Order ID:** ${activeOrderKey}
-            **Customer:** ${activeOrder.customer}
-            **Product:** ${activeOrder.product}
-
-            **Current Task Status:**
-            ${taskDetails}
-
-            Please structure your response with the following sections:
-            1.  **Overall Status:** A one-sentence overview of the order's health, including the percentage of tasks completed.
-            2.  **Current Focus:** Describe what is actively being worked on (tasks in progress).
-            3.  **Upcoming Milestones:** List the next 2-3 important tasks from the 'TO DO' list.
-            4.  **Potential Risks:** Identify any potential risks based on the task list. If none are apparent, state "No immediate risks identified."
-            
-            Format the response clearly using markdown for headings and lists.
-        `;
-        try {
-            const summary = await callGeminiAPI(prompt);
-            setOrderSummary(summary);
-        } catch (error) {
-            console.error("Failed to generate order summary:", error);
-            setOrderSummary("### Error\nSorry, I was unable to generate a summary at this time. Please try again later.");
-            showToast("Error generating summary.", "error");
-        } finally {
-            setIsSummaryLoading(false);
-        }
-    };
-
-    const MarkdownRenderer: FC<{ text: string }> = ({ text }) => {
-        if (!text) return null;
-        // A simple markdown-like renderer
-        const lines = text.split('\n').map((line, i) => {
-            if (line.startsWith('###')) return <h3 key={i} className="text-xl font-bold text-gray-800 mb-4">{line.replace('###', '')}</h3>;
-            if (line.startsWith('**')) return <p key={i} className="font-semibold text-gray-700 mt-4 mb-1">{line.replace(/\*\*/g, '')}</p>;
-            if (line.startsWith('- ')) return <li key={i} className="flex items-start my-1 text-gray-600"><span className="mr-3 mt-1.5 text-purple-500">∙</span><span>{line.substring(2)}</span></li>;
-            return <p key={i} className="text-gray-600">{line}</p>;
-        });
-        return <div className="space-y-1">{lines}</div>;
-    };
-
-    const AIOrderSummaryModal: FC = () => (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60] p-4 animate-fade-in" onClick={() => setIsSummaryModalOpen(false)}>
-            <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 w-full max-w-2xl relative" onClick={e => e.stopPropagation()}>
-                <button onClick={() => setIsSummaryModalOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition"> <X size={24} /> </button>
-                <div className="flex items-center gap-3 mb-6">
-                    <div className="p-2 bg-purple-100 rounded-lg"> <Bot className="w-6 h-6 text-purple-600" /> </div>
-                    <h2 className="text-2xl font-bold text-gray-800">AI Order Summary</h2>
+export function DashboardCard({ icon, title, value, colorClass }: { icon: ReactNode, title: string, value: string | number, colorClass: string }) {
+    return (
+        <div className={`relative p-5 rounded-xl overflow-hidden bg-white shadow-sm border`}>
+            <div className="flex items-start justify-between">
+                <div>
+                    <p className="text-sm font-medium text-gray-500">{title}</p>
+                    <p className="text-3xl font-bold text-gray-800 mt-1">{value}</p>
                 </div>
-                <div className="min-h-[200px] prose prose-sm max-w-none">
-                    {isSummaryLoading ? ( <div className="flex items-center justify-center h-full flex-col"> <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div> <p className="mt-4 text-gray-500">Analyzing order data...</p> </div> ) : ( <MarkdownRenderer text={orderSummary} /> )}
+                <div className={`p-3 rounded-lg ${colorClass}`}>
+                    {icon}
                 </div>
             </div>
         </div>
     );
+}
 
-    function DashboardCard({ icon, title, value, colorClass }) {
-        return (
-            <div className={`relative p-5 rounded-xl overflow-hidden bg-white shadow-sm border`}>
-                <div className="flex items-start justify-between">
-                    <div>
-                        <p className="text-sm font-medium text-gray-500">{title}</p>
-                        <p className="text-3xl font-bold text-gray-800 mt-1">{value}</p>
-                    </div>
-                    <div className={`p-3 rounded-lg ${colorClass}`}>
-                        {icon}
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    const DashboardView: FC<{ tasks: any[]; orderKey: string; orderDetails: any }> = ({ tasks, orderKey, orderDetails }) => {
+export const DashboardView: FC<{ tasks: any[]; orderKey: string; orderDetails: any }> = ({ tasks, orderKey, orderDetails }) => {
         const statusData = useMemo(() => {
             const statuses: { [key: string]: number } = { 'TO DO': 0, 'IN PROGRESS': 0, 'COMPLETE': 0 };
             tasks.forEach(task => {
@@ -137,7 +56,7 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
         const totalTasks = tasks.length;
         const completedTasks = tasks.filter(t => t.status === 'COMPLETE').length;
         const inProgressTasks = tasks.filter(t => t.status === 'IN PROGRESS').length;
-        const totalQuantity = parseInt(orderDetails.product.split(' ')[0], 10);
+        const totalQuantity = parseInt(orderDetails.product.split(' ')[0], 10) || 0;
         const COLORS = ['#D1D5DB', '#FBBF24', '#34D399'];
 
         return (
@@ -184,7 +103,7 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
         )
     };
 
-    const ListView: FC<{ tasks: any[] }> = ({ tasks }) => {
+export const ListView: FC<{ tasks: any[] }> = ({ tasks }) => {
         const completedTasks = tasks.filter(t => t.status === 'COMPLETE');
         const todoTasks = tasks.filter(t => t.status === 'TO DO');
         const inProgressTasks = tasks.filter(t => t.status === 'IN PROGRESS');
@@ -251,7 +170,7 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
         );
     };
 
-    const BoardView: FC<{ tasks: any[] }> = ({ tasks }) => {
+export const BoardView: FC<{ tasks: any[] }> = ({ tasks }) => {
         const columns: { [key: string]: any[] } = {
             'TO DO': tasks.filter(t => t.status === 'TO DO'),
             'IN PROGRESS': tasks.filter(t => t.status === 'IN PROGRESS'),
@@ -291,7 +210,7 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
         )
     }
 
-    const GanttChartView: FC<{ tasks: any[] }> = ({ tasks }) => {
+export const GanttChartView: FC<{ tasks: any[] }> = ({ tasks }) => {
         const parseDate = (str: string) => new Date(str);
         const diffDays = (date1: Date, date2: Date) => Math.ceil(Math.abs(date1.getTime() - date2.getTime()) / (1000 * 60 * 60 * 24));
 
@@ -360,7 +279,7 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
         )
     }
 
-    const TNAView: FC<{ tasks: any[] }> = ({ tasks }) => {
+export const TNAView: FC<{ tasks: any[] }> = ({ tasks }) => {
         const parseDate = (str: string | null) => str ? new Date(str) : null;
         const today = new Date();
         today.setHours(0, 0, 0, 0); // Normalize today's date
@@ -433,7 +352,7 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
         )
     };
 
-    const OrderDetailsView: FC<{ order: any }> = ({ order }) => {
+export const OrderDetailsView: FC<{ order: any; allFactories: Factory[]; handleSetCurrentPage: (page: string, data?: any) => void }> = ({ order, allFactories, handleSetCurrentPage }) => {
         const factory = allFactories.find(f => f.id === order.factoryId);
         const getDocIcon = (type: string) => {
             switch(type) {
@@ -451,7 +370,7 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
                         <div className="bg-white p-6 rounded-xl shadow-sm border">
                             <h3 className="text-lg font-semibold text-gray-800 mb-4">Order Summary</h3>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div><p className="text-sm text-gray-500">Order ID</p><p className="font-semibold">{activeOrderKey}</p></div>
+                            <div><p className="text-sm text-gray-500">Order ID</p><p className="font-semibold">{order.id || 'N/A'}</p></div>
                                 <div><p className="text-sm text-gray-500">Customer</p><p className="font-semibold">{order.customer}</p></div>
                                 <div><p className="text-sm text-gray-500">Product</p><p className="font-semibold">{order.product}</p></div>
                             </div>
@@ -506,6 +425,115 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
         )
     }
 
+export const CRMPage: FC<CRMPageProps> = (props) => {
+    const { 
+        crmData: initialCrmData, activeCrmOrderKey, allFactories, callGeminiAPI, showToast, handleSetCurrentPage, user
+    } = props;
+
+    const [crmData, setCrmData] = useState<{ [key: string]: CrmOrder }>(initialCrmData);
+    const [activeOrderKey, setActiveOrderKey] = useState<string | null>(activeCrmOrderKey || (Object.keys(initialCrmData).length > 0 ? Object.keys(initialCrmData)[0] : null));
+    
+    useEffect(() => {
+        if (activeCrmOrderKey) {
+            setActiveOrderKey(activeCrmOrderKey);
+        }
+    }, [activeCrmOrderKey]);
+
+    useEffect(() => {
+        const fetchClientOrders = async () => {
+            if (user) {
+                const { data } = await crmService.getOrdersByClient(user.id);
+                if (data) {
+                    const mappedData: { [key: string]: CrmOrder } = {};
+                    data.forEach((order: any) => {
+                        mappedData[order.id] = {
+                            customer: 'My Order',
+                            product: order.product_name,
+                            factoryId: order.factory_id,
+                            documents: order.documents || [],
+                            tasks: order.tasks || [],
+                            status: order.status
+                        } as CrmOrder;
+                    });
+                    setCrmData(mappedData);
+                    if (!activeCrmOrderKey && data.length > 0) setActiveOrderKey(data[0].id);
+                    else if (data.length === 0) setActiveOrderKey(null);
+                }
+            }
+        };
+        fetchClientOrders();
+    }, [user]);
+
+    const [activeView, setActiveView] = useState('Details');
+    const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
+    const [orderSummary, setOrderSummary] = useState('');
+    const [isSummaryLoading, setIsSummaryLoading] = useState(false);
+
+    const activeOrder = activeOrderKey && crmData[activeOrderKey] ? { ...crmData[activeOrderKey], id: activeOrderKey } : null;
+
+    const generateOrderSummary = async () => {
+        if (!activeOrder) return;
+        setIsSummaryModalOpen(true);
+        setIsSummaryLoading(true);
+        setOrderSummary('');
+        const taskDetails = activeOrder.tasks.map(t => `- ${t.name}: ${t.status} (Due: ${t.plannedEndDate})`).join('\n');
+        const prompt = `
+            Generate a professional project report and order summary for the following garment production order:
+            
+            **Order ID:** ${activeOrderKey}
+            **Customer:** ${activeOrder.customer}
+            **Product:** ${activeOrder.product}
+
+            **Current Task Status:**
+            ${taskDetails}
+
+            Please structure your response with the following sections:
+            1.  **Overall Status:** A one-sentence overview of the order's health, including the percentage of tasks completed.
+            2.  **Current Focus:** Describe what is actively being worked on (tasks in progress).
+            3.  **Upcoming Milestones:** List the next 2-3 important tasks from the 'TO DO' list.
+            4.  **Potential Risks:** Identify any potential risks based on the task list. If none are apparent, state "No immediate risks identified."
+            
+            Format the response clearly using markdown for headings and lists.
+        `;
+        try {
+            const summary = await callGeminiAPI(prompt);
+            setOrderSummary(summary);
+        } catch (error) {
+            console.error("Failed to generate order summary:", error);
+            setOrderSummary("### Error\nSorry, I was unable to generate a summary at this time. Please try again later.");
+            showToast("Error generating summary.", "error");
+        } finally {
+            setIsSummaryLoading(false);
+        }
+    };
+
+    const MarkdownRenderer: FC<{ text: string }> = ({ text }) => {
+        if (!text) return null;
+        // A simple markdown-like renderer
+        const lines = text.split('\n').map((line, i) => {
+            if (line.startsWith('###')) return <h3 key={i} className="text-xl font-bold text-gray-800 mb-4">{line.replace('###', '')}</h3>;
+            if (line.startsWith('**')) return <p key={i} className="font-semibold text-gray-700 mt-4 mb-1">{line.replace(/\*\*/g, '')}</p>;
+            if (line.startsWith('- ')) return <li key={i} className="flex items-start my-1 text-gray-600"><span className="mr-3 mt-1.5 text-purple-500">∙</span><span>{line.substring(2)}</span></li>;
+            return <p key={i} className="text-gray-600">{line}</p>;
+        });
+        return <div className="space-y-1">{lines}</div>;
+    };
+
+    const AIOrderSummaryModal: FC = () => (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60] p-4 animate-fade-in" onClick={() => setIsSummaryModalOpen(false)}>
+            <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 w-full max-w-2xl relative" onClick={e => e.stopPropagation()}>
+                <button onClick={() => setIsSummaryModalOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition"> <X size={24} /> </button>
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="p-2 bg-purple-100 rounded-lg"> <Bot className="w-6 h-6 text-purple-600" /> </div>
+                    <h2 className="text-2xl font-bold text-gray-800">AI Order Summary</h2>
+                </div>
+                <div className="min-h-[200px] prose prose-sm max-w-none">
+                    {isSummaryLoading ? ( <div className="flex items-center justify-center h-full flex-col"> <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div> <p className="mt-4 text-gray-500">Analyzing order data...</p> </div> ) : ( <MarkdownRenderer text={orderSummary} /> )}
+                </div>
+            </div>
+        </div>
+    );
+
     return (
         <MainLayout {...props}>
             <div className="flex justify-between items-center mb-6">
@@ -547,11 +575,11 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
                         </div>
                     </div>
                 </div>
-                {activeOrder && activeView === 'Details' && <OrderDetailsView order={activeOrder} />}
+                {activeOrder && activeView === 'Details' && <OrderDetailsView order={activeOrder} allFactories={allFactories} handleSetCurrentPage={handleSetCurrentPage} />}
                 {activeOrder && activeView === 'List' && <ListView tasks={activeOrder.tasks} />}
                 {activeOrder && activeView === 'Board' && <BoardView tasks={activeOrder.tasks} />}
                 {activeOrder && activeView === 'TNA' && <TNAView tasks={activeOrder.tasks} />}
-                {activeOrder && activeView === 'Dashboard' && <DashboardView tasks={activeOrder.tasks} orderKey={activeOrderKey} orderDetails={activeOrder}/>}
+                    {activeOrder && activeView === 'Dashboard' && <DashboardView tasks={activeOrder.tasks} orderKey={activeOrderKey || ''} orderDetails={activeOrder}/>}
                 {activeOrder && activeView === 'Gantt' && <GanttChartView tasks={activeOrder.tasks} />}
             </div>
             {isSummaryModalOpen && <AIOrderSummaryModal />}

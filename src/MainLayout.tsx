@@ -1,27 +1,32 @@
+// Import React and types for building components
 import React, { FC, ReactNode } from 'react';
+// Import icons for the menu and UI
 import {
     Search, DollarSign, Plus, ChevronLeft, ChevronsLeft, ChevronsRight,
     Menu, X, List, Truck, User as UserIcon, LogOut, Settings, Flame, FileQuestion, LayoutDashboard, Users, Building
 } from 'lucide-react';
 
+// Define the data (props) that the MainLayout component needs to work
 interface MainLayoutProps {
-    children: ReactNode;
-    pageKey: number;
-    user: any;
-    currentPage: string;
-    isMenuOpen: boolean;
-    isSidebarCollapsed: boolean;
-    toggleMenu: () => void;
-    setIsSidebarCollapsed: (isCollapsed: boolean) => void;
-    handleSetCurrentPage: (page: string) => void;
-    handleSignOut: () => void;
-    hideSidebar?: boolean;
-    isAdmin?: boolean;
+    children: ReactNode; // The content of the page being displayed
+    pageKey: number; // A unique key to force refresh when needed
+    user: any; // The currently logged-in user
+    currentPage: string; // The name of the page currently being viewed
+    isMenuOpen: boolean; // Whether the mobile menu is open
+    isSidebarCollapsed: boolean; // Whether the desktop sidebar is small (collapsed)
+    toggleMenu: () => void; // Function to open/close mobile menu
+    setIsSidebarCollapsed: (isCollapsed: boolean) => void; // Function to shrink/expand desktop sidebar
+    handleSetCurrentPage: (page: string) => void; // Function to change the page
+    handleSignOut: () => void; // Function to log out
+    hideSidebar?: boolean; // Optional: Hide sidebar on specific pages (like profile setup)
+    isAdmin?: boolean; // Optional: Check if user is an admin
 }
 
+// Component for the Side Menu (Desktop Navigation)
 const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'>> = (
     { currentPage, isMenuOpen, isSidebarCollapsed, toggleMenu, setIsSidebarCollapsed, handleSetCurrentPage, handleSignOut, isAdmin }
 ) => {
+    // List of menu items for regular users (Clients)
     const clientMenuItems = [
         { name: 'Sourcing', page: 'sourcing', icon: <Search className="h-5 w-5" /> },
         { name: 'My Quotes', page: 'myQuotes', icon: <FileQuestion className="h-5 w-5" /> },
@@ -34,27 +39,40 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'>> = (
         { name: "What's Trending", page: 'trending', icon: <Flame className="h-5 w-5" /> },
     ];
 
+    // List of menu items for Admin users
     const adminMenuItems = [
         { name: 'Dashboard', page: 'adminDashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
         { name: 'User Management', page: 'adminUsers', icon: <Users className="h-5 w-5" /> },
         { name: 'Factory CMS', page: 'adminFactories', icon: <Building className="h-5 w-5" /> },
+        { name: 'CRM Manager', page: 'adminCRM', icon: <List className="h-5 w-5" /> },
+        { name: 'Trending CMS', page: 'adminTrending', icon: <Flame className="h-5 w-5" /> },
         { name: 'Settings', page: 'settings', icon: <Settings className="h-5 w-5" /> },
     ];
 
+    // Choose which menu to show based on user role
     const menuItems = isAdmin ? adminMenuItems : clientMenuItems;
 
     return (<>
+        {/* Overlay background when mobile menu is open */}
         {isMenuOpen && <div className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden" onClick={toggleMenu}></div>}
+        
+        {/* The Sidebar Container */}
         <aside className={`fixed inset-y-0 left-0 bg-gray-900 text-white flex flex-col shadow-lg z-50 transition-all duration-300 ease-in-out md:relative ${isMenuOpen ? 'w-64' : '-translate-x-full w-64'} md:translate-x-0 ${isSidebarCollapsed ? 'md:w-20' : 'md:w-64'}`}>
+            
+            {/* Sidebar Header (Logo and Toggle Buttons) */}
             <div className={`flex items-center justify-between p-4 border-b border-gray-700 ${isSidebarCollapsed ? 'md:justify-center' : ''}`}>
                 {!isSidebarCollapsed && <h1 className="text-2xl font-bold text-white">Auctave</h1>}
+                {/* Mobile Close Button */}
                 <button onClick={toggleMenu} className="p-2 rounded-md bg-gray-700 hover:bg-gray-600 text-white md:hidden">
                     <X className="w-6 h-6"/>
                 </button>
+                {/* Desktop Collapse Button */}
                 <button onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} className="hidden md:block p-2 rounded-md hover:bg-gray-700 text-white">
                     {isSidebarCollapsed ? <ChevronsRight className="w-6 h-6"/> : <ChevronsLeft className="w-6 h-6"/>}
                 </button>
             </div>
+
+            {/* Navigation Links */}
             <nav className="flex-1 p-4 space-y-2">
                 {menuItems.map(item => (
                     <button key={item.name} onClick={() => { handleSetCurrentPage(item.page); if (isMenuOpen) toggleMenu(); }} className={`w-full text-left p-3 rounded-md font-medium flex items-center transition duration-150 ease-in-out ${isSidebarCollapsed ? 'justify-center' : ''} ${currentPage === item.page ? 'bg-purple-600 text-white' : 'hover:bg-gray-700'}`} title={isSidebarCollapsed ? item.name : ''}>
@@ -63,6 +81,8 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'>> = (
                     </button>
                 ))}
             </nav>
+
+            {/* Logout Button at the bottom */}
             <div className={`p-4 border-t border-gray-700 ${isSidebarCollapsed ? 'flex justify-center' : ''}`}>
                 <button onClick={() => { handleSignOut(); if (isMenuOpen) toggleMenu(); }} className={`w-full text-left p-3 rounded-md font-medium hover:bg-red-700 flex items-center transition duration-150 ease-in-out text-red-300 ${isSidebarCollapsed ? 'justify-center' : ''}`} title={isSidebarCollapsed ? 'Logout' : ''}>
                     <div className={isSidebarCollapsed ? '' : 'mr-3'}><LogOut className="h-5 w-5"/></div>
@@ -73,7 +93,9 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'>> = (
     </>);
 };
 
+// Component for Bottom Navigation Bar (Mobile Only)
 const BottomNavBar: FC<{ currentPage: string; handleSetCurrentPage: (page: string) => void; }> = ({ currentPage, handleSetCurrentPage }) => {
+    // Items to show on the bottom bar
     const navItems = [
       { name: 'Sourcing', page: 'sourcing', icon: <Search /> },
       { name: 'My Quotes', page: 'myQuotes', icon: <FileQuestion /> },
@@ -83,6 +105,7 @@ const BottomNavBar: FC<{ currentPage: string; handleSetCurrentPage: (page: strin
     ];
     return (
       <div className="fixed bottom-0 left-0 right-0 h-20 md:hidden z-40">
+          {/* The white bar container */}
           <div className="absolute bottom-0 left-0 right-0 bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.1)] h-16">
               <div className="flex justify-around items-center h-full">
                   {navItems.map(item => (
@@ -93,6 +116,7 @@ const BottomNavBar: FC<{ currentPage: string; handleSetCurrentPage: (page: strin
                   ))}
               </div>
           </div>
+          {/* Floating Action Button (FAB) for new orders */}
           <button onClick={() => handleSetCurrentPage('orderForm')} className="absolute bottom-8 left-1/2 -translate-x-1/2 w-16 h-16 bg-purple-600 rounded-full flex items-center justify-center text-white shadow-lg transform transition-transform hover:scale-110">
               <Plus size={32}/>
           </button>
@@ -100,14 +124,20 @@ const BottomNavBar: FC<{ currentPage: string; handleSetCurrentPage: (page: strin
     );
 }
 
+// The Main Layout Wrapper Component
 export const MainLayout: FC<MainLayoutProps> = (props) => (
     <div className="flex min-h-screen bg-white font-inter">
+        {/* Show Sidebar on Desktop if user is logged in and sidebar isn't hidden */}
         {props.user && !props.hideSidebar && <div className="hidden md:flex"><SideMenu {...props} /></div>}
+        
+        {/* Main Content Area */}
         <main className="flex-1 flex flex-col overflow-hidden">
             <div key={props.pageKey} className="flex-1 w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 pb-24 md:pb-8 animate-fade-in">
                 {props.children}
             </div>
         </main>
+        
+        {/* Show Bottom Nav on Mobile if user is logged in and sidebar isn't hidden */}
         {props.user && !props.hideSidebar && <BottomNavBar currentPage={props.currentPage} handleSetCurrentPage={props.handleSetCurrentPage} />}
     </div>
 );
