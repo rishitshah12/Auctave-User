@@ -56,7 +56,7 @@ export const DashboardView: FC<{ tasks: any[]; orderKey: string; orderDetails: a
         const totalTasks = tasks.length;
         const completedTasks = tasks.filter(t => t.status === 'COMPLETE').length;
         const inProgressTasks = tasks.filter(t => t.status === 'IN PROGRESS').length;
-        const totalQuantity = parseInt(orderDetails.product.split(' ')[0], 10) || 0;
+        const totalQuantity = parseInt((orderDetails.product || '').split(' ')[0], 10) || 0;
         const COLORS = ['#D1D5DB', '#FBBF24', '#34D399'];
 
         return (

@@ -61,18 +61,21 @@ export interface Factory {
 
 export interface QuoteRequest {
     id: string;
-    factory: {
-        id: string;
-        name: string;
-        location: string;
-        imageUrl: string;
-    };
+    factory: any; // You can replace 'any' with 'Factory' if available
     order: OrderFormData;
     status: 'Pending' | 'Responded' | 'Accepted' | 'Declined' | 'In Negotiation';
     submittedAt: string;
     userId: string;
-    files?: string[];
+    files: string[];
+    clientName?: string;
+    companyName?: string;
+    response_details?: {
+        price: string;
+        leadTime: string;
+        notes: string;
+    };
 }
+
 
 export interface CrmOrder {
     customer: string;

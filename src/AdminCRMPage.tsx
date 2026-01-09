@@ -199,6 +199,19 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
         setEditingOrder({ ...editingOrder, documents: newDocs });
     };
 
+    const handleDeleteOrder = async (orderId: string) => {
+        if (!confirm('Are you sure you want to delete this order? This action cannot be undone.')) return;
+        
+        const { error } = await crmService.delete(orderId);
+        if (error) {
+            showToast('Failed to delete order: ' + error.message, 'error');
+        } else {
+            showToast('Order deleted successfully');
+            setOrders(prev => prev.filter(o => o.id !== orderId));
+            if (activeOrderKey === orderId) setActiveOrderKey(null);
+        }
+    };
+
     const handleCreateOrder = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newOrderData.product_name || !newOrderData.factory_id) {
@@ -312,10 +325,22 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                                 ))}
                                             </div>
                                             <button 
+                                                onClick={() => setIsCreateOrderOpen(true)}
+                                                className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 transition flex items-center gap-2 text-sm"
+                                            >
+                                                <Plus size={16} /> New Order
+                                            </button>
+                                            <button 
                                                 onClick={() => handleEditOrder(activeOrder)}
                                                 className="bg-purple-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-purple-700 transition flex items-center gap-2 text-sm"
                                             >
                                                 <Edit size={16} /> Manage
+                                            </button>
+                                            <button 
+                                                onClick={() => handleDeleteOrder(activeOrder.id)}
+                                                className="bg-red-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-red-700 transition flex items-center gap-2 text-sm"
+                                            >
+                                                <Trash2 size={16} /> Delete
                                             </button>
                                         </div>
                                     </div>

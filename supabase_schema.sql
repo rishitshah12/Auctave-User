@@ -122,3 +122,31 @@ create policy "Admins can delete orders" on crm_orders for delete to authenticat
 -- Clients can view their own orders
 drop policy if exists "Clients can view own orders" on crm_orders;
 create policy "Clients can view own orders" on crm_orders for select using (auth.uid() = client_id);
+
+-- 9. Create quotes table
+create table if not exists quotes (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references public.clients(id) not null,
+  factory_id uuid references public.factories(id),
+  factory_data jsonb,
+  order_details jsonb,
+  status text default 'Pending',
+  files text[],
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+alter table quotes enable row level security;
+
+-- Policies for quotes
+drop policy if exists "Admins can view all quotes" on quotes;
+create policy "Admins can view all quotes" on quotes for select to authenticated using (auth.jwt() ->> 'email' like '%@auctaveexports.com');
+
+drop policy if exists "Admins can update quotes" on quotes;
+create policy "Admins can update quotes" on quotes for update to authenticated using (auth.jwt() ->> 'email' like '%@auctaveexports.com');
+
+drop policy if exists "Clients can view own quotes" on quotes;
+create policy "Clients can view own quotes" on quotes for select to authenticated using (auth.uid() = user_id);
+
+drop policy if exists "Clients can insert own quotes" on quotes;
+create policy "Clients can insert own quotes" on quotes for insert to authenticated with check (auth.uid() = user_id);

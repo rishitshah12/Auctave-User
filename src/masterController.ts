@@ -79,6 +79,9 @@ export class MasterController {
         // Map 'permission' string to specific roles/claims.
         // For this MVP, we treat any @auctaveexports.com user as a super-admin matching RLS policies.
         if (email?.endsWith('@auctaveexports.com')) return true;
+
+        // Allow clients to read and write quotes (RLS will handle specific data access)
+        if (permission === 'quotes.read' || permission === 'quotes.write') return true;
         
         return false; 
     }

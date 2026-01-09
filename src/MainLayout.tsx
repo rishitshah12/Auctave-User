@@ -45,6 +45,7 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'>> = (
         { name: 'User Management', page: 'adminUsers', icon: <Users className="h-5 w-5" /> },
         { name: 'Factory CMS', page: 'adminFactories', icon: <Building className="h-5 w-5" /> },
         { name: 'CRM Manager', page: 'adminCRM', icon: <List className="h-5 w-5" /> },
+        { name: 'RFQ Requests', page: 'adminRFQ', icon: <FileQuestion className="h-5 w-5" /> },
         { name: 'Trending CMS', page: 'adminTrending', icon: <Flame className="h-5 w-5" /> },
         { name: 'Settings', page: 'settings', icon: <Settings className="h-5 w-5" /> },
     ];

@@ -10,7 +10,7 @@ import {
     GanttChartSquare, LayoutDashboard, MoreHorizontal, Info, Settings, LifeBuoy,
     History, Edit, Anchor, Ship, Warehouse, PackageCheck, Award, Users, Activity, Shield,
     PlayCircle, BarChart as BarChartIcon, FileQuestion, ClipboardCheck, Lock,
-    Tag, Weight, Palette, Box, Map as MapIcon, Download, BookOpen, Building, Trash2, Upload
+    Tag, Weight, Palette, Box, Map as MapIcon, Download, BookOpen, Building, Trash2, Upload, Globe
 } from 'lucide-react';
 // Import charting components from recharts for data visualization
 import {
@@ -35,6 +35,8 @@ import { AdminUsersPage } from './AdminUsersPage';
 import { AdminFactoriesPage } from './AdminFactoriesPage';
 import { AdminCRMPage } from './AdminCRMPage';
 import { AdminTrendingPage } from './AdminTrendingPage';
+import { AdminRFQPage } from './AdminRFQPage';
+import { quoteService } from './quote.service';
 
 // --- Type Definitions ---
 
@@ -80,7 +82,7 @@ const App: FC = () => {
     // --- State Management ---
     
     // State to track which page is currently displayed (default is 'login')
-    const [currentPage, setCurrentPage] = useState<string>('login');
+    const [currentPage, setCurrentPage] = useState<string>(() => localStorage.getItem('garment_erp_last_page') || 'login');
     // State to store the authenticated user object from Supabase
     const [user, setUser] = useState<any>(null);
     // State to store the user's extended profile data (name, company, etc.)
@@ -190,6 +192,9 @@ const App: FC = () => {
         }
         // Update the current page state
         setCurrentPage(page);
+        if (page !== 'login') {
+            localStorage.setItem('garment_erp_last_page', page);
+        }
     };
 
     // Effect to expose showToast to the global window object
@@ -255,9 +260,26 @@ const App: FC = () => {
                         if (redirectRoute) {
                             setCurrentPage(redirectRoute);
                         } else {
-                            // Default redirect based on role
-                            setCurrentPage(isUserAdmin ? 'adminDashboard' : 'sourcing');
+                            // If it's INITIAL_SESSION (refresh), try to keep current page if valid
+                            if (event === 'INITIAL_SESSION') {
+                                const lastPage = localStorage.getItem('garment_erp_last_page');
+                                if (lastPage && lastPage !== 'login') {
+                                    setCurrentPage(lastPage);
+                                } else {
+                                    setCurrentPage(isUserAdmin ? 'adminDashboard' : 'sourcing');
+                                }
+                            } else {
+                                // SIGNED_IN event (fresh login) -> go to default dashboard
+                                setCurrentPage(isUserAdmin ? 'adminDashboard' : 'sourcing');
+                            }
                         }
+                    } else if (event === 'SIGNED_OUT') {
+                        // Explicitly handle sign out event
+                        setUser(null);
+                        setUserProfile(null);
+                        setIsAdmin(false);
+                        localStorage.removeItem('garment_erp_last_page');
+                        setCurrentPage('login');
                     }
                 } else {
                     // If no session, go to login
@@ -297,24 +319,41 @@ const App: FC = () => {
     // --- Mock Data Fetching ---
     // Effect to load mock quotes when user is logged in
     useEffect(() => {
-        if (user) {
-            const mockQuotes: QuoteRequest[] = [
-                { id: 'QR001', factory: { id: 'F001', name: 'AU Global Garment Solutions', location: 'Dhaka, Bangladesh', imageUrl: 'https://images.unsplash.com/photo-1576566588028-4147f3842f27?q=80&w=2864&auto=format&fit=crop' }, order: { category: 'T-shirt', qty: '5000', targetPrice: '4.50', fabricQuality: '100% Cotton', weightGSM: '180', styleOption: 'Crew Neck', shippingDest: 'LA, USA', packagingReqs: 'Polybag', labelingReqs: 'Custom' }, status: 'Responded', submittedAt: new Date(new Date().setDate(new Date().getDate() - 5)).toISOString(), userId: 'previewUser' },
-                { id: 'QR002', factory: { id: 'F003', name: 'AU Innovate Apparel Co.', location: 'Mumbai, India', imageUrl: 'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?q=80&w=2872&auto=format&fit=crop' }, order: { category: 'Hoodies', qty: '2000', targetPrice: '12.00', fabricQuality: 'Cotton/Poly Blend', weightGSM: '320', styleOption: 'Pullover', shippingDest: 'NY, USA', packagingReqs: 'Carton', labelingReqs: 'Woven' }, status: 'Pending', submittedAt: new Date(new Date().setDate(new Date().getDate() - 2)).toISOString(), userId: 'previewUser' },
-            ];
-            setQuoteRequests(mockQuotes);
-        }
+        const fetchUserQuotes = async () => {
+            if (user && !isAdmin) {
+                const { data } = await quoteService.getQuotesByUser(user.id);
+                if (data) {
+                    const transformedQuotes: QuoteRequest[] = data.map((q: any) => ({
+                        id: q.id,
+                        factory: q.factory_data,
+                        order: q.order_details,
+                        status: q.status,
+                        submittedAt: q.created_at,
+                        userId: q.user_id,
+                        files: q.files || [],
+                        response_details: q.response_details
+                    }));
+                    setQuoteRequests(transformedQuotes);
+                }
+            }
+        };
+        fetchUserQuotes();
     }, [user]);
 
     // --- Authentication & Profile Functions (Mocked) ---
     
     // Function to handle user sign out
     const handleSignOut = async () => {
-        await supabase.auth.signOut();
+        try {
+            await supabase.auth.signOut();
+        } catch (error) {
+            console.error("Sign out error:", error);
+        }
         setUser(null);
         setUserProfile(null);
         setIsAdmin(false);
-        handleSetCurrentPage('login');
+        localStorage.removeItem('garment_erp_last_page');
+        setCurrentPage('login');
     };
 
     // Function to save or update user profile in Supabase
@@ -356,25 +395,44 @@ const App: FC = () => {
         setIsProfileLoading(false);
     };
 
-    // --- Quote Request Functions (Mocked) ---
+    // --- Quote Request Functions ---
     
-    // Function to simulate submitting a quote request
-    const submitQuoteRequest = async (quoteData: Omit<QuoteRequest, 'id' | 'status' | 'submittedAt' | 'userId'>) => {
+    // Function to submit a quote request to Supabase
+    const submitQuoteRequest = async (quoteData: { factory?: { id: string; name: string; location: string; imageUrl: string }, order: OrderFormData, files?: string[] }) => {
         showToast('Submitting quote request...', 'success');
-        // Simulate network delay
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        // Create new quote object
-        const newQuote: QuoteRequest = {
-            ...quoteData,
-            id: `QR${Math.floor(Math.random() * 1000)}`,
+        
+        const payload = {
+            user_id: user.id,
+            factory_id: quoteData.factory?.id || null,
+            factory_data: quoteData.factory || null,
+            order_details: quoteData.order,
             status: 'Pending',
-            submittedAt: new Date().toISOString(),
-            userId: user.uid,
+            files: (quoteData as any).files || []
         };
-        // Update state
-        setQuoteRequests(prev => [newQuote, ...prev]);
-        showToast('Quote request submitted successfully!');
-        handleSetCurrentPage('myQuotes');
+
+        const { error } = await quoteService.create(payload);
+
+        if (error) {
+            showToast('Failed to submit quote: ' + error.message, 'error');
+        } else {
+            showToast('Quote request submitted successfully!');
+            // Refresh quotes from Supabase to update the UI
+            const { data } = await quoteService.getQuotesByUser(user.id);
+            if (data) {
+                const transformedQuotes: QuoteRequest[] = data.map((q: any) => ({
+                    id: q.id,
+                    factory: q.factory_data,
+                    order: q.order_details,
+                    status: q.status,
+                    submittedAt: q.created_at,
+                    userId: q.user_id,
+                    files: q.files || [],
+                    response_details: q.response_details
+                }));
+                setQuoteRequests(transformedQuotes);
+            }
+            handleSetCurrentPage('myQuotes');
+        }
     };
 
     // --- Gemini API Call (Live) ---
@@ -418,10 +476,11 @@ const App: FC = () => {
     const handleSubmitOrderForm = (submittedData: OrderFormData, files: File[]) => {
         setOrderFormData(submittedData);
         setUploadedFiles(files);
-        // In a real app, you might not need to pre-filter. The SourcingPage does its own filtering.
-        const matchingFactories = allFactories.filter(f => f.specialties.includes(submittedData.category)); 
-        setSuggestedFactories(matchingFactories);
-        handleSetCurrentPage('factorySuggestions');
+        
+        submitQuoteRequest({
+            order: submittedData,
+            files: files.map(f => f.name)
+        });
     };
 
     // Function to handle factory selection
@@ -1063,25 +1122,7 @@ const App: FC = () => {
 
         // Switch statement to render the appropriate component
         switch (currentPage) {
-            case 'login': return <LoginPage showToast={showToast} setAuthError={setAuthError} authError={authError} onLoginSuccess={async (session) => {
-                const activeSession = session || (await supabase.auth.getSession()).data.session;
-                
-                if (activeSession?.user) {
-                    setUser(activeSession.user);
-                    const isUserAdmin = activeSession.user.email?.toLowerCase().endsWith('@auctaveexports.com');
-                    setIsAdmin(!!isUserAdmin);
-
-                    if (isUserAdmin) {
-                        if (!activeSession.user.user_metadata?.password_set) {
-                            handleSetCurrentPage('createPassword');
-                        } else {
-                            handleSetCurrentPage('adminDashboard');
-                        }
-                    } else {
-                        handleSetCurrentPage('sourcing');
-                    }
-                }
-            }} />;
+            case 'login': return <LoginPage showToast={showToast} setAuthError={setAuthError} authError={authError} />;
             case 'profile': return <ProfilePage />;
             case 'createPassword': return <CreatePasswordPage />;
             case 'sourcing': return <SourcingPage
@@ -1117,6 +1158,7 @@ const App: FC = () => {
             case 'adminFactories': return <AdminFactoriesPage {...layoutProps} />;
             case 'adminCRM': return <AdminCRMPage {...layoutProps} />;
             case 'adminTrending': return <AdminTrendingPage {...layoutProps} />;
+            case 'adminRFQ': return <AdminRFQPage {...layoutProps} />;
             default: return <SourcingPage
                 {...layoutProps}
                 userProfile={userProfile}
@@ -1273,45 +1315,78 @@ const App: FC = () => {
                 {filteredQuotes.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {filteredQuotes.map((quote, index) => (
-                            <div key={quote.id} className="bg-white rounded-xl shadow-lg border border-gray-100 flex flex-col transition-transform hover:scale-[1.02] animate-card-enter" style={{ animationDelay: `${index * 50}ms` }}>
+                            <div 
+                                key={quote.id} 
+                                onClick={() => handleSetCurrentPage('quoteDetail', quote)}
+                                className="bg-white rounded-xl shadow-sm hover:shadow-md border border-gray-200 flex flex-col transition-all duration-200 cursor-pointer group animate-card-enter" 
+                                style={{ animationDelay: `${index * 50}ms` }}
+                            >
                                 {/* Card Header */}
-                                <div className="flex items-center justify-between p-4 border-b border-gray-100">
-                                    <div className="flex items-center gap-3">
-                                        <img className="h-12 w-12 rounded-full object-cover" src={quote.factory.imageUrl} alt={quote.factory.name} />
-                                        <div>
-                                            <p className="font-bold text-gray-800">{quote.factory.name}</p>
-                                            <p className="text-xs text-gray-500 flex items-center"><MapPin size={12} className="mr-1"/>{quote.factory.location}</p>
-                                        </div>
+                                <div className="flex items-center justify-between p-5 border-b border-gray-100">
+                                    <div className="flex items-center gap-4">
+                                        {quote.factory ? (
+                                            <>
+                                                <img className="h-12 w-12 rounded-lg object-cover border border-gray-100" src={quote.factory.imageUrl} alt={quote.factory.name} />
+                                                <div>
+                                                    <p className="font-bold text-gray-900 text-base">{quote.factory.name}</p>
+                                                    <p className="text-xs text-gray-500 flex items-center mt-0.5"><MapPin size={12} className="mr-1"/>{quote.factory.location}</p>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div className="flex items-center gap-4">
+                                                <div className="h-12 w-12 rounded-lg bg-purple-50 flex items-center justify-center text-purple-600 border border-purple-100"><Globe size={24} /></div>
+                                                <div><p className="font-bold text-gray-900 text-base">General Request</p><p className="text-xs text-gray-500 mt-0.5">Open to all factories</p></div>
+                                            </div>
+                                        )}
                                     </div>
-                                    <button className="text-gray-400 hover:text-gray-600 p-1 rounded-full">
-                                        <MoreHorizontal size={20} />
-                                    </button>
+                                    <span className={`px-3 py-1 text-xs font-semibold rounded-full ${getStatusColor(quote.status)}`}>
+                                        {quote.status}
+                                    </span>
                                 </div>
     
                                 {/* Card Body */}
-                                <div className="p-4 flex-grow space-y-3">
-                                    <div className="flex items-center text-sm">
-                                        <Shirt size={16} className="text-gray-400 mr-3 flex-shrink-0" />
-                                        <span className="font-semibold text-gray-700">{quote.order.category}</span>
+                                <div className="p-5 flex-grow space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <p className="text-xs text-gray-500 mb-1">Product</p>
+                                            <div className="flex items-center text-sm font-medium text-gray-800">
+                                                <Shirt size={16} className="text-gray-400 mr-2" />
+                                                {quote.order.category}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs text-gray-500 mb-1">Quantity</p>
+                                            <div className="flex items-center text-sm font-medium text-gray-800">
+                                                <Package size={16} className="text-gray-400 mr-2" />
+                                                {quote.order.qty} units
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center text-sm">
-                                        <Package size={16} className="text-gray-400 mr-3 flex-shrink-0" />
-                                        <span className="text-gray-600">{quote.order.qty} units</span>
+                                    
+                                    <div>
+                                        <p className="text-xs text-gray-500 mb-1">Submitted</p>
+                                        <div className="flex items-center text-sm text-gray-600">
+                                            <Clock size={16} className="text-gray-400 mr-2" />
+                                            {new Date(quote.submittedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                                        </div>
                                     </div>
-                                    <div className="flex items-center text-sm">
-                                        <Clock size={16} className="text-gray-400 mr-3 flex-shrink-0" />
-                                        <span className="text-gray-600">Submitted: {new Date(quote.submittedAt).toLocaleDateString()}</span>
-                                    </div>
+                                    {quote.status === 'Responded' && quote.response_details && (
+                                        <div className="mt-3 bg-blue-50 border border-blue-100 rounded-lg p-3 flex items-center justify-between">
+                                            <div className="flex items-center text-blue-700">
+                                                <DollarSign size={18} className="mr-2" />
+                                                <span className="font-semibold text-sm">Quote Received</span>
+                                            </div>
+                                            <span className="font-bold text-blue-800 text-lg">${quote.response_details.price}</span>
+                                        </div>
+                                    )}
                                 </div>
     
                                 {/* Card Footer */}
-                                <div className="p-4 bg-gray-50/70 rounded-b-xl flex items-center justify-between">
-                                    <span className={`px-2.5 py-1 text-xs leading-5 font-bold rounded-full ${getStatusColor(quote.status)}`}>
-                                        {quote.status}
-                                    </span>
-                                    <button onClick={() => handleSetCurrentPage('quoteDetail', quote)} className="text-sm font-bold text-purple-600 hover:text-purple-800 flex items-center">
-                                        View Details <ChevronRight size={16} className="ml-1" />
-                                    </button>
+                                <div className="px-5 py-4 bg-gray-50 rounded-b-xl border-t border-gray-100 flex items-center justify-between group-hover:bg-purple-50 transition-colors duration-200">
+                                    <span className="text-xs text-gray-500 font-medium group-hover:text-purple-600 transition-colors">View full details</span>
+                                    <div className="h-8 w-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-400 group-hover:border-purple-200 group-hover:text-purple-600 transition-all">
+                                        <ChevronRight size={16} />
+                                    </div>
                                 </div>
                             </div>
                         ))}
@@ -1418,9 +1493,17 @@ const App: FC = () => {
             return null;
         }
     
-        const { factory, order, status, submittedAt, id } = selectedQuote;
+        const { factory, order, status, submittedAt, id, response_details } = selectedQuote;
     
-        const handleAcceptQuote = () => {
+        const handleAcceptQuote = async () => {
+            // Update status in Supabase
+            const { error } = await quoteService.update(id, { status: 'Accepted' });
+
+            if (error) {
+                showToast('Failed to update quote status: ' + error.message, 'error');
+                return;
+            }
+
             const updatedQuotes = quoteRequests.map(q =>
                 q.id === id ? { ...q, status: 'Accepted' as 'Accepted' } : q
             );
@@ -1449,7 +1532,15 @@ const App: FC = () => {
             setIsNegotiationModalOpen(true);
         };
     
-        const handleNegotiationSubmit = (counterPrice: string, details: string) => {
+        const handleNegotiationSubmit = async (counterPrice: string, details: string) => {
+            // Update status in Supabase
+            const { error } = await quoteService.update(id, { status: 'In Negotiation' });
+
+            if (error) {
+                showToast('Failed to update quote status: ' + error.message, 'error');
+                return;
+            }
+
             const updatedQuotes = quoteRequests.map(q =>
                 q.id === id ? { ...q, status: 'In Negotiation' as 'In Negotiation' } : q
             );
@@ -1519,9 +1610,9 @@ const App: FC = () => {
                         <h3 className="text-xl font-bold text-gray-800 mb-4">Factory Response</h3>
                         {status === 'Responded' ? (
                             <div className="bg-blue-50 p-6 rounded-lg">
-                                <p className="font-semibold text-blue-800">Quote Received: $4.25 / unit</p>
-                                <p className="text-sm text-blue-700 mt-2">Lead Time: 30-40 days</p>
-                                <p className="text-sm text-blue-700 mt-1">Notes: We can meet all specifications. Price is based on current material costs.</p>
+                                <p className="font-semibold text-blue-800">Quote Received: ${response_details?.price || 'N/A'} / unit</p>
+                                <p className="text-sm text-blue-700 mt-2">Lead Time: {response_details?.leadTime || 'N/A'}</p>
+                                <p className="text-sm text-blue-700 mt-1">Notes: {response_details?.notes || 'No notes provided.'}</p>
                                 <div className="mt-4 flex gap-2">
                                     <button onClick={handleAcceptQuote} className="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold">Accept Quote</button>
                                     <button onClick={handleOpenNegotiate} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg font-semibold">Negotiate</button>
