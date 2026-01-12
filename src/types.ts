@@ -74,6 +74,11 @@ export interface QuoteRequest {
         leadTime: string;
         notes: string;
     };
+    negotiation_details?: {
+        counterPrice: string;
+        message: string;
+        submittedAt: string;
+    };
 }
 
 

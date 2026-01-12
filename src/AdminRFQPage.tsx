@@ -46,6 +46,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                 userId: q.user_id,
                 files: q.files || [],
                 response_details: q.response_details,
+                negotiation_details: q.negotiation_details,
                 // Add client info for display
                 clientName: q.clients?.name || 'Unknown',
                 companyName: q.clients?.company_name || 'Unknown'
@@ -148,6 +149,14 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                             </div>
                         </div>
                     </div>
+
+                    {selectedQuote.negotiation_details && (
+                        <div className="mb-8 p-4 border rounded-lg bg-orange-50 border-orange-200">
+                            <h3 className="text-lg font-semibold text-orange-800 mb-2">Client Counter-Offer</h3>
+                            <p className="text-sm text-gray-700"><strong>Counter Price:</strong> ${selectedQuote.negotiation_details.counterPrice}</p>
+                            <p className="text-sm text-gray-700 mt-1"><strong>Message:</strong> {selectedQuote.negotiation_details.message}</p>
+                        </div>
+                    )}
 
                     <div className="border-t pt-6">
                         <h3 className="text-lg font-bold text-gray-800 mb-4">Admin Actions</h3>

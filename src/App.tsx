@@ -37,6 +37,8 @@ import { AdminCRMPage } from './AdminCRMPage';
 import { AdminTrendingPage } from './AdminTrendingPage';
 import { AdminRFQPage } from './AdminRFQPage';
 import { quoteService } from './quote.service';
+import { MyQuotesPage } from './MyQuotesPage';
+import { QuoteDetailPage } from './QuoteDetailPage';
 
 // --- Type Definitions ---
 
@@ -331,7 +333,8 @@ const App: FC = () => {
                         submittedAt: q.created_at,
                         userId: q.user_id,
                         files: q.files || [],
-                        response_details: q.response_details
+                        response_details: q.response_details,
+                        negotiation_details: q.negotiation_details
                     }));
                     setQuoteRequests(transformedQuotes);
                 }
@@ -427,7 +430,8 @@ const App: FC = () => {
                     submittedAt: q.created_at,
                     userId: q.user_id,
                     files: q.files || [],
-                    response_details: q.response_details
+                    response_details: q.response_details,
+                    negotiation_details: q.negotiation_details
                 }));
                 setQuoteRequests(transformedQuotes);
             }
@@ -1149,9 +1153,15 @@ const App: FC = () => {
             case 'settings': return <SettingsPage />;
             case 'tracking': return <OrderTrackingPage />;
             case 'trending': return <TrendingPage />;
-            case 'myQuotes': return <MyQuotesPage />;
+            case 'myQuotes': return <MyQuotesPage quoteRequests={quoteRequests} handleSetCurrentPage={handleSetCurrentPage} layoutProps={layoutProps} />;
             case 'quoteRequest': return <QuoteRequestPage />;
-            case 'quoteDetail': return <QuoteDetailPage />;
+            case 'quoteDetail': return <QuoteDetailPage 
+                selectedQuote={selectedQuote} 
+                handleSetCurrentPage={handleSetCurrentPage} 
+                updateQuoteStatus={updateQuoteStatus}
+                createCrmOrder={createCrmOrder}
+                layoutProps={layoutProps} 
+            />;
             case 'billing': return <BillingPage />;
             case 'adminDashboard': return <AdminDashboardPage {...layoutProps} />;
             case 'adminUsers': return <AdminUsersPage {...layoutProps} />;
@@ -1257,154 +1267,6 @@ const App: FC = () => {
         )
     }
 
-    // Component to display user's quotes
-    const MyQuotesPage: FC = () => {
-        const [filterStatus, setFilterStatus] = useState('All');
-    
-        const getStatusColor = (status: string) => {
-            switch (status) {
-                case 'Pending': return 'bg-yellow-100 text-yellow-800';
-                case 'Responded': return 'bg-blue-100 text-blue-800';
-                case 'Accepted': return 'bg-green-100 text-green-800';
-                case 'Declined': return 'bg-red-100 text-red-800';
-                case 'In Negotiation': return 'bg-orange-100 text-orange-800';
-                default: return 'bg-gray-100 text-gray-800';
-            }
-        };
-    
-        const filteredQuotes = quoteRequests.filter(quote =>
-            filterStatus === 'All' || quote.status === filterStatus
-        );
-    
-        const filterOptions = ['All', 'Pending', 'Responded', 'In Negotiation', 'Accepted', 'Declined'];
-    
-        return (
-            <MainLayout {...layoutProps}>
-                {/* Header */}
-                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
-                    <div>
-                        <h1 className="text-3xl font-bold text-gray-800">My Quote Requests</h1>
-                        <p className="text-gray-500 mt-1">Track and manage your quotes with factories.</p>
-                    </div>
-                    <button onClick={() => handleSetCurrentPage('orderForm')} className="bg-purple-600 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 hover:bg-purple-700 transition shadow-md">
-                        <Plus size={18} />
-                        <span>Request New Quote</span>
-                    </button>
-                </div>
-    
-                {/* Filter Tabs */}
-                <div className="mb-6">
-                    <div className="flex items-center gap-2 border-b border-gray-200 pb-2 overflow-x-auto scrollbar-hide">
-                        {filterOptions.map(status => (
-                            <button
-                                key={status}
-                                onClick={() => setFilterStatus(status)}
-                                className={`flex-shrink-0 py-2 px-4 font-semibold text-sm rounded-md transition-colors ${
-                                    filterStatus === status
-                                        ? 'bg-purple-100 text-purple-700'
-                                        : 'text-gray-500 hover:bg-gray-100'
-                                }`}
-                            >
-                                {status}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-    
-                {/* Quotes Grid */}
-                {filteredQuotes.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {filteredQuotes.map((quote, index) => (
-                            <div 
-                                key={quote.id} 
-                                onClick={() => handleSetCurrentPage('quoteDetail', quote)}
-                                className="bg-white rounded-xl shadow-sm hover:shadow-md border border-gray-200 flex flex-col transition-all duration-200 cursor-pointer group animate-card-enter" 
-                                style={{ animationDelay: `${index * 50}ms` }}
-                            >
-                                {/* Card Header */}
-                                <div className="flex items-center justify-between p-5 border-b border-gray-100">
-                                    <div className="flex items-center gap-4">
-                                        {quote.factory ? (
-                                            <>
-                                                <img className="h-12 w-12 rounded-lg object-cover border border-gray-100" src={quote.factory.imageUrl} alt={quote.factory.name} />
-                                                <div>
-                                                    <p className="font-bold text-gray-900 text-base">{quote.factory.name}</p>
-                                                    <p className="text-xs text-gray-500 flex items-center mt-0.5"><MapPin size={12} className="mr-1"/>{quote.factory.location}</p>
-                                                </div>
-                                            </>
-                                        ) : (
-                                            <div className="flex items-center gap-4">
-                                                <div className="h-12 w-12 rounded-lg bg-purple-50 flex items-center justify-center text-purple-600 border border-purple-100"><Globe size={24} /></div>
-                                                <div><p className="font-bold text-gray-900 text-base">General Request</p><p className="text-xs text-gray-500 mt-0.5">Open to all factories</p></div>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <span className={`px-3 py-1 text-xs font-semibold rounded-full ${getStatusColor(quote.status)}`}>
-                                        {quote.status}
-                                    </span>
-                                </div>
-    
-                                {/* Card Body */}
-                                <div className="p-5 flex-grow space-y-4">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <p className="text-xs text-gray-500 mb-1">Product</p>
-                                            <div className="flex items-center text-sm font-medium text-gray-800">
-                                                <Shirt size={16} className="text-gray-400 mr-2" />
-                                                {quote.order.category}
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs text-gray-500 mb-1">Quantity</p>
-                                            <div className="flex items-center text-sm font-medium text-gray-800">
-                                                <Package size={16} className="text-gray-400 mr-2" />
-                                                {quote.order.qty} units
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div>
-                                        <p className="text-xs text-gray-500 mb-1">Submitted</p>
-                                        <div className="flex items-center text-sm text-gray-600">
-                                            <Clock size={16} className="text-gray-400 mr-2" />
-                                            {new Date(quote.submittedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
-                                        </div>
-                                    </div>
-                                    {quote.status === 'Responded' && quote.response_details && (
-                                        <div className="mt-3 bg-blue-50 border border-blue-100 rounded-lg p-3 flex items-center justify-between">
-                                            <div className="flex items-center text-blue-700">
-                                                <DollarSign size={18} className="mr-2" />
-                                                <span className="font-semibold text-sm">Quote Received</span>
-                                            </div>
-                                            <span className="font-bold text-blue-800 text-lg">${quote.response_details.price}</span>
-                                        </div>
-                                    )}
-                                </div>
-    
-                                {/* Card Footer */}
-                                <div className="px-5 py-4 bg-gray-50 rounded-b-xl border-t border-gray-100 flex items-center justify-between group-hover:bg-purple-50 transition-colors duration-200">
-                                    <span className="text-xs text-gray-500 font-medium group-hover:text-purple-600 transition-colors">View full details</span>
-                                    <div className="h-8 w-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-400 group-hover:border-purple-200 group-hover:text-purple-600 transition-all">
-                                        <ChevronRight size={16} />
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                ) : (
-                    <div className="text-center py-16 bg-white rounded-xl shadow-lg border border-gray-100">
-                        <FileQuestion className="mx-auto h-16 w-16 text-gray-300" />
-                        <h3 className="mt-4 text-lg font-semibold text-gray-800">No Quotes Found</h3>
-                        <p className="mt-1 text-sm text-gray-500">No quotes match the "{filterStatus}" filter.</p>
-                        <button onClick={() => setFilterStatus('All')} className="mt-4 text-sm font-bold text-purple-600 hover:underline">
-                            Show All Quotes
-                        </button>
-                    </div>
-                )}
-            </MainLayout>
-        );
-    };
-
     // Component to create a new quote request
     const QuoteRequestPage: FC = () => {
         if (!selectedFactory) {
@@ -1484,198 +1346,30 @@ const App: FC = () => {
         );
     };
 
-    // Component to view details of a specific quote
-    const QuoteDetailPage: FC = () => {
-        const [isNegotiationModalOpen, setIsNegotiationModalOpen] = useState(false);
-    
-        if (!selectedQuote) {
-            handleSetCurrentPage('myQuotes');
-            return null;
-        }
-    
-        const { factory, order, status, submittedAt, id, response_details } = selectedQuote;
-    
-        const handleAcceptQuote = async () => {
-            // Update status in Supabase
-            const { error } = await quoteService.update(id, { status: 'Accepted' });
-
-            if (error) {
-                showToast('Failed to update quote status: ' + error.message, 'error');
-                return;
-            }
-
-            const updatedQuotes = quoteRequests.map(q =>
-                q.id === id ? { ...q, status: 'Accepted' as 'Accepted' } : q
-            );
-            setQuoteRequests(updatedQuotes);
-            setSelectedQuote(prev => prev ? { ...prev, status: 'Accepted' } : null);
-    
-            // Create a new order in CRM
-            const newOrderId = `PO-2024-${String(Object.keys(crmData).length + 1).padStart(3, '0')}`;
-            const newOrder: CrmOrder = {
-                customer: userProfile?.companyName || 'N/A',
-                product: `${order.qty} ${order.category}s`,
-                factoryId: factory.id,
-                documents: [{ name: 'Purchase Order', type: 'PO', lastUpdated: new Date().toISOString().split('T')[0] }],
-                tasks: [
-                    { id: Date.now(), name: 'Order Confirmation', responsible: 'Admin', plannedStartDate: new Date().toISOString().split('T')[0], plannedEndDate: new Date().toISOString().split('T')[0], actualStartDate: null, actualEndDate: null, status: 'TO DO' },
-                    { id: Date.now() + 1, name: 'Fabric Sourcing', responsible: 'Merch Team', plannedStartDate: new Date().toISOString().split('T')[0], plannedEndDate: new Date(new Date().setDate(new Date().getDate() + 7)).toISOString().split('T')[0], actualStartDate: null, actualEndDate: null, status: 'TO DO' },
-                ]
-            };
-            addNewOrderToCrm(newOrderId, newOrder);
-    
-            showToast('Quote Accepted! A new order has been created in the CRM portal.');
-            handleSetCurrentPage('crm');
-        };
-    
-        const handleOpenNegotiate = () => {
-            setIsNegotiationModalOpen(true);
-        };
-    
-        const handleNegotiationSubmit = async (counterPrice: string, details: string) => {
-            // Update status in Supabase
-            const { error } = await quoteService.update(id, { status: 'In Negotiation' });
-
-            if (error) {
-                showToast('Failed to update quote status: ' + error.message, 'error');
-                return;
-            }
-
-            const updatedQuotes = quoteRequests.map(q =>
-                q.id === id ? { ...q, status: 'In Negotiation' as 'In Negotiation' } : q
-            );
-            setQuoteRequests(updatedQuotes);
-            setSelectedQuote(prev => prev ? { ...prev, status: 'In Negotiation' } : null);
-            showToast('Negotiation submitted. The quote is now marked as "In Negotiation".');
-            setIsNegotiationModalOpen(false);
-        };
-    
-        return (
-            <MainLayout {...layoutProps}>
-                <button onClick={() => handleSetCurrentPage('myQuotes')} className="text-purple-600 font-semibold mb-4 flex items-center hover:underline">
-                    <ChevronLeft className="h-5 w-5 mr-1" />
-                    Back to My Quotes
-                </button>
-                <div className="bg-white rounded-xl shadow-lg p-8">
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <h2 className="text-3xl font-bold text-gray-800">Quote Details</h2>
-                            <p className="text-gray-500 mt-1">Submitted on {new Date(submittedAt).toLocaleDateString()}</p>
-                        </div>
-                        <span className={`px-3 py-1 text-sm font-semibold rounded-full ${
-                            status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
-                            status === 'Responded' ? 'bg-blue-100 text-blue-800' :
-                            status === 'In Negotiation' ? 'bg-orange-100 text-orange-800' :
-                            status === 'Accepted' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                        }`}>
-                            {status}
-                        </span>
-                    </div>
-                    <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-                        {/* Factory Info */}
-                        <div className="p-4 border rounded-lg">
-                            <h3 className="text-lg font-semibold text-gray-800 mb-4">Factory</h3>
-                            <div className="flex items-center gap-4">
-                                <img src={factory.imageUrl} alt={factory.name} className="w-20 h-20 rounded-lg object-cover"/>
-                                <div>
-                                    <p className="font-bold text-lg text-gray-900">{factory.name}</p>
-                                    <p className="text-sm text-gray-500">{factory.location}</p>
-                                </div>
-                            </div>
-                        </div>
-                        {/* Order Info */}
-                        <div className="p-4 border rounded-lg">
-                            <h3 className="text-lg font-semibold text-gray-800 mb-4">Order Summary</h3>
-                            <div className="space-y-2 text-sm">
-                                <p><strong>Product:</strong> {order.category}</p>
-                                <p><strong>Quantity:</strong> {order.qty} units</p>
-                                <p><strong>Target Price:</strong> ${order.targetPrice}/unit</p>
-                            </div>
-                        </div>
-                    </div>
-                    {/* Full Order Details */}
-                    <div className="mt-8 p-4 border rounded-lg">
-                        <h3 className="text-lg font-semibold text-gray-800 mb-4">Full Specifications</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                            <div><p><strong>Fabric:</strong> {order.fabricQuality}</p></div>
-                            <div><p><strong>Weight:</strong> {order.weightGSM} GSM</p></div>
-                            <div className="md:col-span-2"><p><strong>Style:</strong> {order.styleOption}</p></div>
-                            <div className="md:col-span-2"><p><strong>Packaging:</strong> {order.packagingReqs}</p></div>
-                            <div className="md:col-span-2"><p><strong>Labeling:</strong> {order.labelingReqs}</p></div>
-                            <div className="md:col-span-2"><p><strong>Shipping To:</strong> {order.shippingDest}</p></div>
-                        </div>
-                    </div>
-                    {/* Response Section */}
-                    <div className="mt-8">
-                        <h3 className="text-xl font-bold text-gray-800 mb-4">Factory Response</h3>
-                        {status === 'Responded' ? (
-                            <div className="bg-blue-50 p-6 rounded-lg">
-                                <p className="font-semibold text-blue-800">Quote Received: ${response_details?.price || 'N/A'} / unit</p>
-                                <p className="text-sm text-blue-700 mt-2">Lead Time: {response_details?.leadTime || 'N/A'}</p>
-                                <p className="text-sm text-blue-700 mt-1">Notes: {response_details?.notes || 'No notes provided.'}</p>
-                                <div className="mt-4 flex gap-2">
-                                    <button onClick={handleAcceptQuote} className="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold">Accept Quote</button>
-                                    <button onClick={handleOpenNegotiate} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg font-semibold">Negotiate</button>
-                                </div>
-                            </div>
-                        ) : status === 'In Negotiation' ? (
-                             <div className="bg-orange-50 p-6 rounded-lg">
-                                <p className="text-gray-600">Your counter-offer has been submitted. Awaiting factory response.</p>
-                            </div>
-                        ) : (
-                            <p className="text-gray-500">Awaiting response from the factory.</p>
-                        )}
-                    </div>
-                </div>
-                {isNegotiationModalOpen && <NegotiationModal onSubmit={handleNegotiationSubmit} onClose={() => setIsNegotiationModalOpen(false)} />}
-            </MainLayout>
+    const updateQuoteStatus = (id: string, status: string) => {
+        const updatedQuotes = quoteRequests.map(q =>
+            q.id === id ? { ...q, status: status as any } : q
         );
+        setQuoteRequests(updatedQuotes);
+        if (selectedQuote && selectedQuote.id === id) {
+            setSelectedQuote(prev => prev ? { ...prev, status: status as any } : null);
+        }
     };
 
-    // Modal component for negotiating a quote
-    const NegotiationModal: FC<{ onSubmit: (counterPrice: string, details: string) => void; onClose: () => void; }> = ({ onSubmit, onClose }) => {
-        const [counterPrice, setCounterPrice] = useState('');
-        const [details, setDetails] = useState('');
-    
-        const handleSubmit = (e: React.FormEvent) => {
-            e.preventDefault();
-            onSubmit(counterPrice, details);
+    const createCrmOrder = (quote: QuoteRequest) => {
+        const { factory, order } = quote;
+        const newOrderId = `PO-2024-${String(Object.keys(crmData).length + 1).padStart(3, '0')}`;
+        const newOrder: CrmOrder = {
+            customer: userProfile?.companyName || 'N/A',
+            product: `${order.qty} ${order.category}s`,
+            factoryId: factory.id,
+            documents: [{ name: 'Purchase Order', type: 'PO', lastUpdated: new Date().toISOString().split('T')[0] }],
+            tasks: [
+                { id: Date.now(), name: 'Order Confirmation', responsible: 'Admin', plannedStartDate: new Date().toISOString().split('T')[0], plannedEndDate: new Date().toISOString().split('T')[0], actualStartDate: null, actualEndDate: null, status: 'TO DO' },
+                { id: Date.now() + 1, name: 'Fabric Sourcing', responsible: 'Merch Team', plannedStartDate: new Date().toISOString().split('T')[0], plannedEndDate: new Date(new Date().setDate(new Date().getDate() + 7)).toISOString().split('T')[0], actualStartDate: null, actualEndDate: null, status: 'TO DO' },
+            ]
         };
-    
-        return (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
-                    <h2 className="text-2xl font-bold mb-4">Negotiate Quote</h2>
-                    <form onSubmit={handleSubmit}>
-                        <div className="mb-4">
-                            <label htmlFor="counterPrice" className="block text-sm font-medium text-gray-700 mb-1">Counter Offer Price ($/unit)</label>
-                            <input
-                                type="number"
-                                id="counterPrice"
-                                value={counterPrice}
-                                onChange={(e) => setCounterPrice(e.target.value)}
-                                className="w-full p-2 border border-gray-300 rounded-md"
-                                required
-                            />
-                        </div>
-                        <div className="mb-6">
-                            <label htmlFor="details" className="block text-sm font-medium text-gray-700 mb-1">Other Relevant Details</label>
-                            <textarea
-                                id="details"
-                                value={details}
-                                onChange={(e) => setDetails(e.target.value)}
-                                className="w-full p-2 border border-gray-300 rounded-md"
-                                rows={4}
-                            />
-                        </div>
-                        <div className="flex justify-end gap-4">
-                            <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg">Cancel</button>
-                            <button type="submit" className="px-4 py-2 bg-purple-600 text-white rounded-lg">Submit Negotiation</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        );
+        addNewOrderToCrm(newOrderId, newOrder);
     };
 
     // Component for billing and escrow management
