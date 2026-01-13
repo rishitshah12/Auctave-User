@@ -110,7 +110,26 @@ const App: FC = () => {
     
     // State to store data entered in the Order Form
     const [orderFormData, setOrderFormData] = useState<OrderFormData>({
-        category: 'T-shirt', fabricQuality: '100% Cotton', weightGSM: '180', styleOption: 'Crew Neck, Short Sleeve', qty: '5000', targetPrice: '4.50', shippingDest: 'Los Angeles, USA', packagingReqs: 'Individually folded and poly-bagged', labelingReqs: 'Custom neck labels'
+        lineItems: [{
+            id: Date.now(),
+            category: 'T-shirt',
+            fabricQuality: '100% Cotton',
+            weightGSM: '180',
+            styleOption: 'Crew Neck, Short Sleeve',
+            qty: '5000',
+            targetPrice: '4.50',
+            packagingReqs: 'Individually folded and poly-bagged',
+            labelingReqs: 'Custom neck labels',
+            sizeRange: [],
+            customSize: '',
+            sizeRatio: {},
+            sleeveOption: '',
+            trimsAndAccessories: '',
+            specialInstructions: '',
+            quantityType: 'units'
+        }],
+        shippingCountry: '',
+        shippingPort: ''
     });
     // State to store files uploaded during order creation
     const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
@@ -124,6 +143,8 @@ const App: FC = () => {
     const [quoteRequests, setQuoteRequests] = useState<QuoteRequest[]>([]);
     // State to store the currently selected quote for viewing details
     const [selectedQuote, setSelectedQuote] = useState<QuoteRequest | null>(null);
+    // State to manage loading of quotes
+    const [isQuotesLoading, setIsQuotesLoading] = useState<boolean>(false);
 
     // --- Gemini (AI) Feature States ---
     
@@ -320,28 +341,34 @@ const App: FC = () => {
 
     // --- Mock Data Fetching ---
     // Effect to load mock quotes when user is logged in
-    useEffect(() => {
-        const fetchUserQuotes = async () => {
-            if (user && !isAdmin) {
-                const { data } = await quoteService.getQuotesByUser(user.id);
-                if (data) {
-                    const transformedQuotes: QuoteRequest[] = data.map((q: any) => ({
-                        id: q.id,
-                        factory: q.factory_data,
-                        order: q.order_details,
-                        status: q.status,
-                        submittedAt: q.created_at,
-                        userId: q.user_id,
-                        files: q.files || [],
-                        response_details: q.response_details,
-                        negotiation_details: q.negotiation_details
-                    }));
-                    setQuoteRequests(transformedQuotes);
-                }
+    const fetchUserQuotes = async () => {
+        if (user && !isAdmin) {
+            setIsQuotesLoading(true);
+            const { data } = await quoteService.getQuotesByUser(user.id);
+            if (data) {
+                const transformedQuotes: QuoteRequest[] = data.map((q: any) => ({
+                    id: q.id,
+                    factory: q.factory_data,
+                    order: q.order_details,
+                    status: q.status,
+                    submittedAt: q.created_at,
+                    acceptedAt: q.accepted_at || q.response_details?.acceptedAt,
+                    userId: q.user_id,
+                    files: q.files || [],
+                    response_details: q.response_details,
+                    negotiation_details: q.negotiation_details
+                }));
+                setQuoteRequests(transformedQuotes);
             }
-        };
-        fetchUserQuotes();
-    }, [user]);
+            setIsQuotesLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (user && !isAdmin && (currentPage === 'myQuotes' || quoteRequests.length === 0)) {
+            fetchUserQuotes();
+        }
+    }, [user, isAdmin, currentPage]);
 
     // --- Authentication & Profile Functions (Mocked) ---
     
@@ -401,16 +428,38 @@ const App: FC = () => {
     // --- Quote Request Functions ---
     
     // Function to submit a quote request to Supabase
-    const submitQuoteRequest = async (quoteData: { factory?: { id: string; name: string; location: string; imageUrl: string }, order: OrderFormData, files?: string[] }) => {
+    const submitQuoteRequest = async (quoteData: { factory?: { id: string; name: string; location: string; imageUrl: string }, order: OrderFormData, files?: File[] }) => {
         showToast('Submitting quote request...', 'success');
         
+        const uploadedFilePaths: string[] = [];
+
+        // 1. Upload Files to Supabase Storage
+        if (quoteData.files && quoteData.files.length > 0) {
+            for (const file of quoteData.files) {
+                try {
+                    // Create a unique file path: userId/timestamp_filename
+                    const filePath = `${user.id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+                    
+                    const { data, error } = await supabase.storage
+                        .from('quote-attachments')
+                        .upload(filePath, file);
+
+                    if (error) throw error;
+                    if (data) uploadedFilePaths.push(data.path);
+                } catch (error: any) {
+                    console.error('File upload error:', error);
+                    showToast(`Failed to upload ${file.name}: ${error.message}`, 'error');
+                }
+            }
+        }
+
         const payload = {
             user_id: user.id,
             factory_id: quoteData.factory?.id || null,
             factory_data: quoteData.factory || null,
             order_details: quoteData.order,
             status: 'Pending',
-            files: (quoteData as any).files || []
+            files: uploadedFilePaths
         };
 
         const { error } = await quoteService.create(payload);
@@ -420,14 +469,18 @@ const App: FC = () => {
         } else {
             showToast('Quote request submitted successfully!');
             // Refresh quotes from Supabase to update the UI
-            const { data } = await quoteService.getQuotesByUser(user.id);
-            if (data) {
+            const { data, error: fetchError } = await quoteService.getQuotesByUser(user.id);
+            if (fetchError) {
+                console.error('Error fetching quotes:', fetchError);
+                showToast('Quote submitted but failed to refresh list.', 'error');
+            } else if (data) {
                 const transformedQuotes: QuoteRequest[] = data.map((q: any) => ({
                     id: q.id,
                     factory: q.factory_data,
                     order: q.order_details,
                     status: q.status,
                     submittedAt: q.created_at,
+                    acceptedAt: q.accepted_at || q.response_details?.acceptedAt,
                     userId: q.user_id,
                     files: q.files || [],
                     response_details: q.response_details,
@@ -483,7 +536,7 @@ const App: FC = () => {
         
         submitQuoteRequest({
             order: submittedData,
-            files: files.map(f => f.name)
+            files: files // Pass actual File objects, not just names
         });
     };
 
@@ -498,15 +551,15 @@ const App: FC = () => {
     // --- Gemini Feature Functions ---
     
     // Function to generate a contract brief using AI
-    const generateContractBrief = async () => { setIsLoadingBrief(true); const prompt = `Generate a concise, professional contract brief for a garment manufacturing request with these specs: Category: ${orderFormData.category}, Fabric: ${orderFormData.fabricQuality}, Weight: ${orderFormData.weightGSM} GSM, Style: ${orderFormData.styleOption}, Quantity: ${orderFormData.qty} units. The brief should be suitable for an initial inquiry to ${selectedFactory?.name}.`; try { setContractBrief(await callGeminiAPI(prompt)); } catch (error) { showToast('Error generating brief: ' + (error as Error).message, 'error'); } finally { setIsLoadingBrief(false); } };
+    const generateContractBrief = async () => { setIsLoadingBrief(true); const prompt = `Generate a concise, professional contract brief for a garment manufacturing request with these specs: ${orderFormData.lineItems.map(item => `Category: ${item.category}, Fabric: ${item.fabricQuality}, Weight: ${item.weightGSM} GSM, Style: ${item.styleOption}, Quantity: ${item.qty} units`).join('; ')}. The brief should be suitable for an initial inquiry to ${selectedFactory?.name}.`; try { setContractBrief(await callGeminiAPI(prompt)); } catch (error) { showToast('Error generating brief: ' + (error as Error).message, 'error'); } finally { setIsLoadingBrief(false); } };
     // Function to suggest optimizations using AI
-    const suggestOptimizations = async () => { setIsLoadingOptimizations(true); const prompt = `For a garment order (${orderFormData.category}, ${orderFormData.fabricQuality}, ${orderFormData.weightGSM} GSM), suggest material or process optimizations for cost-efficiency, sustainability, or quality, keeping in mind we are contacting ${selectedFactory?.name} in ${selectedFactory?.location}. Format as a bulleted list.`; try { setOptimizationSuggestions(await callGeminiAPI(prompt)); } catch (error) { showToast('Error suggesting optimizations: ' + (error as Error).message, 'error'); } finally { setIsLoadingOptimizations(false); } };
+    const suggestOptimizations = async () => { setIsLoadingOptimizations(true); const prompt = `For a garment order with items: ${orderFormData.lineItems.map(item => `(${item.category}, ${item.fabricQuality}, ${item.weightGSM} GSM)`).join(', ')}, suggest material or process optimizations for cost-efficiency, sustainability, or quality, keeping in mind we are contacting ${selectedFactory?.name} in ${selectedFactory?.location}. Format as a bulleted list.`; try { setOptimizationSuggestions(await callGeminiAPI(prompt)); } catch (error) { showToast('Error suggesting optimizations: ' + (error as Error).message, 'error'); } finally { setIsLoadingOptimizations(false); } };
     // Function to draft an outreach email using AI
     const generateOutreachEmail = async () => { if (!contractBrief || !selectedFactory || !userProfile) { showToast('Please generate a brief first.', 'error'); return; } setIsLoadingEmail(true); const prompt = `Draft a professional outreach email from ${userProfile.name} of ${userProfile.companyName} to ${selectedFactory.name}. The email should introduce the company and the order, referencing the attached contract brief. Keep it concise and aim to start a conversation. The contract brief is as follows:\n\n---\n${contractBrief}\n---`; try { setOutreachEmail(await callGeminiAPI(prompt)); } catch (error) { showToast('Error drafting email: ' + (error as Error).message, 'error'); } finally { setIsLoadingEmail(false); } };
     // Function to fetch market trends using AI
     const getMarketTrends = async () => { setIsLoadingTrends(true); const date = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }); const prompt = `As a fashion industry analyst, provide a brief summary of key market trends in global garment manufacturing for ${date}. Focus on sustainability, technology, and consumer behavior. Format as a bulleted list.`; try { setMarketTrends(await callGeminiAPI(prompt)); } catch (error) { setMarketTrends('Error fetching market trends: ' + (error as Error).message); showToast('Error fetching market trends.', 'error'); } finally { setIsLoadingTrends(false); } };
     // Function to get negotiation tips using AI
-    const getNegotiationTips = async () => { if (!selectedFactory) return; setIsLoadingNegotiation(true); const prompt = `As a sourcing expert, provide key negotiation points and cultural tips for an upcoming discussion with ${selectedFactory.name} in ${selectedFactory.location} regarding an order of ${orderFormData.qty} ${orderFormData.category}s. Focus on pricing strategies, payment terms, and quality assurance questions. Format as a bulleted list with bold headings.`; try { setNegotiationTips(await callGeminiAPI(prompt)); } catch(error) { setNegotiationTips('Error fetching negotiation tips: ' + (error as Error).message); showToast('Error fetching negotiation tips.', 'error'); } finally { setIsLoadingNegotiation(false); } };
+    const getNegotiationTips = async () => { if (!selectedFactory) return; setIsLoadingNegotiation(true); const prompt = `As a sourcing expert, provide key negotiation points and cultural tips for an upcoming discussion with ${selectedFactory.name} in ${selectedFactory.location} regarding an order of ${orderFormData.lineItems.length} line items (Total Qty: ${orderFormData.lineItems.reduce((acc, item) => acc + (parseInt(item.qty) || 0), 0)}). Focus on pricing strategies, payment terms, and quality assurance questions. Format as a bulleted list with bold headings.`; try { setNegotiationTips(await callGeminiAPI(prompt)); } catch(error) { setNegotiationTips('Error fetching negotiation tips: ' + (error as Error).message); showToast('Error fetching negotiation tips.', 'error'); } finally { setIsLoadingNegotiation(false); } };
 
     // Props to be passed to the MainLayout component
     const layoutProps = {
@@ -673,7 +726,7 @@ const App: FC = () => {
                         Back to Order Form
                     </button>
                     <h2 className="text-3xl font-bold text-gray-800">Top Factory Matches</h2>
-                    <p className="text-gray-500 mt-1">Based on your request for {orderFormData.qty} {orderFormData.category}s.</p>
+                    <p className="text-gray-500 mt-1">Based on your request for {orderFormData.lineItems.length} items.</p>
                 </div>
                 {suggestedFactories.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -936,9 +989,13 @@ const App: FC = () => {
                     <div className="bg-white p-6 rounded-xl shadow-lg">
                         <h3 className="text-xl font-bold text-gray-800 mb-4">Your Order Details</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div> <label className="block text-sm font-medium text-gray-700 mb-1">Product Category</label> <p className="w-full p-2 border border-gray-200 rounded-md bg-gray-50">{orderFormData.category}</p> </div>
-                            <div> <label className="block text-sm font-medium text-gray-700 mb-1">Order Quantity</label> <p className="w-full p-2 border border-gray-200 rounded-md bg-gray-50">{orderFormData.qty} units</p> </div>
-                            <div className="md:col-span-2"> <label className="block text-sm font-medium text-gray-700 mb-1">Fabric & Style Details</label> <p className="w-full p-2 border border-gray-200 rounded-md bg-gray-50">{`${orderFormData.fabricQuality}, ${orderFormData.weightGSM}GSM, ${orderFormData.styleOption}`}</p> </div>
+                            {orderFormData.lineItems.map((item, idx) => (
+                                <div key={idx} className="md:col-span-2 border-b pb-4 mb-4 last:border-0 last:mb-0 last:pb-0">
+                                    <h4 className="font-semibold text-gray-700 mb-2">Item {idx + 1}: {item.category}</h4>
+                                    <p className="text-sm text-gray-600">Quantity: {item.qty}</p>
+                                    <p className="text-sm text-gray-600">Details: {item.fabricQuality}, {item.weightGSM}GSM, {item.styleOption}</p>
+                                </div>
+                            ))}
                         </div>
                     </div>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1153,7 +1210,7 @@ const App: FC = () => {
             case 'settings': return <SettingsPage />;
             case 'tracking': return <OrderTrackingPage />;
             case 'trending': return <TrendingPage />;
-            case 'myQuotes': return <MyQuotesPage quoteRequests={quoteRequests} handleSetCurrentPage={handleSetCurrentPage} layoutProps={layoutProps} />;
+            case 'myQuotes': return <MyQuotesPage quoteRequests={quoteRequests} handleSetCurrentPage={handleSetCurrentPage} layoutProps={layoutProps} isLoading={isQuotesLoading} onRefresh={fetchUserQuotes} />;
             case 'quoteRequest': return <QuoteRequestPage />;
             case 'quoteDetail': return <QuoteDetailPage 
                 selectedQuote={selectedQuote} 
@@ -1283,7 +1340,7 @@ const App: FC = () => {
                     imageUrl: selectedFactory.imageUrl,
                 },
                 order: orderFormData,
-                files: uploadedFiles.map(f => f.name), // Storing file names for reference
+                files: uploadedFiles, // Pass actual File objects
             };
             submitQuoteRequest(quoteData);
         };
@@ -1312,12 +1369,14 @@ const App: FC = () => {
                                 <div className="p-4 border rounded-lg">
                                     <h3 className="text-lg font-semibold text-gray-700 mb-4">Your Order Details</h3>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                                        <p><strong>Product:</strong> {orderFormData.category}</p>
-                                        <p><strong>Quantity:</strong> {orderFormData.qty} units</p>
-                                        <p><strong>Fabric:</strong> {orderFormData.fabricQuality}</p>
-                                        <p><strong>Weight:</strong> {orderFormData.weightGSM} GSM</p>
-                                        <p className="md:col-span-2"><strong>Style:</strong> {orderFormData.styleOption}</p>
-                                        <p className="md:col-span-2"><strong>Shipping To:</strong> {orderFormData.shippingDest}</p>
+                                        {orderFormData.lineItems.map((item, idx) => (
+                                            <div key={idx} className="md:col-span-2 mb-2">
+                                                <p className="font-semibold">Item {idx + 1}: {item.category}</p>
+                                                <p>Qty: {item.qty}, Fabric: {item.fabricQuality}, {item.weightGSM} GSM</p>
+                                                <p>Style: {item.styleOption}</p>
+                                            </div>
+                                        ))}
+                                        <p className="md:col-span-2 mt-2 border-t pt-2"><strong>Shipping To:</strong> {orderFormData.shippingCountry}, {orderFormData.shippingPort}</p>
                                     </div>
                                 </div>
                                 {uploadedFiles.length > 0 && (
@@ -1346,13 +1405,13 @@ const App: FC = () => {
         );
     };
 
-    const updateQuoteStatus = (id: string, status: string) => {
+    const updateQuoteStatus = (id: string, status: string, additionalData?: Partial<QuoteRequest>) => {
         const updatedQuotes = quoteRequests.map(q =>
-            q.id === id ? { ...q, status: status as any } : q
+            q.id === id ? { ...q, status: status as any, ...additionalData } : q
         );
         setQuoteRequests(updatedQuotes);
         if (selectedQuote && selectedQuote.id === id) {
-            setSelectedQuote(prev => prev ? { ...prev, status: status as any } : null);
+            setSelectedQuote(prev => prev ? { ...prev, status: status as any, ...additionalData } : null);
         }
     };
 
@@ -1361,7 +1420,7 @@ const App: FC = () => {
         const newOrderId = `PO-2024-${String(Object.keys(crmData).length + 1).padStart(3, '0')}`;
         const newOrder: CrmOrder = {
             customer: userProfile?.companyName || 'N/A',
-            product: `${order.qty} ${order.category}s`,
+            product: `${order.lineItems.length} Items Order`,
             factoryId: factory.id,
             documents: [{ name: 'Purchase Order', type: 'PO', lastUpdated: new Date().toISOString().split('T')[0] }],
             tasks: [

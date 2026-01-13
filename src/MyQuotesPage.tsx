@@ -2,16 +2,18 @@ import React, { useState, FC } from 'react';
 import { MainLayout } from './MainLayout';
 import { QuoteRequest } from './types';
 import {
-    Plus, MapPin, Globe, Shirt, Package, Clock, DollarSign, ChevronRight, FileQuestion
+    Plus, MapPin, Globe, Shirt, Package, Clock, ChevronRight, FileQuestion, RefreshCw, MessageSquare, Bell
 } from 'lucide-react';
 
 interface MyQuotesPageProps {
     quoteRequests: QuoteRequest[];
     handleSetCurrentPage: (page: string, data?: any) => void;
     layoutProps: any;
+    isLoading: boolean;
+    onRefresh: () => void;
 }
 
-export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCurrentPage, layoutProps }) => {
+export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCurrentPage, layoutProps, isLoading, onRefresh }) => {
     const [filterStatus, setFilterStatus] = useState('All');
 
     const getStatusColor = (status: string) => {
@@ -25,9 +27,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
         }
     };
 
-    const filteredQuotes = quoteRequests.filter(quote =>
-        filterStatus === 'All' || quote.status === filterStatus
-    );
+    const filteredQuotes = (quoteRequests || []).filter(quote => filterStatus === 'All' || quote.status === filterStatus);
 
     const filterOptions = ['All', 'Pending', 'Responded', 'In Negotiation', 'Accepted', 'Declined'];
 
@@ -35,9 +35,12 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
         <MainLayout {...layoutProps}>
             {/* Header */}
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
-                <div>
+                <div className="flex items-center gap-3">
+                    <div>
                     <h1 className="text-3xl font-bold text-gray-800">My Quote Requests</h1>
                     <p className="text-gray-500 mt-1">Track and manage your quotes with factories.</p>
+                    </div>
+                    <button onClick={onRefresh} className={`p-2 rounded-full hover:bg-gray-100 text-gray-500 transition-colors ${isLoading ? 'animate-spin' : ''}`} title="Refresh Quotes"><RefreshCw size={20}/></button>
                 </div>
                 <button onClick={() => handleSetCurrentPage('orderForm')} className="bg-purple-600 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 hover:bg-purple-700 transition shadow-md">
                     <Plus size={18} />
@@ -65,7 +68,13 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
             </div>
 
             {/* Quotes Grid */}
-            {filteredQuotes.length > 0 ? (
+            {isLoading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {[1, 2, 3].map(i => (
+                        <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-200 h-64 animate-pulse"></div>
+                    ))}
+                </div>
+            ) : filteredQuotes.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {filteredQuotes.map((quote, index) => (
                         <div 
@@ -104,14 +113,14 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                                         <p className="text-xs text-gray-500 mb-1">Product</p>
                                         <div className="flex items-center text-sm font-medium text-gray-800">
                                             <Shirt size={16} className="text-gray-400 mr-2" />
-                                            {quote.order.category}
+                                            {quote.order?.lineItems?.length > 1 ? `${quote.order.lineItems.length} Items` : (quote.order?.lineItems?.[0]?.category || 'Unknown Product')}
                                         </div>
                                     </div>
                                     <div>
                                         <p className="text-xs text-gray-500 mb-1">Quantity</p>
                                         <div className="flex items-center text-sm font-medium text-gray-800">
                                             <Package size={16} className="text-gray-400 mr-2" />
-                                            {quote.order.qty} units
+                                            {quote.order?.lineItems?.reduce((acc, item) => acc + (parseInt(item.qty) || 0), 0) || 0} units
                                         </div>
                                     </div>
                                 </div>
@@ -126,10 +135,24 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                                 {quote.status === 'Responded' && quote.response_details && (
                                     <div className="mt-3 bg-blue-50 border border-blue-100 rounded-lg p-3 flex items-center justify-between">
                                         <div className="flex items-center text-blue-700">
-                                            <DollarSign size={18} className="mr-2" />
-                                            <span className="font-semibold text-sm">Quote Received</span>
+                                            <MessageSquare size={18} className="mr-2" />
+                                            <span className="font-semibold text-sm">Message Notification</span>
                                         </div>
                                         <span className="font-bold text-blue-800 text-lg">${quote.response_details.price}</span>
+                                    </div>
+                                )}
+                                {quote.status === 'Accepted' && quote.response_details && (
+                                    <div className="mt-3 bg-green-50 border border-green-100 rounded-lg p-3">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center text-green-700">
+                                                <Bell size={18} className="mr-2" />
+                                                <span className="font-semibold text-sm">Notification: Final Price</span>
+                                            </div>
+                                            <span className="font-bold text-green-800 text-lg">${quote.response_details.price}</span>
+                                        </div>
+                                        {quote.acceptedAt && (
+                                            <div className="text-right mt-1 text-xs text-green-600">Accepted on {new Date(quote.acceptedAt).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</div>
+                                        )}
                                     </div>
                                 )}
                             </div>

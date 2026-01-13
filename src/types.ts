@@ -9,16 +9,29 @@ export interface UserProfile {
     yearlyEstRevenue: string;
 }
 
-export interface OrderFormData {
+export interface LineItem {
+    id: number;
     category: string;
     fabricQuality: string;
     weightGSM: string;
     styleOption: string;
     qty: string;
     targetPrice: string;
-    shippingDest: string;
     packagingReqs: string;
     labelingReqs: string;
+    sizeRange: string[];
+    customSize: string;
+    sizeRatio: Record<string, string>;
+    sleeveOption: string;
+    trimsAndAccessories: string;
+    specialInstructions: string;
+    quantityType?: 'units' | 'container';
+}
+
+export interface OrderFormData {
+    lineItems: LineItem[];
+    shippingCountry: string;
+    shippingPort: string;
 }
 
 export interface MachineSlot {
@@ -65,6 +78,7 @@ export interface QuoteRequest {
     order: OrderFormData;
     status: 'Pending' | 'Responded' | 'Accepted' | 'Declined' | 'In Negotiation';
     submittedAt: string;
+    acceptedAt?: string;
     userId: string;
     files: string[];
     clientName?: string;
@@ -73,11 +87,23 @@ export interface QuoteRequest {
         price: string;
         leadTime: string;
         notes: string;
+        acceptedAt?: string;
+        respondedAt?: string;
+        lineItemResponses?: {
+            lineItemId: number;
+            price: string;
+            notes?: string;
+        }[];
     };
     negotiation_details?: {
         counterPrice: string;
         message: string;
         submittedAt: string;
+        lineItemNegotiations?: {
+            lineItemId: number;
+            counterPrice: string;
+            notes?: string;
+        }[];
     };
 }
 
