@@ -72,6 +72,16 @@ export interface Factory {
     catalog: FactoryCatalog;
 }
 
+export interface NegotiationHistoryItem {
+    id: string;
+    sender: 'client' | 'factory';
+    message: string;
+    price?: string;
+    timestamp: string;
+    action?: 'offer' | 'counter' | 'accept' | 'decline' | 'info';
+    lineItemPrices?: { lineItemId: number; price: string }[];
+}
+
 export interface QuoteRequest {
     id: string;
     factory: any; // You can replace 'any' with 'Factory' if available
@@ -96,14 +106,15 @@ export interface QuoteRequest {
         }[];
     };
     negotiation_details?: {
-        counterPrice: string;
-        message: string;
-        submittedAt: string;
+        counterPrice?: string;
+        message?: string;
+        submittedAt?: string;
         lineItemNegotiations?: {
             lineItemId: number;
             counterPrice: string;
             notes?: string;
         }[];
+        history?: NegotiationHistoryItem[];
     };
 }
 

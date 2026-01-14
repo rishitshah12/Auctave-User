@@ -3,9 +3,9 @@ import React, { FC, useState, useMemo, useEffect, useRef, ReactNode } from 'reac
 // Import icons for UI elements
 import {
     Search, Star, SlidersHorizontal, ChevronDown, Menu, User as UserIcon, LogOut, Briefcase, Truck, DollarSign,
-    Building, ChevronLeft, ChevronRight, Package, Trash2, X
+    Building, ChevronLeft, ChevronRight, Package, Trash2, X, Bell
 } from 'lucide-react';
-import { Factory, UserProfile } from '../src/types';
+import { Factory, UserProfile, QuoteRequest } from '../src/types';
 import { supabase } from '../src/supabaseClient';
 import { MainLayout } from '../src/MainLayout';
 import { FactoryCard } from '../src/FactoryCard';
@@ -25,10 +25,12 @@ interface SourcingPageProps {
     selectedGarmentCategory: string;
     setSelectedGarmentCategory: (category: string) => void;
     showToast: (message: string, type?: 'success' | 'error') => void;
+    notificationCount?: number;
+    quoteRequests?: QuoteRequest[];
 }
 
 export const SourcingPage: FC<SourcingPageProps> = (props) => {
-    const { pageKey, user, userProfile, handleSelectFactory, toggleMenu, selectedGarmentCategory, setSelectedGarmentCategory, handleSetCurrentPage, handleSignOut, showToast } = props;
+    const { pageKey, user, userProfile, handleSelectFactory, toggleMenu, selectedGarmentCategory, setSelectedGarmentCategory, handleSetCurrentPage, handleSignOut, showToast, notificationCount = 0, quoteRequests = [] } = props;
     
     // State to hold the complete list of factories fetched from the database
     const [allFactories, setAllFactories] = useState<Factory[]>([]);
@@ -283,6 +285,75 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
         </>
     );
 
+    const NotificationBell: FC = () => {
+        const [isOpen, setIsOpen] = useState(false);
+        const dropdownRef = useRef<HTMLDivElement>(null);
+
+        useEffect(() => {
+            const handleClickOutside = (event: MouseEvent) => {
+                if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                    setIsOpen(false);
+                }
+            };
+            document.addEventListener("mousedown", handleClickOutside);
+            return () => document.removeEventListener("mousedown", handleClickOutside);
+        }, []);
+
+        const notifications = quoteRequests.filter(q => q.status === 'Responded' || q.status === 'In Negotiation');
+
+        return (
+            <div className="relative mr-1 md:mr-2" ref={dropdownRef}>
+                <button onClick={() => setIsOpen(!isOpen)} className="p-2 rounded-full bg-white shadow-sm hover:bg-gray-50 transition-colors relative text-gray-600">
+                    <Bell size={20} />
+                    {notificationCount > 0 && (
+                        <span className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white">
+                            {notificationCount > 9 ? '9+' : notificationCount}
+                        </span>
+                    )}
+                </button>
+                {isOpen && (
+                    <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-lg py-2 z-50 border border-gray-100 animate-fade-in">
+                        <div className="px-4 py-2 border-b border-gray-100 flex justify-between items-center">
+                            <h3 className="font-bold text-gray-800 text-sm">Notifications</h3>
+                            <span className="text-xs text-gray-500">{notifications.length} new</span>
+                        </div>
+                        <div className="max-h-64 overflow-y-auto">
+                            {notifications.length > 0 ? (
+                                notifications.map(quote => (
+                                    <button 
+                                        key={quote.id} 
+                                        onClick={() => { setIsOpen(false); handleSetCurrentPage('quoteDetail', quote); }}
+                                        className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0 flex items-center justify-between group"
+                                    >
+                                        <div className="flex items-center gap-2 overflow-hidden w-full">
+                                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${quote.status === 'Responded' ? 'bg-blue-500' : 'bg-orange-500'}`}></div>
+                                            <p className="text-sm text-gray-700 truncate w-full">
+                                                <span className="font-semibold">{quote.factory?.name || 'Request'}</span>
+                                                <span className="text-gray-400 mx-1">•</span>
+                                                <span className={quote.status === 'Responded' ? 'text-blue-600' : 'text-orange-600'}>
+                                                    {quote.status === 'Responded' ? 'New Quote' : 'Negotiating'}
+                                                </span>
+                                            </p>
+                                        </div>
+                                    </button>
+                                ))
+                            ) : (
+                                <div className="px-4 py-6 text-center text-gray-500 text-sm">
+                                    No new notifications
+                                </div>
+                            )}
+                        </div>
+                        <div className="px-2 py-2 border-t border-gray-100">
+                            <button onClick={() => { setIsOpen(false); handleSetCurrentPage('myQuotes'); }} className="w-full py-2 text-xs font-semibold text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
+                                View All Quotes
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
     const ProfileDropdown: FC = () => (
         <div ref={profileDropdownRef} className="relative">
             <button onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)} className="hidden md:flex w-12 h-12 rounded-full bg-purple-200 border-2 border-white items-center justify-center text-purple-700 font-bold text-xl shadow-md cursor-pointer">
@@ -309,6 +380,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                     <div className="flex items-center space-x-2">
                         <button className="p-2 rounded-full bg-white shadow-sm md:hidden"><Search size={20} className="text-gray-600" /></button>
                         <button onClick={toggleMenu} className="p-2 rounded-full bg-white shadow-sm md:hidden"><Menu size={20} className="text-gray-600" /></button>
+                        <NotificationBell />
                         <ProfileDropdown />
                     </div>
                 </div>

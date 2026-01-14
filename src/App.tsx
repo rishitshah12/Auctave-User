@@ -146,6 +146,11 @@ const App: FC = () => {
     // State to manage loading of quotes
     const [isQuotesLoading, setIsQuotesLoading] = useState<boolean>(false);
 
+    // Calculate notification count (quotes with updates)
+    const notificationCount = useMemo(() => {
+        return quoteRequests.filter(q => q.status === 'Responded' || q.status === 'In Negotiation').length;
+    }, [quoteRequests]);
+
     // --- Gemini (AI) Feature States ---
     
     // State to store the AI-generated contract brief
@@ -369,6 +374,49 @@ const App: FC = () => {
             fetchUserQuotes();
         }
     }, [user, isAdmin, currentPage]);
+
+    // Effect to listen for real-time updates on quotes for the current user
+    useEffect(() => {
+        // Only run this for logged-in, non-admin users
+        if (!user || isAdmin) return;
+
+        const channel = supabase.channel(`quotes-user-${user.id}`)
+            .on('postgres_changes', {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'quotes',
+                filter: `user_id=eq.${user.id}`
+            }, (payload) => {
+                const updatedQuote = payload.new;
+
+                // Transform the updated data to match the application's QuoteRequest type
+                const transformedQuote: QuoteRequest = {
+                    id: updatedQuote.id,
+                    factory: updatedQuote.factory_data,
+                    order: updatedQuote.order_details,
+                    status: updatedQuote.status,
+                    submittedAt: updatedQuote.created_at,
+                    acceptedAt: updatedQuote.accepted_at || updatedQuote.response_details?.acceptedAt,
+                    userId: updatedQuote.user_id,
+                    files: updatedQuote.files || [],
+                    response_details: updatedQuote.response_details,
+                    negotiation_details: updatedQuote.negotiation_details
+                };
+
+                // Update the quotes list with the new data
+                setQuoteRequests(prevQuotes => prevQuotes.map(q => q.id === transformedQuote.id ? transformedQuote : q));
+                // If the user is viewing the detail page of the updated quote, refresh it too
+                setSelectedQuote(prevSelected => (prevSelected && prevSelected.id === transformedQuote.id) ? transformedQuote : prevSelected);
+
+                showToast(`A quote has been updated to: ${updatedQuote.status}`);
+            })
+            .subscribe();
+
+        // Cleanup subscription on component unmount or user change
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [user, isAdmin]);
 
     // --- Authentication & Profile Functions (Mocked) ---
     
@@ -1193,6 +1241,8 @@ const App: FC = () => {
                 selectedGarmentCategory={selectedGarmentCategory}
                 setSelectedGarmentCategory={setSelectedGarmentCategory}
                 showToast={showToast}
+                notificationCount={notificationCount}
+                quoteRequests={quoteRequests}
             />;
             case 'orderForm': return <OrderFormPage
                 {...layoutProps}
@@ -1233,6 +1283,8 @@ const App: FC = () => {
                 selectedGarmentCategory={selectedGarmentCategory}
                 setSelectedGarmentCategory={setSelectedGarmentCategory}
                 showToast={showToast}
+                notificationCount={notificationCount}
+                quoteRequests={quoteRequests}
             />;
         }
     };
