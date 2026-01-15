@@ -68,17 +68,17 @@ export const AdminTrendingPage: FC<AdminTrendingPageProps> = (props) => {
         <MainLayout {...props}>
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-3xl font-bold text-gray-800">Trending CMS</h1>
-                <button onClick={() => { setEditingItem({}); setIsModalOpen(true); }} className="bg-purple-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+                <button onClick={() => { setEditingItem({}); setIsModalOpen(true); }} className="bg-[#c20c0b] text-white px-4 py-2 rounded-lg flex items-center gap-2">
                     <Plus size={18} /> Add Item
                 </button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {items.map(item => (
-                    <div key={item.id} className="bg-white rounded-xl shadow-md overflow-hidden">
+                    <div key={item.id} className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
                         <img src={item.image_url} alt={item.title} className="h-48 w-full object-cover" />
                         <div className="p-4">
-                            <span className="text-xs font-semibold bg-purple-100 text-purple-700 px-2 py-1 rounded-full">{item.category}</span>
+                            <span className="text-xs font-semibold bg-red-100 text-[#c20c0b] px-2 py-1 rounded-full">{item.category}</span>
                             <h3 className="font-bold text-lg mt-2">{item.title}</h3>
                             <div className="flex justify-end gap-2 mt-4">
                                 <button onClick={() => { setEditingItem(item); setIsModalOpen(true); }} className="text-blue-600"><Edit size={18} /></button>
@@ -105,7 +105,7 @@ export const AdminTrendingPage: FC<AdminTrendingPageProps> = (props) => {
                             {editingItem.type === 'video' && <input type="text" placeholder="Video URL" value={editingItem.video_url || ''} onChange={e => setEditingItem({...editingItem, video_url: e.target.value})} className="w-full p-2 border rounded" />}
                             <div className="flex justify-end gap-2">
                                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-gray-200 rounded">Cancel</button>
-                                <button type="submit" className="px-4 py-2 bg-purple-600 text-white rounded">Save</button>
+                                <button type="submit" className="px-4 py-2 bg-[#c20c0b] text-white rounded">Save</button>
                             </div>
                         </form>
                     </div>

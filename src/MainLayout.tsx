@@ -58,17 +58,17 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'>> = (
         {isMenuOpen && <div className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden" onClick={toggleMenu}></div>}
         
         {/* The Sidebar Container */}
-        <aside className={`fixed inset-y-0 left-0 bg-gray-900 text-white flex flex-col shadow-lg z-50 transition-all duration-300 ease-in-out md:relative ${isMenuOpen ? 'w-64' : '-translate-x-full w-64'} md:translate-x-0 ${isSidebarCollapsed ? 'md:w-20' : 'md:w-64'}`}>
+        <aside className={`fixed inset-y-0 left-0 bg-white text-gray-800 flex flex-col shadow-lg z-50 transition-all duration-300 ease-in-out md:relative ${isMenuOpen ? 'w-64' : '-translate-x-full w-64'} md:translate-x-0 ${isSidebarCollapsed ? 'md:w-20' : 'md:w-64'}`}>
             
             {/* Sidebar Header (Logo and Toggle Buttons) */}
-            <div className={`flex items-center justify-between p-4 border-b border-gray-700 ${isSidebarCollapsed ? 'md:justify-center' : ''}`}>
-                {!isSidebarCollapsed && <h1 className="text-2xl font-bold text-white">Auctave</h1>}
+            <div className={`flex items-center justify-between p-4 border-b border-gray-200 ${isSidebarCollapsed ? 'md:justify-center' : ''}`}>
+                {!isSidebarCollapsed && <h1 className="text-2xl font-bold text-gray-800">Auctave</h1>}
                 {/* Mobile Close Button */}
-                <button onClick={toggleMenu} className="p-2 rounded-md bg-gray-700 hover:bg-gray-600 text-white md:hidden">
+                <button onClick={toggleMenu} className="p-2 rounded-md bg-gray-200 hover:bg-gray-300 text-gray-600 md:hidden">
                     <X className="w-6 h-6"/>
                 </button>
                 {/* Desktop Collapse Button */}
-                <button onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} className="hidden md:block p-2 rounded-md hover:bg-gray-700 text-white">
+                <button onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} className="hidden md:block p-2 rounded-md hover:bg-gray-200 text-gray-600">
                     {isSidebarCollapsed ? <ChevronsRight className="w-6 h-6"/> : <ChevronsLeft className="w-6 h-6"/>}
                 </button>
             </div>
@@ -76,7 +76,7 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'>> = (
             {/* Navigation Links */}
             <nav className="flex-1 p-4 space-y-2">
                 {menuItems.map(item => (
-                    <button key={item.name} onClick={() => { handleSetCurrentPage(item.page); if (isMenuOpen) toggleMenu(); }} className={`w-full text-left p-3 rounded-md font-medium flex items-center transition duration-150 ease-in-out ${isSidebarCollapsed ? 'justify-center' : ''} ${currentPage === item.page ? 'bg-purple-600 text-white' : 'hover:bg-gray-700'}`} title={isSidebarCollapsed ? item.name : ''}>
+                    <button key={item.name} onClick={() => { handleSetCurrentPage(item.page); if (isMenuOpen) toggleMenu(); }} className={`w-full text-left p-3 rounded-md font-medium flex items-center transition duration-150 ease-in-out ${isSidebarCollapsed ? 'justify-center' : ''} ${currentPage === item.page ? 'bg-[#c20c0b] text-white' : 'hover:bg-gray-200'}`} title={isSidebarCollapsed ? item.name : ''}>
                         <div className={isSidebarCollapsed ? '' : 'mr-3'}>{item.icon}</div>
                         {!isSidebarCollapsed && <span>{item.name}</span>}
                     </button>
@@ -84,8 +84,8 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'>> = (
             </nav>
 
             {/* Logout Button at the bottom */}
-            <div className={`p-4 border-t border-gray-700 ${isSidebarCollapsed ? 'flex justify-center' : ''}`}>
-                <button onClick={() => { handleSignOut(); if (isMenuOpen) toggleMenu(); }} className={`w-full text-left p-3 rounded-md font-medium hover:bg-red-700 flex items-center transition duration-150 ease-in-out text-red-300 ${isSidebarCollapsed ? 'justify-center' : ''}`} title={isSidebarCollapsed ? 'Logout' : ''}>
+            <div className={`p-4 border-t border-gray-200 ${isSidebarCollapsed ? 'flex justify-center' : ''}`}>
+                <button onClick={() => { handleSignOut(); if (isMenuOpen) toggleMenu(); }} className={`w-full text-left p-3 rounded-md font-medium hover:bg-red-50 flex items-center transition duration-150 ease-in-out text-red-600 ${isSidebarCollapsed ? 'justify-center' : ''}`} title={isSidebarCollapsed ? 'Logout' : ''}>
                     <div className={isSidebarCollapsed ? '' : 'mr-3'}><LogOut className="h-5 w-5"/></div>
                     {!isSidebarCollapsed && <span>Logout</span>}
                 </button>
@@ -110,7 +110,7 @@ const BottomNavBar: FC<{ currentPage: string; handleSetCurrentPage: (page: strin
           <div className="absolute bottom-0 left-0 right-0 bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.1)] h-16">
               <div className="flex justify-around items-center h-full">
                   {navItems.map(item => (
-                      <button key={item.name} onClick={() => handleSetCurrentPage(item.page)} className={`flex flex-col items-center justify-center space-y-1 w-1/5 ${currentPage === item.page ? 'text-purple-600' : 'text-gray-500'}`}>
+                      <button key={item.name} onClick={() => handleSetCurrentPage(item.page)} className={`flex flex-col items-center justify-center space-y-1 w-1/5 ${currentPage === item.page ? 'text-[#c20c0b]' : 'text-gray-500'}`}>
                           {item.icon}
                           <span className="text-xs font-medium">{item.name}</span>
                       </button>
@@ -118,7 +118,7 @@ const BottomNavBar: FC<{ currentPage: string; handleSetCurrentPage: (page: strin
               </div>
           </div>
           {/* Floating Action Button (FAB) for new orders */}
-          <button onClick={() => handleSetCurrentPage('orderForm')} className="absolute bottom-8 left-1/2 -translate-x-1/2 w-16 h-16 bg-purple-600 rounded-full flex items-center justify-center text-white shadow-lg transform transition-transform hover:scale-110">
+          <button onClick={() => handleSetCurrentPage('orderForm')} className="absolute bottom-8 left-1/2 -translate-x-1/2 w-16 h-16 bg-[#c20c0b] rounded-full flex items-center justify-center text-white shadow-lg transform transition-transform hover:scale-110">
               <Plus size={32}/>
           </button>
       </div>
@@ -127,7 +127,7 @@ const BottomNavBar: FC<{ currentPage: string; handleSetCurrentPage: (page: strin
 
 // The Main Layout Wrapper Component
 export const MainLayout: FC<MainLayoutProps> = (props) => (
-    <div className="flex min-h-screen bg-white font-inter">
+    <div className="flex min-h-screen bg-gray-25-30 font-inter">
         {/* Show Sidebar on Desktop if user is logged in and sidebar isn't hidden */}
         {props.user && !props.hideSidebar && <div className="hidden md:flex"><SideMenu {...props} /></div>}
         

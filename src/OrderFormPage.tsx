@@ -508,7 +508,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
         <MainLayout {...props}>
             <div className="max-w-4xl mx-auto">
                 {/* Main Card Container */}
-                <div className="bg-white p-6 sm:p-8 rounded-xl shadow-lg">
+                <div className="bg-white p-6 sm:p-8 rounded-xl shadow-lg border border-gray-200">
                     
                     {/* Header Section: Title and Back Button */}
                     <div className="flex justify-between items-start mb-6">
@@ -517,7 +517,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                             <p className="text-gray-500">Fill out your order details to find matching factories.</p>
                         </div>
                         {/* Button to navigate back to the main sourcing page */}
-                        <button onClick={() => handleSetCurrentPage('sourcing')} className="text-sm text-purple-600 font-semibold flex items-center hover:underline whitespace-nowrap">
+                        <button onClick={() => handleSetCurrentPage('sourcing')} className="text-sm text-[#c20c0b] font-semibold flex items-center hover:underline whitespace-nowrap">
                             <ChevronLeft className="h-4 w-4 mr-1" />
                             Back to Sourcing
                         </button>
@@ -535,7 +535,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                         onClick={() => setActiveItemIndex(index)}
                                         className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
                                             activeItemIndex === index
-                                                ? 'bg-purple-600 text-white shadow-md'
+                                                ? 'bg-[#c20c0b] text-white shadow-md'
                                                 : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
                                         }`}
                                     >
@@ -568,7 +568,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                             <button
                                 type="button"
                                 onClick={handleAddItem}
-                                className="px-4 py-2 rounded-lg text-sm font-medium bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 border-dashed flex items-center gap-2 transition-colors whitespace-nowrap"
+                                className="px-4 py-2 rounded-lg text-sm font-medium bg-red-50 text-[#c20c0b] hover:bg-red-100 border border-red-200 border-dashed flex items-center gap-2 transition-colors whitespace-nowrap"
                             >
                                 <Plus size={16} /> Add Product
                             </button>
@@ -580,7 +580,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {/* Product Category Dropdown */}
                                 <FormField label="Product Category" icon={<Shirt className="h-5 w-5 text-gray-400" />} required>
-                                    <select name="category" value={activeItem.category} onChange={handleFormChange} className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white appearance-none">
+                                    <select name="category" value={activeItem.category} onChange={handleFormChange} className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white appearance-none">
                                         <option>T-shirt</option> <option>Polo Shirt</option> <option>Hoodies</option> <option>Jeans</option> <option>Jackets</option> <option>Shirts</option> <option>Casual Shirts</option> <option>Trousers</option>
                                     </select>
                                 </FormField>
@@ -596,11 +596,11 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                     </div>
                                     {activeItem.quantityType === 'units' ? (
                                         <FormField label="Order Quantity (Units)" icon={<Package className="h-5 w-5 text-gray-400" />} required>
-                                            <input type="number" min="0" name="qty" value={activeItem.qty} onChange={handleFormChange} placeholder="e.g., 5000" className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                                            <input type="number" min="0" name="qty" value={activeItem.qty} onChange={handleFormChange} placeholder="e.g., 5000" className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" />
                                         </FormField>
                                     ) : (
                                         <FormField label="Container Load" icon={<Package className="h-5 w-5 text-gray-400" />} required>
-                                            <select name="qty" value={activeItem.qty} onChange={handleFormChange} className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white appearance-none">
+                                            <select name="qty" value={activeItem.qty} onChange={handleFormChange} className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white appearance-none">
                                                 <option value="">Select Container Type</option>
                                                 {containerOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                                             </select>
@@ -609,11 +609,11 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                 </div>
                                 {/* Fabric Weight Input */}
                                 <FormField label="Fabric Weight (GSM)" icon={<Weight className="h-5 w-5 text-gray-400" />} required>
-                                    <input type="number" min="0" name="weightGSM" value={activeItem.weightGSM} onChange={handleFormChange} placeholder="e.g., 180" className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                                    <input type="number" min="0" name="weightGSM" value={activeItem.weightGSM} onChange={handleFormChange} placeholder="e.g., 180" className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" />
                                 </FormField>
                                 {/* Fabric Quality Input */}
                                 <FormField label="Fabric Quality/Composition" icon={<Award className="h-5 w-5 text-gray-400" />} required>
-                                    <input type="text" name="fabricQuality" value={activeItem.fabricQuality} onChange={handleFormChange} placeholder="e.g., 100% Organic Cotton" className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                                    <input type="text" name="fabricQuality" value={activeItem.fabricQuality} onChange={handleFormChange} placeholder="e.g., 100% Organic Cotton" className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" />
                                 </FormField>
                             </div>
                         </fieldset>
@@ -632,7 +632,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                                     type="checkbox" 
                                                     checked={activeItem.sizeRange.includes(size)} 
                                                     onChange={() => handleSizeCheckbox(size)}
-                                                    className="rounded text-purple-600 focus:ring-purple-500 mr-2" 
+                                                    className="rounded text-[#c20c0b] focus:ring-[#c20c0b] mr-2" 
                                                 />
                                                 <span className="text-sm text-gray-700">{size}</span>
                                             </label>
@@ -642,14 +642,14 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                                 type="checkbox" 
                                                 checked={activeItem.sizeRange.includes('Custom')} 
                                                 onChange={() => handleSizeCheckbox('Custom')}
-                                                className="rounded text-purple-600 focus:ring-purple-500 mr-2" 
+                                                className="rounded text-[#c20c0b] focus:ring-[#c20c0b] mr-2" 
                                             />
                                             <span className="text-sm text-gray-700">Custom</span>
                                         </label>
                                     </div>
                                     {activeItem.sizeRange.includes('Custom') && (
                                         <div className="mt-3">
-                                            <input type="text" name="customSize" value={activeItem.customSize} onChange={handleFormChange} placeholder="Enter custom sizes (e.g., 4XL, 5XL)" className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm" />
+                                            <input type="text" name="customSize" value={activeItem.customSize} onChange={handleFormChange} placeholder="Enter custom sizes (e.g., 4XL, 5XL)" className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] text-sm" />
                                         </div>
                                     )}
                                 </div>
@@ -679,7 +679,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                                             })
                                                         }}
                                                         placeholder="Qty" 
-                                                        className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm" 
+                                                        className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] text-sm" 
                                                     />
                                                 </div>
                                             ))}
@@ -690,7 +690,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                 {/* 3. Sleeve Options (Upper Body Only) */}
                                 {isUpperBody && (
                                     <FormField label="Sleeve Options" icon={<Shirt className="h-5 w-5 text-gray-400" />}>
-                                        <select name="sleeveOption" value={activeItem.sleeveOption} onChange={handleFormChange} className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white">
+                                        <select name="sleeveOption" value={activeItem.sleeveOption} onChange={handleFormChange} className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white">
                                             <option value="">Select Sleeve Type</option>
                                             <option>Short Sleeve</option>
                                             <option>Long Sleeve</option>
@@ -703,12 +703,12 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
 
                                 {/* 4. Packaging Option */}
                                 <FormField label="Packaging Option" icon={<Box className="h-5 w-5 text-gray-400" />} required>
-                                    <input type="text" name="packagingReqs" value={activeItem.packagingReqs} onChange={handleFormChange} placeholder="e.g., Poly bag with warning text" className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                                    <input type="text" name="packagingReqs" value={activeItem.packagingReqs} onChange={handleFormChange} placeholder="e.g., Poly bag with warning text" className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" />
                                 </FormField>
 
                                 {/* 5. Trims & Accessories */}
                                 <FormField label="Trims & Accessories" icon={<Scissors className="h-5 w-5 text-gray-400" />}>
-                                    <input type="text" name="trimsAndAccessories" value={activeItem.trimsAndAccessories} onChange={handleFormChange} placeholder="e.g., YKK Zippers, Metal Buttons" className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                                    <input type="text" name="trimsAndAccessories" value={activeItem.trimsAndAccessories} onChange={handleFormChange} placeholder="e.g., YKK Zippers, Metal Buttons" className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" />
                                 </FormField>
 
                                 {/* 6. Sample Photo Upload */}
@@ -740,13 +740,13 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                 {/* 8. Special Instructions */}
                                 <div className="md:col-span-2">
                                     <FormField label="Special Instructions" icon={<AlertCircle className="h-5 w-5 text-gray-400" />}>
-                                        <textarea name="specialInstructions" value={activeItem.specialInstructions} onChange={handleFormChange} rows={3} placeholder="Any other specific requirements..." className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"></textarea>
+                                        <textarea name="specialInstructions" value={activeItem.specialInstructions} onChange={handleFormChange} rows={3} placeholder="Any other specific requirements..." className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]"></textarea>
                                     </FormField>
                                 </div>
 
                                 {/* 9. Target Price */}
                                 <FormField label="Target Price per Unit (USD)" icon={<DollarSign className="h-5 w-5 text-gray-400" />}>
-                                    <input type="number" min="0" step="0.01" name="targetPrice" value={activeItem.targetPrice} onChange={handleFormChange} placeholder="e.g., 4.50" className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                                    <input type="number" min="0" step="0.01" name="targetPrice" value={activeItem.targetPrice} onChange={handleFormChange} placeholder="e.g., 4.50" className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" />
                                 </FormField>
                             </div>
                         </fieldset>
@@ -757,14 +757,14 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {/* Destination Country */}
                                 <FormField label="Destination Country" icon={<Globe className="h-5 w-5 text-gray-400" />} required>
-                                    <input type="text" name="shippingCountry" value={formState.shippingCountry} onChange={handleFormChange} list="countries" placeholder="Select Country" className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                                    <input type="text" name="shippingCountry" value={formState.shippingCountry} onChange={handleFormChange} list="countries" placeholder="Select Country" className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" />
                                     <datalist id="countries">
                                         {COUNTRIES.map(c => <option key={c} value={c} />)}
                                     </datalist>
                                 </FormField>
                                 {/* Destination Port */}
                                 <FormField label="Destination Port" icon={<Anchor className="h-5 w-5 text-gray-400" />} required>
-                                    <input type="text" name="shippingPort" value={formState.shippingPort} onChange={handleFormChange} list="ports" placeholder="Select Port" className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                                    <input type="text" name="shippingPort" value={formState.shippingPort} onChange={handleFormChange} list="ports" placeholder="Select Port" className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" />
                                     <datalist id="ports">
                                         {availablePorts.map(p => <option key={p} value={p} />)}
                                     </datalist>
@@ -777,7 +777,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                             <button type="button" onClick={handleResetForm} className="w-full md:w-auto px-6 py-3 text-gray-700 font-semibold bg-gray-100 rounded-lg hover:bg-gray-200 transition">
                                 Reset Form
                             </button>
-                            <button type="submit" className="w-full md:w-auto px-8 py-3 text-white rounded-lg font-semibold bg-purple-600 hover:bg-purple-700 transition shadow-md"> 
+                            <button type="submit" className="w-full md:w-auto px-8 py-3 text-white rounded-lg font-semibold bg-[#c20c0b] hover:bg-[#a50a09] transition shadow-md"> 
                                 Submit Quote Request 
                             </button> 
                         </div>
@@ -796,7 +796,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                             <div className="p-6 space-y-8 flex-grow overflow-y-auto">
                                 {/* Logistics Section */}
                                 <div className="bg-gray-50 p-5 rounded-xl border border-gray-200">
-                                    <h3 className="text-lg font-bold text-gray-800 mb-3 flex items-center"><Globe size={20} className="mr-2 text-purple-600"/> Destination</h3>
+                                    <h3 className="text-lg font-bold text-gray-800 mb-3 flex items-center"><Globe size={20} className="mr-2 text-[#c20c0b]"/> Destination</h3>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div>
                                             <p className="text-xs text-gray-500 uppercase font-semibold">Country</p>
@@ -811,13 +811,13 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
 
                                 {/* Products Section */}
                                 <div>
-                                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><Package size={20} className="mr-2 text-purple-600"/> Products ({formState.lineItems.length})</h3>
+                                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><Package size={20} className="mr-2 text-[#c20c0b]"/> Products ({formState.lineItems.length})</h3>
                                     <div className="space-y-4">
                                         {formState.lineItems.map((item, idx) => (
                                             <div key={item.id} className="border border-gray-200 rounded-xl p-5 hover:shadow-sm transition-shadow">
                                                 <div className="flex justify-between items-start mb-3">
-                                                    <h4 className="font-bold text-purple-700 text-lg">Product {idx + 1}: {item.category}</h4>
-                                                    <span className="bg-purple-100 text-purple-800 text-xs font-bold px-2 py-1 rounded-full">
+                                                    <h4 className="font-bold text-[#c20c0b] text-lg">Product {idx + 1}: {item.category}</h4>
+                                                    <span className="bg-red-100 text-[#a50a09] text-xs font-bold px-2 py-1 rounded-full">
                                                         {item.qty} {item.quantityType === 'container' ? '' : 'Units'}
                                                     </span>
                                                 </div>
@@ -855,7 +855,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                 <button onClick={() => setIsSummaryModalOpen(false)} className="px-6 py-3 bg-white border border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-colors">
                                     Edit Order
                                 </button>
-                                <button onClick={handleConfirmSubmit} className="px-8 py-3 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 shadow-md transition-transform transform hover:scale-105">
+                                <button onClick={handleConfirmSubmit} className="px-8 py-3 bg-[#c20c0b] text-white font-bold rounded-xl hover:bg-[#a50a09] shadow-md transition-transform transform hover:scale-105">
                                     Confirm & Submit
                                 </button>
                             </div>

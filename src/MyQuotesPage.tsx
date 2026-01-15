@@ -2,7 +2,7 @@ import React, { useState, FC } from 'react';
 import { MainLayout } from './MainLayout';
 import { QuoteRequest } from './types';
 import {
-    Plus, MapPin, Globe, Shirt, Package, Clock, ChevronRight, FileQuestion, RefreshCw, MessageSquare, Bell, Calendar, DollarSign
+    Plus, MapPin, Globe, Shirt, Package, Clock, ChevronRight, FileQuestion, RefreshCw, MessageSquare, Bell, Calendar, DollarSign, CheckCircle
 } from 'lucide-react';
 
 interface MyQuotesPageProps {
@@ -22,12 +22,34 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
 
     const getStatusColor = (status: string) => {
         switch (status) {
-            case 'Pending': return 'bg-yellow-100 text-yellow-800';
-            case 'Responded': return 'bg-blue-100 text-blue-800';
-            case 'Accepted': return 'bg-green-100 text-green-800';
-            case 'Declined': return 'bg-red-100 text-red-800';
-            case 'In Negotiation': return 'bg-orange-100 text-orange-800';
-            default: return 'bg-gray-100 text-gray-800';
+            case 'Pending': return 'bg-amber-50 text-amber-700 border-amber-100';
+            case 'Responded': return 'bg-blue-50 text-blue-700 border-blue-100';
+            case 'Accepted': return 'bg-emerald-50 text-emerald-700 border-emerald-100';
+            case 'Declined': return 'bg-red-50 text-red-700 border-red-100';
+            case 'In Negotiation': return 'bg-purple-50 text-purple-700 border-purple-100';
+            default: return 'bg-gray-50 text-gray-700 border-gray-100';
+        }
+    };
+
+    const getStatusGradientBorder = (status: string) => {
+        switch (status) {
+            case 'Pending': return 'from-amber-300 to-yellow-200';
+            case 'Responded': return 'from-blue-400 to-cyan-300';
+            case 'Accepted': return 'from-emerald-600 to-emerald-300';
+            case 'Declined': return 'from-red-500 to-pink-400';
+            case 'In Negotiation': return 'from-purple-500 to-indigo-300';
+            default: return 'from-gray-400 to-gray-200';
+        }
+    };
+
+    const getStatusHoverShadow = (status: string) => {
+        switch (status) {
+            case 'Pending': return 'hover:shadow-[0_8px_30px_rgba(245,158,11,0.15)]';
+            case 'Responded': return 'hover:shadow-[0_8px_30px_rgba(59,130,246,0.15)]';
+            case 'Accepted': return 'hover:shadow-[0_8px_30px_rgba(16,185,129,0.15)]';
+            case 'Declined': return 'hover:shadow-[0_8px_30px_rgba(239,68,68,0.15)]';
+            case 'In Negotiation': return 'hover:shadow-[0_8px_30px_rgba(168,85,247,0.15)]';
+            default: return 'hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)]';
         }
     };
 
@@ -138,7 +160,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                     </div>
                     <button onClick={onRefresh} className={`p-2 rounded-full hover:bg-gray-100 text-gray-500 transition-colors ${isLoading ? 'animate-spin' : ''}`} title="Refresh Quotes"><RefreshCw size={20}/></button>
                 </div>
-                <button onClick={() => handleSetCurrentPage('orderForm')} className="bg-purple-600 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 hover:bg-purple-700 transition shadow-md">
+                <button onClick={() => handleSetCurrentPage('orderForm')} className="bg-[#c20c0b] text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 hover:bg-[#a50a09] transition shadow-md">
                     <Plus size={18} />
                     <span>Request New Quote</span>
                 </button>
@@ -154,7 +176,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                             onClick={() => setFilterStatus(status)}
                             className={`flex-shrink-0 py-2 px-4 font-semibold text-sm rounded-md transition-colors ${
                                 filterStatus === status
-                                    ? 'bg-purple-100 text-purple-700'
+                                    ? 'bg-red-100 text-[#c20c0b]'
                                     : 'text-gray-500 hover:bg-gray-100'
                             }`}
                         >
@@ -184,7 +206,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                                     value={customStartDate} 
                                     onChange={(e) => setCustomStartDate(e.target.value)}
                                     max={todayString}
-                                    className="text-xs border border-gray-300 rounded-md p-1 focus:outline-none focus:ring-2 focus:ring-purple-500" 
+                                    className="text-xs border border-gray-300 rounded-md p-1 focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" 
                                 />
                                 <span className="text-gray-400">-</span>
                                 <input 
@@ -192,7 +214,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                                     value={customEndDate} 
                                     onChange={(e) => setCustomEndDate(e.target.value)}
                                     max={todayString}
-                                    className="text-xs border border-gray-300 rounded-md p-1 focus:outline-none focus:ring-2 focus:ring-purple-500" 
+                                    className="text-xs border border-gray-300 rounded-md p-1 focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" 
                                 />
                             </div>
                         )}
@@ -210,49 +232,47 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
             ) : filteredQuotes.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {filteredQuotes.map((quote, index) => (
-                        <div 
+                        <div
                             key={quote.id} 
                             onClick={() => handleCardClick(quote)}
-                            className="bg-white rounded-xl shadow-sm hover:shadow-md border border-gray-200 flex flex-col transition-all duration-200 cursor-pointer group animate-card-enter" 
+                            className={`bg-white rounded-2xl p-6 shadow-md ${getStatusHoverShadow(quote.status)} border border-gray-200 transition-all duration-300 cursor-pointer group relative overflow-hidden flex flex-col`}
                             style={{ animationDelay: `${index * 50}ms` }}
                         >
+                            <div className={`absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r ${getStatusGradientBorder(quote.status)}`} />
                             {/* Card Header */}
-                            <div className="flex items-center justify-between p-5 border-b border-gray-100">
-                                <div className="flex items-center gap-4">
-                                    {quote.factory ? (
-                                        <>
-                                            <img className="h-12 w-12 rounded-lg object-cover border border-gray-100" src={quote.factory.imageUrl} alt={quote.factory.name} />
-                                            <div>
-                                                <p className="font-bold text-gray-900 text-base">{quote.factory.name}</p>
-                                                <p className="text-xs text-gray-500 flex items-center mt-0.5"><MapPin size={12} className="mr-1"/>{quote.factory.location}</p>
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <div className="flex items-center gap-4">
-                                            <div className="h-12 w-12 rounded-lg bg-purple-50 flex items-center justify-center text-purple-600 border border-purple-100"><Globe size={24} /></div>
-                                            <div><p className="font-bold text-gray-900 text-base">General Request</p><p className="text-xs text-gray-500 mt-0.5">Open to all factories</p></div>
-                                        </div>
-                                    )}
-                                </div>
-                                <span className={`px-3 py-1 text-xs font-semibold rounded-full ${getStatusColor(quote.status)}`}>
+                            <div className="flex items-center justify-between mb-4">
+                                <span className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100">
+                                    #{quote.id.slice(0, 8)}
+                                </span>
+                                <span className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full border ${getStatusColor(quote.status)}`}>
                                     {quote.status}
                                 </span>
                             </div>
 
-                            {/* Card Body */}
-                            <div className="p-5 flex-grow space-y-4">
-                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                                    <div className="col-span-2 sm:col-span-1">
-                                        <p className="text-xs text-gray-500 mb-1">Product</p>
-                                        <div className="flex items-center text-sm font-medium text-gray-800">
-                                            <Shirt size={16} className="text-gray-400 mr-2" />
-                                            {quote.order?.lineItems?.length > 1 ? `${quote.order.lineItems.length} Items` : (quote.order?.lineItems?.[0]?.category || 'Unknown Product')}
-                                        </div>
-                                    </div>
+                            {quote.factory && (
+                                <div className="flex items-center gap-3 mb-5">
+                                    <img className="h-9 w-9 rounded-full object-cover border border-gray-100 shadow-sm" src={quote.factory.imageUrl} alt={quote.factory.name} />
                                     <div>
-                                        <p className="text-xs text-gray-500 mb-1">Quantity</p>
-                                        <div className="flex items-center text-sm font-medium text-gray-800">
-                                            <Package size={16} className="text-gray-400 mr-2" />
+                                        <p className="font-bold text-gray-900 text-sm leading-tight group-hover:text-[#c20c0b] transition-colors">{quote.factory.name}</p>
+                                        <p className="text-[10px] text-gray-500 flex items-center mt-0.5"><MapPin size={10} className="mr-1"/>{quote.factory.location}</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Card Body */}
+                            <div className="flex-grow">
+                                <h3 className="text-lg font-bold text-gray-900 mb-1 group-hover:text-[#c20c0b] transition-colors">
+                                    {quote.order?.lineItems?.length > 1 ? `${quote.order.lineItems.length} Product Types` : (quote.order?.lineItems?.[0]?.category || 'Unknown Product')}
+                                </h3>
+                                <p className="text-xs text-gray-400 mb-6">
+                                    {getDisplayDateInfo(quote).label} {new Date(getDisplayDateInfo(quote).date).toLocaleDateString()}
+                                </p>
+
+                                <div className="flex items-center gap-8 mb-6">
+                                    <div>
+                                        <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">Quantity</p>
+                                        <div className="flex items-center gap-1.5 text-gray-700 font-medium text-sm">
+                                            <Package size={14} className="text-gray-300" />
                                             {(() => {
                                                 const items = quote.order?.lineItems || [];
                                                 if (items.length === 0) return '0 units';
@@ -260,97 +280,62 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                                                     const item = items[0];
                                                     return `${item.qty} ${item.quantityType === 'container' ? '' : 'units'}`;
                                                 }
-                                                // For multiple items, check if all are units to sum them up
                                                 const allUnits = items.every(i => !i.quantityType || i.quantityType === 'units');
                                                 if (allUnits) {
                                                     const total = items.reduce((acc, i) => acc + (parseInt(i.qty) || 0), 0);
-                                                    return `${total} units`;
+                                                    return `${total} total units`;
                                                 }
-                                                return 'Various';
+                                                return 'Multiple quantities';
                                             })()}
                                         </div>
                                     </div>
                                     <div>
-                                        <p className="text-xs text-gray-500 mb-1">{quote.status === 'Accepted' ? 'Agreed Price' : 'Target Price'}</p>
-                                        <div className={`flex items-center text-sm font-medium ${quote.status === 'Accepted' ? 'text-green-600' : 'text-gray-800'}`}>
-                                            <DollarSign size={16} className={`${quote.status === 'Accepted' ? 'text-green-500' : 'text-gray-400'} mr-2`} />
+                                        <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">{quote.status === 'Accepted' ? 'Agreed Price' : 'Target Price'}</p>
+                                        <div className={`flex items-center gap-1.5 font-medium text-sm ${quote.status === 'Accepted' ? 'text-emerald-600' : 'text-gray-700'}`}>
+                                            <DollarSign size={14} className={quote.status === 'Accepted' ? 'text-emerald-400' : 'text-gray-300'} />
                                             {(() => {
                                                 const isAccepted = quote.status === 'Accepted';
+                                                let priceValue = 'N/A';
+
                                                 if (isAccepted) {
-                                                    if (quote.response_details?.price) return quote.response_details.price;
-                                                    if (quote.order?.lineItems?.length === 1) {
+                                                    if (quote.response_details?.price) priceValue = `$${quote.response_details.price}`;
+                                                    else if (quote.order?.lineItems?.length === 1) {
                                                         const itemId = quote.order.lineItems[0].id;
                                                         const itemResponse = quote.response_details?.lineItemResponses?.find(r => r.lineItemId === itemId);
-                                                        if (itemResponse?.price) return itemResponse.price;
+                                                        if (itemResponse?.price) priceValue = `$${itemResponse.price}`;
+                                                    } else {
+                                                        priceValue = 'See Details';
                                                     }
+                                                } else {
+                                                    if (quote.order?.lineItems?.length === 1) priceValue = `$${quote.order.lineItems[0].targetPrice}`;
+                                                    else priceValue = 'See Details';
                                                 }
-                                                if (quote.order?.lineItems?.length === 1) return quote.order.lineItems[0].targetPrice;
-                                                return 'View Details';
+                                                return priceValue;
                                             })()}
                                         </div>
                                     </div>
                                 </div>
-                                
-                                <div>
-                                    <p className="text-xs text-gray-500 mb-1">{getDisplayDateInfo(quote).label}</p>
-                                    <div className="flex items-center text-sm text-gray-600">
-                                        <Clock size={16} className="text-gray-400 mr-2" />
-                                        {new Date(getDisplayDateInfo(quote).date).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
-                                    </div>
-                                </div>
-
-                                {isResponseAwaited(quote) && (
-                                    <div className="mt-3 bg-yellow-50 border border-yellow-100 rounded-lg p-3 flex items-center text-yellow-700 animate-fade-in">
-                                        <Clock size={18} className="mr-2" />
-                                        <span className="font-semibold text-sm">Response Awaited</span>
-                                    </div>
-                                )}
-
-                                {quote.status === 'Responded' && quote.response_details && isUnread(quote) && (
-                                    <div className="mt-3 bg-blue-50 border border-blue-100 rounded-lg p-3">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center text-blue-700">
-                                                <MessageSquare size={18} className="mr-2" />
-                                                <span className="font-semibold text-sm">Message Notification</span>
-                                            </div>
-                                            <span className="font-bold text-blue-800 text-lg">${quote.response_details.price}</span>
-                                        </div>
-                                        {quote.response_details.respondedAt && (
-                                            <div className="text-right mt-1 text-xs text-blue-600">{new Date(quote.response_details.respondedAt).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</div>
-                                        )}
-                                    </div>
-                                )}
-                                {isNewReply(quote) && isUnread(quote) && (
-                                    <div className="mt-3 bg-blue-50 border border-blue-100 rounded-lg p-3 animate-fade-in">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center text-blue-700">
-                                                <MessageSquare size={18} className="mr-2" />
-                                                <span className="font-semibold text-sm">New Reply</span>
-                                            </div>
-                                        </div>
-                                        <div className="text-right mt-1 text-xs text-blue-600">{new Date(quote.negotiation_details?.history?.slice(-1)[0]?.timestamp || Date.now()).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</div>
-                                    </div>
-                                )}
-                                {quote.status === 'Accepted' && quote.response_details && isUnread(quote) && (
-                                    <div className="mt-3 bg-green-50 border border-green-100 rounded-lg p-3">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center text-green-700">
-                                                <Bell size={18} className="mr-2" />
-                                                <span className="font-semibold text-sm">Notification: Final Price</span>
-                                            </div>
-                                            <span className="font-bold text-green-800 text-lg">${quote.response_details.price}</span>
-                                        </div>
-                                        {quote.acceptedAt && (
-                                            <div className="text-right mt-1 text-xs text-green-600">Accepted on {new Date(quote.acceptedAt).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</div>
-                                        )}
-                                    </div>
-                                )}
                             </div>
 
                             {/* Card Footer */}
-                            <div className="px-5 py-4 bg-gray-50 rounded-b-xl border-t border-gray-100 flex items-center justify-between group-hover:bg-purple-50 transition-colors duration-200">
-                                <span className="text-xs text-gray-500 font-medium group-hover:text-purple-600 transition-colors">View full details</span>
-                                <div className="h-8 w-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-400 group-hover:border-purple-200 group-hover:text-purple-600 transition-all">
+                            <div className="mt-auto pt-4 border-t border-gray-50 flex items-center justify-between">
+                                {isResponseAwaited(quote) ? (
+                                    <div className="flex items-center text-xs text-amber-600 font-medium">
+                                        <Clock size={14} className="mr-1.5" /> Awaiting response
+                                    </div>
+                                ) : (quote.status === 'Responded' || isNewReply(quote)) && isUnread(quote) ? (
+                                    <div className="flex items-center text-xs text-blue-600 font-medium">
+                                        <MessageSquare size={14} className="mr-1.5" /> New response
+                                    </div>
+                                ) : quote.status === 'Accepted' && isUnread(quote) ? (
+                                    <div className="flex items-center text-xs text-emerald-600 font-medium">
+                                        <CheckCircle size={14} className="mr-1.5" /> Quote Accepted
+                                    </div>
+                                ) : (
+                                    <div className="text-xs text-gray-400 font-medium">View Details</div>
+                                )}
+                                
+                                <div className="h-8 w-8 rounded-full bg-gray-50 group-hover:bg-[#c20c0b] flex items-center justify-center text-gray-400 group-hover:text-white transition-all duration-300">
                                     <ChevronRight size={16} />
                                 </div>
                             </div>
@@ -362,7 +347,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                     <FileQuestion className="mx-auto h-16 w-16 text-gray-300" />
                     <h3 className="mt-4 text-lg font-semibold text-gray-800">No Quotes Found</h3>
                     <p className="mt-1 text-sm text-gray-500">No quotes match the "{filterStatus}" filter.</p>
-                    <button onClick={() => setFilterStatus('All')} className="mt-4 text-sm font-bold text-purple-600 hover:underline">
+                    <button onClick={() => setFilterStatus('All')} className="mt-4 text-sm font-bold text-[#c20c0b] hover:underline">
                         Show All Quotes
                     </button>
                 </div>

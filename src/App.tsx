@@ -1,5 +1,5 @@
 // Import React library and hooks for state management (useState), side effects (useEffect), references (useRef), memoization (useMemo), and types (FC, ReactNode)
-import React, { useState, useEffect, useRef, useMemo, FC, ReactNode } from 'react';
+import React, { useState, useEffect, useRef, useMemo, FC, ReactNode, useCallback } from 'react';
 // Import the configured Supabase client for backend database and auth interactions
 import { supabase } from './supabaseClient';
 // Import UI icons from lucide-react library
@@ -197,11 +197,11 @@ const App: FC = () => {
     const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
     
     // Function to display a toast notification
-    const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
         setToast({ show: true, message, type });
         // Hide toast after 3 seconds
         setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3000);
-    };
+    }, []);
     
     // Function to handle navigation between pages
     const handleSetCurrentPage = (page: string, data: any = null) => {
@@ -346,34 +346,41 @@ const App: FC = () => {
 
     // --- Mock Data Fetching ---
     // Effect to load mock quotes when user is logged in
-    const fetchUserQuotes = async () => {
+    const fetchUserQuotes = useCallback(async () => {
         if (user && !isAdmin) {
             setIsQuotesLoading(true);
-            const { data } = await quoteService.getQuotesByUser(user.id);
-            if (data) {
-                const transformedQuotes: QuoteRequest[] = data.map((q: any) => ({
-                    id: q.id,
-                    factory: q.factory_data,
-                    order: q.order_details,
-                    status: q.status,
-                    submittedAt: q.created_at,
-                    acceptedAt: q.accepted_at || q.response_details?.acceptedAt,
-                    userId: q.user_id,
-                    files: q.files || [],
-                    response_details: q.response_details,
-                    negotiation_details: q.negotiation_details
-                }));
-                setQuoteRequests(transformedQuotes);
+            try {
+                const { data, error } = await quoteService.getQuotesByUser(user.id);
+                if (error) throw error;
+                if (data) {
+                    const transformedQuotes: QuoteRequest[] = data.map((q: any) => ({
+                        id: q.id,
+                        factory: q.factory_data,
+                        order: q.order_details,
+                        status: q.status,
+                        submittedAt: q.created_at,
+                        acceptedAt: q.accepted_at || q.response_details?.acceptedAt,
+                        userId: q.user_id,
+                        files: q.files || [],
+                        response_details: q.response_details,
+                        negotiation_details: q.negotiation_details
+                    }));
+                    setQuoteRequests(transformedQuotes);
+                }
+            } catch (error: any) {
+                console.error("Error fetching quotes:", error);
+                showToast("Failed to load quotes: " + error.message, "error");
+            } finally {
+                setIsQuotesLoading(false);
             }
-            setIsQuotesLoading(false);
         }
-    };
+    }, [user, isAdmin, showToast]);
 
     useEffect(() => {
         if (user && !isAdmin && (currentPage === 'myQuotes' || quoteRequests.length === 0)) {
             fetchUserQuotes();
         }
-    }, [user, isAdmin, currentPage]);
+    }, [user, isAdmin, currentPage, fetchUserQuotes, quoteRequests.length]);
 
     // Effect to listen for real-time updates on quotes for the current user
     useEffect(() => {
@@ -658,11 +665,11 @@ const App: FC = () => {
         };
 
         return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-                <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md">
+            <div className="min-h-screen bg-gray-25 flex items-center justify-center p-4">
+                <div className="bg-white rounded-xl shadow-2xl border border-gray-200 p-8 w-full max-w-md">
                     <div className="flex items-center gap-3 mb-6">
-                        <div className="p-2 bg-purple-100 rounded-lg">
-                            <Lock className="w-6 h-6 text-purple-600" />
+                        <div className="p-2 bg-red-100 rounded-lg">
+                            <Lock className="w-6 h-6 text-[#c20c0b]" />
                         </div>
                         <h2 className="text-2xl font-bold text-gray-800">Create New Password</h2>
                     </div>
@@ -670,9 +677,9 @@ const App: FC = () => {
                         Since this is your first time signing in (or you used a one-time code), please set a secure password for future logins.
                     </p>
                     <form onSubmit={handleSavePassword} className="space-y-4">
-                        <div> <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label> <input type="password" required value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" /> </div>
-                        <div> <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label> <input type="password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" /> </div>
-                        <button type="submit" disabled={loading} className="w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-purple-700 transition-colors disabled:opacity-70"> {loading ? 'Saving...' : 'Create Password'} </button>
+                        <div> <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label> <input type="password" required value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" /> </div>
+                        <div> <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label> <input type="password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" /> </div>
+                        <button type="submit" disabled={loading} className="w-full bg-[#c20c0b] text-white font-bold py-3 px-4 rounded-xl hover:bg-[#a50a09] transition-colors disabled:opacity-70"> {loading ? 'Saving...' : 'Create Password'} </button>
                     </form>
                 </div>
             </div>
@@ -712,7 +719,7 @@ const App: FC = () => {
             }
             await saveUserProfile(profileData);
         };
-        return ( <MainLayout {...layoutProps} hideSidebar={!userProfile}> <div className="max-w-2xl mx-auto"> <div className="bg-white p-6 sm:p-8 rounded-xl shadow-lg"> <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">{userProfile ? 'Update Your Profile' : 'Complete Your Profile'}</h2> <p className="text-center text-gray-500 mb-6">Fields marked with * are required to access the platform.</p> {authError && <p className="text-red-500 mb-4">{authError}</p>} <form onSubmit={handleSaveProfile} className="grid grid-cols-1 md:grid-cols-2 gap-6"> <div> <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Name <span className="text-red-500">*</span></label> <input type="text" id="name" name="name" value={profileData.name} onChange={handleProfileChange} required className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" /> </div> <div> <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-1">Company Name <span className="text-red-500">*</span></label> <input type="text" id="companyName" name="companyName" value={profileData.companyName} onChange={handleProfileChange} required className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" /> </div> <div className="md:col-span-2"> <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email <span className="text-red-500">*</span></label> <input type="email" id="email" name="email" value={profileData.email} onChange={handleProfileChange} required className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" /> </div> <div> <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">Phone <span className="text-red-500">*</span></label> <input type="tel" id="phone" name="phone" value={profileData.phone} onChange={handleProfileChange} required className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" /> </div> <div> <label htmlFor="country" className="block text-sm font-medium text-gray-700 mb-1">Country</label> <select id="country" name="country" value={profileData.country} onChange={handleProfileChange} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"> <option value="">Select a country</option> {countries.map(country => (<option key={country} value={country}>{country}</option>))} </select> </div> <div> <label htmlFor="jobRole" className="block text-sm font-medium text-gray-700 mb-1">Job Role</label> <select id="jobRole" name="jobRole" value={profileData.jobRole} onChange={handleProfileChange} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"> <option value="">Select a role</option> {jobRoles.map(role => (<option key={role} value={role}>{role}</option>))} </select> </div> <div> <label htmlFor="categorySpecialization" className="block text-sm font-medium text-gray-700 mb-1">Category Specialization</label> <input type="text" id="categorySpecialization" name="categorySpecialization" placeholder="e.g., Activewear, Denim" value={profileData.categorySpecialization} onChange={handleProfileChange} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" /> </div> <div> <label htmlFor="yearlyEstRevenue" className="block text-sm font-medium text-gray-700 mb-1">Est. Yearly Revenue (USD)</label> <select id="yearlyEstRevenue" name="yearlyEstRevenue" value={profileData.yearlyEstRevenue} onChange={handleProfileChange} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"> <option value="">Select a revenue range</option> {revenueRanges.map(range => (<option key={range} value={range}>{range}</option>))} </select> </div> <div className="md:col-span-2 text-right mt-4"> <button type="submit" disabled={isProfileLoading} className="w-full md:w-auto px-6 py-3 text-white rounded-md font-semibold bg-purple-600 hover:bg-purple-700 transition shadow-md disabled:opacity-50"> {isProfileLoading ? 'Saving...' : (userProfile ? 'Save Profile' : 'Complete Profile & Continue')} </button> </div> </form> </div> </div> </MainLayout> );
+        return ( <MainLayout {...layoutProps} hideSidebar={!userProfile}> <div className="max-w-2xl mx-auto"> <div className="bg-white p-6 sm:p-8 rounded-xl shadow-lg border border-gray-200"> <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">{userProfile ? 'Update Your Profile' : 'Complete Your Profile'}</h2> <p className="text-center text-gray-500 mb-6">Fields marked with * are required to access the platform.</p> {authError && <p className="text-red-500 mb-4">{authError}</p>} <form onSubmit={handleSaveProfile} className="grid grid-cols-1 md:grid-cols-2 gap-6"> <div> <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Name <span className="text-red-500">*</span></label> <input type="text" id="name" name="name" value={profileData.name} onChange={handleProfileChange} required className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" /> </div> <div> <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-1">Company Name <span className="text-red-500">*</span></label> <input type="text" id="companyName" name="companyName" value={profileData.companyName} onChange={handleProfileChange} required className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" /> </div> <div className="md:col-span-2"> <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email <span className="text-red-500">*</span></label> <input type="email" id="email" name="email" value={profileData.email} onChange={handleProfileChange} required className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" /> </div> <div> <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">Phone <span className="text-red-500">*</span></label> <input type="tel" id="phone" name="phone" value={profileData.phone} onChange={handleProfileChange} required className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" /> </div> <div> <label htmlFor="country" className="block text-sm font-medium text-gray-700 mb-1">Country</label> <select id="country" name="country" value={profileData.country} onChange={handleProfileChange} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white"> <option value="">Select a country</option> {countries.map(country => (<option key={country} value={country}>{country}</option>))} </select> </div> <div> <label htmlFor="jobRole" className="block text-sm font-medium text-gray-700 mb-1">Job Role</label> <select id="jobRole" name="jobRole" value={profileData.jobRole} onChange={handleProfileChange} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white"> <option value="">Select a role</option> {jobRoles.map(role => (<option key={role} value={role}>{role}</option>))} </select> </div> <div> <label htmlFor="categorySpecialization" className="block text-sm font-medium text-gray-700 mb-1">Category Specialization</label> <input type="text" id="categorySpecialization" name="categorySpecialization" placeholder="e.g., Activewear, Denim" value={profileData.categorySpecialization} onChange={handleProfileChange} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" /> </div> <div> <label htmlFor="yearlyEstRevenue" className="block text-sm font-medium text-gray-700 mb-1">Est. Yearly Revenue (USD)</label> <select id="yearlyEstRevenue" name="yearlyEstRevenue" value={profileData.yearlyEstRevenue} onChange={handleProfileChange} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white"> <option value="">Select a revenue range</option> {revenueRanges.map(range => (<option key={range} value={range}>{range}</option>))} </select> </div> <div className="md:col-span-2 text-right mt-4"> <button type="submit" disabled={isProfileLoading} className="w-full md:w-auto px-6 py-3 text-white rounded-md font-semibold bg-[#c20c0b] hover:bg-[#a50a09] transition shadow-md disabled:opacity-50"> {isProfileLoading ? 'Saving...' : (userProfile ? 'Save Profile' : 'Complete Profile & Continue')} </button> </div> </form> </div> </div> </MainLayout> );
     };
 
     // Component for user settings
@@ -732,9 +739,9 @@ const App: FC = () => {
                     <h1 className="text-3xl font-bold text-gray-800 mb-8">Settings</h1>
                     <div className="space-y-6">
                         {settingsOptions.map((opt, index) => (
-                            <div key={index} className="bg-white p-6 rounded-xl shadow-sm border flex items-center justify-between">
+                            <div key={index} className="bg-white p-6 rounded-xl shadow-md border border-gray-200 flex items-center justify-between">
                                 <div className="flex items-center gap-4">
-                                    <div className="bg-purple-100 text-purple-600 p-3 rounded-lg">{opt.icon}</div>
+                                    <div className="bg-red-100 text-[#c20c0b] p-3 rounded-lg">{opt.icon}</div>
                                     <div>
                                         <h3 className="text-lg font-semibold text-gray-800">{opt.title}</h3>
                                         <p className="text-sm text-gray-500">{opt.description}</p>
@@ -745,17 +752,17 @@ const App: FC = () => {
                                 </button>
                             </div>
                         ))}
-                            <div className="bg-white p-6 rounded-xl shadow-sm border">
+                            <div className="bg-white p-6 rounded-xl shadow-md border border-gray-200">
                                 <div className="flex items-center gap-4">
-                                    <div className="bg-purple-100 text-purple-600 p-3 rounded-lg"><MapPin size={20}/></div>
+                                    <div className="bg-red-100 text-[#c20c0b] p-3 rounded-lg"><MapPin size={20}/></div>
                                     <div>
                                         <h3 className="text-lg font-semibold text-gray-800">Change Location</h3>
                                         <p className="text-sm text-gray-500">Update your primary business location.</p>
                                     </div>
                                 </div>
                                 <div className="mt-4 flex gap-4 items-center">
-                                    <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} className="flex-grow p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                                    <button onClick={handleLocationSave} className="bg-purple-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-purple-700 transition">Save</button>
+                                    <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} className="flex-grow p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" />
+                                    <button onClick={handleLocationSave} className="bg-[#c20c0b] text-white font-semibold py-2 px-4 rounded-lg hover:bg-[#a50a09] transition">Save</button>
                                 </div>
                             </div>
                     </div>
@@ -769,7 +776,7 @@ const App: FC = () => {
         <MainLayout {...layoutProps}>
             <div className="space-y-6">
                 <div>
-                    <button onClick={() => handleSetCurrentPage('orderForm')} className="text-purple-600 font-semibold mb-4 flex items-center hover:underline">
+                    <button onClick={() => handleSetCurrentPage('orderForm')} className="text-[#c20c0b] font-semibold mb-4 flex items-center hover:underline">
                         <ChevronLeft className="h-5 w-5 mr-1" />
                         Back to Order Form
                     </button>
@@ -788,7 +795,7 @@ const App: FC = () => {
                         ))}
                     </div>
                 ) : (
-                    <div className="text-center py-10 bg-white rounded-lg shadow-md">
+                    <div className="text-center py-10 bg-white rounded-lg shadow-md border border-gray-200">
                         <h3 className="text-xl font-semibold text-gray-700">No factories match your criteria.</h3>
                         <p className="text-gray-500 mt-2">Try adjusting your product category in the order form.</p>
                     </div>
@@ -956,7 +963,7 @@ const App: FC = () => {
             <MainLayout {...layoutProps}>
                 <div className="space-y-8">
                     <div>
-                        <button onClick={() => handleSetCurrentPage('factoryDetail', selectedFactory)} className="text-purple-600 font-semibold mb-4 flex items-center hover:underline">
+                        <button onClick={() => handleSetCurrentPage('factoryDetail', selectedFactory)} className="text-[#c20c0b] font-semibold mb-4 flex items-center hover:underline">
                             <ChevronLeft className="h-5 w-5 mr-1" />
                             Back to Factory Details
                         </button>
@@ -965,7 +972,7 @@ const App: FC = () => {
                     </div>
 
                     {/* Product Categories Section */}
-                    <div className="bg-white p-6 sm:p-8 rounded-xl shadow-lg">
+                    <div className="bg-white p-6 sm:p-8 rounded-xl shadow-lg border border-gray-200">
                         <h2 className="text-2xl font-bold text-gray-800 mb-6">Product Categories</h2>
                         {catalog.productCategories.length > 0 ? (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -985,7 +992,7 @@ const App: FC = () => {
                     </div>
 
                     {/* Fabric Options Section */}
-                    <div className="bg-white p-6 sm:p-8 rounded-xl shadow-lg">
+                    <div className="bg-white p-6 sm:p-8 rounded-xl shadow-lg border border-gray-200">
                         <h2 className="text-2xl font-bold text-gray-800 mb-6">Fabric Options</h2>
                         {catalog.fabricOptions.length > 0 ? (
                             <div className="overflow-x-auto">
@@ -1027,14 +1034,14 @@ const App: FC = () => {
             <MainLayout {...layoutProps}>
                 <div className="space-y-8">
                     <div>
-                        <button onClick={() => handleSetCurrentPage('factoryDetail', selectedFactory)} className="text-purple-600 font-semibold mb-4 flex items-center hover:underline">
+                        <button onClick={() => handleSetCurrentPage('factoryDetail', selectedFactory)} className="text-[#c20c0b] font-semibold mb-4 flex items-center hover:underline">
                             <ChevronLeft className="h-5 w-5 mr-1" />
                             Back to Factory Details
                         </button>
                         <h2 className="text-3xl font-bold text-gray-800">AI Sourcing Tools for {selectedFactory.name}</h2>
                         <p className="text-gray-500 mt-1">Generate documents and get insights for your order.</p>
                     </div>
-                    <div className="bg-white p-6 rounded-xl shadow-lg">
+                    <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
                         <h3 className="text-xl font-bold text-gray-800 mb-4">Your Order Details</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             {orderFormData.lineItems.map((item, idx) => (
@@ -1047,28 +1054,28 @@ const App: FC = () => {
                         </div>
                     </div>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <AiCard icon={<FileText className="mr-2 text-purple-500"/>} title="Generate Contract Brief">
-                            <div className="flex-grow min-h-[150px] prose prose-sm max-w-none whitespace-pre-wrap">{isLoadingBrief ? <div className="flex items-center justify-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div></div> : contractBrief ? <div dangerouslySetInnerHTML={{ __html: contractBrief.replace(/\n/g, '<br/>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} /> : <p className="text-gray-500 not-prose">Generate a professional brief to share with the factory.</p>}</div>
-                            <button onClick={generateContractBrief} disabled={isLoadingBrief} className="mt-4 w-full px-5 py-2 text-sm text-white rounded-lg font-semibold bg-purple-600 hover:bg-purple-700 transition disabled:opacity-50">
+                        <AiCard icon={<FileText className="mr-2 text-[#c20c0b]"/>} title="Generate Contract Brief">
+                            <div className="flex-grow min-h-[150px] prose prose-sm max-w-none whitespace-pre-wrap">{isLoadingBrief ? <div className="flex items-center justify-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#c20c0b]"></div></div> : contractBrief ? <div dangerouslySetInnerHTML={{ __html: contractBrief.replace(/\n/g, '<br/>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} /> : <p className="text-gray-500 not-prose">Generate a professional brief to share with the factory.</p>}</div>
+                            <button onClick={generateContractBrief} disabled={isLoadingBrief} className="mt-4 w-full px-5 py-2 text-sm text-white rounded-lg font-semibold bg-[#c20c0b] hover:bg-[#a50a09] transition disabled:opacity-50">
                                 {isLoadingBrief ? 'Generating...' : 'Generate Brief'}
                             </button>
                         </AiCard>
-                        <AiCard icon={<MessageSquare className="mr-2 text-purple-500"/>} title="Draft Outreach Email">
-                            <div className="flex-grow min-h-[150px] prose prose-sm max-w-none whitespace-pre-wrap">{isLoadingEmail ? <div className="flex items-center justify-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div></div> : outreachEmail ? <div dangerouslySetInnerHTML={{ __html: outreachEmail.replace(/\n/g, '<br/>') }} /> : <p className="text-gray-500 not-prose">First, generate a contract brief.</p>}</div>
+                        <AiCard icon={<MessageSquare className="mr-2 text-[#c20c0b]"/>} title="Draft Outreach Email">
+                            <div className="flex-grow min-h-[150px] prose prose-sm max-w-none whitespace-pre-wrap">{isLoadingEmail ? <div className="flex items-center justify-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#c20c0b]"></div></div> : outreachEmail ? <div dangerouslySetInnerHTML={{ __html: outreachEmail.replace(/\n/g, '<br/>') }} /> : <p className="text-gray-500 not-prose">First, generate a contract brief.</p>}</div>
                             {outreachEmail && !isLoadingEmail && <button onClick={() => copyToClipboard(outreachEmail.replace(/<br\/>/g, '\n'), 'Email content copied!')} className="mt-4 w-full px-5 py-2 text-sm text-indigo-700 rounded-lg font-semibold bg-indigo-100 hover:bg-indigo-200 transition flex items-center justify-center"><ClipboardCopy size={16} className="mr-2"/>Copy Email</button>}
-                            <button onClick={generateOutreachEmail} disabled={isLoadingEmail || !contractBrief || !selectedFactory} className="mt-2 w-full px-5 py-2 text-sm text-white rounded-lg font-semibold bg-purple-600 hover:bg-purple-700 transition disabled:opacity-50">
+                            <button onClick={generateOutreachEmail} disabled={isLoadingEmail || !contractBrief || !selectedFactory} className="mt-2 w-full px-5 py-2 text-sm text-white rounded-lg font-semibold bg-[#c20c0b] hover:bg-[#a50a09] transition disabled:opacity-50">
                                 {isLoadingEmail ? 'Drafting...' : 'Draft Email'}
                             </button>
                         </AiCard>
-                        <AiCard icon={<BrainCircuit className="mr-2 text-purple-500"/>} title="Suggest Optimizations">
-                            <div className="flex-grow min-h-[150px] prose prose-sm max-w-none whitespace-pre-wrap">{isLoadingOptimizations ? <div className="flex items-center justify-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div></div> : optimizationSuggestions ? <div dangerouslySetInnerHTML={{ __html: optimizationSuggestions.replace(/\n/g, '<br/>').replace(/- \*\*(.*?)\*\*:/g, '<br/><strong>$1:</strong>') }} /> : <p className="text-gray-500 not-prose">Find ways to improve cost, quality, or sustainability.</p>}</div>
-                            <button onClick={suggestOptimizations} disabled={isLoadingOptimizations} className="mt-4 w-full px-5 py-2 text-sm text-white rounded-lg font-semibold bg-purple-600 hover:bg-purple-700 transition disabled:opacity-50">
+                        <AiCard icon={<BrainCircuit className="mr-2 text-[#c20c0b]"/>} title="Suggest Optimizations">
+                            <div className="flex-grow min-h-[150px] prose prose-sm max-w-none whitespace-pre-wrap">{isLoadingOptimizations ? <div className="flex items-center justify-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#c20c0b]"></div></div> : optimizationSuggestions ? <div dangerouslySetInnerHTML={{ __html: optimizationSuggestions.replace(/\n/g, '<br/>').replace(/- \*\*(.*?)\*\*:/g, '<br/><strong>$1:</strong>') }} /> : <p className="text-gray-500 not-prose">Find ways to improve cost, quality, or sustainability.</p>}</div>
+                            <button onClick={suggestOptimizations} disabled={isLoadingOptimizations} className="mt-4 w-full px-5 py-2 text-sm text-white rounded-lg font-semibold bg-[#c20c0b] hover:bg-[#a50a09] transition disabled:opacity-50">
                                 {isLoadingOptimizations ? 'Analyzing...' : 'Get Suggestions'}
                             </button>
                         </AiCard>
-                        <AiCard icon={<BadgePercent className="mr-2 text-purple-500"/>} title="Negotiation Advisor">
-                            <div className="flex-grow min-h-[150px] prose prose-sm max-w-none whitespace-pre-wrap">{isLoadingNegotiation ? <div className="flex items-center justify-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div></div> : negotiationTips ? <div dangerouslySetInnerHTML={{ __html: negotiationTips.replace(/\n/g, '<br/>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} /> : <p className="text-gray-500 not-prose">Get AI-powered negotiation points and cultural tips.</p>}</div>
-                            <button onClick={getNegotiationTips} disabled={isLoadingNegotiation} className="mt-4 w-full px-5 py-2 text-sm text-white rounded-lg font-semibold bg-purple-600 hover:bg-purple-700 transition disabled:opacity-50">
+                        <AiCard icon={<BadgePercent className="mr-2 text-[#c20c0b]"/>} title="Negotiation Advisor">
+                            <div className="flex-grow min-h-[150px] prose prose-sm max-w-none whitespace-pre-wrap">{isLoadingNegotiation ? <div className="flex items-center justify-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#c20c0b]"></div></div> : negotiationTips ? <div dangerouslySetInnerHTML={{ __html: negotiationTips.replace(/\n/g, '<br/>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} /> : <p className="text-gray-500 not-prose">Get AI-powered negotiation points and cultural tips.</p>}</div>
+                            <button onClick={getNegotiationTips} disabled={isLoadingNegotiation} className="mt-4 w-full px-5 py-2 text-sm text-white rounded-lg font-semibold bg-[#c20c0b] hover:bg-[#a50a09] transition disabled:opacity-50">
                                 {isLoadingNegotiation ? 'Advising...' : 'Get Negotiation Tips'}
                             </button>
                         </AiCard>
@@ -1091,11 +1098,11 @@ const App: FC = () => {
             <MainLayout {...layoutProps}>
                 <h1 className="text-3xl font-bold text-gray-800 mb-2">Order Tracking</h1>
                 <p className="text-gray-500 mb-6">Follow your shipment from production to delivery.</p>
-                <div className="bg-white rounded-xl shadow-lg">
+                <div className="bg-white rounded-xl shadow-lg border border-gray-200">
                     <div className="p-4 border-b border-gray-200">
                         <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
                             {Object.keys(trackingData).map(orderKey => (
-                                <button key={orderKey} onClick={() => setActiveOrderKey(orderKey)} className={`flex-shrink-0 py-2 px-4 font-semibold text-sm rounded-lg transition-colors ${activeOrderKey === orderKey ? 'bg-purple-100 text-purple-700' : 'text-gray-500 hover:bg-gray-100'}`}>
+                                <button key={orderKey} onClick={() => setActiveOrderKey(orderKey)} className={`flex-shrink-0 py-2 px-4 font-semibold text-sm rounded-lg transition-colors ${activeOrderKey === orderKey ? 'bg-red-100 text-[#c20c0b]' : 'text-gray-500 hover:bg-gray-100'}`}>
                                     {orderKey}
                                 </button>
                             ))}
@@ -1119,7 +1126,7 @@ const App: FC = () => {
                                         {/* Content */}
                                         <div className="flex items-center gap-4 ml-8">
                                             <div className={`p-3 rounded-full ${
-                                                isComplete ? 'bg-purple-100 text-purple-600' :
+                                                isComplete ? 'bg-red-100 text-[#c20c0b]' :
                                                 isInProgress ? 'bg-blue-100 text-blue-600' :
                                                 'bg-gray-100 text-gray-400'
                                             }`}>
@@ -1178,14 +1185,14 @@ const App: FC = () => {
 
         return (
             <>
-                <button onClick={() => setIsOpen(!isOpen)} className="fixed bottom-24 md:bottom-6 right-6 bg-purple-600 text-white p-4 rounded-full shadow-lg hover:bg-purple-700 transition-transform hover:scale-110 z-50">
+                <button onClick={() => setIsOpen(!isOpen)} className="fixed bottom-24 md:bottom-6 right-6 bg-[#c20c0b] text-white p-4 rounded-full shadow-lg hover:bg-[#a50a09] transition-transform hover:scale-110 z-50">
                     {isOpen ? <X className="h-8 w-8" /> : <Bot className="h-8 w-8" />}
                 </button>
                 {isOpen && (
                     <div className="fixed bottom-24 right-6 w-full max-w-sm h-[70vh] bg-white rounded-2xl shadow-2xl flex flex-col transition-all duration-300 z-50 animate-fade-in sm:bottom-6 sm:max-w-md">
                         <header className="p-4 flex items-center gap-2 border-b">
-                            <div className="p-1.5 bg-purple-100 rounded-md">
-                                <Bot className="w-5 h-5 text-purple-600" />
+                            <div className="p-1.5 bg-red-100 rounded-md">
+                                <Bot className="w-5 h-5 text-[#c20c0b]" />
                             </div>
                             <h3 className="font-bold text-sm text-gray-800">Auctave Brain</h3>
                             <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-gray-600 ml-auto p-1"><X size={20} /></button>
@@ -1220,7 +1227,7 @@ const App: FC = () => {
     const renderPage = () => {
         // Show loading spinner if auth is not ready
         if (!isAuthReady) {
-            return <div className="flex items-center justify-center min-h-screen bg-gray-100"><div className="animate-spin rounded-full h-16 w-16 border-b-4 border-purple-500"></div></div>;
+            return <div className="flex items-center justify-center min-h-screen bg-gray-100"><div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#c20c0b]"></div></div>;
         }
 
         // 1. Check Dynamic Routes from MasterController (Enables Extensibility)
@@ -1340,12 +1347,12 @@ const App: FC = () => {
                     <h2 className="text-2xl font-bold text-gray-800 mb-6">Latest Articles</h2>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                         {trendBlogs.map(blog => (
-                            <div key={blog.id} className="bg-white rounded-xl shadow-md overflow-hidden group cursor-pointer">
+                            <div key={blog.id} className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden group cursor-pointer">
                                 <div className="overflow-hidden">
                                     <img src={blog.imageUrl} alt={blog.title} className="h-48 w-full object-cover group-hover:scale-105 transition-transform duration-300" />
                                 </div>
                                 <div className="p-6">
-                                    <span className="text-xs font-semibold bg-purple-100 text-purple-700 px-2 py-1 rounded-full">{blog.category}</span>
+                                    <span className="text-xs font-semibold bg-red-100 text-[#c20c0b] px-2 py-1 rounded-full">{blog.category}</span>
                                     <h3 className="font-bold text-lg text-gray-800 mt-3 mb-2">{blog.title}</h3>
                                     <p className="text-sm text-gray-500">By {blog.author} · {blog.date}</p>
                                 </div>
@@ -1357,7 +1364,7 @@ const App: FC = () => {
                     <h2 className="text-2xl font-bold text-gray-800 mb-6">Fashion Shorts</h2>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         {fashionShorts.map(short =>(
-                            <div key={short.id} className="relative rounded-xl overflow-hidden shadow-lg group cursor-pointer aspect-[9/16]" onClick={() => setFullscreenVideo(short.videoUrl)}>
+                            <div key={short.id} className="relative rounded-xl overflow-hidden shadow-lg border border-gray-200 group cursor-pointer aspect-[9/16]" onClick={() => setFullscreenVideo(short.videoUrl)}>
                                 <img src={short.thumbnail} alt={short.creator} className="absolute inset-0 w-full h-full object-cover"/>
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
                                 <div className="absolute inset-0 flex items-center justify-center transition-opacity duration-300">
@@ -1399,11 +1406,11 @@ const App: FC = () => {
         return (
             <MainLayout {...layoutProps}>
                 <div className="max-w-4xl mx-auto">
-                    <button onClick={() => handleSetCurrentPage('factoryDetail', selectedFactory)} className="text-purple-600 font-semibold mb-4 flex items-center hover:underline">
+                    <button onClick={() => handleSetCurrentPage('factoryDetail', selectedFactory)} className="text-[#c20c0b] font-semibold mb-4 flex items-center hover:underline">
                         <ChevronLeft className="h-5 w-5 mr-1" />
                         Back to Factory Details
                     </button>
-                    <div className="bg-white p-8 rounded-xl shadow-lg">
+                    <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-200">
                         <h2 className="text-3xl font-bold text-gray-800 mb-2">Request a Quote</h2>
                         <p className="text-gray-500 mb-6">Review your order details and submit your request to <span className="font-semibold">{selectedFactory.name}</span>.</p>
                         <form onSubmit={handleQuoteSubmit}>
@@ -1446,7 +1453,7 @@ const App: FC = () => {
                                 )}
                             </div>
                             <div className="mt-8 text-right">
-                                <button type="submit" className="px-8 py-3 text-white rounded-lg font-semibold bg-purple-600 hover:bg-purple-700 transition shadow-md">
+                                <button type="submit" className="px-8 py-3 text-white rounded-lg font-semibold bg-[#c20c0b] hover:bg-[#a50a09] transition shadow-md">
                                     Submit Quote Request
                                 </button>
                             </div>
@@ -1513,22 +1520,22 @@ const App: FC = () => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                      <div className="bg-white p-6 rounded-xl shadow-sm border">
+                      <div className="bg-white p-6 rounded-xl shadow-md border border-gray-200">
                           <h3 className="text-sm font-medium text-gray-500">Total in Escrow</h3>
                           <p className="text-3xl font-bold text-gray-800 mt-2">${totalHeld.toLocaleString()}</p>
                       </div>
-                      <div className="bg-white p-6 rounded-xl shadow-sm border">
+                      <div className="bg-white p-6 rounded-xl shadow-md border border-gray-200">
                           <h3 className="text-sm font-medium text-gray-500">Total Released</h3>
                           <p className="text-3xl font-bold text-gray-800 mt-2">${totalReleased.toLocaleString()}</p>
                       </div>
-                      <div className="bg-white p-6 rounded-xl shadow-sm border">
+                      <div className="bg-white p-6 rounded-xl shadow-md border border-gray-200">
                           <h3 className="text-sm font-medium text-gray-500">Next Payout</h3>
                           <p className="text-3xl font-bold text-gray-800 mt-2">$10,625</p>
                           <p className="text-xs text-gray-400">on July 12, 2025 for PO-2024-001</p>
                       </div>
                 </div>
 
-                <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+                <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
                     <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-gray-200">
                             <thead className="bg-gray-50">
@@ -1541,7 +1548,7 @@ const App: FC = () => {
                             <tbody className="bg-white divide-y divide-gray-200">
                                 {billingData.map(item => (
                                     <tr key={item.id} className="hover:bg-gray-50">
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-purple-600 hover:underline cursor-pointer">{item.orderId}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-[#c20c0b] hover:underline cursor-pointer">{item.orderId}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">{item.product}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.totalAmount.toLocaleString()}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-semibold">${item.amountReleased.toLocaleString()}</td>
@@ -1552,7 +1559,7 @@ const App: FC = () => {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            <button className="text-purple-600 hover:text-purple-900">View Details</button>
+                                            <button className="text-[#c20c0b] hover:text-[#a50a09]">View Details</button>
                                         </td>
                                     </tr>
                                 ))}

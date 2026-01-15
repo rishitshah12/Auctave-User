@@ -314,8 +314,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-            <div className="max-w-md w-full bg-white rounded-2xl shadow-xl overflow-hidden">
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 relative">
+            <div className="absolute top-0 left-0 right-0 h-80 bg-gradient-to-b from-[#c20c0b]/15 to-transparent pointer-events-none blur-3xl"></div>
+            <div className="max-w-md w-full bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden relative z-10">
                 <div className="p-8">
                     {/* Login Type Tabs */}
                     <div className="flex p-1 bg-gray-100 rounded-xl mb-8">
@@ -323,7 +324,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
                             <User size={16} />
                             User
                         </button>
-                        <button onClick={() => { setLoginType('admin'); setAuthError(''); setAdminMode('signin'); }} className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2 ${loginType === 'admin' ? 'bg-white shadow-sm text-purple-700' : 'text-gray-500 hover:text-gray-700'}`}>
+                        <button onClick={() => { setLoginType('admin'); setAuthError(''); setAdminMode('signin'); }} className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2 ${loginType === 'admin' ? 'bg-white shadow-sm text-[#c20c0b]' : 'text-gray-500 hover:text-gray-700'}`}>
                             <Shield size={16} />
                             Admin
                         </button>
@@ -367,10 +368,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
                                         <div className="relative">
                                             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                                            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all" placeholder="you@company.com" />
+                                            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#c20c0b] transition-all" placeholder="you@company.com" />
                                         </div>
                                     </div>
-                                    <button type="submit" disabled={loading} className="w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-70">
+                                    <button type="submit" disabled={loading} className="w-full bg-[#c20c0b] text-white font-bold py-3 px-4 rounded-xl hover:bg-[#a50a09] transition-colors flex items-center justify-center gap-2 disabled:opacity-70">
                                         {loading ? 'Processing...' : 'Send Login Link'} <ArrowRight size={20} />
                                     </button>
                                 </form>
@@ -420,13 +421,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
                         <div>
                             <div className="flex border-b border-gray-200 mb-6">
                                 <button 
-                                    className={`flex-1 pb-2 text-sm font-medium ${adminMode === 'signin' ? 'border-b-2 border-purple-600 text-purple-600' : 'text-gray-500'}`}
+                                    className={`flex-1 pb-2 text-sm font-medium ${adminMode === 'signin' ? 'border-b-2 border-[#c20c0b] text-[#c20c0b]' : 'text-gray-500'}`}
                                     onClick={() => { setAdminMode('signin'); setIsAdminOtpSent(false); setAuthError(''); }}
                                 >
                                     Sign In
                                 </button>
                                 <button 
-                                    className={`flex-1 pb-2 text-sm font-medium ${adminMode === 'signup' ? 'border-b-2 border-purple-600 text-purple-600' : 'text-gray-500'}`}
+                                    className={`flex-1 pb-2 text-sm font-medium ${adminMode === 'signup' ? 'border-b-2 border-[#c20c0b] text-[#c20c0b]' : 'text-gray-500'}`}
                                     onClick={() => { setAdminMode('signup'); setIsAdminOtpSent(false); setAuthError(''); }}
                                 >
                                     Sign Up
@@ -437,8 +438,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
                                 isAdminOtpSent ? (
                                     <form onSubmit={handleVerifyAdminOtp} className="space-y-4">
                                         <div className="text-center mb-6">
-                                            <div className="mx-auto w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mb-4">
-                                                <Mail className="w-8 h-8 text-purple-600" />
+                                            <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                                                <Mail className="w-8 h-8 text-[#c20c0b]" />
                                             </div>
                                             <h3 className="text-xl font-bold text-gray-900 mb-2">Verify your email</h3>
                                             <p className="text-gray-600">
@@ -450,13 +451,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
                                             <label className="block text-sm font-medium text-gray-700 mb-1">Verification Code</label>
                                             <div className="relative">
                                                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                                                <input type="text" required value={otp} onChange={(e) => setOtp(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all tracking-widest text-lg text-center" placeholder="000000" maxLength={6} />
+                                                <input type="text" required value={otp} onChange={(e) => setOtp(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#c20c0b] transition-all tracking-widest text-lg text-center" placeholder="000000" maxLength={6} />
                                             </div>
                                         </div>
-                                        <button type="submit" disabled={loading || otp.length !== 6} className="w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-70">
+                                        <button type="submit" disabled={loading || otp.length !== 6} className="w-full bg-[#c20c0b] text-white font-bold py-3 px-4 rounded-xl hover:bg-[#a50a09] transition-colors flex items-center justify-center gap-2 disabled:opacity-70">
                                             {loading ? 'Verifying...' : 'Verify & Sign In'} <ArrowRight size={20} />
                                         </button>
-                                        <button type="button" onClick={() => setIsAdminOtpSent(false)} className="w-full text-purple-600 font-semibold hover:text-purple-700 text-sm flex items-center justify-center gap-1 mt-4">
+                                        <button type="button" onClick={() => setIsAdminOtpSent(false)} className="w-full text-[#c20c0b] font-semibold hover:text-[#a50a09] text-sm flex items-center justify-center gap-1 mt-4">
                                             <ArrowRight className="rotate-180" size={16} /> Back to Sign In
                                         </button>
                                         <div className="mt-6 pt-6 border-t border-gray-100 text-center">
@@ -465,7 +466,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
                                                 type="button"
                                                 onClick={handleResendAdminOtp}
                                                 disabled={resendTimer > 0 || loading}
-                                                className="text-gray-600 hover:text-purple-600 text-sm font-medium flex items-center justify-center gap-2 mx-auto disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                                className="text-gray-600 hover:text-[#c20c0b] text-sm font-medium flex items-center justify-center gap-2 mx-auto disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                             >
                                                 <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
                                                 {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend Magic Link'}
@@ -477,11 +478,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
                                     <form onSubmit={handleAdminSignIn} className="space-y-4">
                                         <div className="flex gap-4 mb-4">
                                             <label className="flex items-center gap-2 cursor-pointer">
-                                                <input type="radio" name="authMethod" checked={adminSignInMethod === 'password'} onChange={() => setAdminSignInMethod('password')} className="text-purple-600 focus:ring-purple-500" />
+                                                <input type="radio" name="authMethod" checked={adminSignInMethod === 'password'} onChange={() => setAdminSignInMethod('password')} className="text-[#c20c0b] focus:ring-[#c20c0b]" />
                                                 <span className="text-sm font-medium text-gray-700">Password</span>
                                             </label>
                                             <label className="flex items-center gap-2 cursor-pointer">
-                                                <input type="radio" name="authMethod" checked={adminSignInMethod === 'otp'} onChange={() => setAdminSignInMethod('otp')} className="text-purple-600 focus:ring-purple-500" />
+                                                <input type="radio" name="authMethod" checked={adminSignInMethod === 'otp'} onChange={() => setAdminSignInMethod('otp')} className="text-[#c20c0b] focus:ring-[#c20c0b]" />
                                                 <span className="text-sm font-medium text-gray-700">One-Time Password</span>
                                             </label>
                                         </div>
@@ -489,7 +490,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
                                             <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
                                             <div className="relative">
                                                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                                                <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all" placeholder="admin@auctaveexports.com" />
+                                                <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#c20c0b] transition-all" placeholder="admin@auctaveexports.com" />
                                             </div>
                                         </div>
                                         {adminSignInMethod === 'password' && (
@@ -497,11 +498,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
                                                 <div className="relative">
                                                     <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                                                    <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all" placeholder="Enter your password" />
+                                                    <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#c20c0b] transition-all" placeholder="Enter your password" />
                                                 </div>
                                             </div>
                                         )}
-                                        <button type="submit" disabled={loading} className="w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-70">
+                                        <button type="submit" disabled={loading} className="w-full bg-[#c20c0b] text-white font-bold py-3 px-4 rounded-xl hover:bg-[#a50a09] transition-colors flex items-center justify-center gap-2 disabled:opacity-70">
                                             {loading ? (adminSignInMethod === 'password' ? 'Signing In...' : 'Sending Link...') : (adminSignInMethod === 'password' ? 'Sign In' : 'Send Magic Link')} <ArrowRight size={20} />
                                         </button>
                                     </form>
@@ -530,8 +531,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
                                 isAdminOtpSent ? (
                                     <form onSubmit={handleVerifyAdminOtp} className="space-y-4">
                                         <div className="text-center mb-6">
-                                            <div className="mx-auto w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mb-4">
-                                                <Mail className="w-8 h-8 text-purple-600" />
+                                            <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                                                <Mail className="w-8 h-8 text-[#c20c0b]" />
                                             </div>
                                             <h3 className="text-xl font-bold text-gray-900 mb-2">Verify your email</h3>
                                             <p className="text-gray-600">
@@ -543,13 +544,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
                                             <label className="block text-sm font-medium text-gray-700 mb-1">Verification Code</label>
                                             <div className="relative">
                                                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                                                <input type="text" required value={otp} onChange={(e) => setOtp(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all tracking-widest text-lg text-center" placeholder="000000" maxLength={6} />
+                                                <input type="text" required value={otp} onChange={(e) => setOtp(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#c20c0b] transition-all tracking-widest text-lg text-center" placeholder="000000" maxLength={6} />
                                             </div>
                                         </div>
-                                        <button type="submit" disabled={loading || otp.length !== 6} className="w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-70">
+                                        <button type="submit" disabled={loading || otp.length !== 6} className="w-full bg-[#c20c0b] text-white font-bold py-3 px-4 rounded-xl hover:bg-[#a50a09] transition-colors flex items-center justify-center gap-2 disabled:opacity-70">
                                             {loading ? 'Verifying...' : 'Verify & Sign Up'} <ArrowRight size={20} />
                                         </button>
-                                        <button type="button" onClick={() => setIsAdminOtpSent(false)} className="w-full text-purple-600 font-semibold hover:text-purple-700 text-sm flex items-center justify-center gap-1 mt-4">
+                                        <button type="button" onClick={() => setIsAdminOtpSent(false)} className="w-full text-[#c20c0b] font-semibold hover:text-[#a50a09] text-sm flex items-center justify-center gap-1 mt-4">
                                             <ArrowRight className="rotate-180" size={16} /> Back to Sign Up
                                         </button>
                                         <div className="mt-6 pt-6 border-t border-gray-100 text-center">
@@ -558,7 +559,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
                                                 type="button"
                                                 onClick={handleResendAdminOtp}
                                                 disabled={resendTimer > 0 || loading}
-                                                className="text-gray-600 hover:text-purple-600 text-sm font-medium flex items-center justify-center gap-2 mx-auto disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                                className="text-gray-600 hover:text-[#c20c0b] text-sm font-medium flex items-center justify-center gap-2 mx-auto disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                             >
                                                 <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
                                                 {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend Verification Link'}
@@ -571,10 +572,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
                                             <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
                                             <div className="relative">
                                                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                                                <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all" placeholder="admin@auctaveexports.com" />
+                                                <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#c20c0b] transition-all" placeholder="admin@auctaveexports.com" />
                                             </div>
                                         </div>
-                                        <button type="submit" disabled={loading} className="w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-70">
+                                        <button type="submit" disabled={loading} className="w-full bg-[#c20c0b] text-white font-bold py-3 px-4 rounded-xl hover:bg-[#a50a09] transition-colors flex items-center justify-center gap-2 disabled:opacity-70">
                                             {loading ? 'Sending Link...' : 'Send Verification Link'} <ArrowRight size={20} />
                                         </button>
                                     </form>

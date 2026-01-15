@@ -165,7 +165,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
     };
 
     const DashboardCard: FC<{ icon: ReactNode; title: string; value: string | number; colorClass: string }> = ({ icon, title, value, colorClass }) => (
-        <div className={`relative p-5 rounded-xl overflow-hidden bg-white shadow-md transition-transform hover:scale-105`}>
+        <div className={`relative p-5 rounded-xl overflow-hidden bg-white shadow-lg border border-gray-200 transition-transform hover:scale-105`}>
             <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${colorClass}`}></div>
             <div className="flex items-start justify-between">
                 <div>
@@ -189,7 +189,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
         return(
             <section className="mb-8">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <DashboardCard title="Active Orders" value={dashboardData.activeOrders} icon={<Briefcase className="text-purple-600" size={24}/>} colorClass="from-purple-500 to-indigo-500" />
+                    <DashboardCard title="Active Orders" value={dashboardData.activeOrders} icon={<Briefcase className="text-[#c20c0b]" size={24}/>} colorClass="from-[#c20c0b] to-red-500" />
                     <DashboardCard title="Units in Production" value={dashboardData.unitsInProduction} icon={<Truck className="text-blue-600" size={24}/>} colorClass="from-blue-500 to-cyan-500" />
                     <DashboardCard title="Total Order Value" value={dashboardData.totalOrderValue} icon={<DollarSign className="text-green-600" size={24}/>} colorClass="from-green-500 to-emerald-500" />
                     <DashboardCard title="Partner Factories" value={dashboardData.partnerFactories} icon={<Building className="text-orange-600" size={24}/>} colorClass="from-orange-500 to-amber-500" />
@@ -217,12 +217,12 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                         const isSelected = selectedGarmentCategory === cat.name;
                         return (
                             <button key={cat.name} onClick={() => setSelectedGarmentCategory(cat.name)} className="flex-shrink-0 flex flex-col items-center justify-start space-y-2 p-1 transition-transform hover:scale-105 group w-24 text-center">
-                                <div className={`w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 shadow-md ${isSelected ? 'p-1 bg-gradient-to-br from-blue-500 to-purple-600' : 'bg-transparent'}`}>
+                                <div className={`w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 shadow-md ${isSelected ? 'p-1 bg-gradient-to-br from-blue-500 to-[#c20c0b]' : 'bg-transparent'}`}>
                                     <div className={`w-full h-full rounded-full bg-white flex items-center justify-center ${!isSelected ? 'ring-1 ring-gray-200' : ''}`}>
                                         {cat.imageUrl ? <img src={cat.imageUrl} alt={cat.name} className="w-full h-full object-cover rounded-full" onError={(e) => { (e.target as HTMLImageElement).onerror = null; (e.target as HTMLImageElement).src=`https://placehold.co/80x80/e9d5ff/4c1d95?text=${cat.name}`; }} /> : <div className="text-gray-600">{cat.icon}</div>}
                                     </div>
                                 </div>
-                                <span className={`font-semibold text-xs transition-colors ${isSelected ? 'text-purple-700' : 'text-gray-600'}`}>{cat.name}</span>
+                                <span className={`font-semibold text-xs transition-colors ${isSelected ? 'text-[#c20c0b]' : 'text-gray-600'}`}>{cat.name}</span>
                             </button>
                         );
                     })}
@@ -235,7 +235,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
     };
 
     const SkeletonCard: FC = () => (
-        <div className="bg-white rounded-2xl shadow-md overflow-hidden animate-pulse">
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden animate-pulse">
             <div className="h-48 w-full bg-gray-300"></div>
             <div className="p-4">
                 <div className="h-5 bg-gray-300 rounded w-3/4 mb-3"></div>
@@ -261,23 +261,23 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                         </div>
                         <div>
                             <label htmlFor="moq" className="block text-sm font-medium text-gray-700">Max. MOQ: {filters.maxMoq.toLocaleString()} units</label>
-                            <input type="range" id="moq" min="0" max="10000" step="100" value={filters.maxMoq} onChange={e => setFilters(f => ({ ...f, maxMoq: parseInt(e.target.value) }))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600" />
+                            <input type="range" id="moq" min="0" max="10000" step="100" value={filters.maxMoq} onChange={e => setFilters(f => ({ ...f, maxMoq: parseInt(e.target.value) }))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#c20c0b]" />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">Product Categories</label>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">{garmentCategories.map(cat => <button key={cat} onClick={() => { const newCategories = filters.categories.includes(cat) ? filters.categories.filter(c => c !== cat) : [...filters.categories, cat]; setFilters(f => ({ ...f, categories: newCategories })); }} className={`text-sm p-2 rounded-md transition-colors ${filters.categories.includes(cat) ? 'bg-purple-600 text-white' : 'bg-gray-100'}`}>{cat}</button>)}</div>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">{garmentCategories.map(cat => <button key={cat} onClick={() => { const newCategories = filters.categories.includes(cat) ? filters.categories.filter(c => c !== cat) : [...filters.categories, cat]; setFilters(f => ({ ...f, categories: newCategories })); }} className={`text-sm p-2 rounded-md transition-colors ${filters.categories.includes(cat) ? 'bg-[#c20c0b] text-white' : 'bg-gray-100'}`}>{cat}</button>)}</div>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">Certifications</label>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">{allCertifications.map(cert => <button key={cert} onClick={() => { const newCerts = filters.certifications.includes(cert) ? filters.certifications.filter(c => c !== cert) : [...filters.certifications, cert]; setFilters(f => ({ ...f, certifications: newCerts })); }} className={`text-sm p-2 rounded-md transition-colors ${filters.certifications.includes(cert) ? 'bg-purple-600 text-white' : 'bg-gray-100'}`}>{cert}</button>)}</div>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">{allCertifications.map(cert => <button key={cert} onClick={() => { const newCerts = filters.certifications.includes(cert) ? filters.certifications.filter(c => c !== cert) : [...filters.certifications, cert]; setFilters(f => ({ ...f, certifications: newCerts })); }} className={`text-sm p-2 rounded-md transition-colors ${filters.certifications.includes(cert) ? 'bg-[#c20c0b] text-white' : 'bg-gray-100'}`}>{cert}</button>)}</div>
                         </div>
                         <div>
                             <label htmlFor="location" className="block text-sm font-medium text-gray-700">Location</label>
-                            <input type="text" id="location" value={filters.location} onChange={e => setFilters(f => ({ ...f, location: e.target.value }))} placeholder="e.g., Dhaka, Bangladesh" className="mt-1 w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                            <input type="text" id="location" value={filters.location} onChange={e => setFilters(f => ({ ...f, location: e.target.value }))} placeholder="e.g., Dhaka, Bangladesh" className="mt-1 w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" />
                         </div>
                          <div className="pt-6 border-t grid grid-cols-2 gap-4">
                             <button onClick={clearFilters} className="w-full flex items-center justify-center gap-2 bg-gray-200 text-gray-800 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-all"><Trash2 size={16} /> Clear All</button>
-                            <button onClick={() => setShowFilterPanel(false)} className="w-full bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700 transition-all shadow-md">Apply Filters</button>
+                            <button onClick={() => setShowFilterPanel(false)} className="w-full bg-[#c20c0b] text-white py-3 rounded-lg font-semibold hover:bg-[#a50a09] transition-all shadow-md">Apply Filters</button>
                         </div>
                     </div>
                 </div>
@@ -344,7 +344,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                             )}
                         </div>
                         <div className="px-2 py-2 border-t border-gray-100">
-                            <button onClick={() => { setIsOpen(false); handleSetCurrentPage('myQuotes'); }} className="w-full py-2 text-xs font-semibold text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
+                            <button onClick={() => { setIsOpen(false); handleSetCurrentPage('myQuotes'); }} className="w-full py-2 text-xs font-semibold text-[#c20c0b] hover:bg-red-50 rounded-lg transition-colors">
                                 View All Quotes
                             </button>
                         </div>
@@ -356,13 +356,13 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
 
     const ProfileDropdown: FC = () => (
         <div ref={profileDropdownRef} className="relative">
-            <button onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)} className="hidden md:flex w-12 h-12 rounded-full bg-purple-200 border-2 border-white items-center justify-center text-purple-700 font-bold text-xl shadow-md cursor-pointer">
+            <button onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)} className="hidden md:flex w-12 h-12 rounded-full bg-red-200 border-2 border-white items-center justify-center text-[#c20c0b] font-bold text-xl shadow-md cursor-pointer">
                 {userProfile?.name ? userProfile.name.charAt(0).toUpperCase() : 'U'}
             </button>
             {isProfileDropdownOpen && (
                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-20 animate-fade-in">
                     <button onClick={() => { handleSetCurrentPage('profile'); setIsProfileDropdownOpen(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"><UserIcon size={16} className="mr-2" /> My Profile</button>
-                    <button onClick={() => { handleSignOut(); setIsProfileDropdownOpen(false); }} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center"><LogOut size={16} className="mr-2" /> Logout</button>
+                    <button onClick={() => { handleSignOut(); setIsProfileDropdownOpen(false); }} className="w-full text-left px-4 py-2 text-sm text-[#c20c0b] hover:bg-red-50 flex items-center"><LogOut size={16} className="mr-2" /> Logout</button>
                 </div>
             )}
         </div>
@@ -388,7 +388,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                 <div className="relative mt-6 flex flex-col sm:flex-row gap-2">
                     <div className="relative flex-grow">
                         <Search className="h-5 w-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                        <input type="text" placeholder="Search factories by name or location..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 shadow-sm" />
+                        <input type="text" placeholder="Search factories by name or location..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#c20c0b] shadow-sm" />
                     </div>
                     <button onClick={() => setShowFilterPanel(true)} className="flex-shrink-0 px-4 py-3 bg-white border border-gray-200 rounded-xl flex items-center justify-center gap-2 hover:bg-gray-100 font-semibold shadow-sm"><SlidersHorizontal size={16} /> <span className="hidden sm:inline">Filters</span></button>
                 </div>
@@ -406,7 +406,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                     <button onClick={() => setShowFilterPanel(true)} className="flex-shrink-0 px-4 py-2 border rounded-lg text-sm font-semibold transition-colors bg-white border-gray-300 hover:bg-gray-100 flex items-center gap-2"><SlidersHorizontal size={16} />Filters</button>
                     {quickFilters.map(filter => {
                         const isActive = isQuickFilterActive(filter.type, filter.value);
-                        return (<button key={filter.name} onClick={() => handleQuickFilter(filter.type, filter.value)} className={`flex-shrink-0 px-4 py-2 border rounded-lg text-sm font-semibold transition-colors ${isActive ? 'bg-purple-600 text-white border-purple-600' : 'bg-white border-gray-300 hover:bg-gray-100'}`}>{filter.name}</button>)
+                        return (<button key={filter.name} onClick={() => handleQuickFilter(filter.type, filter.value)} className={`flex-shrink-0 px-4 py-2 border rounded-lg text-sm font-semibold transition-colors ${isActive ? 'bg-[#c20c0b] text-white border-[#c20c0b]' : 'bg-white border-gray-300 hover:bg-gray-100'}`}>{filter.name}</button>)
                     })}
                 </div>
             </section>
@@ -423,7 +423,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                             <FactoryCard key={factory.id} factory={factory} onSelect={() => handleSelectFactory(factory)} style={{ animationDelay: `${index * 60}ms` }} />
                         ))
                     ) : (
-                        <div className="col-span-full text-center py-12 bg-white rounded-2xl shadow-sm">
+                        <div className="col-span-full text-center py-12 bg-white rounded-2xl shadow-sm border border-gray-200">
                             <Package className="mx-auto h-16 w-16 text-gray-400" />
                             <p className="text-gray-600 font-semibold mt-4">No Factories Found</p>
                             <p className="text-gray-500 text-sm">Try adjusting your category or search filters.</p>

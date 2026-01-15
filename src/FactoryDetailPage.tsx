@@ -73,12 +73,12 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
         <MainLayout {...props}>
             <div className="space-y-6">
                 <div>
-                    <button onClick={() => handleSetCurrentPage(suggestedFactories.length > 0 ? 'factorySuggestions' : 'sourcing')} className="text-purple-600 font-semibold mb-4 flex items-center hover:underline">
+                    <button onClick={() => handleSetCurrentPage(suggestedFactories.length > 0 ? 'factorySuggestions' : 'sourcing')} className="text-[#c20c0b] font-semibold mb-4 flex items-center hover:underline">
                         <ChevronLeft className="h-5 w-5 mr-1" />
                         Back to Factories
                     </button>
                 </div>
-                <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+                <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
                     {/* Image Gallery */}
                     <div className="relative">
                         <img className="h-64 md:h-96 w-full object-cover transition-opacity duration-300" src={gallery[currentImageIndex]} alt={`${selectedFactory.name} gallery image ${currentImageIndex + 1}`} />
@@ -104,7 +104,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                         <h1 className="text-3xl font-bold text-gray-900">{selectedFactory.name}</h1>
                         <div className="flex flex-wrap gap-2 mt-2 mb-4">
                             {selectedFactory.tags?.map(tag => (
-                                <span key={tag} className={`text-sm font-semibold px-3 py-1 rounded-full ${ tag === 'Prime' ? 'bg-blue-100 text-blue-800' : tag === 'Tech Enabled' ? 'bg-purple-100 text-purple-800' : tag === 'Sustainable' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800' }`}>
+                                <span key={tag} className={`text-sm font-semibold px-3 py-1 rounded-full ${ tag === 'Prime' ? 'bg-blue-100 text-blue-800' : tag === 'Tech Enabled' ? 'bg-red-100 text-[#a50a09]' : tag === 'Sustainable' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800' }`}>
                                     {tag}
                                 </span>
                             ))}
@@ -155,10 +155,10 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                             <p className="text-sm text-gray-600">Request a quote or use our AI tools to prepare your inquiry.</p>
                         </div>
                         <div className="flex items-center gap-2">
-                            <button onClick={() => handleSetCurrentPage('factoryTools', selectedFactory)} className="w-full md:w-auto px-6 py-3 text-purple-700 bg-purple-100 rounded-lg font-semibold hover:bg-purple-200 transition">
+                            <button onClick={() => handleSetCurrentPage('factoryTools', selectedFactory)} className="w-full md:w-auto px-6 py-3 text-[#c20c0b] bg-red-100 rounded-lg font-semibold hover:bg-red-200 transition">
                                 Use AI Sourcing Tools
                             </button>
-                            <button onClick={() => handleSetCurrentPage('quoteRequest', selectedFactory)} className="w-full md:w-auto px-6 py-3 text-white rounded-lg font-semibold bg-purple-600 hover:bg-purple-700 transition shadow-md">
+                            <button onClick={() => handleSetCurrentPage('quoteRequest', selectedFactory)} className="w-full md:w-auto px-6 py-3 text-white rounded-lg font-semibold bg-[#c20c0b] hover:bg-[#a50a09] transition shadow-md">
                                 Request a Quote
                             </button>
                         </div>

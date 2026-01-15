@@ -128,7 +128,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
             case 'Responded': return 'bg-blue-100 text-blue-800';
             case 'Accepted': return 'bg-green-100 text-green-800';
             case 'Declined': return 'bg-red-100 text-red-800';
-            case 'In Negotiation': return 'bg-orange-100 text-orange-800';
+            case 'In Negotiation': return 'bg-purple-100 text-purple-800';
             default: return 'bg-gray-100 text-gray-800';
         }
     };
@@ -443,7 +443,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
         return (
             <MainLayout {...props}>
                 <div className="flex justify-between items-center mb-4">
-                    <button onClick={() => setSelectedQuote(null)} className="text-purple-600 font-semibold flex items-center hover:underline">
+                    <button onClick={() => setSelectedQuote(null)} className="text-[#c20c0b] font-semibold flex items-center hover:underline">
                         <ChevronLeft className="h-5 w-5 mr-1" /> Back to RFQ List
                     </button>
                     <button onClick={handleDownloadPdf} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition shadow-sm" title="Download as PDF">
@@ -474,10 +474,10 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                         <div className="space-y-4 max-h-[400px] overflow-y-auto mb-4">
                             {displayHistory.map((item, idx) => (
                                 <div key={idx} className={`flex ${item.sender === 'factory' ? 'justify-end' : 'justify-start'}`}>
-                                    <div className={`max-w-[85%] rounded-2xl p-4 ${item.sender === 'factory' ? 'bg-purple-600 text-white rounded-tr-none' : 'bg-white border border-gray-200 text-gray-800 rounded-tl-none shadow-sm'}`}>
+                                    <div className={`max-w-[85%] rounded-2xl p-4 ${item.sender === 'factory' ? 'bg-[#c20c0b] text-white rounded-tr-none' : 'bg-white border border-gray-200 text-gray-800 rounded-tl-none shadow-sm'}`}>
                                         <div className="flex justify-between items-center gap-4 mb-2">
-                                            <span className={`text-xs font-bold uppercase ${item.sender === 'factory' ? 'text-purple-200' : 'text-gray-500'}`}>{item.sender === 'factory' ? 'You' : 'Client'}</span>
-                                            <span className={`text-xs ${item.sender === 'factory' ? 'text-purple-200' : 'text-gray-400'}`}>{new Date(item.timestamp).toLocaleDateString()}</span>
+                                            <span className={`text-xs font-bold uppercase ${item.sender === 'factory' ? 'text-red-200' : 'text-gray-500'}`}>{item.sender === 'factory' ? 'You' : 'Client'}</span>
+                                            <span className={`text-xs ${item.sender === 'factory' ? 'text-red-200' : 'text-gray-400'}`}>{new Date(item.timestamp).toLocaleDateString()}</span>
                                         </div>
                                         {item.price && (
                                             <div className={`mb-2 text-lg font-bold ${item.sender === 'factory' ? 'text-white' : 'text-gray-900'}`}>
@@ -498,7 +498,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                 <button onClick={() => setIsDeclineModalOpen(true)} className="px-4 py-2 bg-white border border-red-200 text-red-600 font-semibold rounded-lg hover:bg-red-50 transition shadow-sm flex items-center gap-2">
                                     <XCircle size={18} /> Decline
                                 </button>
-                                <button onClick={() => setIsResponseModalOpen(true)} className="px-4 py-2 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 transition shadow-md flex items-center gap-2">
+                                <button onClick={() => setIsResponseModalOpen(true)} className="px-4 py-2 bg-[#c20c0b] text-white font-semibold rounded-lg hover:bg-[#a50a09] transition shadow-md flex items-center gap-2">
                                     <MessageSquare size={18} /> Respond / Counter
                                 </button>
                                 <button onClick={() => handleUpdateStatus(selectedQuote.id, 'Accepted')} className="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition shadow-md flex items-center gap-2">
@@ -513,7 +513,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                         <div className="lg:col-span-2 space-y-8">
                             <div>
                                 <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
-                                    <Package size={20} className="mr-2 text-purple-600" /> Products & Specifications
+                                    <Package size={20} className="mr-2 text-[#c20c0b]" /> Products & Specifications
                                 </h3>
                                 <div className="space-y-6">
                                     {selectedQuote.order?.lineItems?.map((item, idx) => (
@@ -521,7 +521,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                             {/* Item Header with Target Price Prominence */}
                                             <div className="bg-gray-50/50 px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                                                 <div className="flex items-center gap-3">
-                                                    <span className="bg-purple-100 text-purple-700 text-xs font-bold px-2.5 py-1 rounded-md border border-purple-200">#{idx + 1}</span>
+                                                    <span className="bg-red-100 text-[#c20c0b] text-xs font-bold px-2.5 py-1 rounded-md border border-red-200">#{idx + 1}</span>
                                                     <h4 className="font-bold text-gray-800 text-lg">{item.category}</h4>
                                                 </div>
                                                 <div className="flex items-center gap-6">
@@ -540,7 +540,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                                             return (
                                                                 <>
                                                                     <p className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">{showAgreedPrice ? 'Agreed Price' : 'Target Price'}</p>
-                                                                    <p className={`text-xl font-bold ${showAgreedPrice ? 'text-green-600' : 'text-purple-600'}`}>${showAgreedPrice ? agreedPrice : item.targetPrice}</p>
+                                                                    <p className={`text-xl font-bold ${showAgreedPrice ? 'text-green-600' : 'text-[#c20c0b]'}`}>${showAgreedPrice ? agreedPrice : item.targetPrice}</p>
                                                                 </>
                                                             );
                                                         })()}
@@ -553,7 +553,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                                     if (history.length === 0) return null;
                                                     return (
                                                         <details className="group mt-4 border-t border-gray-100 pt-3">
-                                                            <summary className="flex items-center justify-between cursor-pointer text-xs font-semibold text-gray-500 hover:text-purple-600 transition-colors list-none select-none">
+                                                            <summary className="flex items-center justify-between cursor-pointer text-xs font-semibold text-gray-500 hover:text-[#c20c0b] transition-colors list-none select-none">
                                                                 <span className="flex items-center gap-1"><History size={12}/> Price History ({history.length})</span>
                                                                 <ChevronDown size={14} className="group-open:rotate-180 transition-transform" />
                                                             </summary>
@@ -561,7 +561,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                                                 {history.map((h, i) => (
                                                                     <div key={i} className="flex justify-between items-center text-xs">
                                                                         <div>
-                                                                            <span className={`font-medium ${h.sender === 'factory' ? 'text-purple-600' : 'text-blue-600'}`}>
+                                                                            <span className={`font-medium ${h.sender === 'factory' ? 'text-[#c20c0b]' : 'text-blue-600'}`}>
                                                                                 {h.sender === 'factory' ? 'You' : 'Client'}
                                                                             </span>
                                                                             <span className="text-gray-400 ml-2">{new Date(h.timestamp).toLocaleDateString()}</span>
@@ -672,7 +672,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                         {/* Right Column: Logistics & Factory */}
                         <div className="space-y-6">
                             <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><Building size={20} className="mr-2 text-purple-600"/> Target Factory</h3>
+                                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><Building size={20} className="mr-2 text-[#c20c0b]"/> Target Factory</h3>
                                 {selectedQuote.factory?.name ? (
                                     <div className="flex items-center gap-4">
                                         <img src={selectedQuote.factory.imageUrl} alt={selectedQuote.factory.name} className="w-16 h-16 rounded-lg object-cover border border-gray-100"/>
@@ -687,7 +687,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                             </div>
                             
                             <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><MapPin size={20} className="mr-2 text-purple-600"/> Logistics</h3>
+                                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><MapPin size={20} className="mr-2 text-[#c20c0b]"/> Logistics</h3>
                                 <div className="space-y-4">
                                     <div className="flex justify-between border-b border-gray-100 pb-2">
                                         <span className="text-sm text-gray-500">Destination Country</span>
@@ -702,17 +702,17 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
 
                             {selectedQuote.files && selectedQuote.files.length > 0 && (
                                 <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                                    <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><FileText size={20} className="mr-2 text-purple-600"/> Attachments</h3>
+                                    <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><FileText size={20} className="mr-2 text-[#c20c0b]"/> Attachments</h3>
                                     <div className="space-y-2">
                                         {fileLinks.map((file, idx) => (
-                                            <div key={idx} className="flex items-center justify-between gap-2 text-sm text-gray-600 bg-gray-50 p-3 rounded-lg border border-gray-100 hover:border-purple-200 transition-colors">
+                                            <div key={idx} className="flex items-center justify-between gap-2 text-sm text-gray-600 bg-gray-50 p-3 rounded-lg border border-gray-100 hover:border-red-200 transition-colors">
                                                 <div className="flex items-center gap-3 truncate">
                                                     <div className="bg-white p-1.5 rounded border border-gray-200">
-                                                        <FileText size={16} className="text-purple-500"/>
+                                                        <FileText size={16} className="text-[#c20c0b]"/>
                                                     </div>
                                                     <span className="truncate font-medium text-gray-700">{file.name}</span>
                                                 </div>
-                                                <a href={file.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-purple-600 hover:text-purple-800 font-semibold text-xs bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-md transition-colors">
+                                                <a href={file.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[#c20c0b] hover:text-[#a50a09] font-semibold text-xs bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-md transition-colors">
                                                     <Download size={14} /> Download
                                                 </a>
                                             </div>
@@ -748,7 +748,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                                         step="0.01" 
                                                         value={lineItemPrices[item.id] || ''} 
                                                         onChange={(e) => setLineItemPrices(prev => ({ ...prev, [item.id]: e.target.value }))}
-                                                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none" 
+                                                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#c20c0b] outline-none" 
                                                         placeholder="0.00" 
                                                     />
                                                 </div>
@@ -771,7 +771,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                     </div>
                                     <div className="flex justify-end gap-4 pt-4 border-t border-gray-100">
                                         <button type="button" onClick={() => setIsResponseModalOpen(false)} className="px-6 py-2.5 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition">Cancel</button>
-                                        <button type="submit" disabled={isSubmittingResponse} className="px-6 py-2.5 bg-purple-600 text-white font-semibold rounded-xl hover:bg-purple-700 transition shadow-md disabled:opacity-50">
+                                        <button type="submit" disabled={isSubmittingResponse} className="px-6 py-2.5 bg-[#c20c0b] text-white font-semibold rounded-xl hover:bg-[#a50a09] transition shadow-md disabled:opacity-50">
                                             {isSubmittingResponse ? 'Sending...' : 'Send Response'}
                                         </button>
                                     </div>
@@ -816,10 +816,10 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                         <h1 className="text-3xl font-bold text-gray-800">RFQ Management</h1>
                         <p className="text-gray-500 mt-1">Manage and respond to client quote requests.</p>
                     </div>
-                    <button onClick={() => setShowHidden(!showHidden)} className={`p-2 rounded-full hover:bg-gray-100 transition-colors ${showHidden ? 'text-purple-600 bg-purple-50' : 'text-gray-500'}`} title={showHidden ? "View Active Quotes" : "View Hidden Quotes"}>
+                    <button onClick={() => setShowHidden(!showHidden)} className={`p-2 rounded-full hover:bg-gray-100 transition-colors ${showHidden ? 'text-[#c20c0b] bg-red-50' : 'text-gray-500'}`} title={showHidden ? "View Active Quotes" : "View Hidden Quotes"}>
                         {showHidden ? <Eye size={20} /> : <EyeOff size={20} />}
                     </button>
-                    <button onClick={toggleSelectionMode} className={`p-2 rounded-full hover:bg-gray-100 transition-colors ${isSelectionMode ? 'text-purple-600 bg-purple-50' : 'text-gray-500'}`} title={isSelectionMode ? "Exit Selection Mode" : "Select Quotes"}>
+                    <button onClick={toggleSelectionMode} className={`p-2 rounded-full hover:bg-gray-100 transition-colors ${isSelectionMode ? 'text-[#c20c0b] bg-red-50' : 'text-gray-500'}`} title={isSelectionMode ? "Exit Selection Mode" : "Select Quotes"}>
                         <CheckSquare size={20} />
                     </button>
                     <button onClick={fetchQuotes} className={`p-2 rounded-full hover:bg-gray-100 text-gray-500 transition-colors ${isLoading ? 'animate-spin' : ''}`} title="Refresh Quotes"><RefreshCw size={20}/></button>
@@ -830,7 +830,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-200 pb-2">
                     <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
                         {filterOptions.map(status => (
-                            <button key={status} onClick={() => setFilterStatus(status)} className={`flex-shrink-0 py-2 px-4 font-semibold text-sm rounded-md transition-colors ${filterStatus === status ? 'bg-purple-100 text-purple-700' : 'text-gray-500 hover:bg-gray-100'}`}>
+                            <button key={status} onClick={() => setFilterStatus(status)} className={`flex-shrink-0 py-2 px-4 font-semibold text-sm rounded-md transition-colors ${filterStatus === status ? 'bg-red-100 text-[#c20c0b]' : 'text-gray-500 hover:bg-gray-100'}`}>
                                 {status}
                             </button>
                         ))}
@@ -856,7 +856,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                     value={customStartDate} 
                                     onChange={(e) => setCustomStartDate(e.target.value)}
                                     max={todayString}
-                                    className="text-xs border border-gray-300 rounded-md p-1 focus:outline-none focus:ring-2 focus:ring-purple-500" 
+                                    className="text-xs border border-gray-300 rounded-md p-1 focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" 
                                 />
                                 <span className="text-gray-400">-</span>
                                 <input 
@@ -864,7 +864,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                     value={customEndDate} 
                                     onChange={(e) => setCustomEndDate(e.target.value)}
                                     max={todayString}
-                                    className="text-xs border border-gray-300 rounded-md p-1 focus:outline-none focus:ring-2 focus:ring-purple-500" 
+                                    className="text-xs border border-gray-300 rounded-md p-1 focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" 
                                 />
                             </div>
                         )}
@@ -880,7 +880,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                             type="checkbox" 
                             checked={selectedQuoteIds.length === filteredQuotes.length && filteredQuotes.length > 0}
                             onChange={toggleSelectAll}
-                            className="rounded text-purple-600 focus:ring-purple-500 h-4 w-4 cursor-pointer"
+                            className="rounded text-[#c20c0b] focus:ring-[#c20c0b] h-4 w-4 cursor-pointer"
                         />
                         <span className="text-sm font-medium text-gray-700">Select All ({filteredQuotes.length})</span>
                     </div>
@@ -906,7 +906,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
             ) : filteredQuotes.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {filteredQuotes.map((quote, index) => (
-                        <div key={quote.id} className="bg-white rounded-xl shadow-lg border border-gray-100 flex flex-col transition-transform hover:scale-[1.02]">
+                        <div key={quote.id} className="bg-white rounded-xl shadow-xl border border-gray-200 flex flex-col transition-transform hover:scale-[1.02]">
                             <div className="flex items-center justify-between p-4 border-b border-gray-100">
                                 <div className="flex items-center gap-3">
                                     {isSelectionMode && (
@@ -915,11 +915,11 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                                 type="checkbox" 
                                                 checked={selectedQuoteIds.includes(quote.id)}
                                                 onChange={() => toggleSelectQuote(quote.id)}
-                                                className="rounded text-purple-600 focus:ring-purple-500 h-4 w-4 cursor-pointer"
+                                                className="rounded text-[#c20c0b] focus:ring-[#c20c0b] h-4 w-4 cursor-pointer"
                                             />
                                         </div>
                                     )}
-                                    <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 font-bold">
+                                    <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center text-[#c20c0b] font-bold">
                                         {(quote.clientName || 'U').charAt(0)}
                                     </div>
                                     <div>
@@ -962,7 +962,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                 </div>
                             </div>
                             <div className="p-4 bg-gray-50/70 rounded-b-xl">
-                                <button onClick={() => setSelectedQuote(quote)} className="w-full text-sm font-bold text-purple-600 hover:text-purple-800 flex items-center justify-center">
+                                <button onClick={() => setSelectedQuote(quote)} className="w-full text-sm font-bold text-[#c20c0b] hover:text-[#a50a09] flex items-center justify-center">
                                     View & Reply <ChevronRight size={16} className="ml-1" />
                                 </button>
                             </div>
@@ -970,7 +970,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                     ))}
                 </div>
             ) : (
-                <div className="text-center py-16 bg-white rounded-xl shadow-lg border border-gray-100">
+                <div className="text-center py-16 bg-white rounded-xl shadow-lg border border-gray-200">
                     <FileQuestion className="mx-auto h-16 w-16 text-gray-300" />
                     <h3 className="mt-4 text-lg font-semibold text-gray-800">No Quotes Found</h3>
                 </div>

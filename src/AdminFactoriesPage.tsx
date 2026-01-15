@@ -278,7 +278,7 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
                     <p className="text-gray-500">Manage factory profiles, media, and capabilities.</p>
                 </div>
                 {/* Add Factory Button */}
-                <button onClick={() => { setEditingFactory({ name: '', location: '', description: '', minimumOrderQuantity: 0, rating: 0, imageUrl: '', turnaround: '', offer: '', specialties: [], tags: [], certifications: [], gallery: [], machineSlots: [], catalog: { productCategories: [], fabricOptions: [] } }); setIsModalOpen(true); }} className="bg-purple-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-700">
+                <button onClick={() => { setEditingFactory({ name: '', location: '', description: '', minimumOrderQuantity: 0, rating: 0, imageUrl: '', turnaround: '', offer: '', specialties: [], tags: [], certifications: [], gallery: [], machineSlots: [], catalog: { productCategories: [], fabricOptions: [] } }); setIsModalOpen(true); }} className="bg-[#c20c0b] text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-[#a50a09]">
                     <Plus size={18} /> Add Factory
                 </button>
             </div>
@@ -373,7 +373,7 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
                                                 <button type="button" onClick={() => removeMachineSlot(idx)} className="text-red-500 p-1"><Trash2 size={16} /></button>
                                             </div>
                                         ))}
-                                        <button type="button" onClick={addMachineSlot} className="text-sm text-purple-600 font-semibold flex items-center gap-1"><Plus size={16}/> Add Machine Slot</button>
+                                        <button type="button" onClick={addMachineSlot} className="text-sm text-[#c20c0b] font-semibold flex items-center gap-1"><Plus size={16}/> Add Machine Slot</button>
                                     </div>
                                 )}
                             </div>
@@ -400,7 +400,7 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
                                                         <input type="text" placeholder="Image URL" value={cat.imageUrl} onChange={e => updateProductCategory(idx, 'imageUrl', e.target.value)} className="w-full p-1 border rounded text-sm" />
                                                     </div>
                                                 ))}
-                                                <button type="button" onClick={addProductCategory} className="text-sm text-purple-600 font-semibold flex items-center gap-1"><Plus size={16}/> Add Category</button>
+                                                <button type="button" onClick={addProductCategory} className="text-sm text-[#c20c0b] font-semibold flex items-center gap-1"><Plus size={16}/> Add Category</button>
                                             </div>
                                         </div>
                                         {/* Fabric Options */}
@@ -415,7 +415,7 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
                                                         <button type="button" onClick={() => removeFabricOption(idx)} className="text-red-500"><Trash2 size={16} /></button>
                                                     </div>
                                                 ))}
-                                                <button type="button" onClick={addFabricOption} className="text-sm text-purple-600 font-semibold flex items-center gap-1"><Plus size={16}/> Add Fabric</button>
+                                                <button type="button" onClick={addFabricOption} className="text-sm text-[#c20c0b] font-semibold flex items-center gap-1"><Plus size={16}/> Add Fabric</button>
                                             </div>
                                         </div>
                                     </div>
@@ -448,7 +448,7 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
                             {/* Form Actions */}
                             <div className="flex justify-end gap-4 mt-4 pt-4 border-t">
                                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg">Cancel</button>
-                                <button type="submit" className="px-4 py-2 bg-purple-600 text-white rounded-lg">Save Factory</button>
+                                <button type="submit" className="px-4 py-2 bg-[#c20c0b] text-white rounded-lg">Save Factory</button>
                             </div>
                         </form>
                     </div>

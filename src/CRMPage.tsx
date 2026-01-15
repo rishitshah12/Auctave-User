@@ -30,7 +30,7 @@ interface CRMPageProps {
 
 export function DashboardCard({ icon, title, value, colorClass }: { icon: ReactNode, title: string, value: string | number, colorClass: string }) {
     return (
-        <div className={`relative p-5 rounded-xl overflow-hidden bg-white shadow-sm border`}>
+        <div className={`relative p-5 rounded-xl overflow-hidden bg-white shadow-md border border-gray-200`}>
             <div className="flex items-start justify-between">
                 <div>
                     <p className="text-sm font-medium text-gray-500">{title}</p>
@@ -68,8 +68,8 @@ export const DashboardView: FC<{ tasks: any[]; orderKey: string; orderDetails: a
                     <DashboardCard title="Total Quantity" value={totalQuantity.toLocaleString()} icon={<Package className="text-blue-800"/>} colorClass="bg-blue-100" />
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-                    <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border">
-                        <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center"><PieChartIcon size={20} className="mr-2 text-purple-600"/>Task Status Distribution</h3>
+                    <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                        <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center"><PieChartIcon size={20} className="mr-2 text-[#c20c0b]"/>Task Status Distribution</h3>
                         <ResponsiveContainer width="100%" height={300}>
                             <PieChart>
                                 <Pie data={statusData} cx="50%" cy="50%" labelLine={false} innerRadius={70} outerRadius={110} fill="#8884d8" dataKey="value" nameKey="name" label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}>
@@ -80,8 +80,8 @@ export const DashboardView: FC<{ tasks: any[]; orderKey: string; orderDetails: a
                             </PieChart>
                         </ResponsiveContainer>
                     </div>
-                    <div className="lg:col-span-3 bg-white p-6 rounded-xl shadow-sm border">
-                        <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center"><BarChartIcon size={20} className="mr-2 text-purple-600"/>Units Per Task</h3>
+                    <div className="lg:col-span-3 bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                        <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center"><BarChartIcon size={20} className="mr-2 text-[#c20c0b]"/>Units Per Task</h3>
                         <ResponsiveContainer width="100%" height={300}>
                             <BarChart data={tasks.filter(t => t.quantity > 0)} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
                                 <defs>
@@ -320,7 +320,7 @@ export const TNAView: FC<{ tasks: any[] }> = ({ tasks }) => {
 
         return (
             <div className="mt-6 overflow-x-auto animate-fade-in">
-                <div className="bg-white rounded-xl shadow-sm border">
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200">
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                             <tr>
@@ -367,7 +367,7 @@ export const OrderDetailsView: FC<{ order: any; allFactories: Factory[]; handleS
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Left Column */}
                     <div className="lg:col-span-2 space-y-6">
-                        <div className="bg-white p-6 rounded-xl shadow-sm border">
+                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                             <h3 className="text-lg font-semibold text-gray-800 mb-4">Order Summary</h3>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div><p className="text-sm text-gray-500">Order ID</p><p className="font-semibold">{order.id || 'N/A'}</p></div>
@@ -375,7 +375,7 @@ export const OrderDetailsView: FC<{ order: any; allFactories: Factory[]; handleS
                                 <div><p className="text-sm text-gray-500">Product</p><p className="font-semibold">{order.product}</p></div>
                             </div>
                         </div>
-                            <div className="bg-white p-6 rounded-xl shadow-sm border">
+                            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                             <h3 className="text-lg font-semibold text-gray-800 mb-4">Order Documents</h3>
                             <div className="space-y-3">
                                 {order.documents.map((doc: any, index: number) => (
@@ -396,7 +396,7 @@ export const OrderDetailsView: FC<{ order: any; allFactories: Factory[]; handleS
                         </div>
                     </div>
                     {/* Right Column */}
-                    <div className="bg-white p-6 rounded-xl shadow-sm border">
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                         <h3 className="text-lg font-semibold text-gray-800 mb-4">Assigned Factory</h3>
                         {factory ? (
                             <div className="space-y-4">
@@ -513,7 +513,7 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
         const lines = text.split('\n').map((line, i) => {
             if (line.startsWith('###')) return <h3 key={i} className="text-xl font-bold text-gray-800 mb-4">{line.replace('###', '')}</h3>;
             if (line.startsWith('**')) return <p key={i} className="font-semibold text-gray-700 mt-4 mb-1">{line.replace(/\*\*/g, '')}</p>;
-            if (line.startsWith('- ')) return <li key={i} className="flex items-start my-1 text-gray-600"><span className="mr-3 mt-1.5 text-purple-500">∙</span><span>{line.substring(2)}</span></li>;
+            if (line.startsWith('- ')) return <li key={i} className="flex items-start my-1 text-gray-600"><span className="mr-3 mt-1.5 text-[#c20c0b]">∙</span><span>{line.substring(2)}</span></li>;
             return <p key={i} className="text-gray-600">{line}</p>;
         });
         return <div className="space-y-1">{lines}</div>;
@@ -524,11 +524,11 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
             <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 w-full max-w-2xl relative" onClick={e => e.stopPropagation()}>
                 <button onClick={() => setIsSummaryModalOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition"> <X size={24} /> </button>
                 <div className="flex items-center gap-3 mb-6">
-                    <div className="p-2 bg-purple-100 rounded-lg"> <Bot className="w-6 h-6 text-purple-600" /> </div>
+                    <div className="p-2 bg-red-100 rounded-lg"> <Bot className="w-6 h-6 text-[#c20c0b]" /> </div>
                     <h2 className="text-2xl font-bold text-gray-800">AI Order Summary</h2>
                 </div>
                 <div className="min-h-[200px] prose prose-sm max-w-none">
-                    {isSummaryLoading ? ( <div className="flex items-center justify-center h-full flex-col"> <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div> <p className="mt-4 text-gray-500">Analyzing order data...</p> </div> ) : ( <MarkdownRenderer text={orderSummary} /> )}
+                    {isSummaryLoading ? ( <div className="flex items-center justify-center h-full flex-col"> <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#c20c0b]"></div> <p className="mt-4 text-gray-500">Analyzing order data...</p> </div> ) : ( <MarkdownRenderer text={orderSummary} /> )}
                 </div>
             </div>
         </div>
@@ -538,7 +538,7 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
         <MainLayout {...props}>
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-3xl font-bold text-gray-800">CRM Portal</h1>
-                <button className="bg-purple-600 text-white font-semibold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-purple-700 transition">
+                <button className="bg-[#c20c0b] text-white font-semibold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-[#a50a09] transition">
                     <Plus size={18} /> Add Task
                 </button>
             </div>
@@ -548,7 +548,7 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
                         {/* Order Tabs */}
                         <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
                             {Object.keys(crmData).map(orderKey => (
-                                <button key={orderKey} onClick={() => setActiveOrderKey(orderKey)} className={`flex-shrink-0 py-2 px-4 font-semibold text-sm rounded-t-lg transition-colors ${activeOrderKey === orderKey ? 'border-b-2 border-purple-600 text-purple-600' : 'text-gray-500 hover:text-gray-700'}`}>
+                                <button key={orderKey} onClick={() => setActiveOrderKey(orderKey)} className={`flex-shrink-0 py-2 px-4 font-semibold text-sm rounded-t-lg transition-colors ${activeOrderKey === orderKey ? 'border-b-2 border-[#c20c0b] text-[#c20c0b]' : 'text-gray-500 hover:text-gray-700'}`}>
                                     {crmData[orderKey].product}
                                 </button>
                             ))}
@@ -564,12 +564,12 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
                                     {name: 'Dashboard', icon: <PieChartIcon size={16}/>},
                                     {name: 'Gantt', icon: <GanttChartSquare size={16}/>}
                                 ].map(view => (
-                                    <button key={view.name} onClick={() => setActiveView(view.name)} className={`flex items-center gap-2 py-1.5 px-3 text-sm font-semibold rounded-md transition-colors ${activeView === view.name ? 'bg-white text-purple-700 shadow-sm' : 'text-gray-600 hover:bg-gray-200'}`}>
+                                    <button key={view.name} onClick={() => setActiveView(view.name)} className={`flex items-center gap-2 py-1.5 px-3 text-sm font-semibold rounded-md transition-colors ${activeView === view.name ? 'bg-white text-[#c20c0b] shadow-sm' : 'text-gray-600 hover:bg-gray-200'}`}>
                                         {view.icon} <span className="hidden sm:inline">{view.name}</span>
                                     </button>
                                 ))}
                             </div>
-                            <button onClick={generateOrderSummary} className="p-2.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors" title="Generate AI Summary">
+                            <button onClick={generateOrderSummary} className="p-2.5 bg-red-100 text-[#c20c0b] rounded-lg hover:bg-red-200 transition-colors" title="Generate AI Summary">
                                 <Bot size={18}/>
                             </button>
                         </div>

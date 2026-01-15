@@ -38,7 +38,7 @@ export const AdminDashboardPage: FC<AdminDashboardPageProps> = (props) => {
 
     const statCards = [
         { title: 'Total Clients', value: stats.totalClients, icon: <Users className="text-blue-600" />, color: 'bg-blue-100' },
-        { title: 'Total Factories', value: stats.totalFactories, icon: <Building className="text-purple-600" />, color: 'bg-purple-100' },
+        { title: 'Total Factories', value: stats.totalFactories, icon: <Building className="text-[#c20c0b]" />, color: 'bg-red-100' },
         { title: 'Trending Items', value: stats.totalTrending, icon: <Flame className="text-orange-600" />, color: 'bg-orange-100' },
         { title: 'Total Revenue', value: stats.totalRevenue, icon: <DollarSign className="text-green-600" />, color: 'bg-green-100' },
     ];
@@ -52,7 +52,7 @@ export const AdminDashboardPage: FC<AdminDashboardPageProps> = (props) => {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     {statCards.map((stat, index) => (
-                        <div key={index} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
+                        <div key={index} className="bg-white p-6 rounded-xl shadow-md border border-gray-200 flex items-center justify-between">
                             <div>
                                 <p className="text-sm font-medium text-gray-500">{stat.title}</p>
                                 <p className="text-2xl font-bold text-gray-800 mt-1">{isLoading ? '...' : stat.value}</p>
