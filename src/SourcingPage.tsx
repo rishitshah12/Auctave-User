@@ -259,7 +259,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                         const isSelected = selectedGarmentCategory === cat.name;
                         return (
                             <button key={cat.name} onClick={() => setSelectedGarmentCategory(cat.name)} className="flex-shrink-0 flex flex-col items-center justify-start space-y-2 p-1 transition-transform hover:scale-105 group w-24 text-center">
-                                <div className={`w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 shadow-md ${isSelected ? 'p-1 bg-gradient-to-br from-blue-500 to-[#c20c0b]' : 'bg-transparent'}`}>
+                                <div className={`w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 shadow-md group-hover:shadow-[0_0_15px_rgba(194,12,11,0.5)] ${isSelected ? 'p-1 bg-gradient-to-br from-red-500 to-pink-700' : 'bg-transparent'}`}>
                                     <div className={`w-full h-full rounded-full bg-white dark:bg-gray-800 flex items-center justify-center ${!isSelected ? 'ring-1 ring-gray-200 dark:ring-white/10' : ''}`}>
                                         {cat.imageUrl ? <img src={cat.imageUrl} alt={cat.name} className="w-full h-full object-cover rounded-full" onError={(e) => { (e.target as HTMLImageElement).onerror = null; (e.target as HTMLImageElement).src=`https://placehold.co/80x80/e9d5ff/4c1d95?text=${cat.name}`; }} /> : <div className="text-gray-600">{cat.icon}</div>}
                                     </div>
@@ -289,8 +289,8 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
 
     const FilterPanel: FC = () => (
         <>
-            <div className={`fixed inset-0 bg-black bg-opacity-50 z-50 transition-opacity ${showFilterPanel ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => setShowFilterPanel(false)}></div>
-            <div className={`fixed top-0 right-0 h-full w-full max-w-md bg-white dark:bg-gray-900/95 dark:backdrop-blur-xl shadow-xl z-50 transform transition-transform duration-300 ${showFilterPanel ? 'translate-x-0' : 'translate-x-full'}`}>
+            <div className={`fixed inset-0 bg-black/75 backdrop-blur-sm z-50 transition-opacity duration-500 ${showFilterPanel ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => setShowFilterPanel(false)}></div>
+            <div className={`fixed top-0 right-0 h-full w-full max-w-md bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl shadow-2xl z-50 transform transition-transform duration-500 ease-in-out ${showFilterPanel ? 'translate-x-0' : 'translate-x-[120%]'}`}>
                 <div className="flex flex-col h-full text-gray-800 dark:text-gray-200">
                     <div className="flex items-center justify-between p-6 border-b dark:border-gray-700">
                         <h3 className="text-xl font-bold dark:text-white">Filters</h3>

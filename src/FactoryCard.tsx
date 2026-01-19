@@ -27,7 +27,7 @@ export const FactoryCard: FC<FactoryCardProps> = React.memo(({ factory, onSelect
                 className="h-56 w-full object-cover rounded-xl" 
                 onError={(e) => { 
                     (e.target as HTMLImageElement).onerror = null; 
-                    (e.target as HTMLImageElement).src=`https://placehold.co/600x400/e9d5ff/4c1d95?text=${factory.name}`; 
+                    (e.target as HTMLImageElement).src=`https://placehold.co/600x400/e9d5ff/4c1d95?text=${encodeURIComponent(factory.name || 'Factory')}`; 
                 }} 
             />
             
@@ -40,7 +40,7 @@ export const FactoryCard: FC<FactoryCardProps> = React.memo(({ factory, onSelect
             )}
 
             {/* 'Promoted' Badge for Prime factories */}
-            {factory.tags.includes('Prime') && (
+            {factory.tags.some(t => t.split(':')[0] === 'Prime') && (
                  <div className="absolute top-2 left-2 bg-black/50 backdrop-blur-sm text-white text-xs font-semibold px-2 py-1 rounded-md uppercase tracking-wide">
                     Promoted
                 </div>
@@ -57,6 +57,22 @@ export const FactoryCard: FC<FactoryCardProps> = React.memo(({ factory, onSelect
                     <Star size={14} className="fill-current" />
                 </div>
             </div>
+
+            {/* Tags Section */}
+            {factory.tags && factory.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                    {factory.tags.map((tag, i) => {
+                        const [label, color] = tag.split(':');
+                        // Only render tags that are not 'Prime' (since it's already a badge) or render all if preferred. 
+                        // Here we render all but style them.
+                        return (
+                            <span key={i} style={color ? { backgroundColor: color, borderColor: color } : {}} className={`text-[10px] px-2 py-0.5 rounded-full border ${color ? 'text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700'}`}>
+                                {label}
+                            </span>
+                        );
+                    })}
+                </div>
+            )}
 
             {/* Details Row 1: Specialties and MOQ */}
             <div className="flex justify-between items-center text-sm text-gray-600 dark:text-gray-300">

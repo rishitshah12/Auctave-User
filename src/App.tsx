@@ -486,7 +486,7 @@ const App: FC = () => {
         if (!skipConfirmation && !window.confirm("Are you sure you want to log out?")) return;
         try {
             // Sign out from Supabase to terminate the session
-            await supabase.auth.signOut();
+            await supabase.auth.signOut({ scope: 'global' });
 
             // Clear all user-related state
             setUser(null);
@@ -496,6 +496,9 @@ const App: FC = () => {
             // Clear session-related localStorage items (preserve user preferences like dark mode)
             localStorage.removeItem('garment_erp_last_page');
             localStorage.removeItem('garment_erp_last_activity');
+
+            // Clear sessionStorage cache
+            sessionStorage.removeItem('garment_erp_factories');
 
             // Navigate to login page
             setCurrentPage('login');
@@ -550,6 +553,46 @@ const App: FC = () => {
         return () => {
             clearInterval(intervalId);
             events.forEach(event => window.removeEventListener(event, updateActivity));
+        };
+    }, [user, handleSignOut, showToast]);
+
+    // Session validation on page visibility change (handles refresh and returning to tab)
+    useEffect(() => {
+        const validateSession = async () => {
+            try {
+                const { data: { session }, error } = await supabase.auth.getSession();
+                if (error || !session) {
+                    // Session is invalid or expired
+                    if (user) {
+                        showToast('Your session has expired. Please log in again.', 'error');
+                        handleSignOut(true);
+                    }
+                }
+            } catch (err) {
+                console.error('Session validation error:', err);
+            }
+        };
+
+        // Validate session when tab becomes visible
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible' && user) {
+                validateSession();
+            }
+        };
+
+        // Validate session on page focus
+        const handleFocus = () => {
+            if (user) {
+                validateSession();
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('focus', handleFocus);
+
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('focus', handleFocus);
         };
     }, [user, handleSignOut, showToast]);
 
