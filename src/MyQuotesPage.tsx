@@ -22,12 +22,12 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
 
     const getStatusColor = (status: string) => {
         switch (status) {
-            case 'Pending': return 'bg-amber-50 text-amber-700 border-amber-100';
-            case 'Responded': return 'bg-blue-50 text-blue-700 border-blue-100';
-            case 'Accepted': return 'bg-emerald-50 text-emerald-700 border-emerald-100';
-            case 'Declined': return 'bg-red-50 text-red-700 border-red-100';
-            case 'In Negotiation': return 'bg-purple-50 text-purple-700 border-purple-100';
-            default: return 'bg-gray-50 text-gray-700 border-gray-100';
+            case 'Pending': return 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-100 dark:border-amber-800';
+            case 'Responded': return 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-100 dark:border-blue-800';
+            case 'Accepted': return 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800';
+            case 'Declined': return 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-100 dark:border-red-800';
+            case 'In Negotiation': return 'bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-100 dark:border-purple-800';
+            default: return 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-100 dark:border-gray-700';
         }
     };
 
@@ -155,10 +155,10 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
                 <div className="flex items-center gap-3">
                     <div>
-                    <h1 className="text-3xl font-bold text-gray-800">My Quote Requests</h1>
-                    <p className="text-gray-500 mt-1">Track and manage your quotes with factories.</p>
+                    <h1 className="text-3xl font-bold text-gray-800 dark:text-white">My Quote Requests</h1>
+                    <p className="text-gray-500 dark:text-gray-400 mt-1">Track and manage your quotes with factories.</p>
                     </div>
-                    <button onClick={onRefresh} className={`p-2 rounded-full hover:bg-gray-100 text-gray-500 transition-colors ${isLoading ? 'animate-spin' : ''}`} title="Refresh Quotes"><RefreshCw size={20}/></button>
+                    <button onClick={onRefresh} className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-colors ${isLoading ? 'animate-spin' : ''}`} title="Refresh Quotes"><RefreshCw size={20}/></button>
                 </div>
                 <button onClick={() => handleSetCurrentPage('orderForm')} className="bg-[#c20c0b] text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 hover:bg-[#a50a09] transition shadow-md">
                     <Plus size={18} />
@@ -168,7 +168,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
 
             {/* Filter Tabs */}
             <div className="mb-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-200 pb-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-200 dark:border-white/10 pb-2">
                     <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
                     {filterOptions.map(status => (
                         <button
@@ -176,8 +176,8 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                             onClick={() => setFilterStatus(status)}
                             className={`flex-shrink-0 py-2 px-4 font-semibold text-sm rounded-md transition-colors ${
                                 filterStatus === status
-                                    ? 'bg-red-100 text-[#c20c0b]'
-                                    : 'text-gray-500 hover:bg-gray-100'
+                                    ? 'bg-red-100 dark:bg-red-900/30 text-[#c20c0b] dark:text-red-400'
+                                    : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
                             }`}
                         >
                             {status}
@@ -186,11 +186,11 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                     </div>
 
                     <div className="flex items-center gap-2 px-2">
-                        <Calendar size={16} className="text-gray-500" />
+                        <Calendar size={16} className="text-gray-500 dark:text-gray-400" />
                         <select 
                             value={dateFilter} 
                             onChange={(e) => setDateFilter(e.target.value)}
-                            className="text-sm border-none bg-transparent font-medium text-gray-600 focus:ring-0 cursor-pointer outline-none"
+                            className="text-sm border-none bg-transparent font-medium text-gray-600 dark:text-gray-300 focus:ring-0 cursor-pointer outline-none"
                         >
                             <option>All Time</option>
                             <option>Today</option>
@@ -206,7 +206,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                                     value={customStartDate} 
                                     onChange={(e) => setCustomStartDate(e.target.value)}
                                     max={todayString}
-                                    className="text-xs border border-gray-300 rounded-md p-1 focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" 
+                                    className="text-xs border border-gray-300 dark:border-gray-600 rounded-md p-1 focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white" 
                                 />
                                 <span className="text-gray-400">-</span>
                                 <input 
@@ -214,7 +214,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                                     value={customEndDate} 
                                     onChange={(e) => setCustomEndDate(e.target.value)}
                                     max={todayString}
-                                    className="text-xs border border-gray-300 rounded-md p-1 focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" 
+                                    className="text-xs border border-gray-300 dark:border-gray-600 rounded-md p-1 focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white" 
                                 />
                             </div>
                         )}
@@ -226,7 +226,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
             {isLoading ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {[1, 2, 3].map(i => (
-                        <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-200 h-64 animate-pulse"></div>
+                        <div key={i} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 h-64 animate-pulse"></div>
                     ))}
                 </div>
             ) : filteredQuotes.length > 0 ? (
@@ -235,13 +235,13 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                         <div
                             key={quote.id} 
                             onClick={() => handleCardClick(quote)}
-                            className={`bg-white rounded-2xl p-6 shadow-md ${getStatusHoverShadow(quote.status)} border border-gray-200 transition-all duration-300 cursor-pointer group relative overflow-hidden flex flex-col`}
+                            className={`bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl p-6 shadow-md ${getStatusHoverShadow(quote.status)} border border-gray-200 dark:border-white/10 transition-all duration-300 cursor-pointer group relative overflow-hidden flex flex-col hover:-translate-y-1`}
                             style={{ animationDelay: `${index * 50}ms` }}
                         >
                             <div className={`absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r ${getStatusGradientBorder(quote.status)}`} />
                             {/* Card Header */}
                             <div className="flex items-center justify-between mb-4">
-                                <span className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100">
+                                <span className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800">
                                     #{quote.id.slice(0, 8)}
                                 </span>
                                 <span className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full border ${getStatusColor(quote.status)}`}>
@@ -251,28 +251,28 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
 
                             {quote.factory && (
                                 <div className="flex items-center gap-3 mb-5">
-                                    <img className="h-9 w-9 rounded-full object-cover border border-gray-100 shadow-sm" src={quote.factory.imageUrl} alt={quote.factory.name} />
+                                    <img className="h-9 w-9 rounded-full object-cover border border-gray-100 dark:border-gray-700 shadow-sm" src={quote.factory.imageUrl} alt={quote.factory.name} />
                                     <div>
-                                        <p className="font-bold text-gray-900 text-sm leading-tight group-hover:text-[#c20c0b] transition-colors">{quote.factory.name}</p>
-                                        <p className="text-[10px] text-gray-500 flex items-center mt-0.5"><MapPin size={10} className="mr-1"/>{quote.factory.location}</p>
+                                        <p className="font-bold text-gray-900 dark:text-white text-sm leading-tight group-hover:text-[#c20c0b] transition-colors">{quote.factory.name}</p>
+                                        <p className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center mt-0.5"><MapPin size={10} className="mr-1"/>{quote.factory.location}</p>
                                     </div>
                                 </div>
                             )}
 
                             {/* Card Body */}
                             <div className="flex-grow">
-                                <h3 className="text-lg font-bold text-gray-900 mb-1 group-hover:text-[#c20c0b] transition-colors">
+                                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1 group-hover:text-[#c20c0b] transition-colors">
                                     {quote.order?.lineItems?.length > 1 ? `${quote.order.lineItems.length} Product Types` : (quote.order?.lineItems?.[0]?.category || 'Unknown Product')}
                                 </h3>
-                                <p className="text-xs text-gray-400 mb-6">
+                                <p className="text-xs text-gray-400 dark:text-gray-500 mb-6">
                                     {getDisplayDateInfo(quote).label} {new Date(getDisplayDateInfo(quote).date).toLocaleDateString()}
                                 </p>
 
                                 <div className="flex items-center gap-8 mb-6">
                                     <div>
-                                        <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">Quantity</p>
-                                        <div className="flex items-center gap-1.5 text-gray-700 font-medium text-sm">
-                                            <Package size={14} className="text-gray-300" />
+                                        <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 dark:text-gray-500 mb-1">Quantity</p>
+                                        <div className="flex items-center gap-1.5 text-gray-700 dark:text-gray-300 font-medium text-sm">
+                                            <Package size={14} className="text-gray-300 dark:text-gray-600" />
                                             {(() => {
                                                 const items = quote.order?.lineItems || [];
                                                 if (items.length === 0) return '0 units';
@@ -290,9 +290,9 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                                         </div>
                                     </div>
                                     <div>
-                                        <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">{quote.status === 'Accepted' ? 'Agreed Price' : 'Target Price'}</p>
-                                        <div className={`flex items-center gap-1.5 font-medium text-sm ${quote.status === 'Accepted' ? 'text-emerald-600' : 'text-gray-700'}`}>
-                                            <DollarSign size={14} className={quote.status === 'Accepted' ? 'text-emerald-400' : 'text-gray-300'} />
+                                        <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 dark:text-gray-500 mb-1">{quote.status === 'Accepted' ? 'Agreed Price' : 'Target Price'}</p>
+                                        <div className={`flex items-center gap-1.5 font-medium text-sm ${quote.status === 'Accepted' ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-700 dark:text-gray-300'}`}>
+                                            <DollarSign size={14} className={quote.status === 'Accepted' ? 'text-emerald-400' : 'text-gray-300 dark:text-gray-600'} />
                                             {(() => {
                                                 const isAccepted = quote.status === 'Accepted';
                                                 let priceValue = 'N/A';
@@ -318,24 +318,24 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                             </div>
 
                             {/* Card Footer */}
-                            <div className="mt-auto pt-4 border-t border-gray-50 flex items-center justify-between">
+                            <div className="mt-auto pt-4 border-t border-gray-50 dark:border-white/5 flex items-center justify-between">
                                 {isResponseAwaited(quote) ? (
-                                    <div className="flex items-center text-xs text-amber-600 font-medium">
+                                    <div className="flex items-center text-xs text-amber-600 dark:text-amber-500 font-medium">
                                         <Clock size={14} className="mr-1.5" /> Awaiting response
                                     </div>
                                 ) : (quote.status === 'Responded' || isNewReply(quote)) && isUnread(quote) ? (
-                                    <div className="flex items-center text-xs text-blue-600 font-medium">
+                                    <div className="flex items-center text-xs text-blue-600 dark:text-blue-400 font-medium">
                                         <MessageSquare size={14} className="mr-1.5" /> New response
                                     </div>
                                 ) : quote.status === 'Accepted' && isUnread(quote) ? (
-                                    <div className="flex items-center text-xs text-emerald-600 font-medium">
+                                    <div className="flex items-center text-xs text-emerald-600 dark:text-emerald-400 font-medium">
                                         <CheckCircle size={14} className="mr-1.5" /> Quote Accepted
                                     </div>
                                 ) : (
-                                    <div className="text-xs text-gray-400 font-medium">View Details</div>
+                                    <div className="text-xs text-gray-400 dark:text-gray-500 font-medium">View Details</div>
                                 )}
                                 
-                                <div className="h-8 w-8 rounded-full bg-gray-50 group-hover:bg-[#c20c0b] flex items-center justify-center text-gray-400 group-hover:text-white transition-all duration-300">
+                                <div className="h-8 w-8 rounded-full bg-gray-50 dark:bg-gray-800 group-hover:bg-[#c20c0b] flex items-center justify-center text-gray-400 dark:text-gray-500 group-hover:text-white transition-all duration-300">
                                     <ChevronRight size={16} />
                                 </div>
                             </div>
@@ -343,10 +343,10 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                     ))}
                 </div>
             ) : (
-                <div className="text-center py-16 bg-white rounded-xl shadow-lg border border-gray-100">
-                    <FileQuestion className="mx-auto h-16 w-16 text-gray-300" />
-                    <h3 className="mt-4 text-lg font-semibold text-gray-800">No Quotes Found</h3>
-                    <p className="mt-1 text-sm text-gray-500">No quotes match the "{filterStatus}" filter.</p>
+                <div className="text-center py-16 bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-lg border border-gray-100 dark:border-white/10">
+                    <FileQuestion className="mx-auto h-16 w-16 text-gray-300 dark:text-gray-600" />
+                    <h3 className="mt-4 text-lg font-semibold text-gray-800 dark:text-white">No Quotes Found</h3>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">No quotes match the "{filterStatus}" filter.</p>
                     <button onClick={() => setFilterStatus('All')} className="mt-4 text-sm font-bold text-[#c20c0b] hover:underline">
                         Show All Quotes
                     </button>

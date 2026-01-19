@@ -20,6 +20,7 @@ interface MainLayoutProps {
     handleSignOut: () => void; // Function to log out
     hideSidebar?: boolean; // Optional: Hide sidebar on specific pages (like profile setup)
     isAdmin?: boolean; // Optional: Check if user is an admin
+    globalLoading?: boolean; // Optional: Show global loading indicator
 }
 
 // Component for the Side Menu (Desktop Navigation)
@@ -58,17 +59,17 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'>> = (
         {isMenuOpen && <div className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden" onClick={toggleMenu}></div>}
         
         {/* The Sidebar Container */}
-        <aside className={`fixed inset-y-0 left-0 bg-white text-gray-800 flex flex-col shadow-lg z-50 transition-all duration-300 ease-in-out md:relative ${isMenuOpen ? 'w-64' : '-translate-x-full w-64'} md:translate-x-0 ${isSidebarCollapsed ? 'md:w-20' : 'md:w-64'}`}>
+        <aside className={`fixed inset-y-0 left-0 bg-white/70 dark:bg-gray-900/70 backdrop-blur-md border-r border-gray-200/50 dark:border-gray-700/50 text-gray-800 dark:text-gray-200 flex flex-col shadow-lg z-50 transition-all duration-300 ease-in-out md:relative ${isMenuOpen ? 'w-64' : '-translate-x-full w-64'} md:translate-x-0 ${isSidebarCollapsed ? 'md:w-20' : 'md:w-64'}`}>
             
             {/* Sidebar Header (Logo and Toggle Buttons) */}
-            <div className={`flex items-center justify-between p-4 border-b border-gray-200 ${isSidebarCollapsed ? 'md:justify-center' : ''}`}>
-                {!isSidebarCollapsed && <h1 className="text-2xl font-bold text-gray-800">Auctave</h1>}
+            <div className={`flex items-center justify-between p-4 border-b border-gray-200/50 dark:border-gray-700/50 ${isSidebarCollapsed ? 'md:justify-center' : ''}`}>
+                {!isSidebarCollapsed && <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Auctave</h1>}
                 {/* Mobile Close Button */}
-                <button onClick={toggleMenu} className="p-2 rounded-md bg-gray-200 hover:bg-gray-300 text-gray-600 md:hidden">
+                <button onClick={toggleMenu} className="p-2 rounded-md bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 md:hidden">
                     <X className="w-6 h-6"/>
                 </button>
                 {/* Desktop Collapse Button */}
-                <button onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} className="hidden md:block p-2 rounded-md hover:bg-gray-200 text-gray-600">
+                <button onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} className="hidden md:block p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300">
                     {isSidebarCollapsed ? <ChevronsRight className="w-6 h-6"/> : <ChevronsLeft className="w-6 h-6"/>}
                 </button>
             </div>
@@ -76,7 +77,7 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'>> = (
             {/* Navigation Links */}
             <nav className="flex-1 p-4 space-y-2">
                 {menuItems.map(item => (
-                    <button key={item.name} onClick={() => { handleSetCurrentPage(item.page); if (isMenuOpen) toggleMenu(); }} className={`w-full text-left p-3 rounded-md font-medium flex items-center transition duration-150 ease-in-out ${isSidebarCollapsed ? 'justify-center' : ''} ${currentPage === item.page ? 'bg-[#c20c0b] text-white' : 'hover:bg-gray-200'}`} title={isSidebarCollapsed ? item.name : ''}>
+                    <button key={item.name} onClick={() => { handleSetCurrentPage(item.page); if (isMenuOpen) toggleMenu(); }} className={`w-full text-left p-3 rounded-md font-medium flex items-center transition duration-150 ease-in-out ${isSidebarCollapsed ? 'justify-center' : ''} ${currentPage === item.page ? 'bg-[#c20c0b] text-white' : 'hover:bg-gray-200 dark:hover:bg-gray-700'}`} title={isSidebarCollapsed ? item.name : ''}>
                         <div className={isSidebarCollapsed ? '' : 'mr-3'}>{item.icon}</div>
                         {!isSidebarCollapsed && <span>{item.name}</span>}
                     </button>
@@ -84,8 +85,8 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'>> = (
             </nav>
 
             {/* Logout Button at the bottom */}
-            <div className={`p-4 border-t border-gray-200 ${isSidebarCollapsed ? 'flex justify-center' : ''}`}>
-                <button onClick={() => { handleSignOut(); if (isMenuOpen) toggleMenu(); }} className={`w-full text-left p-3 rounded-md font-medium hover:bg-red-50 flex items-center transition duration-150 ease-in-out text-red-600 ${isSidebarCollapsed ? 'justify-center' : ''}`} title={isSidebarCollapsed ? 'Logout' : ''}>
+            <div className={`p-4 border-t border-gray-200/50 dark:border-gray-700/50 ${isSidebarCollapsed ? 'flex justify-center' : ''}`}>
+                <button onClick={() => { handleSignOut(); if (isMenuOpen) toggleMenu(); }} className={`w-full text-left p-3 rounded-md font-medium hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center transition duration-150 ease-in-out text-red-600 dark:text-red-400 ${isSidebarCollapsed ? 'justify-center' : ''}`} title={isSidebarCollapsed ? 'Logout' : ''}>
                     <div className={isSidebarCollapsed ? '' : 'mr-3'}><LogOut className="h-5 w-5"/></div>
                     {!isSidebarCollapsed && <span>Logout</span>}
                 </button>
@@ -107,10 +108,10 @@ const BottomNavBar: FC<{ currentPage: string; handleSetCurrentPage: (page: strin
     return (
       <div className="fixed bottom-0 left-0 right-0 h-20 md:hidden z-40">
           {/* The white bar container */}
-          <div className="absolute bottom-0 left-0 right-0 bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.1)] h-16">
+          <div className="absolute bottom-0 left-0 right-0 bg-white/70 dark:bg-gray-900/70 backdrop-blur-md shadow-[0_-2px_10px_rgba(0,0,0,0.1)] h-16 border-t border-gray-200/50 dark:border-gray-700/50">
               <div className="flex justify-around items-center h-full">
                   {navItems.map(item => (
-                      <button key={item.name} onClick={() => handleSetCurrentPage(item.page)} className={`flex flex-col items-center justify-center space-y-1 w-1/5 ${currentPage === item.page ? 'text-[#c20c0b]' : 'text-gray-500'}`}>
+                      <button key={item.name} onClick={() => handleSetCurrentPage(item.page)} className={`flex flex-col items-center justify-center space-y-1 w-1/5 ${currentPage === item.page ? 'text-[#c20c0b]' : 'text-gray-500 dark:text-gray-400'}`}>
                           {item.icon}
                           <span className="text-xs font-medium">{item.name}</span>
                       </button>
@@ -127,12 +128,20 @@ const BottomNavBar: FC<{ currentPage: string; handleSetCurrentPage: (page: strin
 
 // The Main Layout Wrapper Component
 export const MainLayout: FC<MainLayoutProps> = (props) => (
-    <div className="flex min-h-screen bg-gray-25-30 font-inter">
+    <div className="flex min-h-screen bg-gray-50 dark:bg-black text-gray-900 dark:text-gray-100 font-inter transition-colors duration-200 relative">
+        {/* Spotify-like Accent Gradient for Dark Mode */}
+        <div className="absolute top-0 left-0 right-0 h-[300px] bg-gradient-to-b from-[#450a0a]/60 via-[#c20c0b]/10 to-transparent pointer-events-none z-0 dark:block hidden animate-gradient-slow" />
+
+        {props.globalLoading && (
+            <div className="fixed top-0 left-0 right-0 h-1 z-[100] bg-red-100 dark:bg-red-900 overflow-hidden">
+                <div className="h-full bg-[#c20c0b] animate-progress-indeterminate"></div>
+            </div>
+        )}
         {/* Show Sidebar on Desktop if user is logged in and sidebar isn't hidden */}
         {props.user && !props.hideSidebar && <div className="hidden md:flex"><SideMenu {...props} /></div>}
         
         {/* Main Content Area */}
-        <main className="flex-1 flex flex-col overflow-hidden">
+        <main className="flex-1 flex flex-col overflow-hidden relative z-10">
             <div key={props.pageKey} className="flex-1 w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 pb-24 md:pb-8 animate-fade-in">
                 {props.children}
             </div>

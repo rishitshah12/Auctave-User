@@ -1,4 +1,4 @@
-import React, { useState, useEffect, FC, useRef } from 'react';
+import React, { useState, useEffect, FC, useRef, useCallback } from 'react';
 import { MainLayout } from './MainLayout';
 import { quoteService } from './quote.service';
 import { QuoteRequest, NegotiationHistoryItem } from './types';
@@ -21,14 +21,18 @@ interface AdminRFQPageProps {
 }
 
 export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
-    const [quotes, setQuotes] = useState<QuoteRequest[]>([]);
+    const CACHE_KEY = 'garment_erp_admin_quotes';
+    const [quotes, setQuotes] = useState<QuoteRequest[]>(() => {
+        const cached = sessionStorage.getItem(CACHE_KEY);
+        return cached ? JSON.parse(cached) : [];
+    });
     const [filterStatus, setFilterStatus] = useState('All');
     const [dateFilter, setDateFilter] = useState('All Time');
     const [customStartDate, setCustomStartDate] = useState('');
     const [customEndDate, setCustomEndDate] = useState('');
     const todayString = new Date().toISOString().split('T')[0];
     const [selectedQuote, setSelectedQuote] = useState<QuoteRequest | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(() => !sessionStorage.getItem(CACHE_KEY));
     const [isResponseModalOpen, setIsResponseModalOpen] = useState(false);
     const [responseForm, setResponseForm] = useState({ price: '', leadTime: '', notes: '' });
     const [lineItemPrices, setLineItemPrices] = useState<Record<number, string>>({});
@@ -44,17 +48,37 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
     const [showHidden, setShowHidden] = useState(false);
     const [selectedQuoteIds, setSelectedQuoteIds] = useState<string[]>([]);
     const [isSelectionMode, setIsSelectionMode] = useState(false);
+    const abortControllerRef = useRef<AbortController | null>(null);
+    const fileLinksAbortController = useRef<AbortController | null>(null);
 
     const showToast = (message: string, type: 'success' | 'error' = 'success') => {
         if (window.showToast) window.showToast(message, type);
     };
 
-    const fetchQuotes = async () => {
-        setIsLoading(true);
-        const { data, error } = await quoteService.getAllQuotes();
-        if (error) {
-            showToast('Failed to fetch quotes: ' + error.message, 'error');
-        } else if (data) {
+    const fetchQuotes = useCallback(async () => {
+        if (abortControllerRef.current) abortControllerRef.current.abort();
+        abortControllerRef.current = new AbortController();
+        const signal = abortControllerRef.current.signal;
+
+        const hasCache = !!sessionStorage.getItem(CACHE_KEY);
+        if (!hasCache) setIsLoading(true);
+        
+        let attempts = 0;
+        while (attempts < 3) {
+            try {
+                if (signal.aborted) return;
+                
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 15000));
+                const requestPromise = quoteService.getAllQuotes();
+                
+                const { data, error } = await Promise.race([
+                    requestPromise,
+                    timeoutPromise,
+                    new Promise<any>((_, reject) => signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError'))))
+                ]);
+
+                if (error) throw new Error(error.message);
+
             // Transform DB data to QuoteRequest type
             const transformedQuotes: QuoteRequest[] = data.map((q: any) => ({
                 id: q.id,
@@ -71,29 +95,70 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                 clientName: q.clients?.name || 'Unknown',
                 companyName: q.clients?.company_name || 'Unknown'
             }));
-            setQuotes(transformedQuotes);
+            
+            if (!signal.aborted) {
+                setQuotes(transformedQuotes);
+                sessionStorage.setItem(CACHE_KEY, JSON.stringify(transformedQuotes));
+                setIsLoading(false);
+            }
+            return;
+            } catch (err: any) {
+                if (err.name === 'AbortError') return;
+                attempts++;
+                if (attempts >= 3) {
+                    showToast('Failed to fetch quotes after retries.', 'error');
+                    setIsLoading(false);
+                }
+                await new Promise(r => setTimeout(r, 1000 * attempts));
+            }
         }
-        setIsLoading(false);
-    };
+    }, []);
 
     useEffect(() => {
         fetchQuotes();
-    }, []);
+        return () => {
+            if (abortControllerRef.current) abortControllerRef.current.abort();
+        };
+    }, [fetchQuotes]);
 
     useEffect(() => {
         setSelectedQuoteIds([]);
     }, [filterStatus, showHidden, dateFilter]);
 
-    useEffect(() => {
-        const generateSignedUrls = async () => {
-            if (selectedQuote?.files && selectedQuote.files.length > 0) {
-                const urls = await Promise.all(selectedQuote.files.map(async (path) => {
-                    const { data } = await props.supabase.storage
+    const fetchSignedUrls = useCallback(async () => {
+        if (!selectedQuote?.files || selectedQuote.files.length === 0) {
+            setFileLinks([]);
+            return;
+        }
+
+        const CACHE_KEY = `garment_erp_admin_quote_files_${selectedQuote.id}`;
+        const cached = sessionStorage.getItem(CACHE_KEY);
+        if (cached) {
+            const { timestamp, links } = JSON.parse(cached);
+            if (Date.now() - timestamp < 50 * 60 * 1000) {
+                setFileLinks(links);
+                return;
+            }
+        }
+
+        if (fileLinksAbortController.current) fileLinksAbortController.current.abort();
+        fileLinksAbortController.current = new AbortController();
+        const signal = fileLinksAbortController.current.signal;
+
+        let attempts = 0;
+        while (attempts < 3) {
+            try {
+                if (signal.aborted) return;
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000));
+                
+                const urlsPromise = Promise.all(selectedQuote.files.map(async (path) => {
+                    const { data, error } = await props.supabase.storage
                         .from('quote-attachments')
                         .createSignedUrl(path, 3600); // URL valid for 1 hour
                     
+                    if (error) throw error;
+
                     const fileName = path.split('/').pop() || 'document';
-                    // Remove timestamp prefix (e.g., "123456789_filename.pdf" -> "filename.pdf")
                     const cleanName = fileName.replace(/^\d+_/, '');
 
                     return {
@@ -101,13 +166,31 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                         url: data?.signedUrl || '#'
                     };
                 }));
-                setFileLinks(urls);
-            } else {
-                setFileLinks([]);
+
+                const urls = await Promise.race([urlsPromise, timeoutPromise]) as { name: string; url: string }[];
+
+                if (!signal.aborted) {
+                    setFileLinks(urls);
+                    sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+                        timestamp: Date.now(),
+                        links: urls
+                    }));
+                }
+                return;
+            } catch (err: any) {
+                if (err.name === 'AbortError' || signal.aborted) return;
+                attempts++;
+                await new Promise(r => setTimeout(r, 1000 * attempts));
             }
-        };
-        generateSignedUrls();
+        }
     }, [selectedQuote, props.supabase]);
+
+    useEffect(() => {
+        fetchSignedUrls();
+        return () => {
+            if (fileLinksAbortController.current) fileLinksAbortController.current.abort();
+        };
+    }, [fetchSignedUrls]);
 
     const handleUpdateStatus = async (quoteId: string, newStatus: QuoteRequest['status']) => {
         const { error } = await quoteService.update(quoteId, { status: newStatus });
@@ -813,34 +896,34 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
             <div className="flex justify-between items-center mb-6">
                 <div className="flex items-center gap-3">
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-800">RFQ Management</h1>
+                        <h1 className="text-3xl font-bold text-gray-800 dark:text-white">RFQ Management</h1>
                         <p className="text-gray-500 mt-1">Manage and respond to client quote requests.</p>
                     </div>
-                    <button onClick={() => setShowHidden(!showHidden)} className={`p-2 rounded-full hover:bg-gray-100 transition-colors ${showHidden ? 'text-[#c20c0b] bg-red-50' : 'text-gray-500'}`} title={showHidden ? "View Active Quotes" : "View Hidden Quotes"}>
+                    <button onClick={() => setShowHidden(!showHidden)} className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${showHidden ? 'text-[#c20c0b] bg-red-50 dark:bg-red-900/20' : 'text-gray-500 dark:text-gray-400'}`} title={showHidden ? "View Active Quotes" : "View Hidden Quotes"}>
                         {showHidden ? <Eye size={20} /> : <EyeOff size={20} />}
                     </button>
-                    <button onClick={toggleSelectionMode} className={`p-2 rounded-full hover:bg-gray-100 transition-colors ${isSelectionMode ? 'text-[#c20c0b] bg-red-50' : 'text-gray-500'}`} title={isSelectionMode ? "Exit Selection Mode" : "Select Quotes"}>
+                    <button onClick={toggleSelectionMode} className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${isSelectionMode ? 'text-[#c20c0b] bg-red-50 dark:bg-red-900/20' : 'text-gray-500 dark:text-gray-400'}`} title={isSelectionMode ? "Exit Selection Mode" : "Select Quotes"}>
                         <CheckSquare size={20} />
                     </button>
-                    <button onClick={fetchQuotes} className={`p-2 rounded-full hover:bg-gray-100 text-gray-500 transition-colors ${isLoading ? 'animate-spin' : ''}`} title="Refresh Quotes"><RefreshCw size={20}/></button>
+                    <button onClick={fetchQuotes} className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors ${isLoading ? 'animate-spin' : ''}`} title="Refresh Quotes"><RefreshCw size={20}/></button>
                 </div>
             </div>
 
             <div className="mb-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-200 pb-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-200 dark:border-gray-700 pb-2">
                     <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
                         {filterOptions.map(status => (
-                            <button key={status} onClick={() => setFilterStatus(status)} className={`flex-shrink-0 py-2 px-4 font-semibold text-sm rounded-md transition-colors ${filterStatus === status ? 'bg-red-100 text-[#c20c0b]' : 'text-gray-500 hover:bg-gray-100'}`}>
+                            <button key={status} onClick={() => setFilterStatus(status)} className={`flex-shrink-0 py-2 px-4 font-semibold text-sm rounded-md transition-colors ${filterStatus === status ? 'bg-red-100 text-[#c20c0b]' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
                                 {status}
                             </button>
                         ))}
                     </div>
                     <div className="flex items-center gap-2 px-2">
-                        <Calendar size={16} className="text-gray-500" />
+                        <Calendar size={16} className="text-gray-500 dark:text-gray-400" />
                         <select 
                             value={dateFilter} 
                             onChange={(e) => setDateFilter(e.target.value)}
-                            className="text-sm border-none bg-transparent font-medium text-gray-600 focus:ring-0 cursor-pointer outline-none"
+                            className="text-sm border-none bg-transparent font-medium text-gray-600 dark:text-gray-300 focus:ring-0 cursor-pointer outline-none"
                         >
                             <option>All Time</option>
                             <option>Today</option>
@@ -856,7 +939,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                     value={customStartDate} 
                                     onChange={(e) => setCustomStartDate(e.target.value)}
                                     max={todayString}
-                                    className="text-xs border border-gray-300 rounded-md p-1 focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" 
+                                    className="text-xs border border-gray-300 dark:border-gray-600 rounded-md p-1 focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
                                 />
                                 <span className="text-gray-400">-</span>
                                 <input 
@@ -864,7 +947,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                     value={customEndDate} 
                                     onChange={(e) => setCustomEndDate(e.target.value)}
                                     max={todayString}
-                                    className="text-xs border border-gray-300 rounded-md p-1 focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" 
+                                    className="text-xs border border-gray-300 dark:border-gray-600 rounded-md p-1 focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
                                 />
                             </div>
                         )}
@@ -874,7 +957,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
 
             {/* Bulk Actions Toolbar */}
             {!isLoading && filteredQuotes.length > 0 && isSelectionMode && (
-                <div className="flex justify-between items-center mb-4 bg-gray-50 p-3 rounded-lg border border-gray-200 animate-fade-in">
+                <div className="flex justify-between items-center mb-4 bg-gray-50 dark:bg-gray-900/40 dark:backdrop-blur-md p-3 rounded-lg border border-gray-200 dark:border-white/10 animate-fade-in">
                     <div className="flex items-center gap-3">
                         <input 
                             type="checkbox" 
@@ -882,17 +965,17 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                             onChange={toggleSelectAll}
                             className="rounded text-[#c20c0b] focus:ring-[#c20c0b] h-4 w-4 cursor-pointer"
                         />
-                        <span className="text-sm font-medium text-gray-700">Select All ({filteredQuotes.length})</span>
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Select All ({filteredQuotes.length})</span>
                     </div>
                     {selectedQuoteIds.length > 0 && (
                         <div className="flex items-center gap-2">
-                            <span className="text-sm text-gray-500 mr-2">{selectedQuoteIds.length} selected</span>
+                            <span className="text-sm text-gray-500 dark:text-gray-400 mr-2">{selectedQuoteIds.length} selected</span>
                             {showHidden ? (
-                                <button onClick={handleBulkUnhide} className="flex items-center gap-1 px-3 py-1.5 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition-colors">
+                                <button onClick={handleBulkUnhide} className="flex items-center gap-1 px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
                                     <Eye size={14} /> Unhide Selected
                                 </button>
                             ) : (
-                                <button onClick={handleBulkHide} className="flex items-center gap-1 px-3 py-1.5 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition-colors">
+                                <button onClick={handleBulkHide} className="flex items-center gap-1 px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
                                     <EyeOff size={14} /> Hide Selected
                                 </button>
                             )}
@@ -906,8 +989,8 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
             ) : filteredQuotes.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {filteredQuotes.map((quote, index) => (
-                        <div key={quote.id} className="bg-white rounded-xl shadow-xl border border-gray-200 flex flex-col transition-transform hover:scale-[1.02]">
-                            <div className="flex items-center justify-between p-4 border-b border-gray-100">
+                        <div key={quote.id} className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-xl border border-gray-200 dark:border-white/10 flex flex-col transition-transform hover:scale-[1.02]">
+                            <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-white/10">
                                 <div className="flex items-center gap-3">
                                     {isSelectionMode && (
                                         <div onClick={(e) => e.stopPropagation()} className="flex items-center">
@@ -923,23 +1006,23 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                         {(quote.clientName || 'U').charAt(0)}
                                     </div>
                                     <div>
-                                        <p className="font-bold text-gray-800 text-sm">{quote.clientName || 'Unknown Client'}</p>
-                                        <p className="text-xs text-gray-500">{quote.companyName || 'Unknown Company'}</p>
+                                        <p className="font-bold text-gray-800 dark:text-white text-sm">{quote.clientName || 'Unknown Client'}</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">{quote.companyName || 'Unknown Company'}</p>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${getStatusColor(quote.status)}`}>{quote.status}</span>
-                                    <button onClick={(e) => toggleHideQuote(quote.id, e)} className="text-gray-400 hover:text-gray-600 p-1" title={showHidden ? "Unhide Quote" : "Hide Quote"}>{showHidden ? <Eye size={16} /> : <EyeOff size={16} />}</button>
+                                    <button onClick={(e) => toggleHideQuote(quote.id, e)} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-1" title={showHidden ? "Unhide Quote" : "Hide Quote"}>{showHidden ? <Eye size={16} /> : <EyeOff size={16} />}</button>
                                 </div>
                             </div>
                             <div className="p-4 flex-grow space-y-3">
                                 <div className="flex items-center text-sm">
-                                    <Shirt size={16} className="text-gray-400 mr-3 flex-shrink-0" />
-                                    <span className="font-semibold text-gray-700">{quote.order?.lineItems?.length > 1 ? `${quote.order.lineItems.length} Items` : quote.order?.lineItems?.[0]?.category || 'N/A'}</span>
+                                    <Shirt size={16} className="text-gray-400 dark:text-gray-500 mr-3 flex-shrink-0" />
+                                    <span className="font-semibold text-gray-700 dark:text-gray-200">{quote.order?.lineItems?.length > 1 ? `${quote.order.lineItems.length} Items` : quote.order?.lineItems?.[0]?.category || 'N/A'}</span>
                                 </div>
                                 <div className="flex items-center text-sm">
-                                    <Package size={16} className="text-gray-400 mr-3 flex-shrink-0" />
-                                    <span className="text-gray-600">
+                                    <Package size={16} className="text-gray-400 dark:text-gray-500 mr-3 flex-shrink-0" />
+                                    <span className="text-gray-600 dark:text-gray-300">
                                         {(() => {
                                             const items = quote.order?.lineItems || [];
                                             if (items.length === 0) return '0 units';
@@ -957,11 +1040,11 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                     </span>
                                 </div>
                                 <div className="flex items-center text-sm">
-                                    <Clock size={16} className="text-gray-400 mr-3 flex-shrink-0" />
-                                    <span className="text-gray-600">{new Date(getQuoteTimestamp(quote)).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</span>
+                                    <Clock size={16} className="text-gray-400 dark:text-gray-500 mr-3 flex-shrink-0" />
+                                    <span className="text-gray-600 dark:text-gray-300">{new Date(getQuoteTimestamp(quote)).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</span>
                                 </div>
                             </div>
-                            <div className="p-4 bg-gray-50/70 rounded-b-xl">
+                            <div className="p-4 bg-gray-50/70 dark:bg-gray-700/50 rounded-b-xl">
                                 <button onClick={() => setSelectedQuote(quote)} className="w-full text-sm font-bold text-[#c20c0b] hover:text-[#a50a09] flex items-center justify-center">
                                     View & Reply <ChevronRight size={16} className="ml-1" />
                                 </button>
@@ -970,9 +1053,9 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                     ))}
                 </div>
             ) : (
-                <div className="text-center py-16 bg-white rounded-xl shadow-lg border border-gray-200">
+                <div className="text-center py-16 bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-lg border border-gray-200 dark:border-white/10">
                     <FileQuestion className="mx-auto h-16 w-16 text-gray-300" />
-                    <h3 className="mt-4 text-lg font-semibold text-gray-800">No Quotes Found</h3>
+                    <h3 className="mt-4 text-lg font-semibold text-gray-800 dark:text-white">No Quotes Found</h3>
                 </div>
             )}
         </MainLayout>

@@ -16,7 +16,7 @@ interface FactoryCardProps {
 // React.memo is used here to prevent unnecessary re-renders if the data hasn't changed
 export const FactoryCard: FC<FactoryCardProps> = React.memo(({ factory, onSelect, style }) => (
     // Main card container: clickable, with shadow and hover effects
-    <div onClick={onSelect} style={style} className="bg-white rounded-xl shadow-lg hover:shadow-2xl border border-gray-200 transition-all duration-300 cursor-pointer group flex flex-col animate-card-enter">
+    <div onClick={onSelect} style={style} className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-lg hover:shadow-2xl border border-gray-200 dark:border-white/10 transition-all duration-300 cursor-pointer group flex flex-col animate-card-enter hover:-translate-y-1">
         
         {/* Image Section */}
         <div className="relative">
@@ -51,7 +51,7 @@ export const FactoryCard: FC<FactoryCardProps> = React.memo(({ factory, onSelect
         <div className="p-4 flex flex-col flex-grow">
             {/* Header: Name and Star Rating */}
             <div className="flex justify-between items-center mb-1">
-                <h3 className="font-bold text-xl text-gray-800 truncate pr-2 group-hover:text-[#c20c0b] transition-colors">{factory.name}</h3>
+                <h3 className="font-bold text-xl text-gray-800 dark:text-white truncate pr-2 group-hover:text-[#c20c0b] transition-colors">{factory.name}</h3>
                 <div className="flex-shrink-0 flex items-center bg-green-600 text-white font-bold px-2 py-0.5 rounded text-sm">
                     <span className="mr-1">{factory.rating}</span>
                     <Star size={14} className="fill-current" />
@@ -59,13 +59,13 @@ export const FactoryCard: FC<FactoryCardProps> = React.memo(({ factory, onSelect
             </div>
 
             {/* Details Row 1: Specialties and MOQ */}
-            <div className="flex justify-between items-center text-sm text-gray-600">
+            <div className="flex justify-between items-center text-sm text-gray-600 dark:text-gray-300">
                 <p className="truncate pr-4">{factory.specialties.join(', ')}</p>
                 <p className="flex-shrink-0 font-medium">MOQ: {factory.minimumOrderQuantity.toLocaleString()}</p>
             </div>
 
             {/* Details Row 2: Location and Turnaround Time */}
-            <div className="flex justify-between items-center text-sm text-gray-600 mt-1">
+            <div className="flex justify-between items-center text-sm text-gray-600 dark:text-gray-300 mt-1">
                 <p className="truncate pr-4">{factory.location}</p>
                 <p className="flex-shrink-0">{factory.turnaround}</p>
             </div>

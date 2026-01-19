@@ -40,3 +40,23 @@
 .read-the-docs {
   color: #888;
 }
+
+@keyframes progress-indeterminate {
+  0% { left: -100%; width: 100%; }
+  50% { left: 0%; width: 100%; }
+  100% { left: 100%; width: 100%; }
+}
+.animate-progress-indeterminate {
+  position: absolute;
+  animation: progress-indeterminate 1.5s infinite linear;
+}
+
+@keyframes gradient-shift {
+  0% { filter: hue-rotate(0deg); }
+  50% { filter: hue-rotate(30deg); }
+  100% { filter: hue-rotate(0deg); }
+}
+
+.animate-gradient-slow {
+  animation: gradient-shift 15s ease-in-out infinite;
+}

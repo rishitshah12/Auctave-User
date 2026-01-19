@@ -1,5 +1,5 @@
 // Import necessary React hooks and types
-import React, { useState, useEffect, FC } from 'react';
+import React, { useState, useEffect, FC, useRef, useCallback } from 'react';
 // Import the main layout component
 import { MainLayout } from './MainLayout';
 // Import services for CRM and User data
@@ -23,12 +23,19 @@ interface AdminCRMPageProps {
     handleSignOut: () => void;
     isAdmin: boolean;
     supabase: any;
+    darkMode?: boolean;
 }
 
 // Define the AdminCRMPage component
 export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
+    const CLIENTS_CACHE_KEY = 'garment_erp_admin_clients';
+    const FACTORIES_CACHE_KEY = 'garment_erp_admin_crm_factories';
+
     // State to store the list of clients
-    const [clients, setClients] = useState<any[]>([]);
+    const [clients, setClients] = useState<any[]>(() => {
+        const cached = sessionStorage.getItem(CLIENTS_CACHE_KEY);
+        return cached ? JSON.parse(cached) : [];
+    });
     // State to store the currently selected client ID
     const [selectedClientId, setSelectedClientId] = useState<string>('');
     // State to store the orders for the selected client
@@ -39,7 +46,10 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
     const [editingOrder, setEditingOrder] = useState<any>(null);
     // State to manage the visibility of the modal
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [factories, setFactories] = useState<any[]>([]);
+    const [factories, setFactories] = useState<any[]>(() => {
+        const cached = sessionStorage.getItem(FACTORIES_CACHE_KEY);
+        return cached ? JSON.parse(cached) : [];
+    });
     const [activeView, setActiveView] = useState('Details');
     const [activeOrderKey, setActiveOrderKey] = useState<string | null>(null);
     const [isCreateOrderOpen, setIsCreateOrderOpen] = useState(false);
@@ -50,58 +60,111 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
         tasks: [] as any[],
         documents: [] as any[]
     });
+    const ordersAbortController = useRef<AbortController | null>(null);
+    const mountAbortController = useRef<AbortController | null>(null);
 
     // Helper function to show toast notifications
     const showToast = (message: string, type: 'success' | 'error' = 'success') => {
         if (window.showToast) window.showToast(message, type);
     };
 
-    // Fetch Clients on Mount
-    useEffect(() => {
-        const fetchClients = async () => {
-            // Call getAll method from userService
-            const { data, error } = await userService.getAll();
-            // Handle error or set clients data
-            if (error) showToast('Failed to fetch clients: ' + error.message, 'error');
-            else setClients(data || []);
-        };
-        fetchClients();
-
-        const fetchFactories = async () => {
-            const { data } = await factoryService.getAll();
-            setFactories(data || []);
-        };
-        fetchFactories();
-    }, []);
-
-    // Fetch Orders when Client Selected
-    useEffect(() => {
-        // If no client selected, clear orders
+    const fetchOrders = useCallback(async () => {
         if (!selectedClientId) {
             setOrders([]);
             setActiveOrderKey(null);
             return;
         }
-        const fetchOrders = async () => {
-            // Set loading to true
+
+        if (ordersAbortController.current) ordersAbortController.current.abort();
+        ordersAbortController.current = new AbortController();
+        const signal = ordersAbortController.current.signal;
+
+        const ORDERS_CACHE_KEY = `garment_erp_admin_orders_${selectedClientId}`;
+        const cached = sessionStorage.getItem(ORDERS_CACHE_KEY);
+        
+        if (cached) {
+            setOrders(JSON.parse(cached));
+        } else {
             setIsLoading(true);
-            // Call getOrdersByClient method from crmService
-            const { data, error } = await crmService.getOrdersByClient(selectedClientId);
-            // Handle error or set orders data
-            if (error) showToast('Failed to fetch orders: ' + error.message, 'error');
-            else {
-                setOrders(data || []);
-                if (data && data.length > 0) {
-                    setActiveOrderKey(data[0].id);
-                } else {
-                    setActiveOrderKey(null);
+        }
+
+        let attempts = 0;
+        while (attempts < 3) {
+            try {
+                if (signal.aborted) return;
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 15000));
+                const { data, error } = await Promise.race([crmService.getOrdersByClient(selectedClientId), timeoutPromise]) as any;
+
+                if (error) throw error;
+
+                if (!signal.aborted) {
+                    const ordersData = data || [];
+                    setOrders(ordersData);
+                    sessionStorage.setItem(ORDERS_CACHE_KEY, JSON.stringify(ordersData));
+                    
+                    // Preserve active order if valid, else default to first
+                    setActiveOrderKey(prev => {
+                        const exists = ordersData.find((o: any) => o.id === prev);
+                        return exists ? prev : (ordersData.length > 0 ? ordersData[0].id : null);
+                    });
+                    setIsLoading(false);
                 }
+                return;
+            } catch (err: any) {
+                if (err.name === 'AbortError' || signal.aborted) return;
+                attempts++;
+                if (attempts >= 3) {
+                    showToast('Failed to fetch orders', 'error');
+                    setIsLoading(false);
+                }
+                await new Promise(r => setTimeout(r, 1000 * attempts));
             }
-            // Set loading to false
-            setIsLoading(false);
-        };
-        fetchOrders();
+        }
     }, [selectedClientId]);
+
+    // Fetch Clients and Factories on Mount
+    useEffect(() => {
+        if (mountAbortController.current) mountAbortController.current.abort();
+        mountAbortController.current = new AbortController();
+        const signal = mountAbortController.current.signal;
+
+        const fetchInitialData = async () => {
+            try {
+                // Fetch Clients
+                const { data: clientsData, error: clientsError } = await userService.getAll();
+                if (!signal.aborted) {
+                    if (clientsError) showToast('Failed to fetch clients: ' + clientsError.message, 'error');
+                    else {
+                        setClients(clientsData || []);
+                        sessionStorage.setItem(CLIENTS_CACHE_KEY, JSON.stringify(clientsData || []));
+                    }
+                }
+
+                // Fetch Factories
+                const { data: factoriesData } = await factoryService.getAll();
+                if (!signal.aborted) {
+                    setFactories(factoriesData || []);
+                    sessionStorage.setItem(FACTORIES_CACHE_KEY, JSON.stringify(factoriesData || []));
+                }
+            } catch (err) {
+                console.error("Error fetching initial data", err);
+            }
+        };
+
+        fetchInitialData();
+
+        return () => {
+            if (mountAbortController.current) mountAbortController.current.abort();
+        };
+    }, []);
+
+    // Fetch Orders when Client Selected
+    useEffect(() => {
+        fetchOrders();
+        return () => {
+            if (ordersAbortController.current) ordersAbortController.current.abort();
+        };
+    }, [fetchOrders]);
 
     // Function to handle opening the edit modal for an order
     const handleEditOrder = (order: any) => {
@@ -245,6 +308,30 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
         }
     };
 
+    const handleTaskUpdate = async (taskId: number, newStart: string, newEnd: string) => {
+        if (!activeOrderKey) return;
+        
+        const orderIndex = orders.findIndex(o => o.id === activeOrderKey);
+        if (orderIndex === -1) return;
+
+        const updatedOrders = [...orders];
+        const order = updatedOrders[orderIndex];
+        const taskIndex = order.tasks.findIndex((t: any) => t.id === taskId);
+        
+        if (taskIndex === -1) return;
+
+        const updatedTask = { ...order.tasks[taskIndex], plannedStartDate: newStart, plannedEndDate: newEnd };
+        order.tasks[taskIndex] = updatedTask;
+        
+        setOrders(updatedOrders);
+
+        const { error } = await crmService.update(order.id, { tasks: order.tasks });
+        if (error) {
+            showToast('Failed to update task date: ' + error.message, 'error');
+            fetchOrders(); // Revert on error
+        }
+    };
+
     const activeOrder = orders.find(o => o.id === activeOrderKey);
     // Transform activeOrder to match CRMPage component expectations
     const transformedOrder = activeOrder ? {
@@ -262,18 +349,18 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
             <div className="space-y-6">
                 <div className="flex justify-between items-center">
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-800">CRM Manager</h1>
+                        <h1 className="text-3xl font-bold text-gray-800 dark:text-white">CRM Manager</h1>
                         <p className="text-gray-500 mt-1">Manage client orders, timelines, and documents.</p>
                     </div>
                 </div>
 
                 {/* Client Selector */}
-                <div className="bg-white p-6 rounded-xl shadow-lg">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Select Client</label>
+                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-lg border border-gray-100 dark:border-white/10">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Select Client</label>
                     <select 
                         value={selectedClientId} 
                         onChange={(e) => setSelectedClientId(e.target.value)}
-                        className="w-full md:w-1/2 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#c20c0b] focus:outline-none"
+                        className="w-full md:w-1/2 p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#c20c0b] focus:outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     >
                         <option value="">-- Choose a Client --</option>
                         {clients.map(client => (
@@ -284,12 +371,12 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
 
                 {/* Orders List */}
                 {selectedClientId && (
-                    <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100 p-6">
+                    <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-lg overflow-hidden border border-gray-100 dark:border-white/10 p-6">
                         {isLoading ? (
                             <div className="p-8 text-center text-gray-500">Loading orders...</div>
                         ) : orders.length === 0 ? (
                             <div className="text-center py-12">
-                                <h3 className="text-xl font-semibold text-gray-800 mb-2">No Active Orders</h3>
+                                <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-2">No Active Orders</h3>
                                 <p className="text-gray-500 mb-6">This client has no active orders yet.</p>
                                 <button 
                                     onClick={() => setIsCreateOrderOpen(true)}
@@ -300,17 +387,17 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                             </div>
                         ) : (
                             <div>
-                                <div className="border-b border-gray-200 pb-4 mb-6">
+                                <div className="border-b border-gray-200 dark:border-white/10 pb-4 mb-6">
                                     <div className="flex flex-wrap items-center justify-between gap-y-4 gap-x-2">
                                         <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
                                             {orders.map(order => (
-                                                <button key={order.id} onClick={() => setActiveOrderKey(order.id)} className={`flex-shrink-0 py-2 px-4 font-semibold text-sm rounded-t-lg transition-colors ${activeOrderKey === order.id ? 'border-b-2 border-[#c20c0b] text-[#c20c0b]' : 'text-gray-500 hover:text-gray-700'}`}>
+                                                <button key={order.id} onClick={() => setActiveOrderKey(order.id)} className={`flex-shrink-0 py-2 px-4 font-semibold text-sm rounded-t-lg transition-colors ${activeOrderKey === order.id ? 'border-b-2 border-[#c20c0b] text-[#c20c0b]' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
                                                     {order.product_name}
                                                 </button>
                                             ))}
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <div className="flex items-center border border-gray-200 rounded-lg p-1 bg-gray-50">
+                                            <div className="flex items-center border border-gray-200 dark:border-gray-700 rounded-lg p-1 bg-gray-50 dark:bg-gray-700">
                                                 {[
                                                     {name: 'Details', icon: <Info size={16}/>},
                                                     {name: 'List', icon: <List size={16}/>},
@@ -319,7 +406,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                                     {name: 'Dashboard', icon: <PieChartIcon size={16}/>},
                                                     {name: 'Gantt', icon: <GanttChartSquare size={16}/>}
                                                 ].map(view => (
-                                                    <button key={view.name} onClick={() => setActiveView(view.name)} className={`flex items-center gap-2 py-1.5 px-3 text-sm font-semibold rounded-md transition-colors ${activeView === view.name ? 'bg-white text-[#c20c0b] shadow-sm' : 'text-gray-600 hover:bg-gray-200'}`}>
+                                                    <button key={view.name} onClick={() => setActiveView(view.name)} className={`flex items-center gap-2 py-1.5 px-3 text-sm font-semibold rounded-md transition-colors ${activeView === view.name ? 'bg-white dark:bg-gray-600 text-[#c20c0b] shadow-sm' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
                                                         {view.icon} <span className="hidden sm:inline">{view.name}</span>
                                                     </button>
                                                 ))}
@@ -352,8 +439,8 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                         {activeView === 'List' && <ListView tasks={transformedOrder.tasks} />}
                                         {activeView === 'Board' && <BoardView tasks={transformedOrder.tasks} />}
                                         {activeView === 'TNA' && <TNAView tasks={transformedOrder.tasks} />}
-                                        {activeView === 'Dashboard' && <DashboardView tasks={transformedOrder.tasks} orderKey={activeOrderKey || ''} orderDetails={transformedOrder}/>}
-                                        {activeView === 'Gantt' && <GanttChartView tasks={transformedOrder.tasks} />}
+                                        {activeView === 'Dashboard' && <DashboardView tasks={transformedOrder.tasks} orderKey={activeOrderKey || ''} orderDetails={transformedOrder} darkMode={props.darkMode} />}
+                                        {activeView === 'Gantt' && <GanttChartView tasks={transformedOrder.tasks} onTaskUpdate={handleTaskUpdate} />}
                                     </>
                                 )}
                             </div>
@@ -365,30 +452,30 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
             {/* Create Order Modal */}
             {isCreateOrderOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
-                        <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-                            <h2 className="text-xl font-bold text-gray-800">Start New Order</h2>
+                    <div className="bg-white dark:bg-gray-900/95 dark:backdrop-blur-xl rounded-xl shadow-2xl w-full max-w-md border border-gray-200 dark:border-white/10">
+                        <div className="p-6 border-b border-gray-100 dark:border-white/10 flex justify-between items-center">
+                            <h2 className="text-xl font-bold text-gray-800 dark:text-white">Start New Order</h2>
                             <button onClick={() => setIsCreateOrderOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={24} /></button>
                         </div>
                         <form onSubmit={handleCreateOrder} className="p-6 space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Product Name</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Product Name</label>
                                 <input 
                                     type="text" 
                                     required
                                     value={newOrderData.product_name}
                                     onChange={e => setNewOrderData({...newOrderData, product_name: e.target.value})}
-                                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#c20c0b] focus:outline-none"
+                                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#c20c0b] focus:outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                     placeholder="e.g. 5000 Cotton T-Shirts"
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Assign Factory</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Assign Factory</label>
                                 <select 
                                     required
                                     value={newOrderData.factory_id}
                                     onChange={e => setNewOrderData({...newOrderData, factory_id: e.target.value})}
-                                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#c20c0b] focus:outline-none"
+                                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#c20c0b] focus:outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                 >
                                     <option value="">-- Select Factory --</option>
                                     {factories.map(f => (
@@ -397,17 +484,17 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Initial Status</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Initial Status</label>
                                 <select 
                                     value={newOrderData.status}
                                     onChange={e => setNewOrderData({...newOrderData, status: e.target.value})}
-                                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#c20c0b] focus:outline-none"
+                                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#c20c0b] focus:outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                 >
                                     <option>Pending</option>
                                     <option>In Production</option>
                                 </select>
                             </div>
-                            <div className="pt-4 flex justify-end gap-3">
+                            <div className="pt-4 flex justify-end gap-3 border-t border-gray-100 dark:border-white/10">
                                 <button type="button" onClick={() => setIsCreateOrderOpen(false)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">Cancel</button>
                                 <button type="submit" className="px-4 py-2 bg-[#c20c0b] text-white rounded-lg hover:bg-[#a50a09] shadow-md">Create Order</button>
                             </div>
@@ -419,20 +506,20 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
             {/* Edit Order Modal */}
             {isModalOpen && editingOrder && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-                        <div className="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
-                            <h2 className="text-2xl font-bold text-gray-800">Manage Order</h2>
+                    <div className="bg-white dark:bg-gray-900/95 dark:backdrop-blur-xl rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/10">
+                        <div className="p-6 border-b border-gray-100 dark:border-white/10 flex justify-between items-center sticky top-0 bg-white dark:bg-gray-900 z-10">
+                            <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Manage Order</h2>
                             <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={24} /></button>
                         </div>
                         
                         <div className="p-6 space-y-8">
                             {/* Status Section */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Order Status</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Order Status</label>
                                 <select 
                                     value={editingOrder.status} 
                                     onChange={(e) => setEditingOrder({...editingOrder, status: e.target.value})}
-                                    className="w-full p-2 border border-gray-300 rounded-lg"
+                                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                 >
                                     <option>Pending</option>
                                     <option>In Production</option>
@@ -445,17 +532,17 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                             {/* Tasks Section */}
                             <div>
                                 <div className="flex justify-between items-center mb-4">
-                                    <h3 className="text-lg font-bold text-gray-800">Production Tasks</h3>
+                                    <h3 className="text-lg font-bold text-gray-800 dark:text-white">Production Tasks</h3>
                                     <button onClick={addTask} className="text-sm text-[#c20c0b] font-semibold flex items-center gap-1"><Plus size={16}/> Add Task</button>
                                 </div>
                                 <div className="space-y-3">
                                     {(editingOrder.tasks || []).map((task: any, idx: number) => (
-                                        <div key={idx} className="flex flex-wrap gap-2 items-center bg-gray-50 p-3 rounded-lg border border-gray-200">
-                                            <input type="text" value={task.name} onChange={(e) => updateTask(idx, 'name', e.target.value)} className="flex-grow p-1 border rounded text-sm" placeholder="Task Name" />
-                                            <select value={task.status} onChange={(e) => updateTask(idx, 'status', e.target.value)} className="p-1 border rounded text-sm">
+                                        <div key={idx} className="flex flex-wrap gap-2 items-center bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg border border-gray-200 dark:border-gray-600">
+                                            <input type="text" value={task.name} onChange={(e) => updateTask(idx, 'name', e.target.value)} className="flex-grow p-1 border dark:border-gray-500 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white" placeholder="Task Name" />
+                                            <select value={task.status} onChange={(e) => updateTask(idx, 'status', e.target.value)} className="p-1 border dark:border-gray-500 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
                                                 <option>TO DO</option><option>IN PROGRESS</option><option>COMPLETE</option>
                                             </select>
-                                            <input type="date" value={task.plannedEndDate} onChange={(e) => updateTask(idx, 'plannedEndDate', e.target.value)} className="p-1 border rounded text-sm" />
+                                            <input type="date" value={task.plannedEndDate} onChange={(e) => updateTask(idx, 'plannedEndDate', e.target.value)} className="p-1 border dark:border-gray-500 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
                                             <button onClick={() => removeTask(idx)} className="text-red-500 hover:text-red-700"><Trash2 size={16} /></button>
                                         </div>
                                     ))}
@@ -465,15 +552,15 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                             {/* Documents Section */}
                             <div>
                                 <div className="flex justify-between items-center mb-4">
-                                    <h3 className="text-lg font-bold text-gray-800">Documents</h3>
+                                    <h3 className="text-lg font-bold text-gray-800 dark:text-white">Documents</h3>
                                     <button onClick={addDocument} className="text-sm text-[#c20c0b] font-semibold flex items-center gap-1"><Plus size={16}/> Add Document</button>
                                 </div>
                                 <div className="space-y-3">
                                     {(editingOrder.documents || []).map((doc: any, idx: number) => (
-                                        <div key={idx} className="flex flex-wrap gap-2 items-center bg-gray-50 p-3 rounded-lg border border-gray-200">
+                                        <div key={idx} className="flex flex-wrap gap-2 items-center bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg border border-gray-200 dark:border-gray-600">
                                             <FileText size={16} className="text-gray-400" />
-                                            <input type="text" value={doc.name} onChange={(e) => updateDocument(idx, 'name', e.target.value)} className="flex-grow p-1 border rounded text-sm" placeholder="Document Name" />
-                                            <input type="text" value={doc.type} onChange={(e) => updateDocument(idx, 'type', e.target.value)} className="w-24 p-1 border rounded text-sm" placeholder="Type" />
+                                            <input type="text" value={doc.name} onChange={(e) => updateDocument(idx, 'name', e.target.value)} className="flex-grow p-1 border dark:border-gray-500 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white" placeholder="Document Name" />
+                                            <input type="text" value={doc.type} onChange={(e) => updateDocument(idx, 'type', e.target.value)} className="w-24 p-1 border dark:border-gray-500 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white" placeholder="Type" />
                                             <button onClick={() => removeDocument(idx)} className="text-red-500 hover:text-red-700"><Trash2 size={16} /></button>
                                         </div>
                                     ))}
@@ -481,8 +568,8 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                             </div>
                         </div>
 
-                        <div className="p-6 border-t border-gray-100 flex justify-end gap-4 bg-gray-50 rounded-b-xl">
-                            <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">Cancel</button>
+                        <div className="p-6 border-t border-gray-100 dark:border-white/10 flex justify-end gap-4 bg-gray-50 dark:bg-gray-800/50 rounded-b-xl">
+                            <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600">Cancel</button>
                             <button onClick={handleSaveOrder} className="px-4 py-2 bg-[#c20c0b] text-white rounded-lg hover:bg-[#a50a09] flex items-center gap-2"><Save size={18} /> Save Changes</button>
                         </div>
                     </div>

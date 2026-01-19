@@ -234,12 +234,127 @@ const fetchPortsForCountry = async (country: string): Promise<string[]> => {
     return portsMap[country] || ["Main Port", "Secondary Port", "Airport Cargo"];
 };
 
+// --- File Drop Zone Component ---
+const FileDropZone: FC<{
+    label: string;
+    accept: string;
+    multiple?: boolean;
+    onFilesSelected: (files: File[]) => void;
+    icon: ReactNode;
+    selectedFiles: File[];
+    previews?: string[];
+}> = ({ label, accept, multiple, onFilesSelected, icon, selectedFiles, previews }) => {
+    const [isDragging, setIsDragging] = useState(false);
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(false);
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(false);
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            onFilesSelected(Array.from(e.dataTransfer.files));
+        }
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files.length > 0) {
+            onFilesSelected(Array.from(e.target.files));
+        }
+    };
+
+    const inputId = `file-upload-${label.replace(/\s+/g, '-').toLowerCase()}`;
+
+    return (
+        <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</label>
+            <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center text-center transition-colors ${
+                    isDragging 
+                        ? 'border-[#c20c0b] bg-red-50 dark:bg-red-900/10' 
+                        : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                }`}
+            >
+                <div className="mb-3 p-3 bg-gray-100 dark:bg-gray-700 rounded-full text-gray-500 dark:text-gray-400">
+                    {icon}
+                </div>
+                <p className="text-sm text-gray-600 dark:text-gray-300 mb-1">
+                    <span className="font-semibold text-[#c20c0b]">Click to upload</span> or drag and drop
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                    {accept.replace(/\./g, '').toUpperCase().split(',').join(', ')} (Max 10MB)
+                </p>
+                <input 
+                    type="file" 
+                    accept={accept} 
+                    multiple={multiple} 
+                    onChange={handleFileChange} 
+                    className="hidden" 
+                    id={inputId}
+                />
+                <label 
+                    htmlFor={inputId}
+                    className="cursor-pointer px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors shadow-sm"
+                >
+                    Select Files
+                </label>
+            </div>
+            
+            {/* File List / Previews */}
+            {selectedFiles.length > 0 && (
+                <div className="mt-3 space-y-2 animate-fade-in">
+                    <div className="flex justify-between items-center">
+                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{selectedFiles.length} file(s) selected</p>
+                        <button 
+                            type="button" 
+                            onClick={() => onFilesSelected([])}
+                            className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1"
+                        >
+                            <Trash2 size={12} /> Clear
+                        </button>
+                    </div>
+                    
+                    {previews && previews.length > 0 ? (
+                        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                            {previews.map((src, idx) => (
+                                <div key={idx} className="relative w-16 h-16 flex-shrink-0 rounded-md overflow-hidden border border-gray-200 dark:border-gray-700 group">
+                                    <img src={src} alt="Preview" className="w-full h-full object-cover" />
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <ul className="space-y-1 max-h-32 overflow-y-auto pr-1 custom-scrollbar">
+                            {selectedFiles.map((file, idx) => (
+                                <li key={idx} className="text-xs text-gray-600 dark:text-gray-300 flex items-center bg-gray-50 dark:bg-gray-800 p-1.5 rounded border border-gray-100 dark:border-gray-700">
+                                    <FileText size={12} className="mr-2 text-gray-400 flex-shrink-0" />
+                                    <span className="truncate flex-1">{file.name}</span>
+                                    <span className="ml-2 text-gray-400 text-[10px]">({(file.size / 1024).toFixed(0)} KB)</span>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
+
 // --- Helper Component ---
 // A small reusable component to render a form field with a label and an icon.
 const FormField: FC<{ icon: ReactNode; label: string; children: ReactNode; required?: boolean }> = ({ icon, label, children, required }) => (
     <div>
         {/* Render the label text above the input */}
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             {label} {required && <span className="text-red-500">*</span>}
         </label>
         <div className="relative">
@@ -287,6 +402,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
 
     // State to hold the list of files uploaded by the user.
     const [sampleFiles, setSampleFiles] = useState<File[]>([]);
+    const [samplePreviews, setSamplePreviews] = useState<string[]>([]);
     const [docFiles, setDocFiles] = useState<File[]>([]);
     const [availablePorts, setAvailablePorts] = useState<string[]>([]);
     const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
@@ -344,16 +460,23 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
         });
     };
 
-    const handleSampleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files) {
-            setSampleFiles(Array.from(e.target.files));
-        }
+    const onSampleFilesSelected = (files: File[]) => {
+        setSampleFiles(files);
+        
+        // Create previews
+        const newPreviews = files.map(file => URL.createObjectURL(file));
+        setSamplePreviews(prev => {
+            prev.forEach(url => URL.revokeObjectURL(url)); // Cleanup old
+            return newPreviews;
+        });
     };
+    
+    useEffect(() => {
+        return () => samplePreviews.forEach(url => URL.revokeObjectURL(url));
+    }, [samplePreviews]);
 
-    const handleDocFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files) {
-            setDocFiles(Array.from(e.target.files));
-        }
+    const onDocFilesSelected = (files: File[]) => {
+        setDocFiles(files);
     };
 
     const handleAddItem = () => {
@@ -483,6 +606,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                 shippingPort: ''
             });
             setSampleFiles([]);
+            setSamplePreviews([]);
             setDocFiles([]);
             setAvailablePorts([]);
             setActiveItemIndex(0);
@@ -508,13 +632,13 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
         <MainLayout {...props}>
             <div className="max-w-4xl mx-auto">
                 {/* Main Card Container */}
-                <div className="bg-white p-6 sm:p-8 rounded-xl shadow-lg border border-gray-200">
+                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 sm:p-8 rounded-xl shadow-lg border border-gray-200 dark:border-white/10">
                     
                     {/* Header Section: Title and Back Button */}
                     <div className="flex justify-between items-start mb-6">
                         <div>
-                            <h2 className="text-3xl font-bold text-gray-800 mb-2">Garment Sourcing Requirements</h2>
-                            <p className="text-gray-500">Fill out your order details to find matching factories.</p>
+                            <h2 className="text-3xl font-bold text-gray-800 dark:text-white mb-2">Garment Sourcing Requirements</h2>
+                            <p className="text-gray-500 dark:text-gray-400">Fill out your order details to find matching factories.</p>
                         </div>
                         {/* Button to navigate back to the main sourcing page */}
                         <button onClick={() => handleSetCurrentPage('sourcing')} className="text-sm text-[#c20c0b] font-semibold flex items-center hover:underline whitespace-nowrap">
@@ -536,7 +660,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                         className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
                                             activeItemIndex === index
                                                 ? 'bg-[#c20c0b] text-white shadow-md'
-                                                : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+                                                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700'
                                         }`}
                                     >
                                         Product {index + 1}
@@ -568,7 +692,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                             <button
                                 type="button"
                                 onClick={handleAddItem}
-                                className="px-4 py-2 rounded-lg text-sm font-medium bg-red-50 text-[#c20c0b] hover:bg-red-100 border border-red-200 border-dashed flex items-center gap-2 transition-colors whitespace-nowrap"
+                                className="px-4 py-2 rounded-lg text-sm font-medium bg-red-50 dark:bg-red-900/20 text-[#c20c0b] dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 border border-red-200 dark:border-red-800 border-dashed flex items-center gap-2 transition-colors whitespace-nowrap"
                             >
                                 <Plus size={16} /> Add Product
                             </button>
@@ -576,31 +700,31 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
 
                         {/* Section 1: Basic Details */}
                         <fieldset className="border-t pt-6">
-                            <legend className="text-lg font-semibold text-gray-700 mb-4">Basic Details</legend>
+                            <legend className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-4">Basic Details</legend>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {/* Product Category Dropdown */}
                                 <FormField label="Product Category" icon={<Shirt className="h-5 w-5 text-gray-400" />} required>
-                                    <select name="category" value={activeItem.category} onChange={handleFormChange} className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white appearance-none">
+                                    <select name="category" value={activeItem.category} onChange={handleFormChange} className="w-full pl-10 p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white appearance-none">
                                         <option>T-shirt</option> <option>Polo Shirt</option> <option>Hoodies</option> <option>Jeans</option> <option>Jackets</option> <option>Shirts</option> <option>Casual Shirts</option> <option>Trousers</option>
                                     </select>
                                 </FormField>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Quantity Type <span className="text-red-500">*</span></label>
-                                    <div className="flex p-1 bg-gray-100 rounded-lg mb-2">
-                                        <button type="button" onClick={() => setQuantityType('units')} className={`flex-1 py-1 text-xs font-medium rounded-md transition-all ${activeItem.quantityType === 'units' ? 'bg-white shadow-sm' : 'text-gray-500'}`}>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Quantity Type <span className="text-red-500">*</span></label>
+                                    <div className="flex p-1 bg-gray-100 dark:bg-gray-700 rounded-lg mb-2">
+                                        <button type="button" onClick={() => setQuantityType('units')} className={`flex-1 py-1 text-xs font-medium rounded-md transition-all ${activeItem.quantityType === 'units' ? 'bg-white dark:bg-gray-600 shadow-sm text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}>
                                             By Units
                                         </button>
-                                        <button type="button" onClick={() => setQuantityType('container')} className={`flex-1 py-1 text-xs font-medium rounded-md transition-all ${activeItem.quantityType === 'container' ? 'bg-white shadow-sm' : 'text-gray-500'}`}>
+                                        <button type="button" onClick={() => setQuantityType('container')} className={`flex-1 py-1 text-xs font-medium rounded-md transition-all ${activeItem.quantityType === 'container' ? 'bg-white dark:bg-gray-600 shadow-sm text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}>
                                             By Container
                                         </button>
                                     </div>
                                     {activeItem.quantityType === 'units' ? (
                                         <FormField label="Order Quantity (Units)" icon={<Package className="h-5 w-5 text-gray-400" />} required>
-                                            <input type="number" min="0" name="qty" value={activeItem.qty} onChange={handleFormChange} placeholder="e.g., 5000" className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" />
+                                            <input type="number" min="0" name="qty" value={activeItem.qty} onChange={handleFormChange} placeholder="e.g., 5000" className="w-full pl-10 p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
                                         </FormField>
                                     ) : (
                                         <FormField label="Container Load" icon={<Package className="h-5 w-5 text-gray-400" />} required>
-                                            <select name="qty" value={activeItem.qty} onChange={handleFormChange} className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white appearance-none">
+                                            <select name="qty" value={activeItem.qty} onChange={handleFormChange} className="w-full pl-10 p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white appearance-none">
                                                 <option value="">Select Container Type</option>
                                                 {containerOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                                             </select>
@@ -609,59 +733,59 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                 </div>
                                 {/* Fabric Weight Input */}
                                 <FormField label="Fabric Weight (GSM)" icon={<Weight className="h-5 w-5 text-gray-400" />} required>
-                                    <input type="number" min="0" name="weightGSM" value={activeItem.weightGSM} onChange={handleFormChange} placeholder="e.g., 180" className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" />
+                                    <input type="number" min="0" name="weightGSM" value={activeItem.weightGSM} onChange={handleFormChange} placeholder="e.g., 180" className="w-full pl-10 p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
                                 </FormField>
                                 {/* Fabric Quality Input */}
                                 <FormField label="Fabric Quality/Composition" icon={<Award className="h-5 w-5 text-gray-400" />} required>
-                                    <input type="text" name="fabricQuality" value={activeItem.fabricQuality} onChange={handleFormChange} placeholder="e.g., 100% Organic Cotton" className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" />
+                                    <input type="text" name="fabricQuality" value={activeItem.fabricQuality} onChange={handleFormChange} placeholder="e.g., 100% Organic Cotton" className="w-full pl-10 p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
                                 </FormField>
                             </div>
                         </fieldset>
 
                         {/* Section 2: Specifications */}
                         <fieldset className="border-t pt-6">
-                            <legend className="text-lg font-semibold text-gray-700 mb-4">Specifications</legend>
+                            <legend className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-4">Specifications</legend>
                             <div className="space-y-6">
                                 {/* 1. Size Range */}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Size Range <span className="text-red-500">*</span></label>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Size Range <span className="text-red-500">*</span></label>
                                     <div className="flex flex-wrap gap-3">
                                         {sizeOptions.map(size => (
-                                            <label key={size} className="inline-flex items-center bg-gray-50 px-3 py-2 rounded-md border border-gray-200 cursor-pointer hover:bg-gray-100">
+                                            <label key={size} className="inline-flex items-center bg-gray-50 dark:bg-gray-800 px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
                                                 <input 
                                                     type="checkbox" 
                                                     checked={activeItem.sizeRange.includes(size)} 
                                                     onChange={() => handleSizeCheckbox(size)}
                                                     className="rounded text-[#c20c0b] focus:ring-[#c20c0b] mr-2" 
                                                 />
-                                                <span className="text-sm text-gray-700">{size}</span>
+                                                <span className="text-sm text-gray-700 dark:text-gray-300">{size}</span>
                                             </label>
                                         ))}
-                                        <label className="inline-flex items-center bg-gray-50 px-3 py-2 rounded-md border border-gray-200 cursor-pointer hover:bg-gray-100">
+                                        <label className="inline-flex items-center bg-gray-50 dark:bg-gray-800 px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
                                             <input 
                                                 type="checkbox" 
                                                 checked={activeItem.sizeRange.includes('Custom')} 
                                                 onChange={() => handleSizeCheckbox('Custom')}
                                                 className="rounded text-[#c20c0b] focus:ring-[#c20c0b] mr-2" 
                                             />
-                                            <span className="text-sm text-gray-700">Custom</span>
+                                            <span className="text-sm text-gray-700 dark:text-gray-300">Custom</span>
                                         </label>
                                     </div>
                                     {activeItem.sizeRange.includes('Custom') && (
                                         <div className="mt-3">
-                                            <input type="text" name="customSize" value={activeItem.customSize} onChange={handleFormChange} placeholder="Enter custom sizes (e.g., 4XL, 5XL)" className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] text-sm" />
+                                            <input type="text" name="customSize" value={activeItem.customSize} onChange={handleFormChange} placeholder="Enter custom sizes (e.g., 4XL, 5XL)" className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm" />
                                         </div>
                                     )}
                                 </div>
 
                                 {/* 2. Size Ratio */}
                                 {activeItem.sizeRange.length > 0 && (
-                                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                                        <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center"><Ruler className="w-4 h-4 mr-1"/> Size Ratio / Breakdown</label>
+                                    <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center"><Ruler className="w-4 h-4 mr-1"/> Size Ratio / Breakdown</label>
                                         <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-4">
                                             {activeItem.sizeRange.map(size => (
                                                 <div key={size}>
-                                                    <label className="block text-xs text-gray-500 mb-1">{size}</label>
+                                                    <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{size}</label>
                                                     <input 
                                                         type="number" 
                                                         min="0"
@@ -679,7 +803,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                                             })
                                                         }}
                                                         placeholder="Qty" 
-                                                        className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] text-sm" 
+                                                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" 
                                                     />
                                                 </div>
                                             ))}
@@ -690,7 +814,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                 {/* 3. Sleeve Options (Upper Body Only) */}
                                 {isUpperBody && (
                                     <FormField label="Sleeve Options" icon={<Shirt className="h-5 w-5 text-gray-400" />}>
-                                        <select name="sleeveOption" value={activeItem.sleeveOption} onChange={handleFormChange} className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white">
+                                        <select name="sleeveOption" value={activeItem.sleeveOption} onChange={handleFormChange} className="w-full pl-10 p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white">
                                             <option value="">Select Sleeve Type</option>
                                             <option>Short Sleeve</option>
                                             <option>Long Sleeve</option>
@@ -703,68 +827,67 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
 
                                 {/* 4. Packaging Option */}
                                 <FormField label="Packaging Option" icon={<Box className="h-5 w-5 text-gray-400" />} required>
-                                    <input type="text" name="packagingReqs" value={activeItem.packagingReqs} onChange={handleFormChange} placeholder="e.g., Poly bag with warning text" className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" />
+                                    <input type="text" name="packagingReqs" value={activeItem.packagingReqs} onChange={handleFormChange} placeholder="e.g., Poly bag with warning text" className="w-full pl-10 p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
                                 </FormField>
 
                                 {/* 5. Trims & Accessories */}
                                 <FormField label="Trims & Accessories" icon={<Scissors className="h-5 w-5 text-gray-400" />}>
-                                    <input type="text" name="trimsAndAccessories" value={activeItem.trimsAndAccessories} onChange={handleFormChange} placeholder="e.g., YKK Zippers, Metal Buttons" className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" />
+                                    <input type="text" name="trimsAndAccessories" value={activeItem.trimsAndAccessories} onChange={handleFormChange} placeholder="e.g., YKK Zippers, Metal Buttons" className="w-full pl-10 p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
                                 </FormField>
 
                                 {/* 6. Sample Photo Upload */}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Sample Photo Upload</label>
-                                    <div className="flex items-center gap-2">
-                                        <label className="cursor-pointer bg-white border border-gray-300 rounded-md px-4 py-2 flex items-center gap-2 hover:bg-gray-50 transition">
-                                            <ImageIcon className="h-5 w-5 text-gray-500" />
-                                            <span className="text-sm text-gray-600">Choose Photos</span>
-                                            <input type="file" accept="image/*" multiple onChange={handleSampleFileChange} className="hidden" />
-                                        </label>
-                                        <span className="text-xs text-gray-500">{sampleFiles.length} file(s) selected</span>
-                                    </div>
+                                    <FileDropZone
+                                        label="Sample Photo Upload"
+                                        accept="image/*"
+                                        multiple
+                                        onFilesSelected={onSampleFilesSelected}
+                                        icon={<ImageIcon className="h-8 w-8" />}
+                                        selectedFiles={sampleFiles}
+                                        previews={samplePreviews}
+                                    />
                                 </div>
 
                                 {/* 7. Document Upload */}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Document Upload (Tech Pack, Size Chart)</label>
-                                    <div className="flex items-center gap-2">
-                                        <label className="cursor-pointer bg-white border border-gray-300 rounded-md px-4 py-2 flex items-center gap-2 hover:bg-gray-50 transition">
-                                            <FileText className="h-5 w-5 text-gray-500" />
-                                            <span className="text-sm text-gray-600">Choose Documents</span>
-                                            <input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx" multiple onChange={handleDocFileChange} className="hidden" />
-                                        </label>
-                                        <span className="text-xs text-gray-500">{docFiles.length} file(s) selected</span>
-                                    </div>
+                                    <FileDropZone
+                                        label="Document Upload (Tech Pack, Size Chart)"
+                                        accept=".pdf,.doc,.docx,.xls,.xlsx"
+                                        multiple
+                                        onFilesSelected={onDocFilesSelected}
+                                        icon={<FileText className="h-8 w-8" />}
+                                        selectedFiles={docFiles}
+                                    />
                                 </div>
 
                                 {/* 8. Special Instructions */}
                                 <div className="md:col-span-2">
                                     <FormField label="Special Instructions" icon={<AlertCircle className="h-5 w-5 text-gray-400" />}>
-                                        <textarea name="specialInstructions" value={activeItem.specialInstructions} onChange={handleFormChange} rows={3} placeholder="Any other specific requirements..." className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]"></textarea>
+                                        <textarea name="specialInstructions" value={activeItem.specialInstructions} onChange={handleFormChange} rows={3} placeholder="Any other specific requirements..." className="w-full pl-10 p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white"></textarea>
                                     </FormField>
                                 </div>
 
                                 {/* 9. Target Price */}
                                 <FormField label="Target Price per Unit (USD)" icon={<DollarSign className="h-5 w-5 text-gray-400" />}>
-                                    <input type="number" min="0" step="0.01" name="targetPrice" value={activeItem.targetPrice} onChange={handleFormChange} placeholder="e.g., 4.50" className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" />
+                                    <input type="number" min="0" step="0.01" name="targetPrice" value={activeItem.targetPrice} onChange={handleFormChange} placeholder="e.g., 4.50" className="w-full pl-10 p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
                                 </FormField>
                             </div>
                         </fieldset>
 
                         {/* Section 3: Logistics & Commercials */}
                         <fieldset className="border-t pt-6">
-                            <legend className="text-lg font-semibold text-gray-700 mb-4">Logistics & Commercials</legend>
+                            <legend className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-4">Logistics & Commercials</legend>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {/* Destination Country */}
                                 <FormField label="Destination Country" icon={<Globe className="h-5 w-5 text-gray-400" />} required>
-                                    <input type="text" name="shippingCountry" value={formState.shippingCountry} onChange={handleFormChange} list="countries" placeholder="Select Country" className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" />
+                                    <input type="text" name="shippingCountry" value={formState.shippingCountry} onChange={handleFormChange} list="countries" placeholder="Select Country" className="w-full pl-10 p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
                                     <datalist id="countries">
                                         {COUNTRIES.map(c => <option key={c} value={c} />)}
                                     </datalist>
                                 </FormField>
                                 {/* Destination Port */}
                                 <FormField label="Destination Port" icon={<Anchor className="h-5 w-5 text-gray-400" />} required>
-                                    <input type="text" name="shippingPort" value={formState.shippingPort} onChange={handleFormChange} list="ports" placeholder="Select Port" className="w-full pl-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" />
+                                    <input type="text" name="shippingPort" value={formState.shippingPort} onChange={handleFormChange} list="ports" placeholder="Select Port" className="w-full pl-10 p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
                                     <datalist id="ports">
                                         {availablePorts.map(p => <option key={p} value={p} />)}
                                     </datalist>
@@ -774,7 +897,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                         
                         {/* Submit Button */}
                         <div className="pt-6 border-t flex flex-col md:flex-row justify-end gap-4"> 
-                            <button type="button" onClick={handleResetForm} className="w-full md:w-auto px-6 py-3 text-gray-700 font-semibold bg-gray-100 rounded-lg hover:bg-gray-200 transition">
+                            <button type="button" onClick={handleResetForm} className="w-full md:w-auto px-6 py-3 text-gray-700 dark:text-gray-300 font-semibold bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition">
                                 Reset Form
                             </button>
                             <button type="submit" className="w-full md:w-auto px-8 py-3 text-white rounded-lg font-semibold bg-[#c20c0b] hover:bg-[#a50a09] transition shadow-md"> 
@@ -787,34 +910,34 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                 {/* Summary Modal */}
                 {isSummaryModalOpen && (
                     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 animate-fade-in">
-                        <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto flex flex-col">
-                            <div className="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
-                                <h2 className="text-2xl font-bold text-gray-800">Review Your Order</h2>
+                        <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto flex flex-col border border-gray-200 dark:border-gray-700">
+                            <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center sticky top-0 bg-white dark:bg-gray-900 z-10">
+                                <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Review Your Order</h2>
                                 <button onClick={() => setIsSummaryModalOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors"><X size={24} /></button>
                             </div>
                             
                             <div className="p-6 space-y-8 flex-grow overflow-y-auto">
                                 {/* Logistics Section */}
-                                <div className="bg-gray-50 p-5 rounded-xl border border-gray-200">
-                                    <h3 className="text-lg font-bold text-gray-800 mb-3 flex items-center"><Globe size={20} className="mr-2 text-[#c20c0b]"/> Destination</h3>
+                                <div className="bg-gray-50 dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700">
+                                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-3 flex items-center"><Globe size={20} className="mr-2 text-[#c20c0b]"/> Destination</h3>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div>
-                                            <p className="text-xs text-gray-500 uppercase font-semibold">Country</p>
-                                            <p className="text-gray-900 font-medium">{formState.shippingCountry}</p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase font-semibold">Country</p>
+                                            <p className="text-gray-900 dark:text-white font-medium">{formState.shippingCountry}</p>
                                         </div>
                                         <div>
-                                            <p className="text-xs text-gray-500 uppercase font-semibold">Port</p>
-                                            <p className="text-gray-900 font-medium">{formState.shippingPort}</p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase font-semibold">Port</p>
+                                            <p className="text-gray-900 dark:text-white font-medium">{formState.shippingPort}</p>
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* Products Section */}
                                 <div>
-                                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><Package size={20} className="mr-2 text-[#c20c0b]"/> Products ({formState.lineItems.length})</h3>
+                                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center"><Package size={20} className="mr-2 text-[#c20c0b]"/> Products ({formState.lineItems.length})</h3>
                                     <div className="space-y-4">
                                         {formState.lineItems.map((item, idx) => (
-                                            <div key={item.id} className="border border-gray-200 rounded-xl p-5 hover:shadow-sm transition-shadow">
+                                            <div key={item.id} className="border border-gray-200 dark:border-gray-700 rounded-xl p-5 hover:shadow-sm transition-shadow">
                                                 <div className="flex justify-between items-start mb-3">
                                                     <h4 className="font-bold text-[#c20c0b] text-lg">Product {idx + 1}: {item.category}</h4>
                                                     <span className="bg-red-100 text-[#a50a09] text-xs font-bold px-2 py-1 rounded-full">
@@ -822,13 +945,13 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                                     </span>
                                                 </div>
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-y-3 gap-x-6 text-sm">
-                                                    <div><span className="text-gray-500">Fabric:</span> <span className="font-medium text-gray-900">{item.fabricQuality}</span></div>
-                                                    <div><span className="text-gray-500">Weight:</span> <span className="font-medium text-gray-900">{item.weightGSM} GSM</span></div>
-                                                    <div><span className="text-gray-500">Target Price:</span> <span className="font-medium text-gray-900">${item.targetPrice}</span></div>
-                                                    <div><span className="text-gray-500">Sizes:</span> <span className="font-medium text-gray-900">{item.sizeRange.join(', ')}</span></div>
-                                                    {item.sleeveOption && <div><span className="text-gray-500">Sleeve:</span> <span className="font-medium text-gray-900">{item.sleeveOption}</span></div>}
-                                                    <div className="md:col-span-2"><span className="text-gray-500">Packaging:</span> <span className="font-medium text-gray-900">{item.packagingReqs}</span></div>
-                                                    {item.specialInstructions && <div className="md:col-span-2"><span className="text-gray-500">Instructions:</span> <span className="font-medium text-gray-900">{item.specialInstructions}</span></div>}
+                                                    <div><span className="text-gray-500 dark:text-gray-400">Fabric:</span> <span className="font-medium text-gray-900 dark:text-white">{item.fabricQuality}</span></div>
+                                                    <div><span className="text-gray-500 dark:text-gray-400">Weight:</span> <span className="font-medium text-gray-900 dark:text-white">{item.weightGSM} GSM</span></div>
+                                                    <div><span className="text-gray-500 dark:text-gray-400">Target Price:</span> <span className="font-medium text-gray-900 dark:text-white">${item.targetPrice}</span></div>
+                                                    <div><span className="text-gray-500 dark:text-gray-400">Sizes:</span> <span className="font-medium text-gray-900 dark:text-white">{item.sizeRange.join(', ')}</span></div>
+                                                    {item.sleeveOption && <div><span className="text-gray-500 dark:text-gray-400">Sleeve:</span> <span className="font-medium text-gray-900 dark:text-white">{item.sleeveOption}</span></div>}
+                                                    <div className="md:col-span-2"><span className="text-gray-500 dark:text-gray-400">Packaging:</span> <span className="font-medium text-gray-900 dark:text-white">{item.packagingReqs}</span></div>
+                                                    {item.specialInstructions && <div className="md:col-span-2"><span className="text-gray-500 dark:text-gray-400">Instructions:</span> <span className="font-medium text-gray-900 dark:text-white">{item.specialInstructions}</span></div>}
                                                 </div>
                                             </div>
                                         ))}
@@ -837,11 +960,11 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
 
                                 {/* Files Section */}
                                 {(sampleFiles.length > 0 || docFiles.length > 0) && (
-                                    <div className="bg-blue-50 p-5 rounded-xl border border-blue-100">
-                                        <h3 className="text-lg font-bold text-gray-800 mb-3 flex items-center"><FileText size={20} className="mr-2 text-blue-600"/> Attachments</h3>
+                                    <div className="bg-blue-50 dark:bg-blue-900/20 p-5 rounded-xl border border-blue-100 dark:border-blue-800">
+                                        <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-3 flex items-center"><FileText size={20} className="mr-2 text-blue-600 dark:text-blue-400"/> Attachments</h3>
                                         <ul className="space-y-2">
                                             {[...sampleFiles, ...docFiles].map((f, i) => (
-                                                <li key={i} className="flex items-center text-sm text-gray-700 bg-white p-2 rounded border border-blue-100">
+                                                <li key={i} className="flex items-center text-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 p-2 rounded border border-blue-100 dark:border-blue-700">
                                                     <span className="bg-blue-100 text-blue-600 p-1 rounded mr-2 text-xs font-bold">{i < sampleFiles.length ? 'IMG' : 'DOC'}</span>
                                                     {f.name}
                                                 </li>
@@ -851,8 +974,8 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                 )}
                             </div>
 
-                            <div className="p-6 border-t border-gray-100 flex justify-end gap-4 bg-gray-50 rounded-b-xl">
-                                <button onClick={() => setIsSummaryModalOpen(false)} className="px-6 py-3 bg-white border border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-colors">
+                            <div className="p-6 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-4 bg-gray-50 dark:bg-gray-800 rounded-b-xl">
+                                <button onClick={() => setIsSummaryModalOpen(false)} className="px-6 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-white font-semibold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                                     Edit Order
                                 </button>
                                 <button onClick={handleConfirmSubmit} className="px-8 py-3 bg-[#c20c0b] text-white font-bold rounded-xl hover:bg-[#a50a09] shadow-md transition-transform transform hover:scale-105">

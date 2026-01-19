@@ -10,7 +10,7 @@ import {
     GanttChartSquare, LayoutDashboard, MoreHorizontal, Info, Settings, LifeBuoy,
     History, Edit, Anchor, Ship, Warehouse, PackageCheck, Award, Users, Activity, Shield,
     PlayCircle, BarChart as BarChartIcon, FileQuestion, ClipboardCheck, Lock,
-    Tag, Weight, Palette, Box, Map as MapIcon, Download, BookOpen, Building, Trash2, Upload, Globe
+    Tag, Weight, Palette, Box, Map as MapIcon, Download, BookOpen, Building, Trash2, Upload, Globe, Moon
 } from 'lucide-react';
 // Import charting components from recharts for data visualization
 import {
@@ -105,6 +105,21 @@ const App: FC = () => {
     const [pageKey, setPageKey] = useState<number>(0);
     // State to check if the current user is an admin
     const [isAdmin, setIsAdmin] = useState<boolean>(false);
+    // State to track global loading requests (counter handles concurrent fetches)
+    const [loadingCount, setLoadingCount] = useState<number>(0);
+    const quotesAbortController = useRef<AbortController | null>(null);
+
+    // State for dark mode
+    const [darkMode, setDarkMode] = useState<boolean>(() => {
+        const saved = localStorage.getItem('garment_erp_dark_mode');
+        return saved ? saved === 'true' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+    });
+
+    useEffect(() => {
+        if (darkMode) document.documentElement.classList.add('dark');
+        else document.documentElement.classList.remove('dark');
+        localStorage.setItem('garment_erp_dark_mode', String(darkMode));
+    }, [darkMode]);
 
     // --- App Logic & Data States ---
     
@@ -140,11 +155,15 @@ const App: FC = () => {
     // State to filter factories by garment category
     const [selectedGarmentCategory, setSelectedGarmentCategory] = useState<string>('All');
     // State to store the list of quote requests made by the user
-    const [quoteRequests, setQuoteRequests] = useState<QuoteRequest[]>([]);
+    const QUOTES_CACHE_KEY = 'garment_erp_my_quotes';
+    const [quoteRequests, setQuoteRequests] = useState<QuoteRequest[]>(() => {
+        const cached = sessionStorage.getItem(QUOTES_CACHE_KEY);
+        return cached ? JSON.parse(cached) : [];
+    });
     // State to store the currently selected quote for viewing details
     const [selectedQuote, setSelectedQuote] = useState<QuoteRequest | null>(null);
     // State to manage loading of quotes
-    const [isQuotesLoading, setIsQuotesLoading] = useState<boolean>(false);
+    const [isQuotesLoading, setIsQuotesLoading] = useState<boolean>(() => !sessionStorage.getItem(QUOTES_CACHE_KEY));
 
     // Calculate notification count (quotes with updates)
     const notificationCount = useMemo(() => {
@@ -203,6 +222,11 @@ const App: FC = () => {
         setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3000);
     }, []);
     
+    // Function to set global loading state
+    const setGlobalLoading = useCallback((isLoading: boolean) => {
+        setLoadingCount(prev => isLoading ? prev + 1 : Math.max(0, prev - 1));
+    }, []);
+
     // Function to handle navigation between pages
     const handleSetCurrentPage = (page: string, data: any = null) => {
         // Increment pageKey to force re-render of components if needed
@@ -248,6 +272,11 @@ const App: FC = () => {
                 // Update user state
                 setUser(session?.user ?? null);
                 
+                // Sync dark mode preference from user metadata if available
+                if (session?.user?.user_metadata?.darkMode !== undefined) {
+                    setDarkMode(session.user.user_metadata.darkMode);
+                }
+
                 // Check if the user is an admin based on email domain
                 const isUserAdmin = session?.user?.email?.toLowerCase().endsWith('@auctaveexports.com') ?? false;
                 setIsAdmin(isUserAdmin);
@@ -288,17 +317,14 @@ const App: FC = () => {
                         if (redirectRoute) {
                             setCurrentPage(redirectRoute);
                         } else {
-                            // If it's INITIAL_SESSION (refresh), try to keep current page if valid
-                            if (event === 'INITIAL_SESSION') {
+                            // If it's INITIAL_SESSION or SIGNED_IN (refresh), try to keep current page if valid
+                            if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
                                 const lastPage = localStorage.getItem('garment_erp_last_page');
                                 if (lastPage && lastPage !== 'login') {
                                     setCurrentPage(lastPage);
                                 } else {
                                     setCurrentPage(isUserAdmin ? 'adminDashboard' : 'sourcing');
                                 }
-                            } else {
-                                // SIGNED_IN event (fresh login) -> go to default dashboard
-                                setCurrentPage(isUserAdmin ? 'adminDashboard' : 'sourcing');
                             }
                         }
                     } else if (event === 'SIGNED_OUT') {
@@ -348,11 +374,26 @@ const App: FC = () => {
     // Effect to load mock quotes when user is logged in
     const fetchUserQuotes = useCallback(async () => {
         if (user && !isAdmin) {
-            setIsQuotesLoading(true);
+            if (quotesAbortController.current) quotesAbortController.current.abort();
+            quotesAbortController.current = new AbortController();
+            const signal = quotesAbortController.current.signal;
+
+            const hasCache = !!sessionStorage.getItem(QUOTES_CACHE_KEY);
+            if (!hasCache) {
+                setGlobalLoading(true);
+                setIsQuotesLoading(true);
+            }
+            
+            let attempts = 0;
+            while (attempts < 3) {
             try {
-                const { data, error } = await quoteService.getQuotesByUser(user.id);
-                if (error) throw error;
-                if (data) {
+                if (signal.aborted) return;
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 15000));
+                const { data, error } = await Promise.race([quoteService.getQuotesByUser(user.id), timeoutPromise]) as any;
+                
+                if (error) throw error; 
+                
+                if (data && !signal.aborted) {
                     const transformedQuotes: QuoteRequest[] = data.map((q: any) => ({
                         id: q.id,
                         factory: q.factory_data,
@@ -366,20 +407,32 @@ const App: FC = () => {
                         negotiation_details: q.negotiation_details
                     }));
                     setQuoteRequests(transformedQuotes);
+                    sessionStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify(transformedQuotes));
                 }
+                break; // Success
             } catch (error: any) {
-                console.error("Error fetching quotes:", error);
-                showToast("Failed to load quotes: " + error.message, "error");
-            } finally {
-                setIsQuotesLoading(false);
+                if (error.name === 'AbortError' || signal.aborted) return;
+                attempts++;
+                if (attempts >= 3) {
+                    console.error("Error fetching quotes:", error);
+                    showToast("Failed to load quotes: " + error.message, "error");
+                }
+                await new Promise(r => setTimeout(r, 1000 * attempts));
             }
+            }
+            
+            if (!signal.aborted) setIsQuotesLoading(false);
+            if (!signal.aborted) setGlobalLoading(false);
         }
-    }, [user, isAdmin, showToast]);
+    }, [user, isAdmin, showToast, setGlobalLoading]);
 
     useEffect(() => {
         if (user && !isAdmin && (currentPage === 'myQuotes' || quoteRequests.length === 0)) {
             fetchUserQuotes();
         }
+        return () => {
+            if (quotesAbortController.current) quotesAbortController.current.abort();
+        };
     }, [user, isAdmin, currentPage, fetchUserQuotes, quoteRequests.length]);
 
     // Effect to listen for real-time updates on quotes for the current user
@@ -412,6 +465,7 @@ const App: FC = () => {
 
                 // Update the quotes list with the new data
                 setQuoteRequests(prevQuotes => prevQuotes.map(q => q.id === transformedQuote.id ? transformedQuote : q));
+                // Note: We don't strictly need to update sessionStorage here as the next fetch will do it, but we could.
                 // If the user is viewing the detail page of the updated quote, refresh it too
                 setSelectedQuote(prevSelected => (prevSelected && prevSelected.id === transformedQuote.id) ? transformedQuote : prevSelected);
 
@@ -428,18 +482,76 @@ const App: FC = () => {
     // --- Authentication & Profile Functions (Mocked) ---
     
     // Function to handle user sign out
-    const handleSignOut = async () => {
+    const handleSignOut = useCallback(async (skipConfirmation = false) => {
+        if (!skipConfirmation && !window.confirm("Are you sure you want to log out?")) return;
         try {
+            // Sign out from Supabase to terminate the session
             await supabase.auth.signOut();
+
+            // Clear all user-related state
+            setUser(null);
+            setUserProfile(null);
+            setIsAdmin(false);
+
+            // Clear session-related localStorage items (preserve user preferences like dark mode)
+            localStorage.removeItem('garment_erp_last_page');
+            localStorage.removeItem('garment_erp_last_activity');
+
+            // Navigate to login page
+            setCurrentPage('login');
+
+            // Show success notification
+            showToast('You have been logged out successfully.', 'success');
         } catch (error) {
             console.error("Sign out error:", error);
+            showToast('Failed to log out. Please try again.', 'error');
         }
-        setUser(null);
-        setUserProfile(null);
-        setIsAdmin(false);
-        localStorage.removeItem('garment_erp_last_page');
-        setCurrentPage('login');
-    };
+    }, [showToast]);
+
+    // Session Timeout Logic
+    useEffect(() => {
+        if (!user) return;
+
+        const TIMEOUT_DURATION = 30 * 60 * 1000; // 30 minutes
+        const LAST_ACTIVITY_KEY = 'garment_erp_last_activity';
+
+        const handleInactivity = () => {
+            showToast('Session timed out due to inactivity.', 'error');
+            handleSignOut(true);
+            localStorage.removeItem(LAST_ACTIVITY_KEY);
+        };
+
+        const checkActivity = () => {
+            const lastActivity = parseInt(localStorage.getItem(LAST_ACTIVITY_KEY) || Date.now().toString(), 10);
+            if (Date.now() - lastActivity > TIMEOUT_DURATION) {
+                handleInactivity();
+            }
+        };
+
+        const updateActivity = () => {
+            const now = Date.now();
+            const lastSaved = parseInt(localStorage.getItem(LAST_ACTIVITY_KEY) || '0', 10);
+            // Throttle updates to max once per 5 seconds to reduce storage writes
+            if (now - lastSaved > 5000) {
+                localStorage.setItem(LAST_ACTIVITY_KEY, now.toString());
+            }
+        };
+
+        // Initialize if missing
+        if (!localStorage.getItem(LAST_ACTIVITY_KEY)) {
+            localStorage.setItem(LAST_ACTIVITY_KEY, Date.now().toString());
+        }
+
+        const intervalId = setInterval(checkActivity, 10000); // Check every 10 seconds
+
+        const events = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'];
+        events.forEach(event => window.addEventListener(event, updateActivity));
+
+        return () => {
+            clearInterval(intervalId);
+            events.forEach(event => window.removeEventListener(event, updateActivity));
+        };
+    }, [user, handleSignOut, showToast]);
 
     // Function to save or update user profile in Supabase
     const saveUserProfile = async (profileData: Partial<UserProfile>) => {
@@ -628,7 +740,10 @@ const App: FC = () => {
         handleSetCurrentPage,
         handleSignOut,
         isAdmin,
-        supabase
+        supabase,
+        darkMode,
+        globalLoading: loadingCount > 0,
+        setGlobalLoading
     };
 
     // --- Sub-Components ---
@@ -665,13 +780,13 @@ const App: FC = () => {
         };
 
         return (
-            <div className="min-h-screen bg-gray-25 flex items-center justify-center p-4">
-                <div className="bg-white rounded-xl shadow-2xl border border-gray-200 p-8 w-full max-w-md">
+            <div className="min-h-screen bg-gray-25 dark:bg-black flex items-center justify-center p-4">
+                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-2xl border border-gray-200 dark:border-white/10 p-8 w-full max-w-md">
                     <div className="flex items-center gap-3 mb-6">
                         <div className="p-2 bg-red-100 rounded-lg">
                             <Lock className="w-6 h-6 text-[#c20c0b]" />
                         </div>
-                        <h2 className="text-2xl font-bold text-gray-800">Create New Password</h2>
+                        <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Create New Password</h2>
                     </div>
                     <p className="text-gray-600 mb-6">
                         Since this is your first time signing in (or you used a one-time code), please set a secure password for future logins.
@@ -719,7 +834,7 @@ const App: FC = () => {
             }
             await saveUserProfile(profileData);
         };
-        return ( <MainLayout {...layoutProps} hideSidebar={!userProfile}> <div className="max-w-2xl mx-auto"> <div className="bg-white p-6 sm:p-8 rounded-xl shadow-lg border border-gray-200"> <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">{userProfile ? 'Update Your Profile' : 'Complete Your Profile'}</h2> <p className="text-center text-gray-500 mb-6">Fields marked with * are required to access the platform.</p> {authError && <p className="text-red-500 mb-4">{authError}</p>} <form onSubmit={handleSaveProfile} className="grid grid-cols-1 md:grid-cols-2 gap-6"> <div> <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Name <span className="text-red-500">*</span></label> <input type="text" id="name" name="name" value={profileData.name} onChange={handleProfileChange} required className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" /> </div> <div> <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-1">Company Name <span className="text-red-500">*</span></label> <input type="text" id="companyName" name="companyName" value={profileData.companyName} onChange={handleProfileChange} required className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" /> </div> <div className="md:col-span-2"> <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email <span className="text-red-500">*</span></label> <input type="email" id="email" name="email" value={profileData.email} onChange={handleProfileChange} required className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" /> </div> <div> <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">Phone <span className="text-red-500">*</span></label> <input type="tel" id="phone" name="phone" value={profileData.phone} onChange={handleProfileChange} required className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" /> </div> <div> <label htmlFor="country" className="block text-sm font-medium text-gray-700 mb-1">Country</label> <select id="country" name="country" value={profileData.country} onChange={handleProfileChange} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white"> <option value="">Select a country</option> {countries.map(country => (<option key={country} value={country}>{country}</option>))} </select> </div> <div> <label htmlFor="jobRole" className="block text-sm font-medium text-gray-700 mb-1">Job Role</label> <select id="jobRole" name="jobRole" value={profileData.jobRole} onChange={handleProfileChange} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white"> <option value="">Select a role</option> {jobRoles.map(role => (<option key={role} value={role}>{role}</option>))} </select> </div> <div> <label htmlFor="categorySpecialization" className="block text-sm font-medium text-gray-700 mb-1">Category Specialization</label> <input type="text" id="categorySpecialization" name="categorySpecialization" placeholder="e.g., Activewear, Denim" value={profileData.categorySpecialization} onChange={handleProfileChange} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" /> </div> <div> <label htmlFor="yearlyEstRevenue" className="block text-sm font-medium text-gray-700 mb-1">Est. Yearly Revenue (USD)</label> <select id="yearlyEstRevenue" name="yearlyEstRevenue" value={profileData.yearlyEstRevenue} onChange={handleProfileChange} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white"> <option value="">Select a revenue range</option> {revenueRanges.map(range => (<option key={range} value={range}>{range}</option>))} </select> </div> <div className="md:col-span-2 text-right mt-4"> <button type="submit" disabled={isProfileLoading} className="w-full md:w-auto px-6 py-3 text-white rounded-md font-semibold bg-[#c20c0b] hover:bg-[#a50a09] transition shadow-md disabled:opacity-50"> {isProfileLoading ? 'Saving...' : (userProfile ? 'Save Profile' : 'Complete Profile & Continue')} </button> </div> </form> </div> </div> </MainLayout> );
+        return ( <MainLayout {...layoutProps} hideSidebar={!userProfile}> <div className="max-w-2xl mx-auto"> <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 sm:p-8 rounded-xl shadow-lg border border-gray-200 dark:border-white/10"> <h2 className="text-3xl font-bold text-gray-800 dark:text-white mb-6 text-center">{userProfile ? 'Update Your Profile' : 'Complete Your Profile'}</h2> <p className="text-center text-gray-500 dark:text-gray-400 mb-6">Fields marked with * are required to access the platform.</p> {authError && <p className="text-red-500 mb-4">{authError}</p>} <form onSubmit={handleSaveProfile} className="grid grid-cols-1 md:grid-cols-2 gap-6"> <div> <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name <span className="text-red-500">*</span></label> <input type="text" id="name" name="name" value={profileData.name} onChange={handleProfileChange} required className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-700 text-gray-900 dark:text-white" /> </div> <div> <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Company Name <span className="text-red-500">*</span></label> <input type="text" id="companyName" name="companyName" value={profileData.companyName} onChange={handleProfileChange} required className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-700 text-gray-900 dark:text-white" /> </div> <div className="md:col-span-2"> <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email <span className="text-red-500">*</span></label> <input type="email" id="email" name="email" value={profileData.email} onChange={handleProfileChange} required className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-700 text-gray-900 dark:text-white" /> </div> <div> <label htmlFor="phone" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone <span className="text-red-500">*</span></label> <input type="tel" id="phone" name="phone" value={profileData.phone} onChange={handleProfileChange} required className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-700 text-gray-900 dark:text-white" /> </div> <div> <label htmlFor="country" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Country</label> <select id="country" name="country" value={profileData.country} onChange={handleProfileChange} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-700 text-gray-900 dark:text-white"> <option value="">Select a country</option> {countries.map(country => (<option key={country} value={country}>{country}</option>))} </select> </div> <div> <label htmlFor="jobRole" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Job Role</label> <select id="jobRole" name="jobRole" value={profileData.jobRole} onChange={handleProfileChange} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-700 text-gray-900 dark:text-white"> <option value="">Select a role</option> {jobRoles.map(role => (<option key={role} value={role}>{role}</option>))} </select> </div> <div> <label htmlFor="categorySpecialization" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category Specialization</label> <input type="text" id="categorySpecialization" name="categorySpecialization" placeholder="e.g., Activewear, Denim" value={profileData.categorySpecialization} onChange={handleProfileChange} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-700 text-gray-900 dark:text-white" /> </div> <div> <label htmlFor="yearlyEstRevenue" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Est. Yearly Revenue (USD)</label> <select id="yearlyEstRevenue" name="yearlyEstRevenue" value={profileData.yearlyEstRevenue} onChange={handleProfileChange} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-700 text-gray-900 dark:text-white"> <option value="">Select a revenue range</option> {revenueRanges.map(range => (<option key={range} value={range}>{range}</option>))} </select> </div> <div className="md:col-span-2 text-right mt-4"> <button type="submit" disabled={isProfileLoading} className="w-full md:w-auto px-6 py-3 text-white rounded-md font-semibold bg-[#c20c0b] hover:bg-[#a50a09] transition shadow-md disabled:opacity-50"> {isProfileLoading ? 'Saving...' : (userProfile ? 'Save Profile' : 'Complete Profile & Continue')} </button> </div> </form> </div> </div> </MainLayout> );
     };
 
     // Component for user settings
@@ -736,32 +851,58 @@ const App: FC = () => {
         return (
             <MainLayout {...layoutProps}>
                 <div className="max-w-4xl mx-auto">
-                    <h1 className="text-3xl font-bold text-gray-800 mb-8">Settings</h1>
+                    <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-8">Settings</h1>
                     <div className="space-y-6">
+                        {/* Dark Mode Toggle */}
+                        <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10 flex items-center justify-between transition-colors">
+                            <div className="flex items-center gap-4">
+                                <div className="bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 p-3 rounded-lg">
+                                    <Moon size={20} />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Dark Mode</h3>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">Adjust the appearance of the application</p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => {
+                                    const newMode = !darkMode;
+                                    setDarkMode(newMode);
+                                    // Persist to Supabase (fire and forget)
+                                    if (user) {
+                                        supabase.auth.updateUser({ data: { darkMode: newMode } });
+                                    }
+                                }}
+                                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${darkMode ? 'bg-purple-600' : 'bg-gray-200'}`}
+                            >
+                                <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${darkMode ? 'translate-x-6' : 'translate-x-1'}`} />
+                            </button>
+                        </div>
+
                         {settingsOptions.map((opt, index) => (
-                            <div key={index} className="bg-white p-6 rounded-xl shadow-md border border-gray-200 flex items-center justify-between">
+                            <div key={index} className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10 flex items-center justify-between transition-colors">
                                 <div className="flex items-center gap-4">
-                                    <div className="bg-red-100 text-[#c20c0b] p-3 rounded-lg">{opt.icon}</div>
+                                    <div className="bg-red-100 dark:bg-red-900/30 text-[#c20c0b] dark:text-red-400 p-3 rounded-lg">{opt.icon}</div>
                                     <div>
-                                        <h3 className="text-lg font-semibold text-gray-800">{opt.title}</h3>
-                                        <p className="text-sm text-gray-500">{opt.description}</p>
+                                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">{opt.title}</h3>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400">{opt.description}</p>
                                     </div>
                                 </div>
-                                <button onClick={opt.action} className="bg-gray-100 text-gray-700 font-semibold py-2 px-4 rounded-lg hover:bg-gray-200 transition text-sm">
+                                <button onClick={opt.action} className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-semibold py-2 px-4 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition text-sm">
                                     {opt.buttonLabel}
                                 </button>
                             </div>
                         ))}
-                            <div className="bg-white p-6 rounded-xl shadow-md border border-gray-200">
+                            <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10 transition-colors">
                                 <div className="flex items-center gap-4">
-                                    <div className="bg-red-100 text-[#c20c0b] p-3 rounded-lg"><MapPin size={20}/></div>
+                                    <div className="bg-red-100 dark:bg-red-900/30 text-[#c20c0b] dark:text-red-400 p-3 rounded-lg"><MapPin size={20}/></div>
                                     <div>
-                                        <h3 className="text-lg font-semibold text-gray-800">Change Location</h3>
-                                        <p className="text-sm text-gray-500">Update your primary business location.</p>
+                                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Change Location</h3>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400">Update your primary business location.</p>
                                     </div>
                                 </div>
                                 <div className="mt-4 flex gap-4 items-center">
-                                    <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} className="flex-grow p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" />
+                                    <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} className="flex-grow p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
                                     <button onClick={handleLocationSave} className="bg-[#c20c0b] text-white font-semibold py-2 px-4 rounded-lg hover:bg-[#a50a09] transition">Save</button>
                                 </div>
                             </div>
@@ -780,7 +921,7 @@ const App: FC = () => {
                         <ChevronLeft className="h-5 w-5 mr-1" />
                         Back to Order Form
                     </button>
-                    <h2 className="text-3xl font-bold text-gray-800">Top Factory Matches</h2>
+                    <h2 className="text-3xl font-bold text-gray-800 dark:text-white">Top Factory Matches</h2>
                     <p className="text-gray-500 mt-1">Based on your request for {orderFormData.lineItems.length} items.</p>
                 </div>
                 {suggestedFactories.length > 0 ? (
@@ -795,7 +936,7 @@ const App: FC = () => {
                         ))}
                     </div>
                 ) : (
-                    <div className="text-center py-10 bg-white rounded-lg shadow-md border border-gray-200">
+                    <div className="text-center py-10 bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-lg shadow-md border border-gray-200 dark:border-white/10">
                         <h3 className="text-xl font-semibold text-gray-700">No factories match your criteria.</h3>
                         <p className="text-gray-500 mt-2">Try adjusting your product category in the order form.</p>
                     </div>
@@ -859,7 +1000,7 @@ const App: FC = () => {
                             Back to Factories
                         </button>
                     </div>
-                    <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+                    <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-lg overflow-hidden border border-gray-200 dark:border-white/10">
                         {/* Image Gallery */}
                         <div className="relative">
                             <img className="h-64 md:h-96 w-full object-cover transition-opacity duration-300" src={gallery[currentImageIndex]} alt={`${selectedFactory.name} gallery image ${currentImageIndex + 1}`} />
@@ -882,7 +1023,7 @@ const App: FC = () => {
                         </div>
 
                         <div className="p-8">
-                            <h1 className="text-3xl font-bold text-gray-900">{selectedFactory.name}</h1>
+                            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{selectedFactory.name}</h1>
                             <div className="flex flex-wrap gap-2 mt-2 mb-4">
                                 {selectedFactory.tags?.map(tag => (
                                     <span key={tag} className={`text-sm font-semibold px-3 py-1 rounded-full ${ tag === 'Prime' ? 'bg-blue-100 text-blue-800' : tag === 'Tech Enabled' ? 'bg-purple-100 text-purple-800' : tag === 'Sustainable' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800' }`}>
@@ -890,39 +1031,39 @@ const App: FC = () => {
                                     </span>
                                 ))}
                             </div>
-                            <p className="mt-2 text-gray-600">{selectedFactory.description}</p>
+                            <p className="mt-2 text-gray-600 dark:text-gray-300">{selectedFactory.description}</p>
                             <button onClick={() => handleSetCurrentPage('factoryCatalog', selectedFactory)} className="mt-6 w-full md:w-auto px-6 py-3 text-white rounded-lg font-semibold bg-gray-800 hover:bg-black transition shadow-md flex items-center justify-center">
                                 <BookOpen className="mr-2 h-5 w-5" /> View Product Catalog
                             </button>
                         </div>
                         
-                        <div className="px-8 py-6 border-t border-gray-200">
-                            <h3 className="text-xl font-bold text-gray-800 mb-4">Factory Details</h3>
+                        <div className="px-8 py-6 border-t border-gray-200 dark:border-white/10">
+                            <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Factory Details</h3>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-                                <div> <p className="text-sm font-medium text-gray-500">Location</p> <p className="font-semibold text-gray-800 flex items-center justify-center"><MapPin size={14} className="mr-1.5"/>{selectedFactory.location}</p> </div>
-                                <div> <p className="text-sm font-medium text-gray-500">Rating</p> <p className="font-semibold text-gray-800 flex items-center justify-center"><Star size={16} className="text-yellow-400 fill-current mr-1.5"/>{selectedFactory.rating}</p> </div>
-                                <div> <p className="text-sm font-medium text-gray-500">MOQ</p> <p className="font-semibold text-gray-800">{selectedFactory.minimumOrderQuantity} units</p> </div>
-                                <div> <p className="text-sm font-medium text-gray-500">Specialties</p> <p className="font-semibold text-gray-800">{selectedFactory.specialties.join(', ')}</p> </div>
+                                <div> <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Location</p> <p className="font-semibold text-gray-800 dark:text-gray-200 flex items-center justify-center"><MapPin size={14} className="mr-1.5"/>{selectedFactory.location}</p> </div>
+                                <div> <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Rating</p> <p className="font-semibold text-gray-800 dark:text-gray-200 flex items-center justify-center"><Star size={16} className="text-yellow-400 fill-current mr-1.5"/>{selectedFactory.rating}</p> </div>
+                                <div> <p className="text-sm font-medium text-gray-500 dark:text-gray-400">MOQ</p> <p className="font-semibold text-gray-800 dark:text-gray-200">{selectedFactory.minimumOrderQuantity} units</p> </div>
+                                <div> <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Specialties</p> <p className="font-semibold text-gray-800 dark:text-gray-200">{selectedFactory.specialties.join(', ')}</p> </div>
                             </div>
                         </div>
-                        <div className="px-8 py-6 border-t border-gray-200">
-                            <h3 className="text-xl font-bold text-gray-800 mb-4">Certifications & Compliance</h3>
+                        <div className="px-8 py-6 border-t border-gray-200 dark:border-white/10">
+                            <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Certifications & Compliance</h3>
                             <div className="flex flex-wrap gap-3">
                                 {selectedFactory.certifications?.map(cert => <CertificationBadge key={cert} cert={cert} />)}
                             </div>
                         </div>
-                        <div className="px-8 py-6 border-t border-gray-200">
-                            <h3 className="text-xl font-bold text-gray-800 mb-4">Production Capacity</h3>
+                        <div className="px-8 py-6 border-t border-gray-200 dark:border-white/10">
+                            <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Production Capacity</h3>
                             <div className="overflow-x-auto">
-                                <table className="min-w-full divide-y divide-gray-200">
-                                    <thead className="bg-gray-50">
+                                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                    <thead className="bg-gray-50 dark:bg-gray-700/50">
                                         <tr>
-                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Machine Type</th>
-                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Available Capacity</th>
-                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Next Available Date</th>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Machine Type</th>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Available Capacity</th>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Next Available Date</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="bg-white divide-y divide-gray-200">
+                                    <tbody className="bg-white dark:bg-gray-900/40 divide-y divide-gray-200 dark:divide-gray-700">
                                         {selectedFactory.machineSlots.map(slot => (
                                             <MachineSlotRow key={slot.machineType} slot={slot} />
                                         ))}
@@ -930,10 +1071,10 @@ const App: FC = () => {
                                 </table>
                             </div>
                         </div>
-                        <div className="px-8 py-6 bg-gray-50 flex flex-col md:flex-row items-center justify-between gap-4">
+                        <div className="px-8 py-6 bg-gray-50 dark:bg-gray-700/30 flex flex-col md:flex-row items-center justify-between gap-4">
                             <div>
-                                <h4 className="font-semibold text-gray-800">Ready to proceed?</h4>
-                                <p className="text-sm text-gray-600">Request a quote or use our AI tools to prepare your inquiry.</p>
+                                <h4 className="font-semibold text-gray-800 dark:text-white">Ready to proceed?</h4>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">Request a quote or use our AI tools to prepare your inquiry.</p>
                             </div>
                             <div className="flex items-center gap-2">
                                 <button onClick={() => handleSetCurrentPage('factoryTools', selectedFactory)} className="w-full md:w-auto px-6 py-3 text-purple-700 bg-purple-100 rounded-lg font-semibold hover:bg-purple-200 transition">
@@ -967,21 +1108,21 @@ const App: FC = () => {
                             <ChevronLeft className="h-5 w-5 mr-1" />
                             Back to Factory Details
                         </button>
-                        <h1 className="text-3xl font-bold text-gray-800">Product Catalog</h1>
+                        <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Product Catalog</h1>
                         <p className="text-gray-500 mt-1">Available products and materials from <span className="font-semibold">{name}</span>.</p>
                     </div>
 
                     {/* Product Categories Section */}
-                    <div className="bg-white p-6 sm:p-8 rounded-xl shadow-lg border border-gray-200">
-                        <h2 className="text-2xl font-bold text-gray-800 mb-6">Product Categories</h2>
+                    <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 sm:p-8 rounded-xl shadow-lg border border-gray-200 dark:border-white/10">
+                        <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-6">Product Categories</h2>
                         {catalog.productCategories.length > 0 ? (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {catalog.productCategories.map((category, index) => (
-                                    <div key={index} className="bg-gray-50 rounded-lg overflow-hidden border border-gray-200 group">
+                                    <div key={index} className="bg-gray-50 dark:bg-gray-700 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600 group">
                                         <img src={category.imageUrl} alt={category.name} className="h-48 w-full object-cover group-hover:opacity-90 transition-opacity" />
                                         <div className="p-4">
-                                            <h3 className="font-bold text-lg text-gray-900">{category.name}</h3>
-                                            <p className="text-sm text-gray-600 mt-1">{category.description}</p>
+                                            <h3 className="font-bold text-lg text-gray-900 dark:text-white">{category.name}</h3>
+                                            <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">{category.description}</p>
                                         </div>
                                     </div>
                                 ))}
@@ -992,24 +1133,24 @@ const App: FC = () => {
                     </div>
 
                     {/* Fabric Options Section */}
-                    <div className="bg-white p-6 sm:p-8 rounded-xl shadow-lg border border-gray-200">
-                        <h2 className="text-2xl font-bold text-gray-800 mb-6">Fabric Options</h2>
+                    <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 sm:p-8 rounded-xl shadow-lg border border-gray-200 dark:border-white/10">
+                        <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-6">Fabric Options</h2>
                         {catalog.fabricOptions.length > 0 ? (
                             <div className="overflow-x-auto">
-                                <table className="min-w-full divide-y divide-gray-200">
-                                    <thead className="bg-gray-50">
+                                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                    <thead className="bg-gray-50 dark:bg-gray-700/50">
                                         <tr>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fabric Name</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Composition</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Best For</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Fabric Name</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Composition</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Best For</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="bg-white divide-y divide-gray-200">
+                                    <tbody className="bg-white dark:bg-gray-900/40 divide-y divide-gray-200 dark:divide-gray-700">
                                         {catalog.fabricOptions.map((fabric, index) => (
-                                            <tr key={index} className="hover:bg-gray-50">
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{fabric.name}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{fabric.composition}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{fabric.useCases}</td>
+                                            <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{fabric.name}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{fabric.composition}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{fabric.useCases}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -1038,17 +1179,17 @@ const App: FC = () => {
                             <ChevronLeft className="h-5 w-5 mr-1" />
                             Back to Factory Details
                         </button>
-                        <h2 className="text-3xl font-bold text-gray-800">AI Sourcing Tools for {selectedFactory.name}</h2>
+                        <h2 className="text-3xl font-bold text-gray-800 dark:text-white">AI Sourcing Tools for {selectedFactory.name}</h2>
                         <p className="text-gray-500 mt-1">Generate documents and get insights for your order.</p>
                     </div>
-                    <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
-                        <h3 className="text-xl font-bold text-gray-800 mb-4">Your Order Details</h3>
+                    <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-lg border border-gray-200 dark:border-white/10">
+                        <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Your Order Details</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             {orderFormData.lineItems.map((item, idx) => (
-                                <div key={idx} className="md:col-span-2 border-b pb-4 mb-4 last:border-0 last:mb-0 last:pb-0">
-                                    <h4 className="font-semibold text-gray-700 mb-2">Item {idx + 1}: {item.category}</h4>
-                                    <p className="text-sm text-gray-600">Quantity: {item.qty}</p>
-                                    <p className="text-sm text-gray-600">Details: {item.fabricQuality}, {item.weightGSM}GSM, {item.styleOption}</p>
+                                <div key={idx} className="md:col-span-2 border-b dark:border-white/10 pb-4 mb-4 last:border-0 last:mb-0 last:pb-0">
+                                    <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">Item {idx + 1}: {item.category}</h4>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400">Quantity: {item.qty}</p>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400">Details: {item.fabricQuality}, {item.weightGSM}GSM, {item.styleOption}</p>
                                 </div>
                             ))}
                         </div>
@@ -1096,13 +1237,13 @@ const App: FC = () => {
         const activeOrderTracking = trackingData[activeOrderKey];
         return (
             <MainLayout {...layoutProps}>
-                <h1 className="text-3xl font-bold text-gray-800 mb-2">Order Tracking</h1>
+                <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-2">Order Tracking</h1>
                 <p className="text-gray-500 mb-6">Follow your shipment from production to delivery.</p>
-                <div className="bg-white rounded-xl shadow-lg border border-gray-200">
-                    <div className="p-4 border-b border-gray-200">
+                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-lg border border-gray-200 dark:border-white/10">
+                    <div className="p-4 border-b border-gray-200 dark:border-white/10">
                         <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
                             {Object.keys(trackingData).map(orderKey => (
-                                <button key={orderKey} onClick={() => setActiveOrderKey(orderKey)} className={`flex-shrink-0 py-2 px-4 font-semibold text-sm rounded-lg transition-colors ${activeOrderKey === orderKey ? 'bg-red-100 text-[#c20c0b]' : 'text-gray-500 hover:bg-gray-100'}`}>
+                                <button key={orderKey} onClick={() => setActiveOrderKey(orderKey)} className={`flex-shrink-0 py-2 px-4 font-semibold text-sm rounded-lg transition-colors ${activeOrderKey === orderKey ? 'bg-red-100 text-[#c20c0b]' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
                                     {orderKey}
                                 </button>
                             ))}
@@ -1111,7 +1252,7 @@ const App: FC = () => {
                     <div className="p-6 sm:p-8">
                         <div className="relative pl-8">
                             {/* Vertical line */}
-                            <div className="absolute left-12 top-0 bottom-0 w-0.5 bg-gray-200"></div>
+                            <div className="absolute left-12 top-0 bottom-0 w-0.5 bg-gray-200 dark:bg-white/10"></div>
                             {activeOrderTracking.map((item, index) => {
                                 const isLast = index === activeOrderTracking.length - 1;
                                 const isComplete = item.isComplete;
@@ -1119,21 +1260,21 @@ const App: FC = () => {
                                 return (
                                     <div key={index} className={`relative flex items-start ${isLast ? '' : 'pb-12'}`}>
                                         {/* Dot */}
-                                        <div className="absolute left-12 top-1 -ml-[9px] h-5 w-5 rounded-full bg-white border-2 border-gray-300">
-                                            {isComplete && <div className="w-full h-full rounded-full bg-purple-600 border-2 border-white"></div>}
-                                            {isInProgress && <div className="w-full h-full rounded-full bg-white border-2 border-purple-600 animate-pulse"></div>}
+                                        <div className="absolute left-12 top-1 -ml-[9px] h-5 w-5 rounded-full bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600">
+                                            {isComplete && <div className="w-full h-full rounded-full bg-purple-600 border-2 border-white dark:border-gray-800"></div>}
+                                            {isInProgress && <div className="w-full h-full rounded-full bg-white dark:bg-gray-800 border-2 border-purple-600 animate-pulse"></div>}
                                         </div>
                                         {/* Content */}
                                         <div className="flex items-center gap-4 ml-8">
                                             <div className={`p-3 rounded-full ${
                                                 isComplete ? 'bg-red-100 text-[#c20c0b]' :
                                                 isInProgress ? 'bg-blue-100 text-blue-600' :
-                                                'bg-gray-100 text-gray-400'
+                                                'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500'
                                             }`}>
                                                 {item.icon}
                                             </div>
                                             <div>
-                                                <h4 className={`font-semibold ${isComplete || isInProgress ? 'text-gray-800' : 'text-gray-500'}`}>{item.status}</h4>
+                                                <h4 className={`font-semibold ${isComplete || isInProgress ? 'text-gray-800 dark:text-white' : 'text-gray-500 dark:text-gray-500'}`}>{item.status}</h4>
                                                 <p className="text-sm text-gray-500">{item.date}</p>
                                             </div>
                                         </div>
@@ -1189,18 +1330,18 @@ const App: FC = () => {
                     {isOpen ? <X className="h-8 w-8" /> : <Bot className="h-8 w-8" />}
                 </button>
                 {isOpen && (
-                    <div className="fixed bottom-24 right-6 w-full max-w-sm h-[70vh] bg-white rounded-2xl shadow-2xl flex flex-col transition-all duration-300 z-50 animate-fade-in sm:bottom-6 sm:max-w-md">
-                        <header className="p-4 flex items-center gap-2 border-b">
+                    <div className="fixed bottom-24 right-6 w-full max-w-sm h-[70vh] bg-white dark:bg-gray-900/95 dark:backdrop-blur-xl rounded-2xl shadow-2xl flex flex-col transition-all duration-300 z-50 animate-fade-in sm:bottom-6 sm:max-w-md border border-gray-200 dark:border-white/10">
+                        <header className="p-4 flex items-center gap-2 border-b dark:border-gray-700">
                             <div className="p-1.5 bg-red-100 rounded-md">
                                 <Bot className="w-5 h-5 text-[#c20c0b]" />
                             </div>
-                            <h3 className="font-bold text-sm text-gray-800">Auctave Brain</h3>
+                            <h3 className="font-bold text-sm text-gray-800 dark:text-white">Auctave Brain</h3>
                             <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-gray-600 ml-auto p-1"><X size={20} /></button>
                         </header>
                         <div className="flex-1 p-4 overflow-y-auto space-y-4">
                             {messages.map((msg, index) => (
                                 <div key={index} className={`flex ${msg.sender === 'ai' ? 'justify-start' : 'justify-end'}`}>
-                                    <div className={`max-w-xs p-3 rounded-lg prose prose-sm ${msg.sender === 'ai' ? 'bg-gray-100 text-gray-800' : 'bg-blue-500 text-white'}`}>
+                                    <div className={`max-w-xs p-3 rounded-lg prose prose-sm ${msg.sender === 'ai' ? 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200' : 'bg-blue-500 text-white'}`}>
                                         {msg.text}
                                     </div>
                                 </div>
@@ -1208,10 +1349,10 @@ const App: FC = () => {
                             {isLoading && <div className="flex justify-start"><div className="bg-gray-200 text-gray-800 p-3 rounded-lg animate-pulse">...</div></div>}
                             <div ref={chatEndRef} />
                         </div>
-                        <div className="p-2 border-t border-gray-200">
-                            <div className="p-1 border rounded-lg flex items-center">
-                                <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSend()} placeholder="Ask anything..." className="flex-1 p-2 text-sm border-none focus:outline-none focus:ring-0" />
-                                <button onClick={handleSend} disabled={isLoading} className="bg-gray-100 text-gray-500 p-2 rounded-lg hover:bg-gray-200 transition disabled:opacity-50">
+                        <div className="p-2 border-t border-gray-200 dark:border-gray-700">
+                            <div className="p-1 border dark:border-gray-600 rounded-lg flex items-center bg-white dark:bg-gray-700">
+                                <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSend()} placeholder="Ask anything..." className="flex-1 p-2 text-sm border-none focus:outline-none focus:ring-0 bg-transparent text-gray-800 dark:text-white placeholder-gray-400" />
+                                <button onClick={handleSend} disabled={isLoading} className="bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-gray-300 p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 transition disabled:opacity-50">
                                     <Send size={16} />
                                 </button>
                             </div>
@@ -1257,7 +1398,7 @@ const App: FC = () => {
             />;
             case 'crm': return (
                 <MainLayout {...layoutProps}>
-                    <CrmDashboard callGeminiAPI={callGeminiAPI} handleSetCurrentPage={handleSetCurrentPage} />
+                    <CrmDashboard callGeminiAPI={callGeminiAPI} handleSetCurrentPage={handleSetCurrentPage} user={user} darkMode={darkMode} />
                 </MainLayout>
             );
             case 'factorySuggestions': return <FactorySuggestionsPage />;
@@ -1327,7 +1468,7 @@ const App: FC = () => {
 
         return (
             <MainLayout {...layoutProps}>
-                <h1 className="text-3xl font-bold text-gray-800 mb-2">What's Trending</h1>
+                <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-2">What's Trending</h1>
                 <p className="text-gray-500 mb-8">Discover the latest in fashion, materials, and manufacturing.</p>
                 {/* Banners */}
                 <section className="mb-12">
@@ -1344,16 +1485,16 @@ const App: FC = () => {
                     </div>
                 </section>
                 <section className="mb-12">
-                    <h2 className="text-2xl font-bold text-gray-800 mb-6">Latest Articles</h2>
+                    <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-6">Latest Articles</h2>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                         {trendBlogs.map(blog => (
-                            <div key={blog.id} className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden group cursor-pointer">
+                            <div key={blog.id} className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-md border border-gray-200 dark:border-white/10 overflow-hidden group cursor-pointer">
                                 <div className="overflow-hidden">
                                     <img src={blog.imageUrl} alt={blog.title} className="h-48 w-full object-cover group-hover:scale-105 transition-transform duration-300" />
                                 </div>
                                 <div className="p-6">
                                     <span className="text-xs font-semibold bg-red-100 text-[#c20c0b] px-2 py-1 rounded-full">{blog.category}</span>
-                                    <h3 className="font-bold text-lg text-gray-800 mt-3 mb-2">{blog.title}</h3>
+                                    <h3 className="font-bold text-lg text-gray-800 dark:text-white mt-3 mb-2">{blog.title}</h3>
                                     <p className="text-sm text-gray-500">By {blog.author} · {blog.date}</p>
                                 </div>
                             </div>
@@ -1361,10 +1502,10 @@ const App: FC = () => {
                     </div>
                 </section>
                 <section>
-                    <h2 className="text-2xl font-bold text-gray-800 mb-6">Fashion Shorts</h2>
+                    <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-6">Fashion Shorts</h2>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         {fashionShorts.map(short =>(
-                            <div key={short.id} className="relative rounded-xl overflow-hidden shadow-lg border border-gray-200 group cursor-pointer aspect-[9/16]" onClick={() => setFullscreenVideo(short.videoUrl)}>
+                            <div key={short.id} className="relative rounded-xl overflow-hidden shadow-lg border border-gray-200 dark:border-white/10 group cursor-pointer aspect-[9/16]" onClick={() => setFullscreenVideo(short.videoUrl)}>
                                 <img src={short.thumbnail} alt={short.creator} className="absolute inset-0 w-full h-full object-cover"/>
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
                                 <div className="absolute inset-0 flex items-center justify-center transition-opacity duration-300">
@@ -1410,23 +1551,23 @@ const App: FC = () => {
                         <ChevronLeft className="h-5 w-5 mr-1" />
                         Back to Factory Details
                     </button>
-                    <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-200">
-                        <h2 className="text-3xl font-bold text-gray-800 mb-2">Request a Quote</h2>
+                    <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-8 rounded-xl shadow-lg border border-gray-200 dark:border-white/10">
+                        <h2 className="text-3xl font-bold text-gray-800 dark:text-white mb-2">Request a Quote</h2>
                         <p className="text-gray-500 mb-6">Review your order details and submit your request to <span className="font-semibold">{selectedFactory.name}</span>.</p>
                         <form onSubmit={handleQuoteSubmit}>
                             <div className="space-y-6">
-                                <div className="p-4 border rounded-lg">
-                                    <h3 className="text-lg font-semibold text-gray-700 mb-4">Factory Information</h3>
+                                <div className="p-4 border dark:border-white/10 rounded-lg">
+                                    <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-4">Factory Information</h3>
                                     <div className="flex items-center gap-4">
                                         <img src={selectedFactory.imageUrl} alt={selectedFactory.name} className="w-16 h-16 rounded-lg object-cover" />
                                         <div>
-                                            <p className="font-bold text-gray-900">{selectedFactory.name}</p>
+                                            <p className="font-bold text-gray-900 dark:text-white">{selectedFactory.name}</p>
                                             <p className="text-sm text-gray-500">{selectedFactory.location}</p>
                                         </div>
                                     </div>
                                 </div>
-                                <div className="p-4 border rounded-lg">
-                                    <h3 className="text-lg font-semibold text-gray-700 mb-4">Your Order Details</h3>
+                                <div className="p-4 border dark:border-white/10 rounded-lg">
+                                    <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-4">Your Order Details</h3>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                                         {orderFormData.lineItems.map((item, idx) => (
                                             <div key={idx} className="md:col-span-2 mb-2">
@@ -1435,12 +1576,12 @@ const App: FC = () => {
                                                 <p>Style: {item.styleOption}</p>
                                             </div>
                                         ))}
-                                        <p className="md:col-span-2 mt-2 border-t pt-2"><strong>Shipping To:</strong> {orderFormData.shippingCountry}, {orderFormData.shippingPort}</p>
+                                        <p className="md:col-span-2 mt-2 border-t dark:border-white/10 pt-2"><strong>Shipping To:</strong> {orderFormData.shippingCountry}, {orderFormData.shippingPort}</p>
                                     </div>
                                 </div>
                                 {uploadedFiles.length > 0 && (
-                                    <div className="p-4 border rounded-lg">
-                                        <h3 className="text-lg font-semibold text-gray-700 mb-2">Attached Documents</h3>
+                                    <div className="p-4 border dark:border-white/10 rounded-lg">
+                                        <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">Attached Documents</h3>
                                         <ul className="space-y-1">
                                             {uploadedFiles.map((file, index) => (
                                                 <li key={index} className="text-sm text-gray-600 flex items-center">
@@ -1514,45 +1655,45 @@ const App: FC = () => {
             <MainLayout {...layoutProps}>
                 <div className="flex justify-between items-center mb-6">
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-800">Billing & Escrow</h1>
+                        <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Billing & Escrow</h1>
                         <p className="text-gray-500 mt-1">Manage and track your order payments.</p>
                     </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                      <div className="bg-white p-6 rounded-xl shadow-md border border-gray-200">
+                      <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10">
                           <h3 className="text-sm font-medium text-gray-500">Total in Escrow</h3>
-                          <p className="text-3xl font-bold text-gray-800 mt-2">${totalHeld.toLocaleString()}</p>
+                          <p className="text-3xl font-bold text-gray-800 dark:text-white mt-2">${totalHeld.toLocaleString()}</p>
                       </div>
-                      <div className="bg-white p-6 rounded-xl shadow-md border border-gray-200">
+                      <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10">
                           <h3 className="text-sm font-medium text-gray-500">Total Released</h3>
-                          <p className="text-3xl font-bold text-gray-800 mt-2">${totalReleased.toLocaleString()}</p>
+                          <p className="text-3xl font-bold text-gray-800 dark:text-white mt-2">${totalReleased.toLocaleString()}</p>
                       </div>
-                      <div className="bg-white p-6 rounded-xl shadow-md border border-gray-200">
+                      <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10">
                           <h3 className="text-sm font-medium text-gray-500">Next Payout</h3>
-                          <p className="text-3xl font-bold text-gray-800 mt-2">$10,625</p>
+                          <p className="text-3xl font-bold text-gray-800 dark:text-white mt-2">$10,625</p>
                           <p className="text-xs text-gray-400">on July 12, 2025 for PO-2024-001</p>
                       </div>
                 </div>
 
-                <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
                     <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead className="bg-gray-50 dark:bg-gray-700/50">
                                 <tr>
                                     {['Order ID', 'Product', 'Total Value', 'Amount Released', 'Amount in Escrow', 'Status', ''].map(header => (
-                                        <th key={header} scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{header}</th>
+                                        <th key={header} scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{header}</th>
                                     ))}
                                 </tr>
                             </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
+                            <tbody className="bg-white dark:bg-gray-900/40 divide-y divide-gray-200 dark:divide-gray-700">
                                 {billingData.map(item => (
-                                    <tr key={item.id} className="hover:bg-gray-50">
+                                    <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-[#c20c0b] hover:underline cursor-pointer">{item.orderId}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">{item.product}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.totalAmount.toLocaleString()}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 dark:text-gray-200">{item.product}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${item.totalAmount.toLocaleString()}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-semibold">${item.amountReleased.toLocaleString()}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 font-bold">${item.amountHeld.toLocaleString()}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 dark:text-gray-200 font-bold">${item.amountHeld.toLocaleString()}</td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(item.status)}`}>
                                                 {item.status}

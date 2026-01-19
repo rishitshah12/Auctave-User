@@ -1,4 +1,4 @@
-import React, { useState, FC, useRef, useEffect, ReactNode } from 'react';
+import React, { useState, FC, useRef, useEffect, ReactNode, useCallback } from 'react';
 import { MainLayout } from './MainLayout';
 import { QuoteRequest, NegotiationHistoryItem } from './types';
 import { quoteService } from './quote.service';
@@ -29,17 +29,43 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
     const pdfContentRef = useRef<HTMLDivElement>(null);
     const [fileLinks, setFileLinks] = useState<{ name: string; url: string }[]>([]);
     const [activeTab, setActiveTab] = useState(0);
+    const fileLinksAbortController = useRef<AbortController | null>(null);
 
-    useEffect(() => {
-        const generateSignedUrls = async () => {
-            if (selectedQuote?.files && selectedQuote.files.length > 0) {
-                const urls = await Promise.all(selectedQuote.files.map(async (path) => {
-                    const { data } = await layoutProps.supabase.storage
+    const fetchSignedUrls = useCallback(async () => {
+        if (!selectedQuote?.files || selectedQuote.files.length === 0) {
+            setFileLinks([]);
+            return;
+        }
+
+        const CACHE_KEY = `garment_erp_quote_files_${selectedQuote.id}`;
+        const cached = sessionStorage.getItem(CACHE_KEY);
+        if (cached) {
+            const { timestamp, links } = JSON.parse(cached);
+            // Cache valid for 50 minutes (URLs expire in 60)
+            if (Date.now() - timestamp < 50 * 60 * 1000) {
+                setFileLinks(links);
+                return;
+            }
+        }
+
+        if (fileLinksAbortController.current) fileLinksAbortController.current.abort();
+        fileLinksAbortController.current = new AbortController();
+        const signal = fileLinksAbortController.current.signal;
+
+        let attempts = 0;
+        while (attempts < 3) {
+            try {
+                if (signal.aborted) return;
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000));
+                
+                const urlsPromise = Promise.all(selectedQuote.files.map(async (path) => {
+                    const { data, error } = await layoutProps.supabase.storage
                         .from('quote-attachments')
                         .createSignedUrl(path, 3600); // URL valid for 1 hour
                     
+                    if (error) throw error;
+
                     const fileName = path.split('/').pop() || 'document';
-                    // Remove timestamp prefix (e.g., "123456789_filename.pdf" -> "filename.pdf")
                     const cleanName = fileName.replace(/^\d+_/, '');
 
                     return {
@@ -47,11 +73,31 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                         url: data?.signedUrl || '#'
                     };
                 }));
-                setFileLinks(urls);
+
+                const urls = await Promise.race([urlsPromise, timeoutPromise]) as { name: string; url: string }[];
+
+                if (!signal.aborted) {
+                    setFileLinks(urls);
+                    sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+                        timestamp: Date.now(),
+                        links: urls
+                    }));
+                }
+                return;
+            } catch (err: any) {
+                if (err.name === 'AbortError' || signal.aborted) return;
+                attempts++;
+                await new Promise(r => setTimeout(r, 1000 * attempts));
             }
-        };
-        generateSignedUrls();
+        }
     }, [selectedQuote, layoutProps.supabase]);
+
+    useEffect(() => {
+        fetchSignedUrls();
+        return () => {
+            if (fileLinksAbortController.current) fileLinksAbortController.current.abort();
+        };
+    }, [fetchSignedUrls]);
 
     if (!selectedQuote) {
         handleSetCurrentPage('myQuotes');
@@ -321,20 +367,20 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
             <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 {/* Navigation & Header */}
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-                    <button onClick={() => handleSetCurrentPage('myQuotes')} className="group flex items-center text-gray-500 hover:text-gray-900 transition-colors">
-                        <div className="p-2 rounded-full bg-white border border-gray-200 group-hover:border-gray-300 mr-3 shadow-sm transition-all">
+                    <button onClick={() => handleSetCurrentPage('myQuotes')} className="group flex items-center text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
+                        <div className="p-2 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 group-hover:border-gray-300 dark:group-hover:border-gray-600 mr-3 shadow-sm transition-all">
                             <ChevronLeft size={18} />
                         </div>
                         <span className="font-medium">Back to Quotes</span>
                     </button>
                     <div className="flex gap-3">
-                        <button onClick={handleDownloadPdf} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all shadow-sm">
+                        <button onClick={handleDownloadPdf} className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-all shadow-sm">
                             <Printer size={18} />
                             <span className="hidden sm:inline">Download PDF</span>
                         </button>
                         {(status === 'Responded' || status === 'In Negotiation') && (
                             <>
-                                <button onClick={() => setIsNegotiationModalOpen(true)} className="px-5 py-2 bg-white border border-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all shadow-sm">
+                                <button onClick={() => setIsNegotiationModalOpen(true)} className="px-5 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-all shadow-sm">
                                     Negotiate
                                 </button>
                                 <button onClick={handleAcceptQuote} className="px-5 py-2 bg-[#c20c0b] text-white font-medium rounded-lg hover:bg-[#a50a09] transition-all shadow-md flex items-center gap-2">
@@ -350,12 +396,12 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                     <div className="lg:col-span-2 space-y-6">
                         
                         {/* Quote Header Card */}
-                        <div ref={quoteDetailsRef} className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200 relative overflow-hidden">
+                        <div ref={quoteDetailsRef} className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-white/10 relative overflow-hidden">
                             <div className={`absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r ${getStatusGradient(status)}`}></div>
                             <div className="flex justify-between items-start mb-4">
                                 <div>
-                                    <h1 className="text-2xl font-bold text-gray-900 mb-1">Quote #{id.slice(0, 8)}</h1>
-                                    <p className="text-gray-500 text-sm flex items-center">
+                                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">Quote #{id.slice(0, 8)}</h1>
+                                    <p className="text-gray-500 dark:text-gray-400 text-sm flex items-center">
                                         <Calendar size={14} className="mr-1.5"/> Submitted on {new Date(submittedAt).toLocaleDateString()}
                                     </p>
                                 </div>
@@ -366,29 +412,29 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                             
                             {/* Factory Response Summary (if available) */}
                             {(status === 'Responded' || status === 'In Negotiation' || status === 'Accepted') && response_details && (
-                                <div className="mt-6 p-5 bg-gray-50 rounded-xl border border-gray-200 shadow-sm">
+                                <div className="mt-6 p-5 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-200 dark:border-white/10 shadow-sm">
                                     <div className="flex items-center justify-between mb-4">
-                                        <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                                        <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                                             <MessageSquare size={18} className="text-[#c20c0b]" />
                                             Factory Offer
                                         </h3>
                                         {response_details.respondedAt && (
-                                            <span className="text-xs text-gray-500">Received {new Date(response_details.respondedAt).toLocaleDateString()}</span>
+                                            <span className="text-xs text-gray-500 dark:text-gray-400">Received {new Date(response_details.respondedAt).toLocaleDateString()}</span>
                                         )}
                                     </div>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                                         <div>
-                                            <p className="text-xs text-gray-500 uppercase font-medium mb-1">Total Price</p>
-                                            <p className="text-2xl font-bold text-gray-900">${response_details.price}</p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase font-medium mb-1">Total Price</p>
+                                            <p className="text-2xl font-bold text-gray-900 dark:text-white">${response_details.price}</p>
                                         </div>
                                         <div>
-                                            <p className="text-xs text-gray-500 uppercase font-medium mb-1">Lead Time</p>
-                                            <p className="text-lg font-semibold text-gray-900">{response_details.leadTime}</p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase font-medium mb-1">Lead Time</p>
+                                            <p className="text-lg font-semibold text-gray-900 dark:text-white">{response_details.leadTime}</p>
                                         </div>
                                     </div>
                                     {response_details.notes && (
-                                        <div className="mt-4 pt-4 border-t border-gray-200">
-                                            <p className="text-sm text-gray-600 italic">"{response_details.notes}"</p>
+                                        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
+                                            <p className="text-sm text-gray-600 dark:text-gray-300 italic">"{response_details.notes}"</p>
                                         </div>
                                     )}
                                 </div>
@@ -396,9 +442,9 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                         </div>
 
                         {/* Product Details (Tabs) */}
-                        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
-                            <div className="border-b border-gray-200 px-6 pt-4 bg-gray-50/30">
-                                <h3 className="font-bold text-gray-900 mb-4">Product Specifications</h3>
+                        <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                            <div className="border-b border-gray-200 dark:border-white/10 px-6 pt-4 bg-gray-50/30 dark:bg-gray-700/30">
+                                <h3 className="font-bold text-gray-900 dark:text-white mb-4">Product Specifications</h3>
                                 <div className="flex gap-6 overflow-x-auto scrollbar-hide -mb-px">
                                     {order.lineItems.map((item, index) => (
                                         <button
@@ -407,7 +453,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                             className={`pb-3 text-sm font-medium transition-all border-b-2 whitespace-nowrap ${
                                                 activeTab === index
                                                     ? 'border-[#c20c0b] text-[#c20c0b]'
-                                                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                                                    : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
                                             }`}
                                         >
                                             {item.category}
@@ -432,35 +478,35 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                         <div key={index} className="animate-fade-in">
                                             {/* Item Details Grid */}
                                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                                                <div className="rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+                                                <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
                                                     <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-3 py-2">
                                                         <p className="text-xs text-white uppercase font-bold tracking-wider">Fabric</p>
                                                     </div>
-                                                    <div className="p-3 bg-white">
-                                                        <p className="font-semibold text-gray-900 text-sm">{item.fabricQuality}</p>
+                                                    <div className="p-3 bg-white dark:bg-gray-800">
+                                                        <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.fabricQuality}</p>
                                                     </div>
                                                 </div>
-                                                <div className="rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+                                                <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
                                                     <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-3 py-2">
                                                         <p className="text-xs text-white uppercase font-bold tracking-wider">Weight</p>
                                                     </div>
-                                                    <div className="p-3 bg-white">
-                                                        <p className="font-semibold text-gray-900 text-sm">{item.weightGSM} GSM</p>
+                                                    <div className="p-3 bg-white dark:bg-gray-800">
+                                                        <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.weightGSM} GSM</p>
                                                     </div>
                                                 </div>
-                                                <div className="rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+                                                <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
                                                     <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-3 py-2">
                                                         <p className="text-xs text-white uppercase font-bold tracking-wider">Quantity</p>
                                                     </div>
-                                                    <div className="p-3 bg-white">
-                                                        <p className="font-semibold text-gray-900 text-sm">{item.qty} {item.quantityType === 'container' ? '' : 'units'}</p>
+                                                    <div className="p-3 bg-white dark:bg-gray-800">
+                                                        <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.qty} {item.quantityType === 'container' ? '' : 'units'}</p>
                                                     </div>
                                                 </div>
-                                                <div className="rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+                                                <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
                                                     <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-3 py-2">
                                                         <p className="text-xs text-white uppercase font-bold tracking-wider">{showAgreedPrice ? 'Agreed Price' : 'Target Price'}</p>
                                                     </div>
-                                                    <div className="p-3 bg-white">
+                                                    <div className="p-3 bg-white dark:bg-gray-800">
                                                         <p className={`font-bold text-sm ${showAgreedPrice ? 'text-green-600' : 'text-[#c20c0b]'}`}>${showAgreedPrice ? agreedPrice : item.targetPrice}</p>
                                                     </div>
                                                 </div>
@@ -468,45 +514,45 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
 
                                             {/* Size Breakdown */}
                                             <div className="mb-6">
-                                                <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-3">Size Breakdown</p>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase font-bold tracking-wider mb-3">Size Breakdown</p>
                                                 {Object.keys(item.sizeRatio).length > 0 ? (
                                                     <div className="flex flex-wrap gap-2">
                                                         {Object.entries(item.sizeRatio).map(([size, ratio]) => (
-                                                            <div key={size} className="flex flex-col items-center justify-center bg-white border border-gray-200 rounded-md min-w-[3rem] py-1.5">
-                                                                <span className="text-xs font-bold text-gray-800">{size}</span>
-                                                                <span className="text-[10px] text-gray-500 font-medium">{ratio}</span>
+                                                            <div key={size} className="flex flex-col items-center justify-center bg-white dark:bg-gray-700 border border-gray-200 dark:border-white/10 rounded-md min-w-[3rem] py-1.5">
+                                                                <span className="text-xs font-bold text-gray-800 dark:text-white">{size}</span>
+                                                                <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">{ratio}</span>
                                                             </div>
                                                         ))}
                                                     </div>
                                                 ) : (
                                                     <div className="flex flex-wrap gap-2">
                                                         {item.sizeRange.map(size => (
-                                                            <span key={size} className="px-3 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded-full">{size}</span>
+                                                            <span key={size} className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-medium rounded-full">{size}</span>
                                                         ))}
-                                                        {item.customSize && <span className="px-3 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded-full">{item.customSize}</span>}
+                                                        {item.customSize && <span className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-medium rounded-full">{item.customSize}</span>}
                                                     </div>
                                                 )}
                                             </div>
 
                                             {/* Detailed Requirements */}
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                                                <div className="rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+                                                <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
                                                     <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-5 py-3">
                                                         <p className="text-xs text-white uppercase font-bold tracking-wider">Packaging & Labeling</p>
                                                     </div>
-                                                    <div className="p-5 bg-white space-y-3 text-sm">
-                                                        <div className="flex justify-between items-start"><span className="text-gray-500">Packaging:</span> <span className="font-medium text-gray-900 text-right ml-4">{item.packagingReqs}</span></div>
-                                                        {item.labelingReqs && <div className="flex justify-between items-start"><span className="text-gray-500">Labeling:</span> <span className="font-medium text-gray-900 text-right ml-4">{item.labelingReqs}</span></div>}
+                                                    <div className="p-5 bg-white dark:bg-gray-800 space-y-3 text-sm">
+                                                        <div className="flex justify-between items-start"><span className="text-gray-500 dark:text-gray-400">Packaging:</span> <span className="font-medium text-gray-900 dark:text-white text-right ml-4">{item.packagingReqs}</span></div>
+                                                        {item.labelingReqs && <div className="flex justify-between items-start"><span className="text-gray-500 dark:text-gray-400">Labeling:</span> <span className="font-medium text-gray-900 dark:text-white text-right ml-4">{item.labelingReqs}</span></div>}
                                                     </div>
                                                 </div>
                                                 {(item.trimsAndAccessories || item.specialInstructions) && (
-                                                    <div className="rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+                                                    <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
                                                         <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-5 py-3">
                                                             <p className="text-xs text-white uppercase font-bold tracking-wider">Additional Details</p>
                                                         </div>
-                                                        <div className="p-5 bg-white space-y-3 text-sm">
-                                                            {item.trimsAndAccessories && <div><span className="text-gray-500 block mb-1">Trims:</span> <span className="font-medium text-gray-900">{item.trimsAndAccessories}</span></div>}
-                                                            {item.specialInstructions && <div><span className="text-gray-500 block mb-1">Instructions:</span> <span className="font-medium text-gray-900 bg-yellow-50 px-2 py-1 rounded border border-yellow-100 inline-block w-full">{item.specialInstructions}</span></div>}
+                                                        <div className="p-5 bg-white dark:bg-gray-800 space-y-3 text-sm">
+                                                            {item.trimsAndAccessories && <div><span className="text-gray-500 dark:text-gray-400 block mb-1">Trims:</span> <span className="font-medium text-gray-900 dark:text-white">{item.trimsAndAccessories}</span></div>}
+                                                            {item.specialInstructions && <div><span className="text-gray-500 dark:text-gray-400 block mb-1">Instructions:</span> <span className="font-medium text-gray-900 dark:text-white bg-yellow-50 dark:bg-yellow-900/30 px-2 py-1 rounded border border-yellow-100 dark:border-yellow-800 inline-block w-full">{item.specialInstructions}</span></div>}
                                                         </div>
                                                     </div>
                                                 )}
@@ -514,19 +560,19 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
 
                                             {/* Price History Log */}
                                             {history.length > 0 && (
-                                                <div className="bg-gray-50 rounded-xl border border-gray-200 p-5 shadow-inner">
-                                                    <h4 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+                                                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-200 dark:border-white/10 p-5 shadow-inner">
+                                                    <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
                                                         <History size={16}/> Price Negotiation History
                                                     </h4>
                                                     <div className="space-y-4 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
                                                         {history.map((h, i) => (
                                                             <div key={i} className={`flex ${h.sender === 'client' ? 'justify-end' : 'justify-start'}`}>
-                                                                <div className={`max-w-[85%] rounded-2xl p-3 shadow-sm ${h.sender === 'client' ? 'bg-[#c20c0b] text-white rounded-tr-none' : 'bg-white border border-gray-200 text-gray-800 rounded-tl-none'}`}>
+                                                                <div className={`max-w-[85%] rounded-2xl p-3 shadow-sm ${h.sender === 'client' ? 'bg-[#c20c0b] text-white rounded-tr-none' : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-white/10 text-gray-800 dark:text-gray-200 rounded-tl-none'}`}>
                                                                     <div className="flex justify-between items-center gap-4 mb-1">
-                                                                        <span className={`text-[10px] font-bold uppercase ${h.sender === 'client' ? 'text-red-200' : 'text-gray-500'}`}>
+                                                                        <span className={`text-[10px] font-bold uppercase ${h.sender === 'client' ? 'text-red-200' : 'text-gray-500 dark:text-gray-400'}`}>
                                                                             {h.sender === 'client' ? 'You' : 'Factory'}
                                                                         </span>
-                                                                        <span className={`text-[10px] ${h.sender === 'client' ? 'text-red-200' : 'text-gray-400'}`}>
+                                                                        <span className={`text-[10px] ${h.sender === 'client' ? 'text-red-200' : 'text-gray-400 dark:text-gray-500'}`}>
                                                                             {new Date(h.timestamp).toLocaleDateString()}
                                                                         </span>
                                                                     </div>
@@ -550,60 +596,64 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                     {/* Sidebar Column */}
                     <div className="space-y-6">
                         {/* Factory Card */}
-                        <div className="rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                        <div className="rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
                             <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-6 py-4">
                                 <h3 className="text-sm font-bold text-white uppercase tracking-wider">Factory Details</h3>
                             </div>
-                            <div className="p-6 bg-white">
+                            <div className="p-6 bg-white dark:bg-gray-800">
                                 {factory ? (
                                     <div className="flex items-start gap-4">
-                                        <img src={factory.imageUrl} alt={factory.name} className="w-16 h-16 rounded-lg object-cover border border-gray-100" />
+                                        <img src={factory.imageUrl} alt={factory.name} className="w-16 h-16 rounded-lg object-cover border border-gray-100 dark:border-white/10" />
                                         <div>
-                                            <h4 className="font-bold text-gray-900 text-lg">{factory.name}</h4>
-                                            <p className="text-sm text-gray-500 flex items-center mt-1">
+                                            <h4 className="font-bold text-gray-900 dark:text-white text-lg">{factory.name}</h4>
+                                            <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center mt-1">
                                                 <MapPin size={14} className="mr-1" /> {factory.location}
                                             </p>
                                             <button className="text-xs font-bold text-[#c20c0b] mt-3 hover:text-[#a50a09] underline underline-offset-2">View Profile</button>
                                         </div>
                                     </div>
                                 ) : (
-                                    <p className="text-sm text-gray-500 italic">Open Request (No specific factory)</p>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 italic">Open Request (No specific factory)</p>
                                 )}
                             </div>
                         </div>
 
                         {/* Logistics Card */}
-                        <div className="rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                        <div className="rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
                             <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-6 py-4">
                                 <h3 className="text-sm font-bold text-white uppercase tracking-wider">Logistics</h3>
                             </div>
-                            <div className="p-6 bg-white space-y-3">
+                            <div className="p-6 bg-white dark:bg-gray-800 space-y-3">
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-gray-500">Destination</span>
-                                    <span className="font-bold text-gray-900">{order.shippingCountry}</span>
+                                    <span className="text-gray-500 dark:text-gray-400">Destination</span>
+                                    <span className="font-bold text-gray-900 dark:text-white">{order.shippingCountry}</span>
                                 </div>
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-gray-500">Port</span>
-                                    <span className="font-bold text-gray-900">{order.shippingPort}</span>
+                                    <span className="text-gray-500 dark:text-gray-400">Port</span>
+                                    <span className="font-bold text-gray-900 dark:text-white">{order.shippingPort}</span>
                                 </div>
                             </div>
                         </div>
 
                         {/* Documents Card */}
                         {fileLinks.length > 0 && (
-                            <div className="rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <div className="rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
                                 <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-6 py-4">
                                     <h3 className="text-sm font-bold text-white uppercase tracking-wider">Documents</h3>
                                 </div>
-                                <ul className="p-6 bg-white space-y-3">
+                                <ul className="p-6 bg-white dark:bg-gray-800 space-y-3">
                                     {fileLinks.map((file, i) => (
                                         <li key={i}>
-                                            <a href={file.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 hover:bg-gray-100 border border-gray-100 transition-all group">
-                                                <div className="p-2 bg-white rounded-lg text-[#c20c0b] shadow-sm">
-                                                    <FileText size={18} />
+                                            <a href={file.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-100 dark:border-white/10 transition-all group">
+                                                <div className="p-2 bg-white dark:bg-gray-800 rounded-lg text-[#c20c0b] shadow-sm overflow-hidden">
+                                                    {file.name.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                                                        <img src={file.url} alt={file.name} className="w-5 h-5 object-cover" />
+                                                    ) : (
+                                                        <FileText size={18} />
+                                                    )}
                                                 </div>
-                                                <span className="text-sm font-medium text-gray-700 truncate flex-1">{file.name}</span>
-                                                <Download size={16} className="text-gray-400 group-hover:text-[#c20c0b]" />
+                                                <span className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate flex-1">{file.name}</span>
+                                                <Download size={16} className="text-gray-400 dark:text-gray-500 group-hover:text-[#c20c0b]" />
                                             </a>
                                         </li>
                                     ))}
@@ -625,51 +675,51 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                 </div>
 
                 {/* Negotiation Timeline */}
-                <div className="mt-8 bg-white rounded-2xl p-8 shadow-lg border border-gray-200">
-                    <h3 className="text-xl font-bold text-gray-900 mb-8 flex items-center">
+                <div className="mt-8 bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl p-8 shadow-lg border border-gray-200 dark:border-white/10">
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-8 flex items-center">
                         <History size={24} className="mr-3 text-[#c20c0b]" /> Negotiation History
                     </h3>
-                    <div className="relative pl-4 sm:pl-6 space-y-8 before:absolute before:left-[23px] before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-100">
+                    <div className="relative pl-4 sm:pl-6 space-y-8 before:absolute before:left-[23px] before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-100 dark:before:bg-white/10">
                         
                         {/* 1. Submission */}
                         <div className="relative pl-10">
-                            <div className="absolute left-0 top-1.5 w-3 h-3 rounded-full bg-gray-300 border-2 border-white ring-4 ring-gray-50 z-10"></div>
+                            <div className="absolute left-0 top-1.5 w-3 h-3 rounded-full bg-gray-300 dark:bg-gray-600 border-2 border-white dark:border-gray-800 ring-4 ring-gray-50 dark:ring-white/10 z-10"></div>
                             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-baseline mb-1">
-                                <span className="font-bold text-gray-900">Quote Request Submitted</span>
-                                <span className="text-xs text-gray-400 font-medium">{new Date(submittedAt).toLocaleString()}</span>
+                                <span className="font-bold text-gray-900 dark:text-white">Quote Request Submitted</span>
+                                <span className="text-xs text-gray-400 dark:text-gray-500 font-medium">{new Date(submittedAt).toLocaleString()}</span>
                             </div>
-                            <p className="text-sm text-gray-500">Initial request sent to {factory?.name || 'factories'}.</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">Initial request sent to {factory?.name || 'factories'}.</p>
                         </div>
 
                         {/* 2. History Items */}
                         {negotiationHistory.map((item: any, index: number) => (
                             <div key={index} className="relative pl-10">
-                                <div className={`absolute left-0 top-1.5 w-3 h-3 rounded-full border-2 border-white ring-4 z-10 ${
-                                    item.sender === 'client' ? 'bg-blue-500 ring-blue-50' : 'bg-[#c20c0b] ring-red-50'
+                                <div className={`absolute left-0 top-1.5 w-3 h-3 rounded-full border-2 border-white dark:border-gray-800 ring-4 z-10 ${
+                                    item.sender === 'client' ? 'bg-blue-500 ring-blue-50 dark:ring-blue-900/30' : 'bg-[#c20c0b] ring-red-50 dark:ring-red-900/30'
                                 }`}></div>
                                 
-                                <div className="bg-gray-50 rounded-xl p-5 border border-gray-100 hover:border-gray-200 transition-colors">
+                                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-5 border border-gray-100 dark:border-white/10 hover:border-gray-200 dark:hover:border-white/20 transition-colors">
                                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-baseline mb-3">
                                         <div className="flex items-center gap-2">
-                                            <span className={`text-sm font-bold ${item.sender === 'client' ? 'text-blue-700' : 'text-[#c20c0b]'}`}>
+                                            <span className={`text-sm font-bold ${item.sender === 'client' ? 'text-blue-700 dark:text-blue-400' : 'text-[#c20c0b] dark:text-red-400'}`}>
                                                 {item.sender === 'client' ? 'You' : factory?.name || 'Factory'}
                                             </span>
-                                            <span className="text-xs px-2 py-0.5 rounded-full bg-white border border-gray-200 text-gray-500 font-medium uppercase tracking-wide">
+                                            <span className="text-xs px-2 py-0.5 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-white/10 text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wide">
                                                 {item.action}
                                             </span>
                                         </div>
-                                        <span className="text-xs text-gray-400 font-medium">{new Date(item.timestamp).toLocaleString()}</span>
+                                        <span className="text-xs text-gray-400 dark:text-gray-500 font-medium">{new Date(item.timestamp).toLocaleString()}</span>
                                     </div>
                                     
                                     {item.price && (
                                         <div className="mb-3 flex items-baseline gap-2">
-                                            <span className="text-sm text-gray-500">Price:</span>
-                                            <span className="text-lg font-bold text-gray-900">${item.price}</span>
+                                            <span className="text-sm text-gray-500 dark:text-gray-400">Price:</span>
+                                            <span className="text-lg font-bold text-gray-900 dark:text-white">${item.price}</span>
                                         </div>
                                     )}
                                     
                                     {item.message && (
-                                        <div className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">
+                                        <div className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
                                             {item.message}
                                         </div>
                                     )}
@@ -679,9 +729,9 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
 
                         {/* 3. Current Status */}
                         <div className="relative pl-10">
-                            <div className={`absolute left-0 top-1.5 w-3 h-3 rounded-full border-2 border-white ring-4 z-10 ${
-                                status === 'Accepted' ? 'bg-emerald-500 ring-emerald-50' : 
-                                status === 'Declined' ? 'bg-red-500 ring-red-50' : 'bg-amber-500 ring-amber-50'
+                            <div className={`absolute left-0 top-1.5 w-3 h-3 rounded-full border-2 border-white dark:border-gray-800 ring-4 z-10 ${
+                                status === 'Accepted' ? 'bg-emerald-500 ring-emerald-50 dark:ring-emerald-900/30' : 
+                                status === 'Declined' ? 'bg-red-500 ring-red-50 dark:ring-red-900/30' : 'bg-amber-500 ring-amber-50 dark:ring-amber-900/30'
                             }`}></div>
                             <div>
                                 <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border ${getStatusColor(status)}`}>
@@ -811,10 +861,10 @@ const NegotiationModal: FC<{ onSubmit: (counterPrice: string, details: string, l
     };
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-            <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md transform transition-all scale-100">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in z-[60]">
+            <div className="bg-white dark:bg-gray-900/95 dark:backdrop-blur-xl p-8 rounded-2xl shadow-2xl w-full max-w-md transform transition-all scale-100 border border-gray-200 dark:border-white/10">
                 <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-bold text-gray-900">Negotiate Quote</h2>
+                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Negotiate Quote</h2>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
                         <X size={24} />
                     </button>
@@ -822,12 +872,12 @@ const NegotiationModal: FC<{ onSubmit: (counterPrice: string, details: string, l
                 <form onSubmit={handleSubmit} className="space-y-5">
                     
                     <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
-                        <h3 className="text-sm font-semibold text-gray-700">Item Breakdown</h3>
+                        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Item Breakdown</h3>
                         {lineItems.map((item) => (
-                            <div key={item.id} className="flex items-center gap-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
+                            <div key={item.id} className="flex items-center gap-3 bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg border border-gray-200 dark:border-white/10">
                                 <div className="flex-1">
-                                    <p className="text-sm font-medium text-gray-800">{item.category}</p>
-                                    <p className="text-xs text-gray-500">Qty: {item.qty}</p>
+                                    <p className="text-sm font-medium text-gray-800 dark:text-white">{item.category}</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">Qty: {item.qty}</p>
                                 </div>
                                 <div className="w-32">
                                     <input
@@ -836,7 +886,7 @@ const NegotiationModal: FC<{ onSubmit: (counterPrice: string, details: string, l
                                         placeholder="Offer ($)"
                                         value={lineItemPrices[item.id] || ''}
                                         onChange={(e) => setLineItemPrices(prev => ({ ...prev, [item.id]: e.target.value }))}
-                                        className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#c20c0b] outline-none"
+                                        className="w-full p-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#c20c0b] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                     />
                                 </div>
                             </div>
@@ -844,7 +894,7 @@ const NegotiationModal: FC<{ onSubmit: (counterPrice: string, details: string, l
                     </div>
 
                     <div>
-                        <label htmlFor="counterPrice" className="block text-sm font-medium text-gray-700 mb-1">Overall Counter Price (Optional)</label>
+                        <label htmlFor="counterPrice" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Overall Counter Price (Optional)</label>
                         <div className="relative">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                 <span className="text-gray-500 sm:text-sm">$</span>
@@ -854,25 +904,25 @@ const NegotiationModal: FC<{ onSubmit: (counterPrice: string, details: string, l
                                 id="counterPrice"
                                 value={counterPrice}
                                 onChange={(e) => setCounterPrice(e.target.value)}
-                                className="w-full pl-7 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#c20c0b] focus:border-[#c20c0b] outline-none transition-all"
+                                className="w-full pl-7 p-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-[#c20c0b] focus:border-[#c20c0b] outline-none transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                 placeholder="0.00"
                                 step="0.01"
                             />
                         </div>
                     </div>
                     <div>
-                        <label htmlFor="details" className="block text-sm font-medium text-gray-700 mb-1">Message to Factory</label>
+                        <label htmlFor="details" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Message to Factory</label>
                         <textarea
                             id="details"
                             value={details}
                             onChange={(e) => setDetails(e.target.value)}
-                            className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#c20c0b] focus:border-[#c20c0b] outline-none transition-all"
+                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-[#c20c0b] focus:border-[#c20c0b] outline-none transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                             rows={4}
                             placeholder="Explain your counter offer or request changes..."
                         />
                     </div>
                     <div className="flex justify-end gap-3 pt-2">
-                        <button type="button" onClick={onClose} className="px-5 py-2.5 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-colors">Cancel</button>
+                        <button type="button" onClick={onClose} className="px-5 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-semibold rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors border border-transparent dark:border-white/10">Cancel</button>
                         <button type="submit" className="px-5 py-2.5 bg-[#c20c0b] text-white font-semibold rounded-xl hover:bg-[#a50a09] transition-colors shadow-md">Submit Offer</button>
                     </div>
                 </form>

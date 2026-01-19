@@ -1,4 +1,4 @@
-import React, { FC, useState, useEffect, useMemo, ReactNode } from 'react';
+import React, { FC, useState, useEffect, useMemo, ReactNode, useCallback } from 'react';
 import {
     List, TrendingUp, CheckCircle, Package, PieChart as PieChartIcon,
     BarChart as BarChartIcon, Info, LayoutDashboard, ClipboardCheck,
@@ -30,11 +30,11 @@ interface CRMPageProps {
 
 export function DashboardCard({ icon, title, value, colorClass }: { icon: ReactNode, title: string, value: string | number, colorClass: string }) {
     return (
-        <div className={`relative p-5 rounded-xl overflow-hidden bg-white shadow-md border border-gray-200`}>
+        <div className={`relative p-5 rounded-xl overflow-hidden bg-white dark:bg-gray-900/40 dark:backdrop-blur-md shadow-md border border-gray-200 dark:border-white/10`}>
             <div className="flex items-start justify-between">
                 <div>
-                    <p className="text-sm font-medium text-gray-500">{title}</p>
-                    <p className="text-3xl font-bold text-gray-800 mt-1">{value}</p>
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{title}</p>
+                    <p className="text-3xl font-bold text-gray-800 dark:text-white mt-1">{value}</p>
                 </div>
                 <div className={`p-3 rounded-lg ${colorClass}`}>
                     {icon}
@@ -44,7 +44,7 @@ export function DashboardCard({ icon, title, value, colorClass }: { icon: ReactN
     );
 }
 
-export const DashboardView: FC<{ tasks: any[]; orderKey: string; orderDetails: any }> = ({ tasks, orderKey, orderDetails }) => {
+export const DashboardView: FC<{ tasks: any[]; orderKey: string; orderDetails: any; darkMode?: boolean }> = ({ tasks, orderKey, orderDetails, darkMode }) => {
         const statusData = useMemo(() => {
             const statuses: { [key: string]: number } = { 'TO DO': 0, 'IN PROGRESS': 0, 'COMPLETE': 0 };
             tasks.forEach(task => {
@@ -57,31 +57,35 @@ export const DashboardView: FC<{ tasks: any[]; orderKey: string; orderDetails: a
         const completedTasks = tasks.filter(t => t.status === 'COMPLETE').length;
         const inProgressTasks = tasks.filter(t => t.status === 'IN PROGRESS').length;
         const totalQuantity = parseInt((orderDetails.product || '').split(' ')[0], 10) || 0;
-        const COLORS = ['#D1D5DB', '#FBBF24', '#34D399'];
+        
+        const COLORS = darkMode ? ['#4B5563', '#F59E0B', '#10B981'] : ['#D1D5DB', '#FBBF24', '#34D399'];
+        const axisColor = darkMode ? '#9CA3AF' : '#6B7280';
+        const gridColor = darkMode ? '#374151' : '#E5E7EB';
+        const tooltipStyle = darkMode ? { backgroundColor: '#1F2937', borderColor: '#374151', color: '#F3F4F6' } : { backgroundColor: '#FFFFFF', borderColor: '#E5E7EB', color: '#111827' };
 
         return (
             <div className="mt-6 space-y-6 animate-fade-in">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <DashboardCard title="Total Tasks" value={totalTasks} icon={<List className="text-purple-800"/>} colorClass="bg-purple-100" />
+                    <DashboardCard title="Total Tasks" value={totalTasks} icon={<List className="text-[#c20c0b]"/>} colorClass="bg-red-100" />
                     <DashboardCard title="In Progress" value={inProgressTasks} icon={<TrendingUp className="text-yellow-800"/>} colorClass="bg-yellow-100" />
                     <DashboardCard title="Completed" value={completedTasks} icon={<CheckCircle className="text-green-800"/>} colorClass="bg-green-100" />
                     <DashboardCard title="Total Quantity" value={totalQuantity.toLocaleString()} icon={<Package className="text-blue-800"/>} colorClass="bg-blue-100" />
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-                    <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                        <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center"><PieChartIcon size={20} className="mr-2 text-[#c20c0b]"/>Task Status Distribution</h3>
+                    <div className="lg:col-span-2 bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-sm border border-gray-200 dark:border-white/10">
+                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4 flex items-center"><PieChartIcon size={20} className="mr-2 text-[#c20c0b]"/>Task Status Distribution</h3>
                         <ResponsiveContainer width="100%" height={300}>
                             <PieChart>
                                 <Pie data={statusData} cx="50%" cy="50%" labelLine={false} innerRadius={70} outerRadius={110} fill="#8884d8" dataKey="value" nameKey="name" label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}>
                                     {statusData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} className="focus:outline-none" />)}
                                 </Pie>
-                                <Tooltip/>
+                                <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: tooltipStyle.color }} />
                                 <Legend />
                             </PieChart>
                         </ResponsiveContainer>
                     </div>
-                    <div className="lg:col-span-3 bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                        <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center"><BarChartIcon size={20} className="mr-2 text-[#c20c0b]"/>Units Per Task</h3>
+                    <div className="lg:col-span-3 bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-sm border border-gray-200 dark:border-white/10">
+                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4 flex items-center"><BarChartIcon size={20} className="mr-2 text-[#c20c0b]"/>Units Per Task</h3>
                         <ResponsiveContainer width="100%" height={300}>
                             <BarChart data={tasks.filter(t => t.quantity > 0)} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
                                 <defs>
@@ -90,10 +94,10 @@ export const DashboardView: FC<{ tasks: any[]; orderKey: string; orderDetails: a
                                     <stop offset="95%" stopColor="#6366f1" stopOpacity={0.8}/>
                                     </linearGradient>
                                 </defs>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                <XAxis dataKey="name" tick={{fontSize: 12}} />
-                                <YAxis tick={{fontSize: 12}} />
-                                <Tooltip />
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridColor} />
+                                <XAxis dataKey="name" tick={{fontSize: 12, fill: axisColor}} axisLine={{stroke: axisColor}} tickLine={{stroke: axisColor}} />
+                                <YAxis tick={{fontSize: 12, fill: axisColor}} axisLine={{stroke: axisColor}} tickLine={{stroke: axisColor}} />
+                                <Tooltip contentStyle={tooltipStyle} cursor={{fill: darkMode ? '#374151' : '#f3f4f6'}} />
                                 <Bar dataKey="quantity" fill="url(#colorUv)" radius={[4, 4, 0, 0]} />
                             </BarChart>
                         </ResponsiveContainer>
@@ -121,37 +125,37 @@ export const ListView: FC<{ tasks: any[] }> = ({ tasks }) => {
             return (
                 <div className="mb-8">
                     <div className="flex items-center text-sm font-semibold mb-3">
-                        <ChevronDown size={20} className={`mr-1 ${groupHeaderColor}`} />
-                        <span className={`mr-2 ${groupHeaderColor}`}>{title}</span>
-                        <span className="bg-gray-200 text-gray-700 text-xs font-bold px-2 py-0.5 rounded-full">{tasks.length}</span>
-                        <button className="ml-4 text-gray-500 hover:text-gray-800 flex items-center gap-1">
+                        <ChevronDown size={20} className={`mr-1 ${groupHeaderColor} dark:text-gray-400`} />
+                        <span className={`mr-2 ${groupHeaderColor} dark:text-gray-300`}>{title}</span>
+                        <span className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-bold px-2 py-0.5 rounded-full">{tasks.length}</span>
+                        <button className="ml-4 text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 flex items-center gap-1">
                             <Plus size={16} /> Add Task
                         </button>
                     </div>
-                    <div className="overflow-x-auto bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div className="overflow-x-auto bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-lg shadow-sm border border-gray-200 dark:border-white/10">
                         <table className="min-w-full divide-y divide-gray-200 text-sm">
-                            <thead className="bg-gray-50">
+                            <thead className="bg-gray-50 dark:bg-gray-700/50">
                                 <tr>
                                     {['Task Name', 'Due date', 'QTY'].map(header => (
-                                        <th key={header} scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{header}</th>
+                                        <th key={header} scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{header}</th>
                                     ))}
                                 </tr>
                             </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
+                            <tbody className="bg-white dark:bg-gray-900/40 divide-y divide-gray-200 dark:divide-white/10">
                                 {tasks.map(task => (
-                                    <tr key={task.id} className="hover:bg-gray-50">
-                                        <td className="px-4 py-2 whitespace-nowrap font-medium text-gray-900 flex items-center">
+                                    <tr key={task.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                        <td className="px-4 py-2 whitespace-nowrap font-medium text-gray-900 dark:text-white flex items-center">
                                             <CheckCircle size={16} className={`${task.status === 'COMPLETE' ? 'text-green-500' : 'text-gray-300'} mr-2`} /> {task.name}
                                         </td>
-                                        <td className="px-4 py-2 whitespace-nowrap text-gray-600">{task.plannedEndDate}</td>
-                                        <td className="px-4 py-2 whitespace-nowrap text-gray-600">{task.quantity?.toLocaleString() || 'N/A'}</td>
+                                        <td className="px-4 py-2 whitespace-nowrap text-gray-600 dark:text-gray-300">{task.plannedEndDate}</td>
+                                        <td className="px-4 py-2 whitespace-nowrap text-gray-600 dark:text-gray-300">{task.quantity?.toLocaleString() || 'N/A'}</td>
                                     </tr>
                                 ))}
                                 {showTotals && (
-                                <tr className="bg-gray-50 font-bold">
+                                <tr className="bg-gray-50 dark:bg-gray-700/50 font-bold">
                                     <td className="px-4 py-2 text-gray-800"></td>
                                     <td className="px-4 py-2 text-gray-800"></td>
-                                    <td className="px-4 py-2 text-gray-800">{totalsData.qty.toLocaleString()}</td>
+                                    <td className="px-4 py-2 text-gray-800 dark:text-white">{totalsData.qty.toLocaleString()}</td>
                                 </tr>
                                 )}
                             </tbody>
@@ -178,8 +182,8 @@ export const BoardView: FC<{ tasks: any[] }> = ({ tasks }) => {
         };
 
         const TaskCard: FC<{ task: any }> = ({ task }) => (
-            <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm mb-3">
-                <p className="font-semibold text-sm text-gray-800">{task.name}</p>
+            <div className="bg-white dark:bg-gray-900/60 dark:backdrop-blur-md p-3 rounded-lg border border-gray-200 dark:border-white/10 shadow-sm mb-3">
+                <p className="font-semibold text-sm text-gray-800 dark:text-white">{task.name}</p>
                 <p className="text-xs text-gray-500 mt-1">Due: {task.plannedEndDate}</p>
                 <div className="flex items-center justify-between mt-2">
                     <div className="flex -space-x-2">
@@ -193,14 +197,14 @@ export const BoardView: FC<{ tasks: any[] }> = ({ tasks }) => {
         return (
             <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
                 {Object.entries(columns).map(([status, tasksInColumn]) => (
-                    <div key={status} className="bg-gray-50/70 p-3 rounded-lg">
-                        <h3 className="flex items-center justify-between text-sm font-semibold mb-4 px-1 text-gray-700">
+                    <div key={status} className="bg-gray-50/70 dark:bg-gray-800/50 p-3 rounded-lg">
+                        <h3 className="flex items-center justify-between text-sm font-semibold mb-4 px-1 text-gray-700 dark:text-gray-300">
                             <span>{status}</span>
-                            <span className="bg-gray-200 text-gray-700 text-xs font-bold px-2 py-0.5 rounded-full">{tasksInColumn.length}</span>
+                            <span className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-bold px-2 py-0.5 rounded-full">{tasksInColumn.length}</span>
                         </h3>
                         <div>
                             {tasksInColumn.map(task => <TaskCard key={task.id} task={task} />)}
-                            <button className="w-full text-left text-sm font-medium text-gray-500 hover:bg-gray-200 p-2 rounded-md flex items-center">
+                            <button className="w-full text-left text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 p-2 rounded-md flex items-center">
                                 <Plus size={16} className="mr-1"/> Add Task
                             </button>
                         </div>
@@ -210,9 +214,89 @@ export const BoardView: FC<{ tasks: any[] }> = ({ tasks }) => {
         )
     }
 
-export const GanttChartView: FC<{ tasks: any[] }> = ({ tasks }) => {
+export const GanttChartView: FC<{ tasks: any[]; onTaskUpdate?: (taskId: number, newStart: string, newEnd: string) => void }> = ({ tasks, onTaskUpdate }) => {
         const parseDate = (str: string) => new Date(str);
         const diffDays = (date1: Date, date2: Date) => Math.ceil(Math.abs(date1.getTime() - date2.getTime()) / (1000 * 60 * 60 * 24));
+
+        const GANTT_COLORS = [
+            'bg-[#c20c0b]', // Red
+            'bg-blue-600',
+            'bg-emerald-600',
+            'bg-purple-600',
+            'bg-orange-500',
+            'bg-cyan-600',
+            'bg-pink-600',
+            'bg-indigo-600'
+        ];
+
+        const [interaction, setInteraction] = useState<{
+            type: 'move' | 'resize-start' | 'resize-end';
+            taskId: number;
+            startX: number;
+            originalStart: Date;
+            originalEnd: Date;
+        } | null>(null);
+        const [currentOffset, setCurrentOffset] = useState(0);
+
+        const handleMouseDown = (e: React.MouseEvent, task: any, type: 'move' | 'resize-start' | 'resize-end') => {
+            if (!onTaskUpdate) return;
+            e.preventDefault();
+            e.stopPropagation();
+            setInteraction({
+                type,
+                taskId: task.id,
+                startX: e.clientX,
+                originalStart: parseDate(task.plannedStartDate),
+                originalEnd: parseDate(task.plannedEndDate)
+            });
+            setCurrentOffset(0);
+        };
+
+        const handleMouseMove = useCallback((e: MouseEvent) => {
+            if (interaction) {
+                setCurrentOffset(e.clientX - interaction.startX);
+            }
+        }, [interaction]);
+
+        const handleMouseUp = useCallback(() => {
+            if (interaction && onTaskUpdate) {
+                const daysDiff = Math.round(currentOffset / 40); // 40px per day
+                if (daysDiff !== 0) {
+                    let newStart = new Date(interaction.originalStart);
+                    let newEnd = new Date(interaction.originalEnd);
+
+                    if (interaction.type === 'move') {
+                        newStart.setDate(newStart.getDate() + daysDiff);
+                        newEnd.setDate(newEnd.getDate() + daysDiff);
+                    } else if (interaction.type === 'resize-start') {
+                        newStart.setDate(newStart.getDate() + daysDiff);
+                    } else if (interaction.type === 'resize-end') {
+                        newEnd.setDate(newEnd.getDate() + daysDiff);
+                    }
+                    
+                    // Validation: Ensure start <= end
+                    if (newStart > newEnd) {
+                         if (interaction.type === 'resize-start') newStart = new Date(newEnd);
+                         if (interaction.type === 'resize-end') newEnd = new Date(newStart);
+                    }
+
+                    onTaskUpdate(interaction.taskId, newStart.toISOString().split('T')[0], newEnd.toISOString().split('T')[0]);
+                }
+                setInteraction(null);
+                setCurrentOffset(0);
+            }
+        }, [interaction, currentOffset, onTaskUpdate]);
+
+        useEffect(() => {
+            if (interaction) {
+                window.addEventListener('mousemove', handleMouseMove);
+                window.addEventListener('mouseup', handleMouseUp);
+            }
+            return () => {
+                window.removeEventListener('mousemove', handleMouseMove);
+                window.removeEventListener('mouseup', handleMouseUp);
+            };
+        }, [interaction, handleMouseMove, handleMouseUp]);
 
         const { timelineStart, timelineEnd, totalDuration } = useMemo(() => {
             if (!tasks || tasks.length === 0) {
@@ -246,11 +330,11 @@ export const GanttChartView: FC<{ tasks: any[] }> = ({ tasks }) => {
             <div className="mt-6 overflow-x-auto scrollbar-hide animate-fade-in">
                 <div className="relative" style={{ minWidth: `${totalDuration * 40}px`}}>
                     {/* Grid Lines & Header */}
-                    <div className="relative grid border-b-2 border-gray-200" style={{ gridTemplateColumns: `repeat(${totalDuration}, minmax(40px, 1fr))`}}>
+                    <div className="relative grid border-b-2 border-gray-200 dark:border-white/10" style={{ gridTemplateColumns: `repeat(${totalDuration}, minmax(40px, 1fr))`}}>
                         {timelineHeader.map((date, i) => (
-                            <div key={i} className="text-center border-r border-gray-200 py-2">
+                            <div key={i} className="text-center border-r border-gray-200 dark:border-gray-700 py-2">
                                 <p className="text-xs text-gray-500">{date.toLocaleDateString('en-US', {month: 'short'})}</p>
-                                <p className="text-sm font-medium text-gray-800">{date.getDate()}</p>
+                                <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{date.getDate()}</p>
                             </div>
                         ))}
                     </div>
@@ -263,13 +347,55 @@ export const GanttChartView: FC<{ tasks: any[] }> = ({ tasks }) => {
                             const duration = diffDays(taskStart, taskEnd) + 1;
                             const left = (offset / totalDuration) * 100;
                             const width = (duration / totalDuration) * 100;
+                            const barColor = GANTT_COLORS[index % GANTT_COLORS.length];
+                            const isInteracting = interaction?.taskId === task.id;
+                            
+                            let style: React.CSSProperties = { top: `${index * 48}px`, left: `${left}%`, width: `${width}%`, zIndex: isInteracting ? 50 : 1 };
+    
+                            if (isInteracting && interaction) {
+                                if (interaction.type === 'move') {
+                                    style.transform = `translateX(${currentOffset}px)`;
+                                } else if (interaction.type === 'resize-end') {
+                                    style.width = `calc(${width}% + ${currentOffset}px)`;
+                                } else if (interaction.type === 'resize-start') {
+                                    style.left = `calc(${left}% + ${currentOffset}px)`;
+                                    style.width = `calc(${width}% - ${currentOffset}px)`;
+                                }
+                            }
+                            
                             return (
-                                <div key={task.id} className="absolute w-full h-10 flex items-center" style={{ top: `${index * 48}px`, left: `${left}%`, width: `${width}%` }}>
-                                    <div className={`w-full h-8 rounded-full flex items-center justify-between px-3 text-white shadow-md ${task.color || 'bg-gray-400'}`}>
-                                        <span className="text-sm font-medium truncate">{task.name}</span>
-                                        <img className="w-6 h-6 rounded-full border-2 border-white flex-shrink-0" src={`https://i.pravatar.cc/150?u=${task.id}`} alt="user"/>
+                                <React.Fragment key={task.id}>
+                                    {isInteracting && interaction && interaction.type === 'move' && (
+                                        <div 
+                                            className="absolute w-full h-10 flex items-center pointer-events-none" 
+                                            style={{ top: `${index * 48}px`, left: `${left}%`, width: `${width}%`, zIndex: 0 }}
+                                        >
+                                            <div className="w-full h-8 rounded-full border-2 border-dashed border-gray-400 bg-gray-50 opacity-50"></div>
+                                        </div>
+                                    )}
+                                    <div 
+                                        className="absolute w-full h-10 flex items-center transition-transform duration-75" 
+                                        style={style}
+                                        onMouseDown={(e) => handleMouseDown(e, task, 'move')}
+                                    >
+                                        <div className={`w-full h-8 rounded-full flex items-center justify-between px-3 text-white shadow-md ${barColor} ${onTaskUpdate ? 'cursor-grab active:cursor-grabbing' : ''} relative group`}>
+                                            {onTaskUpdate && (
+                                                <div 
+                                                    className="absolute left-0 top-0 bottom-0 w-3 cursor-ew-resize z-10 hover:bg-black/20 rounded-l-full"
+                                                    onMouseDown={(e) => handleMouseDown(e, task, 'resize-start')}
+                                                />
+                                            )}
+                                            <span className="text-sm font-medium truncate pointer-events-none select-none">{task.name}</span>
+                                            <img className="w-6 h-6 rounded-full border-2 border-white flex-shrink-0 pointer-events-none select-none" src={`https://i.pravatar.cc/150?u=${task.id}`} alt="user"/>
+                                            {onTaskUpdate && (
+                                                <div 
+                                                    className="absolute right-0 top-0 bottom-0 w-3 cursor-ew-resize z-10 hover:bg-black/20 rounded-r-full"
+                                                    onMouseDown={(e) => handleMouseDown(e, task, 'resize-end')}
+                                                />
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
+                                </React.Fragment>
                             )
                         })}
                     </div>
@@ -320,26 +446,26 @@ export const TNAView: FC<{ tasks: any[] }> = ({ tasks }) => {
 
         return (
             <div className="mt-6 overflow-x-auto animate-fade-in">
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
+                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-sm border border-gray-200 dark:border-white/10">
+                    <table className="min-w-full divide-y divide-gray-200 dark:divide-white/10">
+                        <thead className="bg-gray-50 dark:bg-gray-700/50">
                             <tr>
                                 {['Task', 'Responsible', 'Planned Start', 'Planned End', 'Actual Start', 'Actual End', 'Status', 'Delay (Days)'].map(header => (
-                                    <th key={header} scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{header}</th>
+                                    <th key={header} scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{header}</th>
                                 ))}
                             </tr>
                         </thead>
-                        <tbody className="bg-white divide-y divide-gray-200 text-sm">
+                        <tbody className="bg-white dark:bg-gray-900/40 divide-y divide-gray-200 dark:divide-white/10 text-sm">
                             {tasks.map(task => {
                                 const delayInfo = calculateDelay(task);
                                 return (
-                                    <tr key={task.id} className="hover:bg-gray-50">
-                                        <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-800">{task.name}</td>
-                                        <td className="px-4 py-3 whitespace-nowrap text-gray-600">{task.responsible}</td>
-                                        <td className="px-4 py-3 whitespace-nowrap text-gray-600">{task.plannedStartDate}</td>
-                                        <td className="px-4 py-3 whitespace-nowrap text-gray-600">{task.plannedEndDate}</td>
-                                        <td className="px-4 py-3 whitespace-nowrap text-gray-600">{task.actualStartDate || '—'}</td>
-                                        <td className="px-4 py-3 whitespace-nowrap text-gray-600">{task.actualEndDate || '—'}</td>
+                                    <tr key={task.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                        <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-800 dark:text-white">{task.name}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300">{task.responsible}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300">{task.plannedStartDate}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300">{task.plannedEndDate}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300">{task.actualStartDate || '—'}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300">{task.actualEndDate || '—'}</td>
                                         <td className="px-4 py-3 whitespace-nowrap"><span className={getStatusPill(task.status)}>{task.status}</span></td>
                                         <td className={`px-4 py-3 whitespace-nowrap ${getDelayColor(delayInfo.status)}`}>{delayInfo.days > 0 ? `+${delayInfo.days}` : '—'}</td>
                                     </tr>
@@ -367,27 +493,27 @@ export const OrderDetailsView: FC<{ order: any; allFactories: Factory[]; handleS
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Left Column */}
                     <div className="lg:col-span-2 space-y-6">
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                            <h3 className="text-lg font-semibold text-gray-800 mb-4">Order Summary</h3>
+                        <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-sm border border-gray-200 dark:border-white/10">
+                            <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">Order Summary</h3>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div><p className="text-sm text-gray-500">Order ID</p><p className="font-semibold">{order.id || 'N/A'}</p></div>
-                                <div><p className="text-sm text-gray-500">Customer</p><p className="font-semibold">{order.customer}</p></div>
-                                <div><p className="text-sm text-gray-500">Product</p><p className="font-semibold">{order.product}</p></div>
+                            <div><p className="text-sm text-gray-500 dark:text-gray-400">Order ID</p><p className="font-semibold dark:text-gray-200">{order.id || 'N/A'}</p></div>
+                                <div><p className="text-sm text-gray-500 dark:text-gray-400">Customer</p><p className="font-semibold dark:text-gray-200">{order.customer}</p></div>
+                                <div><p className="text-sm text-gray-500 dark:text-gray-400">Product</p><p className="font-semibold dark:text-gray-200">{order.product}</p></div>
                             </div>
                         </div>
-                            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                            <h3 className="text-lg font-semibold text-gray-800 mb-4">Order Documents</h3>
+                            <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-sm border border-gray-200 dark:border-white/10">
+                            <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">Order Documents</h3>
                             <div className="space-y-3">
                                 {order.documents.map((doc: any, index: number) => (
-                                    <div key={index} className="border rounded-lg p-3 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                                    <div key={index} className="border border-gray-200 dark:border-white/10 rounded-lg p-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                                         <div className="flex items-center gap-3">
                                             {getDocIcon(doc.type)}
                                             <div>
-                                                <p className="font-semibold text-gray-800">{doc.name}</p>
+                                                <p className="font-semibold text-gray-800 dark:text-gray-200">{doc.name}</p>
                                                 <p className="text-xs text-gray-500">Updated: {doc.lastUpdated}</p>
                                             </div>
                                         </div>
-                                        <button className="p-2 rounded-md hover:bg-gray-200 text-gray-500">
+                                        <button className="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500">
                                             <Download size={18} />
                                         </button>
                                     </div>
@@ -396,29 +522,29 @@ export const OrderDetailsView: FC<{ order: any; allFactories: Factory[]; handleS
                         </div>
                     </div>
                     {/* Right Column */}
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                        <h3 className="text-lg font-semibold text-gray-800 mb-4">Assigned Factory</h3>
+                    <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-sm border border-gray-200 dark:border-white/10">
+                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">Assigned Factory</h3>
                         {factory ? (
                             <div className="space-y-4">
                                 <div className="flex items-center gap-4">
                                     <img src={factory.imageUrl} alt={factory.name} className="w-16 h-16 rounded-lg object-cover"/>
                                     <div>
-                                        <p className="font-bold text-gray-900">{factory.name}</p>
+                                        <p className="font-bold text-gray-900 dark:text-white">{factory.name}</p>
                                         <p className="text-sm text-gray-500 flex items-center"><MapPin size={14} className="mr-1.5"/>{factory.location}</p>
                                     </div>
                                 </div>
-                                <div className="text-sm space-y-2">
+                                <div className="text-sm space-y-2 dark:text-gray-300">
                                     <p><span className="font-semibold">Rating:</span> {factory.rating} / 5.0</p>
                                     <p><span className="font-semibold">Specialties:</span> {factory.specialties.join(', ')}</p>
                                     <p><span className="font-semibold">Contact:</span> john.doe@example.com</p>
                                 </div>
                                 <button 
                                     onClick={() => factory && handleSetCurrentPage('factoryDetail', factory)}
-                                    className="w-full mt-2 py-2 px-4 text-sm font-semibold bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200">
+                                    className="w-full mt-2 py-2 px-4 text-sm font-semibold bg-red-100 text-[#c20c0b] rounded-lg hover:bg-red-200">
                                     View Factory Profile
                                 </button>
                             </div>
-                        ) : <p>No factory assigned.</p>}
+                        ) : <p className="dark:text-gray-400">No factory assigned.</p>}
                     </div>
                 </div>
             </div>
@@ -511,21 +637,21 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
         if (!text) return null;
         // A simple markdown-like renderer
         const lines = text.split('\n').map((line, i) => {
-            if (line.startsWith('###')) return <h3 key={i} className="text-xl font-bold text-gray-800 mb-4">{line.replace('###', '')}</h3>;
-            if (line.startsWith('**')) return <p key={i} className="font-semibold text-gray-700 mt-4 mb-1">{line.replace(/\*\*/g, '')}</p>;
-            if (line.startsWith('- ')) return <li key={i} className="flex items-start my-1 text-gray-600"><span className="mr-3 mt-1.5 text-[#c20c0b]">∙</span><span>{line.substring(2)}</span></li>;
-            return <p key={i} className="text-gray-600">{line}</p>;
+            if (line.startsWith('###')) return <h3 key={i} className="text-xl font-bold text-gray-800 dark:text-white mb-4">{line.replace('###', '')}</h3>;
+            if (line.startsWith('**')) return <p key={i} className="font-semibold text-gray-700 dark:text-gray-300 mt-4 mb-1">{line.replace(/\*\*/g, '')}</p>;
+            if (line.startsWith('- ')) return <li key={i} className="flex items-start my-1 text-gray-600 dark:text-gray-400"><span className="mr-3 mt-1.5 text-[#c20c0b]">∙</span><span>{line.substring(2)}</span></li>;
+            return <p key={i} className="text-gray-600 dark:text-gray-400">{line}</p>;
         });
         return <div className="space-y-1">{lines}</div>;
     };
 
     const AIOrderSummaryModal: FC = () => (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60] p-4 animate-fade-in" onClick={() => setIsSummaryModalOpen(false)}>
-            <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 w-full max-w-2xl relative" onClick={e => e.stopPropagation()}>
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 sm:p-8 w-full max-w-2xl relative" onClick={e => e.stopPropagation()}>
                 <button onClick={() => setIsSummaryModalOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition"> <X size={24} /> </button>
                 <div className="flex items-center gap-3 mb-6">
                     <div className="p-2 bg-red-100 rounded-lg"> <Bot className="w-6 h-6 text-[#c20c0b]" /> </div>
-                    <h2 className="text-2xl font-bold text-gray-800">AI Order Summary</h2>
+                    <h2 className="text-2xl font-bold text-gray-800 dark:text-white">AI Order Summary</h2>
                 </div>
                 <div className="min-h-[200px] prose prose-sm max-w-none">
                     {isSummaryLoading ? ( <div className="flex items-center justify-center h-full flex-col"> <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#c20c0b]"></div> <p className="mt-4 text-gray-500">Analyzing order data...</p> </div> ) : ( <MarkdownRenderer text={orderSummary} /> )}
@@ -537,25 +663,25 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
     return (
         <MainLayout {...props}>
             <div className="flex justify-between items-center mb-6">
-                <h1 className="text-3xl font-bold text-gray-800">CRM Portal</h1>
+                <h1 className="text-3xl font-bold text-gray-800 dark:text-white">CRM Portal</h1>
                 <button className="bg-[#c20c0b] text-white font-semibold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-[#a50a09] transition">
                     <Plus size={18} /> Add Task
                 </button>
             </div>
-            <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
-                <div className="border-b border-gray-200 pb-4">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4 sm:p-6">
+                <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
                     <div className="flex flex-wrap items-center justify-between gap-y-4 gap-x-2">
                         {/* Order Tabs */}
                         <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
                             {Object.keys(crmData).map(orderKey => (
-                                <button key={orderKey} onClick={() => setActiveOrderKey(orderKey)} className={`flex-shrink-0 py-2 px-4 font-semibold text-sm rounded-t-lg transition-colors ${activeOrderKey === orderKey ? 'border-b-2 border-[#c20c0b] text-[#c20c0b]' : 'text-gray-500 hover:text-gray-700'}`}>
+                                <button key={orderKey} onClick={() => setActiveOrderKey(orderKey)} className={`flex-shrink-0 py-2 px-4 font-semibold text-sm rounded-t-lg transition-colors ${activeOrderKey === orderKey ? 'border-b-2 border-[#c20c0b] text-[#c20c0b]' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
                                     {crmData[orderKey].product}
                                 </button>
                             ))}
                         </div>
                         {/* View Tabs & AI Button */}
                         <div className="flex items-center gap-2">
-                            <div className="flex items-center border border-gray-200 rounded-lg p-1 bg-gray-50">
+                            <div className="flex items-center border border-gray-200 dark:border-gray-700 rounded-lg p-1 bg-gray-50 dark:bg-gray-700">
                                 {[
                                     {name: 'Details', icon: <Info size={16}/>},
                                     {name: 'List', icon: <List size={16}/>},
@@ -564,12 +690,12 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
                                     {name: 'Dashboard', icon: <PieChartIcon size={16}/>},
                                     {name: 'Gantt', icon: <GanttChartSquare size={16}/>}
                                 ].map(view => (
-                                    <button key={view.name} onClick={() => setActiveView(view.name)} className={`flex items-center gap-2 py-1.5 px-3 text-sm font-semibold rounded-md transition-colors ${activeView === view.name ? 'bg-white text-[#c20c0b] shadow-sm' : 'text-gray-600 hover:bg-gray-200'}`}>
+                                    <button key={view.name} onClick={() => setActiveView(view.name)} className={`flex items-center gap-2 py-1.5 px-3 text-sm font-semibold rounded-md transition-colors ${activeView === view.name ? 'bg-white dark:bg-gray-600 text-[#c20c0b] shadow-sm' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
                                         {view.icon} <span className="hidden sm:inline">{view.name}</span>
                                     </button>
                                 ))}
                             </div>
-                            <button onClick={generateOrderSummary} className="p-2.5 bg-red-100 text-[#c20c0b] rounded-lg hover:bg-red-200 transition-colors" title="Generate AI Summary">
+                            <button onClick={generateOrderSummary} className="p-2.5 bg-red-100 dark:bg-red-900/30 text-[#c20c0b] dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors" title="Generate AI Summary">
                                 <Bot size={18}/>
                             </button>
                         </div>
