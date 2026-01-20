@@ -124,25 +124,25 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                         <table className="min-w-full divide-y divide-gray-200 dark:divide-white/10">
                             <thead className="bg-gray-50 dark:bg-gray-700/50">
                                 <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Name</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Company</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Email</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Role</th>
-                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-200 uppercase tracking-wider">Name</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-200 uppercase tracking-wider">Company</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-200 uppercase tracking-wider">Email</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-200 uppercase tracking-wider">Role</th>
+                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-200 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white dark:bg-gray-900/40 divide-y divide-gray-200 dark:divide-white/10">
                                 {isLoading ? (
-                                    <tr><td colSpan={5} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">Loading clients...</td></tr>
+                                    <tr><td colSpan={5} className="px-6 py-4 text-center text-gray-500 dark:text-gray-200">Loading clients...</td></tr>
                                 ) : clients.length === 0 ? (
-                                    <tr><td colSpan={5} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">No clients found.</td></tr>
+                                    <tr><td colSpan={5} className="px-6 py-4 text-center text-gray-500 dark:text-gray-200">No clients found.</td></tr>
                                 ) : (
                                     clients.map((client) => (
                                         <tr key={client.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{client.name || 'N/A'}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{client.company_name || 'N/A'}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{client.email}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{client.job_role || 'N/A'}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-200">{client.company_name || 'N/A'}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-200">{client.email}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-200">{client.job_role || 'N/A'}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                 <button onClick={() => handleEditClick(client)} className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 mr-4">Edit</button>
                                                 <button onClick={() => handleDeleteClient(client.id)} className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300">Delete</button>
@@ -161,14 +161,14 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                     <div className="bg-white dark:bg-gray-900/95 dark:backdrop-blur-xl p-8 rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/10">
                         <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Edit Client</h2>
                         <form onSubmit={handleSaveClient} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div> <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label> <input type="text" value={editingClient.name || ''} onChange={e => setEditingClient({...editingClient, name: e.target.value})} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white" /> </div>
-                            <div> <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Company</label> <input type="text" value={editingClient.company_name || ''} onChange={e => setEditingClient({...editingClient, company_name: e.target.value})} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white" /> </div>
-                            <div> <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label> <input type="email" value={editingClient.email || ''} onChange={e => setEditingClient({...editingClient, email: e.target.value})} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white" /> </div>
-                            <div> <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone</label> <input type="text" value={editingClient.phone || ''} onChange={e => setEditingClient({...editingClient, phone: e.target.value})} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white" /> </div>
-                            <div> <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Country</label> <input type="text" value={editingClient.country || ''} onChange={e => setEditingClient({...editingClient, country: e.target.value})} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white" /> </div>
-                            <div> <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role</label> <input type="text" value={editingClient.job_role || ''} onChange={e => setEditingClient({...editingClient, job_role: e.target.value})} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white" /> </div>
+                            <div> <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">Name</label> <input type="text" value={editingClient.name || ''} onChange={e => setEditingClient({...editingClient, name: e.target.value})} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white" /> </div>
+                            <div> <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">Company</label> <input type="text" value={editingClient.company_name || ''} onChange={e => setEditingClient({...editingClient, company_name: e.target.value})} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white" /> </div>
+                            <div> <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">Email</label> <input type="email" value={editingClient.email || ''} onChange={e => setEditingClient({...editingClient, email: e.target.value})} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white" /> </div>
+                            <div> <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">Phone</label> <input type="text" value={editingClient.phone || ''} onChange={e => setEditingClient({...editingClient, phone: e.target.value})} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white" /> </div>
+                            <div> <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">Country</label> <input type="text" value={editingClient.country || ''} onChange={e => setEditingClient({...editingClient, country: e.target.value})} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white" /> </div>
+                            <div> <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">Role</label> <input type="text" value={editingClient.job_role || ''} onChange={e => setEditingClient({...editingClient, job_role: e.target.value})} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white" /> </div>
                             <div className="md:col-span-2 flex justify-end gap-4 mt-4">
-                                <button type="button" onClick={() => setIsEditModalOpen(false)} className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg">Cancel</button>
+                                <button type="button" onClick={() => setIsEditModalOpen(false)} className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded-lg">Cancel</button>
                                 <button type="submit" className="px-4 py-2 bg-purple-600 text-white rounded-lg">Save Changes</button>
                             </div>
                         </form>

@@ -39,6 +39,7 @@ import { AdminRFQPage } from './AdminRFQPage';
 import { quoteService } from './quote.service';
 import { MyQuotesPage } from './MyQuotesPage';
 import { QuoteDetailPage } from './QuoteDetailPage';
+import { FactoryDetailPage } from './FactoryDetailPage';
 
 // --- Type Definitions ---
 
@@ -904,7 +905,7 @@ const App: FC = () => {
                                 </div>
                                 <div>
                                     <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Dark Mode</h3>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">Adjust the appearance of the application</p>
+                                    <p className="text-sm text-gray-500 dark:text-gray-200">Adjust the appearance of the application</p>
                                 </div>
                             </div>
                             <button 
@@ -928,10 +929,10 @@ const App: FC = () => {
                                     <div className="bg-red-100 dark:bg-red-900/30 text-[#c20c0b] dark:text-red-400 p-3 rounded-lg">{opt.icon}</div>
                                     <div>
                                         <h3 className="text-lg font-semibold text-gray-800 dark:text-white">{opt.title}</h3>
-                                        <p className="text-sm text-gray-500 dark:text-gray-400">{opt.description}</p>
+                                        <p className="text-sm text-gray-500 dark:text-gray-200">{opt.description}</p>
                                     </div>
                                 </div>
-                                <button onClick={opt.action} className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-semibold py-2 px-4 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition text-sm">
+                                <button onClick={opt.action} className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-white font-semibold py-2 px-4 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition text-sm">
                                     {opt.buttonLabel}
                                 </button>
                             </div>
@@ -941,7 +942,7 @@ const App: FC = () => {
                                     <div className="bg-red-100 dark:bg-red-900/30 text-[#c20c0b] dark:text-red-400 p-3 rounded-lg"><MapPin size={20}/></div>
                                     <div>
                                         <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Change Location</h3>
-                                        <p className="text-sm text-gray-500 dark:text-gray-400">Update your primary business location.</p>
+                                        <p className="text-sm text-gray-500 dark:text-gray-200">Update your primary business location.</p>
                                     </div>
                                 </div>
                                 <div className="mt-4 flex gap-4 items-center">
@@ -988,226 +989,6 @@ const App: FC = () => {
         </MainLayout>
     );
 
-   // Component to display details of a selected factory
-   const FactoryDetailPage: FC = () => {
-        const [currentImageIndex, setCurrentImageIndex] = useState(0);
-
-        if (!selectedFactory) return null;
-
-        const { gallery } = selectedFactory;
-
-        // Navigation for image gallery
-        const nextImage = () => {
-            setCurrentImageIndex((prevIndex) => (prevIndex + 1) % gallery.length);
-        };
-
-        const prevImage = () => {
-            setCurrentImageIndex((prevIndex) => (prevIndex - 1 + gallery.length) % gallery.length);
-        };
-
-        // Helper component for certification badges
-        const CertificationBadge: FC<{ cert: string }> = ({ cert }) => {
-            const certStyles: { [key: string]: string } = {
-                'Sedex': 'bg-blue-100 text-blue-800',
-                'Oeko-Tex Standard 100': 'bg-green-100 text-green-800',
-                'BCI': 'bg-yellow-100 text-yellow-800',
-                'WRAP': 'bg-indigo-100 text-indigo-800',
-                'ISO 9001': 'bg-red-100 text-red-800'
-            };
-            return <span className={`text-sm font-semibold px-3 py-1 rounded-full ${certStyles[cert] || 'bg-gray-100 text-gray-800'}`}>{cert}</span>
-        }
-        // Helper component for machine capacity rows
-        const MachineSlotRow: FC<{ slot: MachineSlot }> = ({ slot }) => {
-            const usagePercentage = (slot.availableSlots / slot.totalSlots) * 100;
-            return (
-                <tr className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{slot.machineType}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <div className="flex items-center">
-                            <div className="w-full bg-gray-200 rounded-full h-2.5 mr-2">
-                                <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${usagePercentage}%` }}></div>
-                            </div>
-                            <span>{slot.availableSlots}/{slot.totalSlots}</span>
-                        </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{slot.nextAvailable}</td>
-                </tr>
-            )
-        }
-        return (
-            <MainLayout {...layoutProps}>
-                <div className="space-y-6">
-                    <div>
-                        <button onClick={() => handleSetCurrentPage(suggestedFactories.length > 0 ? 'factorySuggestions' : 'sourcing')} className="text-purple-600 font-semibold mb-4 flex items-center hover:underline">
-                            <ChevronLeft className="h-5 w-5 mr-1" />
-                            Back to Factories
-                        </button>
-                    </div>
-                    <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-lg overflow-hidden border border-gray-200 dark:border-white/10">
-                        {/* Image Gallery */}
-                        <div className="relative">
-                            <img className="h-64 md:h-96 w-full object-cover transition-opacity duration-300" src={gallery[currentImageIndex]} alt={`${selectedFactory.name} gallery image ${currentImageIndex + 1}`} />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent"></div>
-                            {gallery.length > 1 && (
-                                <>
-                                    <button onClick={prevImage} className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/70 hover:bg-white p-2 rounded-full shadow-md transition">
-                                        <ChevronLeft className="h-6 w-6 text-gray-800" />
-                                    </button>
-                                    <button onClick={nextImage} className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/70 hover:bg-white p-2 rounded-full shadow-md transition">
-                                        <ChevronRight className="h-6 w-6 text-gray-800" />
-                                    </button>
-                                </>
-                            )}
-                            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex space-x-2">
-                                {gallery.map((_, index) => (
-                                    <button key={index} onClick={() => setCurrentImageIndex(index)} className={`w-2 h-2 rounded-full ${index === currentImageIndex ? 'bg-white' : 'bg-white/50'}`}></button>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="p-8">
-                            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{selectedFactory.name}</h1>
-                            <div className="flex flex-wrap gap-2 mt-2 mb-4">
-                                {selectedFactory.tags?.map(tag => (
-                                    <span key={tag} className={`text-sm font-semibold px-3 py-1 rounded-full ${ tag === 'Prime' ? 'bg-blue-100 text-blue-800' : tag === 'Tech Enabled' ? 'bg-purple-100 text-purple-800' : tag === 'Sustainable' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800' }`}>
-                                        {tag}
-                                    </span>
-                                ))}
-                            </div>
-                            <p className="mt-2 text-gray-600 dark:text-gray-300">{selectedFactory.description}</p>
-                            <button onClick={() => handleSetCurrentPage('factoryCatalog', selectedFactory)} className="mt-6 w-full md:w-auto px-6 py-3 text-white rounded-lg font-semibold bg-gray-800 hover:bg-black transition shadow-md flex items-center justify-center">
-                                <BookOpen className="mr-2 h-5 w-5" /> View Product Catalog
-                            </button>
-                        </div>
-                        
-                        <div className="px-8 py-6 border-t border-gray-200 dark:border-white/10">
-                            <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Factory Details</h3>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-                                <div> <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Location</p> <p className="font-semibold text-gray-800 dark:text-gray-200 flex items-center justify-center"><MapPin size={14} className="mr-1.5"/>{selectedFactory.location}</p> </div>
-                                <div> <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Rating</p> <p className="font-semibold text-gray-800 dark:text-gray-200 flex items-center justify-center"><Star size={16} className="text-yellow-400 fill-current mr-1.5"/>{selectedFactory.rating}</p> </div>
-                                <div> <p className="text-sm font-medium text-gray-500 dark:text-gray-400">MOQ</p> <p className="font-semibold text-gray-800 dark:text-gray-200">{selectedFactory.minimumOrderQuantity} units</p> </div>
-                                <div> <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Specialties</p> <p className="font-semibold text-gray-800 dark:text-gray-200">{selectedFactory.specialties.join(', ')}</p> </div>
-                            </div>
-                        </div>
-                        <div className="px-8 py-6 border-t border-gray-200 dark:border-white/10">
-                            <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Certifications & Compliance</h3>
-                            <div className="flex flex-wrap gap-3">
-                                {selectedFactory.certifications?.map(cert => <CertificationBadge key={cert} cert={cert} />)}
-                            </div>
-                        </div>
-                        <div className="px-8 py-6 border-t border-gray-200 dark:border-white/10">
-                            <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Production Capacity</h3>
-                            <div className="overflow-x-auto">
-                                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                                    <thead className="bg-gray-50 dark:bg-gray-700/50">
-                                        <tr>
-                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Machine Type</th>
-                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Available Capacity</th>
-                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Next Available Date</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="bg-white dark:bg-gray-900/40 divide-y divide-gray-200 dark:divide-gray-700">
-                                        {selectedFactory.machineSlots.map(slot => (
-                                            <MachineSlotRow key={slot.machineType} slot={slot} />
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                        <div className="px-8 py-6 bg-gray-50 dark:bg-gray-700/30 flex flex-col md:flex-row items-center justify-between gap-4">
-                            <div>
-                                <h4 className="font-semibold text-gray-800 dark:text-white">Ready to proceed?</h4>
-                                <p className="text-sm text-gray-600 dark:text-gray-400">Request a quote or use our AI tools to prepare your inquiry.</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <button onClick={() => handleSetCurrentPage('factoryTools', selectedFactory)} className="w-full md:w-auto px-6 py-3 text-purple-700 bg-purple-100 rounded-lg font-semibold hover:bg-purple-200 transition">
-                                    Use AI Sourcing Tools
-                                </button>
-                                <button onClick={() => handleSetCurrentPage('quoteRequest', selectedFactory)} className="w-full md:w-auto px-6 py-3 text-white rounded-lg font-semibold bg-purple-600 hover:bg-purple-700 transition shadow-md">
-                                    Request a Quote
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </MainLayout>
-        );
-    };
-
-    // Component to display the product catalog of a factory
-    const FactoryCatalogPage: FC = () => {
-        if (!selectedFactory) {
-            handleSetCurrentPage('sourcing');
-            return null;
-        }
-
-        const { catalog, name } = selectedFactory;
-
-        return (
-            <MainLayout {...layoutProps}>
-                <div className="space-y-8">
-                    <div>
-                        <button onClick={() => handleSetCurrentPage('factoryDetail', selectedFactory)} className="text-[#c20c0b] font-semibold mb-4 flex items-center hover:underline">
-                            <ChevronLeft className="h-5 w-5 mr-1" />
-                            Back to Factory Details
-                        </button>
-                        <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Product Catalog</h1>
-                        <p className="text-gray-500 mt-1">Available products and materials from <span className="font-semibold">{name}</span>.</p>
-                    </div>
-
-                    {/* Product Categories Section */}
-                    <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 sm:p-8 rounded-xl shadow-lg border border-gray-200 dark:border-white/10">
-                        <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-6">Product Categories</h2>
-                        {catalog.productCategories.length > 0 ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {catalog.productCategories.map((category, index) => (
-                                    <div key={index} className="bg-gray-50 dark:bg-gray-700 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600 group">
-                                        <img src={category.imageUrl} alt={category.name} className="h-48 w-full object-cover group-hover:opacity-90 transition-opacity" />
-                                        <div className="p-4">
-                                            <h3 className="font-bold text-lg text-gray-900 dark:text-white">{category.name}</h3>
-                                            <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">{category.description}</p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <p className="text-gray-500">No specific product categories listed. Please inquire for details.</p>
-                        )}
-                    </div>
-
-                    {/* Fabric Options Section */}
-                    <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 sm:p-8 rounded-xl shadow-lg border border-gray-200 dark:border-white/10">
-                        <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-6">Fabric Options</h2>
-                        {catalog.fabricOptions.length > 0 ? (
-                            <div className="overflow-x-auto">
-                                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                                    <thead className="bg-gray-50 dark:bg-gray-700/50">
-                                        <tr>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Fabric Name</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Composition</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Best For</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="bg-white dark:bg-gray-900/40 divide-y divide-gray-200 dark:divide-gray-700">
-                                        {catalog.fabricOptions.map((fabric, index) => (
-                                            <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{fabric.name}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{fabric.composition}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{fabric.useCases}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        ) : (
-                            <p className="text-gray-500">Fabric options are available upon request.</p>
-                        )}
-                    </div>
-                </div>
-            </MainLayout>
-        );
-    };
-
     // Component for AI tools related to a factory
     const FactoryToolsPage: FC = () => {
         if (!selectedFactory) {
@@ -1231,8 +1012,8 @@ const App: FC = () => {
                             {orderFormData.lineItems.map((item, idx) => (
                                 <div key={idx} className="md:col-span-2 border-b dark:border-white/10 pb-4 mb-4 last:border-0 last:mb-0 last:pb-0">
                                     <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">Item {idx + 1}: {item.category}</h4>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400">Quantity: {item.qty}</p>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400">Details: {item.fabricQuality}, {item.weightGSM}GSM, {item.styleOption}</p>
+                                    <p className="text-sm text-gray-600 dark:text-gray-200">Quantity: {item.qty}</p>
+                                    <p className="text-sm text-gray-600 dark:text-gray-200">Details: {item.fabricQuality}, {item.weightGSM}GSM, {item.styleOption}</p>
                                 </div>
                             ))}
                         </div>
@@ -1281,12 +1062,12 @@ const App: FC = () => {
         return (
             <MainLayout {...layoutProps}>
                 <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-2">Order Tracking</h1>
-                <p className="text-gray-500 mb-6">Follow your shipment from production to delivery.</p>
+                <p className="text-gray-500 dark:text-gray-200 mb-6">Follow your shipment from production to delivery.</p>
                 <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-lg border border-gray-200 dark:border-white/10">
                     <div className="p-4 border-b border-gray-200 dark:border-white/10">
                         <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
                             {Object.keys(trackingData).map(orderKey => (
-                                <button key={orderKey} onClick={() => setActiveOrderKey(orderKey)} className={`flex-shrink-0 py-2 px-4 font-semibold text-sm rounded-lg transition-colors ${activeOrderKey === orderKey ? 'bg-red-100 text-[#c20c0b]' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
+                                <button key={orderKey} onClick={() => setActiveOrderKey(orderKey)} className={`flex-shrink-0 py-2 px-4 font-semibold text-sm rounded-lg transition-colors ${activeOrderKey === orderKey ? 'bg-red-100 text-[#c20c0b]' : 'text-gray-500 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
                                     {orderKey}
                                 </button>
                             ))}
@@ -1318,7 +1099,7 @@ const App: FC = () => {
                                             </div>
                                             <div>
                                                 <h4 className={`font-semibold ${isComplete || isInProgress ? 'text-gray-800 dark:text-white' : 'text-gray-500 dark:text-gray-500'}`}>{item.status}</h4>
-                                                <p className="text-sm text-gray-500">{item.date}</p>
+                                                <p className="text-sm text-gray-500 dark:text-gray-200">{item.date}</p>
                                             </div>
                                         </div>
                                     </div>
@@ -1384,7 +1165,7 @@ const App: FC = () => {
                         <div className="flex-1 p-4 overflow-y-auto space-y-4">
                             {messages.map((msg, index) => (
                                 <div key={index} className={`flex ${msg.sender === 'ai' ? 'justify-start' : 'justify-end'}`}>
-                                    <div className={`max-w-xs p-3 rounded-lg prose prose-sm ${msg.sender === 'ai' ? 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200' : 'bg-blue-500 text-white'}`}>
+                                    <div className={`max-w-xs p-3 rounded-lg prose prose-sm ${msg.sender === 'ai' ? 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white' : 'bg-blue-500 text-white'}`}>
                                         {msg.text}
                                     </div>
                                 </div>
@@ -1395,7 +1176,7 @@ const App: FC = () => {
                         <div className="p-2 border-t border-gray-200 dark:border-gray-700">
                             <div className="p-1 border dark:border-gray-600 rounded-lg flex items-center bg-white dark:bg-gray-700">
                                 <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSend()} placeholder="Ask anything..." className="flex-1 p-2 text-sm border-none focus:outline-none focus:ring-0 bg-transparent text-gray-800 dark:text-white placeholder-gray-400" />
-                                <button onClick={handleSend} disabled={isLoading} className="bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-gray-300 p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 transition disabled:opacity-50">
+                                <button onClick={handleSend} disabled={isLoading} className="bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-white p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 transition disabled:opacity-50">
                                     <Send size={16} />
                                 </button>
                             </div>
@@ -1445,8 +1226,8 @@ const App: FC = () => {
                 </MainLayout>
             );
             case 'factorySuggestions': return <FactorySuggestionsPage />;
-            case 'factoryDetail': return <FactoryDetailPage />;
-            case 'factoryCatalog': return <FactoryCatalogPage />;
+            case 'factoryDetail': return <FactoryDetailPage {...layoutProps} selectedFactory={selectedFactory!} suggestedFactories={suggestedFactories} initialTab="overview" />;
+            case 'factoryCatalog': return <FactoryDetailPage {...layoutProps} selectedFactory={selectedFactory!} suggestedFactories={suggestedFactories} initialTab="catalog" />;
             case 'factoryTools': return <FactoryToolsPage />;
             case 'settings': return <SettingsPage />;
             case 'tracking': return <OrderTrackingPage />;
@@ -1512,7 +1293,7 @@ const App: FC = () => {
         return (
             <MainLayout {...layoutProps}>
                 <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-2">What's Trending</h1>
-                <p className="text-gray-500 mb-8">Discover the latest in fashion, materials, and manufacturing.</p>
+                <p className="text-gray-500 dark:text-gray-200 mb-8">Discover the latest in fashion, materials, and manufacturing.</p>
                 {/* Banners */}
                 <section className="mb-12">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1538,7 +1319,7 @@ const App: FC = () => {
                                 <div className="p-6">
                                     <span className="text-xs font-semibold bg-red-100 text-[#c20c0b] px-2 py-1 rounded-full">{blog.category}</span>
                                     <h3 className="font-bold text-lg text-gray-800 dark:text-white mt-3 mb-2">{blog.title}</h3>
-                                    <p className="text-sm text-gray-500">By {blog.author} · {blog.date}</p>
+                                    <p className="text-sm text-gray-500 dark:text-gray-200">By {blog.author} · {blog.date}</p>
                                 </div>
                             </div>
                         ))}
@@ -1596,7 +1377,7 @@ const App: FC = () => {
                     </button>
                     <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-8 rounded-xl shadow-lg border border-gray-200 dark:border-white/10">
                         <h2 className="text-3xl font-bold text-gray-800 dark:text-white mb-2">Request a Quote</h2>
-                        <p className="text-gray-500 mb-6">Review your order details and submit your request to <span className="font-semibold">{selectedFactory.name}</span>.</p>
+                        <p className="text-gray-500 dark:text-gray-200 mb-6">Review your order details and submit your request to <span className="font-semibold">{selectedFactory.name}</span>.</p>
                         <form onSubmit={handleQuoteSubmit}>
                             <div className="space-y-6">
                                 <div className="p-4 border dark:border-white/10 rounded-lg">
@@ -1605,7 +1386,7 @@ const App: FC = () => {
                                         <img src={selectedFactory.imageUrl} alt={selectedFactory.name} className="w-16 h-16 rounded-lg object-cover" />
                                         <div>
                                             <p className="font-bold text-gray-900 dark:text-white">{selectedFactory.name}</p>
-                                            <p className="text-sm text-gray-500">{selectedFactory.location}</p>
+                                            <p className="text-sm text-gray-500 dark:text-gray-200">{selectedFactory.location}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -1699,7 +1480,7 @@ const App: FC = () => {
                 <div className="flex justify-between items-center mb-6">
                     <div>
                         <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Billing & Escrow</h1>
-                        <p className="text-gray-500 mt-1">Manage and track your order payments.</p>
+                        <p className="text-gray-500 dark:text-gray-200 mt-1">Manage and track your order payments.</p>
                     </div>
                 </div>
 
@@ -1733,10 +1514,10 @@ const App: FC = () => {
                                 {billingData.map(item => (
                                     <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-[#c20c0b] hover:underline cursor-pointer">{item.orderId}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 dark:text-gray-200">{item.product}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${item.totalAmount.toLocaleString()}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 dark:text-white">{item.product}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-200">${item.totalAmount.toLocaleString()}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-semibold">${item.amountReleased.toLocaleString()}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 dark:text-gray-200 font-bold">${item.amountHeld.toLocaleString()}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 dark:text-white font-bold">${item.amountHeld.toLocaleString()}</td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(item.status)}`}>
                                                 {item.status}

@@ -59,7 +59,7 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'>> = (
         {isMenuOpen && <div className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden" onClick={toggleMenu}></div>}
         
         {/* The Sidebar Container */}
-        <aside className={`fixed inset-y-0 left-0 bg-white/70 dark:bg-gray-900/70 backdrop-blur-md border-r border-gray-200/50 dark:border-gray-700/50 text-gray-800 dark:text-gray-200 flex flex-col shadow-lg z-50 transition-all duration-300 ease-in-out md:relative ${isMenuOpen ? 'w-64' : '-translate-x-full w-64'} md:translate-x-0 ${isSidebarCollapsed ? 'md:w-20' : 'md:w-64'}`}>
+        <aside className={`fixed inset-y-0 left-0 bg-white/70 dark:bg-gray-900/70 backdrop-blur-md border-r border-gray-200/50 dark:border-gray-700/50 text-gray-800 dark:text-white flex flex-col shadow-lg z-50 transition-all duration-300 ease-in-out md:relative ${isMenuOpen ? 'w-64' : '-translate-x-full w-64'} md:translate-x-0 ${isSidebarCollapsed ? 'md:w-20' : 'md:w-64'}`}>
             
             {/* Sidebar Header (Logo and Toggle Buttons) */}
             <div className={`flex items-center justify-between p-4 border-b border-gray-200/50 dark:border-gray-700/50 ${isSidebarCollapsed ? 'md:justify-center' : ''}`}>
@@ -69,7 +69,7 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'>> = (
                     <X className="w-6 h-6"/>
                 </button>
                 {/* Desktop Collapse Button */}
-                <button onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} className="hidden md:block p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300">
+                <button onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} className="hidden md:block p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-200">
                     {isSidebarCollapsed ? <ChevronsRight className="w-6 h-6"/> : <ChevronsLeft className="w-6 h-6"/>}
                 </button>
             </div>
@@ -111,7 +111,7 @@ const BottomNavBar: FC<{ currentPage: string; handleSetCurrentPage: (page: strin
           <div className="absolute bottom-0 left-0 right-0 bg-white/70 dark:bg-gray-900/70 backdrop-blur-md shadow-[0_-2px_10px_rgba(0,0,0,0.1)] h-16 border-t border-gray-200/50 dark:border-gray-700/50">
               <div className="flex justify-around items-center h-full">
                   {navItems.map(item => (
-                      <button key={item.name} onClick={() => handleSetCurrentPage(item.page)} className={`flex flex-col items-center justify-center space-y-1 w-1/5 ${currentPage === item.page ? 'text-[#c20c0b]' : 'text-gray-500 dark:text-gray-400'}`}>
+                      <button key={item.name} onClick={() => handleSetCurrentPage(item.page)} className={`flex flex-col items-center justify-center space-y-1 w-1/5 ${currentPage === item.page ? 'text-[#c20c0b]' : 'text-gray-500 dark:text-gray-200'}`}>
                           {item.icon}
                           <span className="text-xs font-medium">{item.name}</span>
                       </button>
@@ -128,7 +128,7 @@ const BottomNavBar: FC<{ currentPage: string; handleSetCurrentPage: (page: strin
 
 // The Main Layout Wrapper Component
 export const MainLayout: FC<MainLayoutProps> = (props) => (
-    <div className="flex min-h-screen bg-gray-50 dark:bg-black text-gray-900 dark:text-gray-100 font-inter transition-colors duration-200 relative">
+    <div className="flex min-h-screen bg-gray-50 dark:bg-black text-gray-900 dark:text-white font-inter transition-colors duration-200 relative">
         {/* Spotify-like Accent Gradient for Dark Mode */}
         <div className="absolute top-0 left-0 right-0 h-[300px] bg-gradient-to-b from-[#450a0a]/60 via-[#c20c0b]/10 to-transparent pointer-events-none z-0 dark:block hidden animate-gradient-slow" />
 

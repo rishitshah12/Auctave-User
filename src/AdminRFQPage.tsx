@@ -1017,12 +1017,12 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                             </div>
                             <div className="p-4 flex-grow space-y-3">
                                 <div className="flex items-center text-sm">
-                                    <Shirt size={16} className="text-gray-400 dark:text-gray-500 mr-3 flex-shrink-0" />
-                                    <span className="font-semibold text-gray-700 dark:text-gray-200">{quote.order?.lineItems?.length > 1 ? `${quote.order.lineItems.length} Items` : quote.order?.lineItems?.[0]?.category || 'N/A'}</span>
+                                    <Shirt size={16} className="text-gray-400 dark:text-gray-200 mr-3 flex-shrink-0" />
+                                    <span className="font-semibold text-gray-700 dark:text-white">{quote.order?.lineItems?.length > 1 ? `${quote.order.lineItems.length} Items` : quote.order?.lineItems?.[0]?.category || 'N/A'}</span>
                                 </div>
                                 <div className="flex items-center text-sm">
-                                    <Package size={16} className="text-gray-400 dark:text-gray-500 mr-3 flex-shrink-0" />
-                                    <span className="text-gray-600 dark:text-gray-300">
+                                    <Package size={16} className="text-gray-400 dark:text-gray-200 mr-3 flex-shrink-0" />
+                                    <span className="text-gray-600 dark:text-gray-200">
                                         {(() => {
                                             const items = quote.order?.lineItems || [];
                                             if (items.length === 0) return '0 units';
@@ -1040,8 +1040,8 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                     </span>
                                 </div>
                                 <div className="flex items-center text-sm">
-                                    <Clock size={16} className="text-gray-400 dark:text-gray-500 mr-3 flex-shrink-0" />
-                                    <span className="text-gray-600 dark:text-gray-300">{new Date(getQuoteTimestamp(quote)).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</span>
+                                    <Clock size={16} className="text-gray-400 dark:text-gray-200 mr-3 flex-shrink-0" />
+                                    <span className="text-gray-600 dark:text-gray-200">{new Date(getQuoteTimestamp(quote)).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</span>
                                 </div>
                             </div>
                             <div className="p-4 bg-gray-50/70 dark:bg-gray-700/50 rounded-b-xl">

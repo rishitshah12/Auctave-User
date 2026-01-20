@@ -33,7 +33,7 @@ export function DashboardCard({ icon, title, value, colorClass }: { icon: ReactN
         <div className={`relative p-5 rounded-xl overflow-hidden bg-white dark:bg-gray-900/40 dark:backdrop-blur-md shadow-md border border-gray-200 dark:border-white/10`}>
             <div className="flex items-start justify-between">
                 <div>
-                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{title}</p>
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-200">{title}</p>
                     <p className="text-3xl font-bold text-gray-800 dark:text-white mt-1">{value}</p>
                 </div>
                 <div className={`p-3 rounded-lg ${colorClass}`}>
@@ -125,10 +125,10 @@ export const ListView: FC<{ tasks: any[] }> = ({ tasks }) => {
             return (
                 <div className="mb-8">
                     <div className="flex items-center text-sm font-semibold mb-3">
-                        <ChevronDown size={20} className={`mr-1 ${groupHeaderColor} dark:text-gray-400`} />
-                        <span className={`mr-2 ${groupHeaderColor} dark:text-gray-300`}>{title}</span>
-                        <span className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-bold px-2 py-0.5 rounded-full">{tasks.length}</span>
-                        <button className="ml-4 text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 flex items-center gap-1">
+                        <ChevronDown size={20} className={`mr-1 ${groupHeaderColor} dark:text-gray-200`} />
+                        <span className={`mr-2 ${groupHeaderColor} dark:text-white`}>{title}</span>
+                        <span className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-white text-xs font-bold px-2 py-0.5 rounded-full">{tasks.length}</span>
+                        <button className="ml-4 text-gray-500 dark:text-gray-200 hover:text-gray-800 dark:hover:text-white flex items-center gap-1">
                             <Plus size={16} /> Add Task
                         </button>
                     </div>
@@ -137,7 +137,7 @@ export const ListView: FC<{ tasks: any[] }> = ({ tasks }) => {
                             <thead className="bg-gray-50 dark:bg-gray-700/50">
                                 <tr>
                                     {['Task Name', 'Due date', 'QTY'].map(header => (
-                                        <th key={header} scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{header}</th>
+                                        <th key={header} scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-200 uppercase tracking-wider">{header}</th>
                                     ))}
                                 </tr>
                             </thead>
@@ -147,8 +147,8 @@ export const ListView: FC<{ tasks: any[] }> = ({ tasks }) => {
                                         <td className="px-4 py-2 whitespace-nowrap font-medium text-gray-900 dark:text-white flex items-center">
                                             <CheckCircle size={16} className={`${task.status === 'COMPLETE' ? 'text-green-500' : 'text-gray-300'} mr-2`} /> {task.name}
                                         </td>
-                                        <td className="px-4 py-2 whitespace-nowrap text-gray-600 dark:text-gray-300">{task.plannedEndDate}</td>
-                                        <td className="px-4 py-2 whitespace-nowrap text-gray-600 dark:text-gray-300">{task.quantity?.toLocaleString() || 'N/A'}</td>
+                                        <td className="px-4 py-2 whitespace-nowrap text-gray-600 dark:text-gray-200">{task.plannedEndDate}</td>
+                                        <td className="px-4 py-2 whitespace-nowrap text-gray-600 dark:text-gray-200">{task.quantity?.toLocaleString() || 'N/A'}</td>
                                     </tr>
                                 ))}
                                 {showTotals && (
@@ -198,13 +198,13 @@ export const BoardView: FC<{ tasks: any[] }> = ({ tasks }) => {
             <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
                 {Object.entries(columns).map(([status, tasksInColumn]) => (
                     <div key={status} className="bg-gray-50/70 dark:bg-gray-800/50 p-3 rounded-lg">
-                        <h3 className="flex items-center justify-between text-sm font-semibold mb-4 px-1 text-gray-700 dark:text-gray-300">
+                        <h3 className="flex items-center justify-between text-sm font-semibold mb-4 px-1 text-gray-700 dark:text-white">
                             <span>{status}</span>
-                            <span className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-bold px-2 py-0.5 rounded-full">{tasksInColumn.length}</span>
+                            <span className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-white text-xs font-bold px-2 py-0.5 rounded-full">{tasksInColumn.length}</span>
                         </h3>
                         <div>
                             {tasksInColumn.map(task => <TaskCard key={task.id} task={task} />)}
-                            <button className="w-full text-left text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 p-2 rounded-md flex items-center">
+                            <button className="w-full text-left text-sm font-medium text-gray-500 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 p-2 rounded-md flex items-center">
                                 <Plus size={16} className="mr-1"/> Add Task
                             </button>
                         </div>
@@ -451,7 +451,7 @@ export const TNAView: FC<{ tasks: any[] }> = ({ tasks }) => {
                         <thead className="bg-gray-50 dark:bg-gray-700/50">
                             <tr>
                                 {['Task', 'Responsible', 'Planned Start', 'Planned End', 'Actual Start', 'Actual End', 'Status', 'Delay (Days)'].map(header => (
-                                    <th key={header} scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{header}</th>
+                                    <th key={header} scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-200 uppercase tracking-wider">{header}</th>
                                 ))}
                             </tr>
                         </thead>
@@ -461,11 +461,11 @@ export const TNAView: FC<{ tasks: any[] }> = ({ tasks }) => {
                                 return (
                                     <tr key={task.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                                         <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-800 dark:text-white">{task.name}</td>
-                                        <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300">{task.responsible}</td>
-                                        <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300">{task.plannedStartDate}</td>
-                                        <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300">{task.plannedEndDate}</td>
-                                        <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300">{task.actualStartDate || '—'}</td>
-                                        <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300">{task.actualEndDate || '—'}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-200">{task.responsible}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-200">{task.plannedStartDate}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-200">{task.plannedEndDate}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-200">{task.actualStartDate || '—'}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-200">{task.actualEndDate || '—'}</td>
                                         <td className="px-4 py-3 whitespace-nowrap"><span className={getStatusPill(task.status)}>{task.status}</span></td>
                                         <td className={`px-4 py-3 whitespace-nowrap ${getDelayColor(delayInfo.status)}`}>{delayInfo.days > 0 ? `+${delayInfo.days}` : '—'}</td>
                                     </tr>
@@ -496,9 +496,9 @@ export const OrderDetailsView: FC<{ order: any; allFactories: Factory[]; handleS
                         <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-sm border border-gray-200 dark:border-white/10">
                             <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">Order Summary</h3>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div><p className="text-sm text-gray-500 dark:text-gray-400">Order ID</p><p className="font-semibold dark:text-gray-200">{order.id || 'N/A'}</p></div>
-                                <div><p className="text-sm text-gray-500 dark:text-gray-400">Customer</p><p className="font-semibold dark:text-gray-200">{order.customer}</p></div>
-                                <div><p className="text-sm text-gray-500 dark:text-gray-400">Product</p><p className="font-semibold dark:text-gray-200">{order.product}</p></div>
+                            <div><p className="text-sm text-gray-500 dark:text-gray-200">Order ID</p><p className="font-semibold dark:text-white">{order.id || 'N/A'}</p></div>
+                                <div><p className="text-sm text-gray-500 dark:text-gray-200">Customer</p><p className="font-semibold dark:text-white">{order.customer}</p></div>
+                                <div><p className="text-sm text-gray-500 dark:text-gray-200">Product</p><p className="font-semibold dark:text-white">{order.product}</p></div>
                             </div>
                         </div>
                             <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-sm border border-gray-200 dark:border-white/10">
@@ -509,7 +509,7 @@ export const OrderDetailsView: FC<{ order: any; allFactories: Factory[]; handleS
                                         <div className="flex items-center gap-3">
                                             {getDocIcon(doc.type)}
                                             <div>
-                                                <p className="font-semibold text-gray-800 dark:text-gray-200">{doc.name}</p>
+                                                <p className="font-semibold text-gray-800 dark:text-white">{doc.name}</p>
                                                 <p className="text-xs text-gray-500">Updated: {doc.lastUpdated}</p>
                                             </div>
                                         </div>
@@ -533,7 +533,7 @@ export const OrderDetailsView: FC<{ order: any; allFactories: Factory[]; handleS
                                         <p className="text-sm text-gray-500 flex items-center"><MapPin size={14} className="mr-1.5"/>{factory.location}</p>
                                     </div>
                                 </div>
-                                <div className="text-sm space-y-2 dark:text-gray-300">
+                                <div className="text-sm space-y-2 dark:text-gray-200">
                                     <p><span className="font-semibold">Rating:</span> {factory.rating} / 5.0</p>
                                     <p><span className="font-semibold">Specialties:</span> {factory.specialties.join(', ')}</p>
                                     <p><span className="font-semibold">Contact:</span> john.doe@example.com</p>
@@ -544,7 +544,7 @@ export const OrderDetailsView: FC<{ order: any; allFactories: Factory[]; handleS
                                     View Factory Profile
                                 </button>
                             </div>
-                        ) : <p className="dark:text-gray-400">No factory assigned.</p>}
+                        ) : <p className="dark:text-gray-200">No factory assigned.</p>}
                     </div>
                 </div>
             </div>
@@ -638,9 +638,9 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
         // A simple markdown-like renderer
         const lines = text.split('\n').map((line, i) => {
             if (line.startsWith('###')) return <h3 key={i} className="text-xl font-bold text-gray-800 dark:text-white mb-4">{line.replace('###', '')}</h3>;
-            if (line.startsWith('**')) return <p key={i} className="font-semibold text-gray-700 dark:text-gray-300 mt-4 mb-1">{line.replace(/\*\*/g, '')}</p>;
-            if (line.startsWith('- ')) return <li key={i} className="flex items-start my-1 text-gray-600 dark:text-gray-400"><span className="mr-3 mt-1.5 text-[#c20c0b]">∙</span><span>{line.substring(2)}</span></li>;
-            return <p key={i} className="text-gray-600 dark:text-gray-400">{line}</p>;
+            if (line.startsWith('**')) return <p key={i} className="font-semibold text-gray-700 dark:text-white mt-4 mb-1">{line.replace(/\*\*/g, '')}</p>;
+            if (line.startsWith('- ')) return <li key={i} className="flex items-start my-1 text-gray-600 dark:text-gray-200"><span className="mr-3 mt-1.5 text-[#c20c0b]">∙</span><span>{line.substring(2)}</span></li>;
+            return <p key={i} className="text-gray-600 dark:text-gray-200">{line}</p>;
         });
         return <div className="space-y-1">{lines}</div>;
     };
@@ -674,7 +674,7 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
                         {/* Order Tabs */}
                         <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
                             {Object.keys(crmData).map(orderKey => (
-                                <button key={orderKey} onClick={() => setActiveOrderKey(orderKey)} className={`flex-shrink-0 py-2 px-4 font-semibold text-sm rounded-t-lg transition-colors ${activeOrderKey === orderKey ? 'border-b-2 border-[#c20c0b] text-[#c20c0b]' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
+                                <button key={orderKey} onClick={() => setActiveOrderKey(orderKey)} className={`flex-shrink-0 py-2 px-4 font-semibold text-sm rounded-t-lg transition-colors ${activeOrderKey === orderKey ? 'border-b-2 border-[#c20c0b] text-[#c20c0b]' : 'text-gray-500 dark:text-gray-200 hover:text-gray-700 dark:hover:text-white'}`}>
                                     {crmData[orderKey].product}
                                 </button>
                             ))}
@@ -690,7 +690,7 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
                                     {name: 'Dashboard', icon: <PieChartIcon size={16}/>},
                                     {name: 'Gantt', icon: <GanttChartSquare size={16}/>}
                                 ].map(view => (
-                                    <button key={view.name} onClick={() => setActiveView(view.name)} className={`flex items-center gap-2 py-1.5 px-3 text-sm font-semibold rounded-md transition-colors ${activeView === view.name ? 'bg-white dark:bg-gray-600 text-[#c20c0b] shadow-sm' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
+                                    <button key={view.name} onClick={() => setActiveView(view.name)} className={`flex items-center gap-2 py-1.5 px-3 text-sm font-semibold rounded-md transition-colors ${activeView === view.name ? 'bg-white dark:bg-gray-600 text-[#c20c0b] shadow-sm' : 'text-gray-600 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
                                         {view.icon} <span className="hidden sm:inline">{view.name}</span>
                                     </button>
                                 ))}

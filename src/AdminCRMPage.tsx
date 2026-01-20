@@ -356,7 +356,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
 
                 {/* Client Selector */}
                 <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-lg border border-gray-100 dark:border-white/10">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Select Client</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-white mb-2">Select Client</label>
                     <select 
                         value={selectedClientId} 
                         onChange={(e) => setSelectedClientId(e.target.value)}
@@ -391,7 +391,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                     <div className="flex flex-wrap items-center justify-between gap-y-4 gap-x-2">
                                         <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
                                             {orders.map(order => (
-                                                <button key={order.id} onClick={() => setActiveOrderKey(order.id)} className={`flex-shrink-0 py-2 px-4 font-semibold text-sm rounded-t-lg transition-colors ${activeOrderKey === order.id ? 'border-b-2 border-[#c20c0b] text-[#c20c0b]' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
+                                                <button key={order.id} onClick={() => setActiveOrderKey(order.id)} className={`flex-shrink-0 py-2 px-4 font-semibold text-sm rounded-t-lg transition-colors ${activeOrderKey === order.id ? 'border-b-2 border-[#c20c0b] text-[#c20c0b]' : 'text-gray-500 dark:text-gray-200 hover:text-gray-700 dark:hover:text-white'}`}>
                                                     {order.product_name}
                                                 </button>
                                             ))}
@@ -406,7 +406,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                                     {name: 'Dashboard', icon: <PieChartIcon size={16}/>},
                                                     {name: 'Gantt', icon: <GanttChartSquare size={16}/>}
                                                 ].map(view => (
-                                                    <button key={view.name} onClick={() => setActiveView(view.name)} className={`flex items-center gap-2 py-1.5 px-3 text-sm font-semibold rounded-md transition-colors ${activeView === view.name ? 'bg-white dark:bg-gray-600 text-[#c20c0b] shadow-sm' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
+                                                    <button key={view.name} onClick={() => setActiveView(view.name)} className={`flex items-center gap-2 py-1.5 px-3 text-sm font-semibold rounded-md transition-colors ${activeView === view.name ? 'bg-white dark:bg-gray-600 text-[#c20c0b] shadow-sm' : 'text-gray-600 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
                                                         {view.icon} <span className="hidden sm:inline">{view.name}</span>
                                                     </button>
                                                 ))}
@@ -459,7 +459,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                         </div>
                         <form onSubmit={handleCreateOrder} className="p-6 space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Product Name</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">Product Name</label>
                                 <input 
                                     type="text" 
                                     required
@@ -470,7 +470,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Assign Factory</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">Assign Factory</label>
                                 <select 
                                     required
                                     value={newOrderData.factory_id}
@@ -484,7 +484,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Initial Status</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">Initial Status</label>
                                 <select 
                                     value={newOrderData.status}
                                     onChange={e => setNewOrderData({...newOrderData, status: e.target.value})}
@@ -515,7 +515,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                         <div className="p-6 space-y-8">
                             {/* Status Section */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Order Status</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-white mb-2">Order Status</label>
                                 <select 
                                     value={editingOrder.status} 
                                     onChange={(e) => setEditingOrder({...editingOrder, status: e.target.value})}
@@ -569,7 +569,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                         </div>
 
                         <div className="p-6 border-t border-gray-100 dark:border-white/10 flex justify-end gap-4 bg-gray-50 dark:bg-gray-800/50 rounded-b-xl">
-                            <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600">Cancel</button>
+                            <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-white rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600">Cancel</button>
                             <button onClick={handleSaveOrder} className="px-4 py-2 bg-[#c20c0b] text-white rounded-lg hover:bg-[#a50a09] flex items-center gap-2"><Save size={18} /> Save Changes</button>
                         </div>
                     </div>

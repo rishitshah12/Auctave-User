@@ -58,12 +58,12 @@ const ChipInput: FC<{
     };
     return (
         <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label} <span className="text-red-500">*</span></label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">{label} <span className="text-red-500">*</span></label>
             <div className="flex flex-wrap gap-2 mb-2">
                 {values?.map((v, i) => {
                     const [text, tagColor] = enableColor ? v.split(':') : [v, null];
                     return (
-                        <span key={i} style={tagColor ? { backgroundColor: tagColor, color: '#fff', borderColor: tagColor } : {}} className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-md text-sm flex items-center gap-1 border border-gray-200 dark:border-gray-600 dark:text-gray-200">
+                        <span key={i} style={tagColor ? { backgroundColor: tagColor, color: '#fff', borderColor: tagColor } : {}} className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-md text-sm flex items-center gap-1 border border-gray-200 dark:border-gray-600 dark:text-white">
                             {text} <button type="button" onClick={() => onRemove(i)}><X size={12}/></button>
                         </span>
                     );
@@ -142,7 +142,7 @@ const FileDropZone = ({ onDrop, label, compact = false }: { onDrop: (files: File
             className={`flex flex-col items-center justify-center border-2 border-dashed rounded-md cursor-pointer transition-colors ${isDragging ? 'border-[#c20c0b] bg-red-50 dark:bg-red-900/20' : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800'} ${compact ? 'p-2 h-full' : 'aspect-video'}`}
         >
             <UploadCloud size={compact ? 20 : 32} className={isDragging ? 'text-[#c20c0b]' : 'text-gray-400'} />
-            {!compact && <span className="text-xs text-gray-500 mt-2">{label}</span>}
+            {!compact && <span className="text-xs text-gray-500 dark:text-gray-200 mt-2">{label}</span>}
             <input type="file" accept="image/*" onChange={(e) => {
                 if (e.target.files && e.target.files.length > 0) onDrop(Array.from(e.target.files));
             }} className="hidden" />
@@ -576,13 +576,13 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
                             </div>
                             <div className="p-5 flex-grow flex flex-col">
                                 <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-1">{f.name}</h3>
-                                <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center mb-4">
+                                <p className="text-sm text-gray-500 dark:text-gray-200 flex items-center mb-4">
                                     <MapPin size={14} className="mr-1" /> {f.location}
                                 </p>
                                 
                                 <div className="flex flex-wrap gap-2 mb-4">
                                     {f.specialties?.slice(0, 3).map((spec: string, i: number) => (
-                                        <span key={i} className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 px-2 py-1 rounded-full border border-gray-200 dark:border-gray-700">
+                                        <span key={i} className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-200 px-2 py-1 rounded-full border border-gray-200 dark:border-gray-700">
                                             {spec}
                                         </span>
                                     ))}
@@ -593,12 +593,12 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
 
                                 <div className="mt-auto pt-4 border-t border-gray-100 dark:border-white/10 flex justify-between items-center text-sm">
                                     <div className="flex flex-col">
-                                        <span className="text-xs text-gray-400 dark:text-gray-500 uppercase font-semibold">MOQ</span>
-                                        <span className="font-medium text-gray-700 dark:text-gray-200">{f.minimumOrderQuantity}</span>
+                                        <span className="text-xs text-gray-400 dark:text-gray-200 uppercase font-semibold">MOQ</span>
+                                        <span className="font-medium text-gray-700 dark:text-white">{f.minimumOrderQuantity}</span>
                                     </div>
                                     <div className="flex flex-col text-right">
-                                        <span className="text-xs text-gray-400 dark:text-gray-500 uppercase font-semibold">Turnaround</span>
-                                        <span className="font-medium text-gray-700 dark:text-gray-200">{f.turnaround}</span>
+                                        <span className="text-xs text-gray-400 dark:text-gray-200 uppercase font-semibold">Turnaround</span>
+                                        <span className="font-medium text-gray-700 dark:text-white">{f.turnaround}</span>
                                     </div>
                                 </div>
                             </div>
@@ -615,9 +615,9 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
                         disabled={currentPageIndex === 1}
                         className="p-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                     >
-                        <ChevronLeft size={20} className="text-gray-600 dark:text-gray-400" />
+                        <ChevronLeft size={20} className="text-gray-600 dark:text-gray-200" />
                     </button>
-                    <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                    <span className="text-sm font-medium text-gray-600 dark:text-gray-200">
                         Page {currentPageIndex} of {totalPages}
                     </span>
                     <button
@@ -625,7 +625,7 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
                         disabled={currentPageIndex === totalPages}
                         className="p-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                     >
-                        <ChevronRight size={20} className="text-gray-600 dark:text-gray-400" />
+                        <ChevronRight size={20} className="text-gray-600 dark:text-gray-200" />
                     </button>
                 </div>
             )}
@@ -645,7 +645,7 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
                                     <FactoryCard factory={editingFactory as Factory} onSelect={() => {}} style={{}} />
                                 </div>
                                 <div className="flex justify-end gap-4 w-full pt-4 border-t border-gray-200 dark:border-white/10">
-                                    <button type="button" onClick={() => setIsPreviewMode(false)} className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg">Back to Edit</button>
+                                    <button type="button" onClick={() => setIsPreviewMode(false)} className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded-lg">Back to Edit</button>
                                     <button onClick={(e) => handleSave(e as any)} className="px-4 py-2 bg-[#c20c0b] text-white rounded-lg">Save Factory</button>
                                 </div>
                             </div>
@@ -659,23 +659,23 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
                                     {expandedSection === 'basic' ? <ChevronUp size={20} className="text-gray-500" /> : <ChevronDown size={20} className="text-gray-500" />}
                                 </div>
                                 <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 ${expandedSection === 'basic' ? '' : 'hidden'}`}>
-                                    <div className="md:col-span-2"> <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Factory Name <span className="text-red-500">*</span></label> <input type="text" required value={editingFactory.name} onChange={e => setEditingFactory({...editingFactory, name: e.target.value})} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#c20c0b] focus:outline-none" /> </div>
+                                    <div className="md:col-span-2"> <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">Factory Name <span className="text-red-500">*</span></label> <input type="text" required value={editingFactory.name} onChange={e => setEditingFactory({...editingFactory, name: e.target.value})} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#c20c0b] focus:outline-none" /> </div>
                                     
                                     <div> 
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">City <span className="text-red-500">*</span></label> 
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">City <span className="text-red-500">*</span></label> 
                                         <input type="text" required value={(editingFactory.location?.split(',') || [])[0]?.trim() || ''} onChange={e => { const country = (editingFactory.location?.split(',') || []).slice(1).join(',').trim() || ''; setEditingFactory({...editingFactory, location: `${e.target.value}, ${country}`}); }} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#c20c0b] focus:outline-none" placeholder="e.g. Dhaka" /> 
                                     </div>
                                     <div> 
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Country <span className="text-red-500">*</span></label> 
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">Country <span className="text-red-500">*</span></label> 
                                         <input type="text" required value={(editingFactory.location?.split(',') || []).slice(1).join(',').trim() || ''} onChange={e => { const city = (editingFactory.location?.split(',') || [])[0]?.trim() || ''; setEditingFactory({...editingFactory, location: `${city}, ${e.target.value}`}); }} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#c20c0b] focus:outline-none" placeholder="e.g. Bangladesh" /> 
                                     </div>
 
-                                    <div> <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">MOQ <span className="text-red-500">*</span></label> <input type="number" min="0" value={editingFactory.minimumOrderQuantity} onChange={e => setEditingFactory({...editingFactory, minimumOrderQuantity: Math.max(0, parseInt(e.target.value))})} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#c20c0b] focus:outline-none" /> </div>
-                                    <div> <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Turnaround Time</label> <input type="text" value={editingFactory.turnaround} onChange={e => setEditingFactory({...editingFactory, turnaround: e.target.value})} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#c20c0b] focus:outline-none" placeholder="e.g. 4-6 weeks" /> </div>
+                                    <div> <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">MOQ <span className="text-red-500">*</span></label> <input type="number" min="0" value={editingFactory.minimumOrderQuantity} onChange={e => setEditingFactory({...editingFactory, minimumOrderQuantity: Math.max(0, parseInt(e.target.value))})} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#c20c0b] focus:outline-none" /> </div>
+                                    <div> <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">Turnaround Time</label> <input type="text" value={editingFactory.turnaround} onChange={e => setEditingFactory({...editingFactory, turnaround: e.target.value})} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#c20c0b] focus:outline-none" placeholder="e.g. 4-6 weeks" /> </div>
                                     
-                                    <div className="md:col-span-2"> <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Promo Offer Banner (Optional)</label> <input type="text" value={editingFactory.offer || ''} onChange={e => setEditingFactory({...editingFactory, offer: e.target.value})} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#c20c0b] focus:outline-none" placeholder="e.g. 5% off first order" /> </div>
+                                    <div className="md:col-span-2"> <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">Promo Offer Banner (Optional)</label> <input type="text" value={editingFactory.offer || ''} onChange={e => setEditingFactory({...editingFactory, offer: e.target.value})} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#c20c0b] focus:outline-none" placeholder="e.g. 5% off first order" /> </div>
                                     
-                                    <div className="md:col-span-2"> <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description <span className="text-red-500">*</span></label> <textarea value={editingFactory.description} onChange={e => setEditingFactory({...editingFactory, description: e.target.value})} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#c20c0b] focus:outline-none" rows={3} /> </div>
+                                    <div className="md:col-span-2"> <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">Description <span className="text-red-500">*</span></label> <textarea value={editingFactory.description} onChange={e => setEditingFactory({...editingFactory, description: e.target.value})} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#c20c0b] focus:outline-none" rows={3} /> </div>
                                 </div>
                             </div>
 
@@ -709,7 +709,7 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
                                         onAdd={(val) => setEditingFactory(prev => ({ ...prev, certifications: [...(prev.certifications || []), val] }))}
                                         onRemove={(idx) => setEditingFactory(prev => ({ ...prev, certifications: (prev.certifications || []).filter((_, i) => i !== idx) }))}
                                     />
-                                    <div> <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Rating</label> <input type="number" step="0.1" max="5" min="0" required value={editingFactory.rating} onChange={e => setEditingFactory({...editingFactory, rating: parseFloat(e.target.value)})} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#c20c0b] focus:outline-none" /> </div>
+                                    <div> <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">Rating</label> <input type="number" step="0.1" max="5" min="0" required value={editingFactory.rating} onChange={e => setEditingFactory({...editingFactory, rating: parseFloat(e.target.value)})} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#c20c0b] focus:outline-none" /> </div>
                                 </div>
                             </div>
 
@@ -722,10 +722,10 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
                                 <div className={`space-y-3 ${expandedSection === 'machines' ? '' : 'hidden'}`}>
                                     {editingFactory.machineSlots?.map((slot, idx) => (
                                         <div key={idx} className="flex flex-wrap gap-2 items-end bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg border dark:border-gray-600">
-                                            <div className="flex-grow"> <label className="text-xs text-gray-500 dark:text-gray-400">Type</label> <input type="text" value={slot.machineType} onChange={e => updateMachineSlot(idx, 'machineType', e.target.value)} className="w-full p-1 border dark:border-gray-500 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#c20c0b] focus:outline-none" /> </div>
-                                            <div className="w-20"> <label className="text-xs text-gray-500 dark:text-gray-400">Total</label> <input type="number" value={slot.totalSlots} onChange={e => updateMachineSlot(idx, 'totalSlots', parseInt(e.target.value))} className="w-full p-1 border dark:border-gray-500 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#c20c0b] focus:outline-none" /> </div>
-                                            <div className="w-20"> <label className="text-xs text-gray-500 dark:text-gray-400">Avail</label> <input type="number" value={slot.availableSlots} onChange={e => updateMachineSlot(idx, 'availableSlots', parseInt(e.target.value))} className="w-full p-1 border dark:border-gray-500 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#c20c0b] focus:outline-none" /> </div>
-                                            <div className="w-32"> <label className="text-xs text-gray-500 dark:text-gray-400">Next Date</label> <input type="date" value={slot.nextAvailable} onChange={e => updateMachineSlot(idx, 'nextAvailable', e.target.value)} className="w-full p-1 border dark:border-gray-500 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#c20c0b] focus:outline-none" /> </div>
+                                            <div className="flex-grow"> <label className="text-xs text-gray-500 dark:text-gray-200">Type</label> <input type="text" value={slot.machineType} onChange={e => updateMachineSlot(idx, 'machineType', e.target.value)} className="w-full p-1 border dark:border-gray-500 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#c20c0b] focus:outline-none" /> </div>
+                                            <div className="w-20"> <label className="text-xs text-gray-500 dark:text-gray-200">Total</label> <input type="number" value={slot.totalSlots} onChange={e => updateMachineSlot(idx, 'totalSlots', parseInt(e.target.value))} className="w-full p-1 border dark:border-gray-500 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#c20c0b] focus:outline-none" /> </div>
+                                            <div className="w-20"> <label className="text-xs text-gray-500 dark:text-gray-200">Avail</label> <input type="number" value={slot.availableSlots} onChange={e => updateMachineSlot(idx, 'availableSlots', parseInt(e.target.value))} className="w-full p-1 border dark:border-gray-500 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#c20c0b] focus:outline-none" /> </div>
+                                            <div className="w-32"> <label className="text-xs text-gray-500 dark:text-gray-200">Next Date</label> <input type="date" value={slot.nextAvailable} onChange={e => updateMachineSlot(idx, 'nextAvailable', e.target.value)} className="w-full p-1 border dark:border-gray-500 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#c20c0b] focus:outline-none" /> </div>
                                             <button type="button" onClick={() => removeMachineSlot(idx)} className="text-red-500 p-1"><Trash2 size={16} /></button>
                                         </div>
                                     ))}
@@ -742,7 +742,7 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
                                 <div className={`space-y-6 ${expandedSection === 'catalog' ? '' : 'hidden'}`}>
                                     {/* Product Categories */}
                                     <div>
-                                        <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Product Categories</h4>
+                                        <h4 className="text-sm font-bold text-gray-700 dark:text-white mb-2">Product Categories</h4>
                                         <div className="space-y-3">
                                             {editingFactory.catalog?.productCategories.map((cat, idx) => (
                                                 <div key={idx} className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg border dark:border-gray-600 space-y-2">
@@ -764,7 +764,7 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
                                     </div>
                                     {/* Fabric Options */}
                                     <div>
-                                        <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Fabric Options</h4>
+                                        <h4 className="text-sm font-bold text-gray-700 dark:text-white mb-2">Fabric Options</h4>
                                         <div className="space-y-3">
                                             {editingFactory.catalog?.fabricOptions.map((opt, idx) => (
                                                 <div key={idx} className="flex flex-wrap gap-2 items-center bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg border dark:border-gray-600">
@@ -811,7 +811,7 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
                             {/* Form Actions */}
                             <div className="flex justify-end gap-4 mt-4 pt-4 border-t">
                                 <button type="button" onClick={() => setIsPreviewMode(true)} className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors mr-auto">Preview</button>
-                                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg">Cancel</button>
+                                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded-lg">Cancel</button>
                                 <button type="submit" disabled={!isDirty} className={`px-4 py-2 text-white rounded-lg transition-colors ${!isDirty ? 'bg-gray-400 cursor-not-allowed' : 'bg-[#c20c0b] hover:bg-[#a50a09]'}`}>Save Factory</button>
                             </div>
                         </form>

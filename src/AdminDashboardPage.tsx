@@ -92,7 +92,7 @@ export const AdminDashboardPage: FC<AdminDashboardPageProps> = (props) => {
                     {statCards.map((stat, index) => (
                         <div key={index} className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10 flex items-center justify-between">
                             <div>
-                                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{stat.title}</p>
+                                <p className="text-sm font-medium text-gray-500 dark:text-gray-200">{stat.title}</p>
                                 <p className="text-2xl font-bold text-gray-800 dark:text-white mt-1">{isLoading ? '...' : stat.value}</p>
                             </div>
                             <div className={`p-3 rounded-lg ${stat.color}`}>

@@ -274,7 +274,7 @@ const FileDropZone: FC<{
 
     return (
         <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">{label}</label>
             <div
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
@@ -288,10 +288,10 @@ const FileDropZone: FC<{
                 <div className="mb-3 p-3 bg-gray-100 dark:bg-gray-700 rounded-full text-gray-500 dark:text-gray-400">
                     {icon}
                 </div>
-                <p className="text-sm text-gray-600 dark:text-gray-300 mb-1">
+                <p className="text-sm text-gray-600 dark:text-gray-200 mb-1">
                     <span className="font-semibold text-[#c20c0b]">Click to upload</span> or drag and drop
                 </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                <p className="text-xs text-gray-500 dark:text-gray-200 mb-4">
                     {accept.replace(/\./g, '').toUpperCase().split(',').join(', ')} (Max 10MB)
                 </p>
                 <input 
@@ -304,7 +304,7 @@ const FileDropZone: FC<{
                 />
                 <label 
                     htmlFor={inputId}
-                    className="cursor-pointer px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors shadow-sm"
+                    className="cursor-pointer px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors shadow-sm"
                 >
                     Select Files
                 </label>
@@ -314,7 +314,7 @@ const FileDropZone: FC<{
             {selectedFiles.length > 0 && (
                 <div className="mt-3 space-y-2 animate-fade-in">
                     <div className="flex justify-between items-center">
-                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{selectedFiles.length} file(s) selected</p>
+                        <p className="text-xs font-medium text-gray-500 dark:text-gray-200">{selectedFiles.length} file(s) selected</p>
                         <button 
                             type="button" 
                             onClick={() => onFilesSelected([])}
@@ -335,7 +335,7 @@ const FileDropZone: FC<{
                     ) : (
                         <ul className="space-y-1 max-h-32 overflow-y-auto pr-1 custom-scrollbar">
                             {selectedFiles.map((file, idx) => (
-                                <li key={idx} className="text-xs text-gray-600 dark:text-gray-300 flex items-center bg-gray-50 dark:bg-gray-800 p-1.5 rounded border border-gray-100 dark:border-gray-700">
+                                <li key={idx} className="text-xs text-gray-600 dark:text-gray-200 flex items-center bg-gray-50 dark:bg-gray-800 p-1.5 rounded border border-gray-100 dark:border-gray-700">
                                     <FileText size={12} className="mr-2 text-gray-400 flex-shrink-0" />
                                     <span className="truncate flex-1">{file.name}</span>
                                     <span className="ml-2 text-gray-400 text-[10px]">({(file.size / 1024).toFixed(0)} KB)</span>
@@ -354,7 +354,7 @@ const FileDropZone: FC<{
 const FormField: FC<{ icon: ReactNode; label: string; children: ReactNode; required?: boolean }> = ({ icon, label, children, required }) => (
     <div>
         {/* Render the label text above the input */}
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
             {label} {required && <span className="text-red-500">*</span>}
         </label>
         <div className="relative">
@@ -638,7 +638,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                     <div className="flex justify-between items-start mb-6">
                         <div>
                             <h2 className="text-3xl font-bold text-gray-800 dark:text-white mb-2">Garment Sourcing Requirements</h2>
-                            <p className="text-gray-500 dark:text-gray-400">Fill out your order details to find matching factories.</p>
+                            <p className="text-gray-500 dark:text-gray-200">Fill out your order details to find matching factories.</p>
                         </div>
                         {/* Button to navigate back to the main sourcing page */}
                         <button onClick={() => handleSetCurrentPage('sourcing')} className="text-sm text-[#c20c0b] font-semibold flex items-center hover:underline whitespace-nowrap">
@@ -660,7 +660,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                         className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
                                             activeItemIndex === index
                                                 ? 'bg-[#c20c0b] text-white shadow-md'
-                                                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700'
+                                                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700'
                                         }`}
                                     >
                                         Product {index + 1}
@@ -700,7 +700,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
 
                         {/* Section 1: Basic Details */}
                         <fieldset className="border-t pt-6">
-                            <legend className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-4">Basic Details</legend>
+                            <legend className="text-lg font-semibold text-gray-700 dark:text-white mb-4">Basic Details</legend>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {/* Product Category Dropdown */}
                                 <FormField label="Product Category" icon={<Shirt className="h-5 w-5 text-gray-400" />} required>
@@ -709,12 +709,12 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                     </select>
                                 </FormField>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Quantity Type <span className="text-red-500">*</span></label>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">Quantity Type <span className="text-red-500">*</span></label>
                                     <div className="flex p-1 bg-gray-100 dark:bg-gray-700 rounded-lg mb-2">
                                         <button type="button" onClick={() => setQuantityType('units')} className={`flex-1 py-1 text-xs font-medium rounded-md transition-all ${activeItem.quantityType === 'units' ? 'bg-white dark:bg-gray-600 shadow-sm text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}>
                                             By Units
                                         </button>
-                                        <button type="button" onClick={() => setQuantityType('container')} className={`flex-1 py-1 text-xs font-medium rounded-md transition-all ${activeItem.quantityType === 'container' ? 'bg-white dark:bg-gray-600 shadow-sm text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}>
+                                        <button type="button" onClick={() => setQuantityType('container')} className={`flex-1 py-1 text-xs font-medium rounded-md transition-all ${activeItem.quantityType === 'container' ? 'bg-white dark:bg-gray-600 shadow-sm text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-200'}`}>
                                             By Container
                                         </button>
                                     </div>
@@ -744,11 +744,11 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
 
                         {/* Section 2: Specifications */}
                         <fieldset className="border-t pt-6">
-                            <legend className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-4">Specifications</legend>
+                            <legend className="text-lg font-semibold text-gray-700 dark:text-white mb-4">Specifications</legend>
                             <div className="space-y-6">
                                 {/* 1. Size Range */}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Size Range <span className="text-red-500">*</span></label>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-white mb-2">Size Range <span className="text-red-500">*</span></label>
                                     <div className="flex flex-wrap gap-3">
                                         {sizeOptions.map(size => (
                                             <label key={size} className="inline-flex items-center bg-gray-50 dark:bg-gray-800 px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
@@ -758,7 +758,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                                     onChange={() => handleSizeCheckbox(size)}
                                                     className="rounded text-[#c20c0b] focus:ring-[#c20c0b] mr-2" 
                                                 />
-                                                <span className="text-sm text-gray-700 dark:text-gray-300">{size}</span>
+                                                <span className="text-sm text-gray-700 dark:text-gray-200">{size}</span>
                                             </label>
                                         ))}
                                         <label className="inline-flex items-center bg-gray-50 dark:bg-gray-800 px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
@@ -768,7 +768,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                                 onChange={() => handleSizeCheckbox('Custom')}
                                                 className="rounded text-[#c20c0b] focus:ring-[#c20c0b] mr-2" 
                                             />
-                                            <span className="text-sm text-gray-700 dark:text-gray-300">Custom</span>
+                                            <span className="text-sm text-gray-700 dark:text-gray-200">Custom</span>
                                         </label>
                                     </div>
                                     {activeItem.sizeRange.includes('Custom') && (
@@ -781,11 +781,11 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                 {/* 2. Size Ratio */}
                                 {activeItem.sizeRange.length > 0 && (
                                     <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center"><Ruler className="w-4 h-4 mr-1"/> Size Ratio / Breakdown</label>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-white mb-2 flex items-center"><Ruler className="w-4 h-4 mr-1"/> Size Ratio / Breakdown</label>
                                         <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-4">
                                             {activeItem.sizeRange.map(size => (
                                                 <div key={size}>
-                                                    <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{size}</label>
+                                                    <label className="block text-xs text-gray-500 dark:text-gray-200 mb-1">{size}</label>
                                                     <input 
                                                         type="number" 
                                                         min="0"
@@ -876,7 +876,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
 
                         {/* Section 3: Logistics & Commercials */}
                         <fieldset className="border-t pt-6">
-                            <legend className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-4">Logistics & Commercials</legend>
+                            <legend className="text-lg font-semibold text-gray-700 dark:text-white mb-4">Logistics & Commercials</legend>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {/* Destination Country */}
                                 <FormField label="Destination Country" icon={<Globe className="h-5 w-5 text-gray-400" />} required>
@@ -897,7 +897,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                         
                         {/* Submit Button */}
                         <div className="pt-6 border-t flex flex-col md:flex-row justify-end gap-4"> 
-                            <button type="button" onClick={handleResetForm} className="w-full md:w-auto px-6 py-3 text-gray-700 dark:text-gray-300 font-semibold bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+                            <button type="button" onClick={handleResetForm} className="w-full md:w-auto px-6 py-3 text-gray-700 dark:text-white font-semibold bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition">
                                 Reset Form
                             </button>
                             <button type="submit" className="w-full md:w-auto px-8 py-3 text-white rounded-lg font-semibold bg-[#c20c0b] hover:bg-[#a50a09] transition shadow-md"> 
@@ -922,11 +922,11 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                     <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-3 flex items-center"><Globe size={20} className="mr-2 text-[#c20c0b]"/> Destination</h3>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase font-semibold">Country</p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-200 uppercase font-semibold">Country</p>
                                             <p className="text-gray-900 dark:text-white font-medium">{formState.shippingCountry}</p>
                                         </div>
                                         <div>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase font-semibold">Port</p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-200 uppercase font-semibold">Port</p>
                                             <p className="text-gray-900 dark:text-white font-medium">{formState.shippingPort}</p>
                                         </div>
                                     </div>
@@ -945,13 +945,13 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                                     </span>
                                                 </div>
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-y-3 gap-x-6 text-sm">
-                                                    <div><span className="text-gray-500 dark:text-gray-400">Fabric:</span> <span className="font-medium text-gray-900 dark:text-white">{item.fabricQuality}</span></div>
-                                                    <div><span className="text-gray-500 dark:text-gray-400">Weight:</span> <span className="font-medium text-gray-900 dark:text-white">{item.weightGSM} GSM</span></div>
-                                                    <div><span className="text-gray-500 dark:text-gray-400">Target Price:</span> <span className="font-medium text-gray-900 dark:text-white">${item.targetPrice}</span></div>
-                                                    <div><span className="text-gray-500 dark:text-gray-400">Sizes:</span> <span className="font-medium text-gray-900 dark:text-white">{item.sizeRange.join(', ')}</span></div>
-                                                    {item.sleeveOption && <div><span className="text-gray-500 dark:text-gray-400">Sleeve:</span> <span className="font-medium text-gray-900 dark:text-white">{item.sleeveOption}</span></div>}
-                                                    <div className="md:col-span-2"><span className="text-gray-500 dark:text-gray-400">Packaging:</span> <span className="font-medium text-gray-900 dark:text-white">{item.packagingReqs}</span></div>
-                                                    {item.specialInstructions && <div className="md:col-span-2"><span className="text-gray-500 dark:text-gray-400">Instructions:</span> <span className="font-medium text-gray-900 dark:text-white">{item.specialInstructions}</span></div>}
+                                                    <div><span className="text-gray-500 dark:text-gray-200">Fabric:</span> <span className="font-medium text-gray-900 dark:text-white">{item.fabricQuality}</span></div>
+                                                    <div><span className="text-gray-500 dark:text-gray-200">Weight:</span> <span className="font-medium text-gray-900 dark:text-white">{item.weightGSM} GSM</span></div>
+                                                    <div><span className="text-gray-500 dark:text-gray-200">Target Price:</span> <span className="font-medium text-gray-900 dark:text-white">${item.targetPrice}</span></div>
+                                                    <div><span className="text-gray-500 dark:text-gray-200">Sizes:</span> <span className="font-medium text-gray-900 dark:text-white">{item.sizeRange.join(', ')}</span></div>
+                                                    {item.sleeveOption && <div><span className="text-gray-500 dark:text-gray-200">Sleeve:</span> <span className="font-medium text-gray-900 dark:text-white">{item.sleeveOption}</span></div>}
+                                                    <div className="md:col-span-2"><span className="text-gray-500 dark:text-gray-200">Packaging:</span> <span className="font-medium text-gray-900 dark:text-white">{item.packagingReqs}</span></div>
+                                                    {item.specialInstructions && <div className="md:col-span-2"><span className="text-gray-500 dark:text-gray-200">Instructions:</span> <span className="font-medium text-gray-900 dark:text-white">{item.specialInstructions}</span></div>}
                                                 </div>
                                             </div>
                                         ))}
@@ -964,7 +964,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                         <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-3 flex items-center"><FileText size={20} className="mr-2 text-blue-600 dark:text-blue-400"/> Attachments</h3>
                                         <ul className="space-y-2">
                                             {[...sampleFiles, ...docFiles].map((f, i) => (
-                                                <li key={i} className="flex items-center text-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 p-2 rounded border border-blue-100 dark:border-blue-700">
+                                                <li key={i} className="flex items-center text-sm text-gray-700 dark:text-white bg-white dark:bg-gray-800 p-2 rounded border border-blue-100 dark:border-blue-700">
                                                     <span className="bg-blue-100 text-blue-600 p-1 rounded mr-2 text-xs font-bold">{i < sampleFiles.length ? 'IMG' : 'DOC'}</span>
                                                     {f.name}
                                                 </li>
