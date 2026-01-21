@@ -77,7 +77,7 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'>> = (
             {/* Navigation Links */}
             <nav className="flex-1 p-4 space-y-2">
                 {menuItems.map(item => (
-                    <button key={item.name} onClick={() => { handleSetCurrentPage(item.page); if (isMenuOpen) toggleMenu(); }} className={`w-full text-left p-3 rounded-md font-medium flex items-center transition duration-150 ease-in-out ${isSidebarCollapsed ? 'justify-center' : ''} ${currentPage === item.page ? 'bg-[#c20c0b] text-white' : 'hover:bg-gray-200 dark:hover:bg-gray-700'}`} title={isSidebarCollapsed ? item.name : ''}>
+                    <button key={item.name} onClick={() => { handleSetCurrentPage(item.page); if (isMenuOpen) toggleMenu(); }} className={`w-full text-left p-3 rounded-md font-medium flex items-center transition duration-150 ease-in-out ${isSidebarCollapsed ? 'justify-center' : ''} ${currentPage === item.page ? 'bg-[var(--color-primary)] text-white' : 'hover:bg-gray-200 dark:hover:bg-gray-700'}`} title={isSidebarCollapsed ? item.name : ''}>
                         <div className={isSidebarCollapsed ? '' : 'mr-3'}>{item.icon}</div>
                         {!isSidebarCollapsed && <span>{item.name}</span>}
                     </button>
@@ -111,7 +111,7 @@ const BottomNavBar: FC<{ currentPage: string; handleSetCurrentPage: (page: strin
           <div className="absolute bottom-0 left-0 right-0 bg-white/70 dark:bg-gray-900/70 backdrop-blur-md shadow-[0_-2px_10px_rgba(0,0,0,0.1)] h-16 border-t border-gray-200/50 dark:border-gray-700/50">
               <div className="flex justify-around items-center h-full">
                   {navItems.map(item => (
-                      <button key={item.name} onClick={() => handleSetCurrentPage(item.page)} className={`flex flex-col items-center justify-center space-y-1 w-1/5 ${currentPage === item.page ? 'text-[#c20c0b]' : 'text-gray-500 dark:text-gray-200'}`}>
+                      <button key={item.name} onClick={() => handleSetCurrentPage(item.page)} className={`flex flex-col items-center justify-center space-y-1 w-1/5 ${currentPage === item.page ? 'text-[var(--color-primary)]' : 'text-gray-500 dark:text-gray-200'} hover:text-[var(--color-primary)] transition-colors`}>
                           {item.icon}
                           <span className="text-xs font-medium">{item.name}</span>
                       </button>
@@ -119,7 +119,7 @@ const BottomNavBar: FC<{ currentPage: string; handleSetCurrentPage: (page: strin
               </div>
           </div>
           {/* Floating Action Button (FAB) for new orders */}
-          <button onClick={() => handleSetCurrentPage('orderForm')} className="absolute bottom-8 left-1/2 -translate-x-1/2 w-16 h-16 bg-[#c20c0b] rounded-full flex items-center justify-center text-white shadow-lg transform transition-transform hover:scale-110">
+          <button onClick={() => handleSetCurrentPage('orderForm')} className="absolute bottom-8 left-1/2 -translate-x-1/2 w-16 h-16 bg-[var(--color-primary)] rounded-full flex items-center justify-center text-white shadow-lg transform transition-transform hover:scale-110">
               <Plus size={32}/>
           </button>
       </div>
@@ -130,11 +130,11 @@ const BottomNavBar: FC<{ currentPage: string; handleSetCurrentPage: (page: strin
 export const MainLayout: FC<MainLayoutProps> = (props) => (
     <div className="flex min-h-screen bg-gray-50 dark:bg-black text-gray-900 dark:text-white font-inter transition-colors duration-200 relative">
         {/* Spotify-like Accent Gradient for Dark Mode */}
-        <div className="absolute top-0 left-0 right-0 h-[300px] bg-gradient-to-b from-[#450a0a]/60 via-[#c20c0b]/10 to-transparent pointer-events-none z-0 dark:block hidden animate-gradient-slow" />
+        <div className="absolute top-0 left-0 right-0 h-[300px] bg-gradient-to-b from-[#450a0a]/60 via-[var(--color-primary)]/10 to-transparent pointer-events-none z-0 dark:block hidden animate-gradient-slow" />
 
         {props.globalLoading && (
             <div className="fixed top-0 left-0 right-0 h-1 z-[100] bg-red-100 dark:bg-red-900 overflow-hidden">
-                <div className="h-full bg-[#c20c0b] animate-progress-indeterminate"></div>
+                <div className="h-full bg-[var(--color-primary)] animate-progress-indeterminate"></div>
             </div>
         )}
         {/* Show Sidebar on Desktop if user is logged in and sidebar isn't hidden */}

@@ -315,7 +315,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-black px-4 relative">
-            <div className="absolute top-0 left-0 right-0 h-96 bg-gradient-to-b from-[#450a0a]/50 via-[#c20c0b]/5 to-transparent pointer-events-none blur-3xl"></div>
+            <div className="absolute top-0 left-0 right-0 h-250 bg-gradient-to-b from-[#450a0a]/100 via-[#c20c0b]/5 to-transparent pointer-events-none blur-3xl"></div>
             
             <div className="max-w-md w-full bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden relative z-10">
                 <div className="p-8">

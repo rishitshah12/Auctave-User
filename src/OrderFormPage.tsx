@@ -632,7 +632,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
         <MainLayout {...props}>
             <div className="max-w-4xl mx-auto">
                 {/* Main Card Container */}
-                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 sm:p-8 rounded-xl shadow-lg border border-gray-200 dark:border-white/10">
+                <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md p-6 sm:p-8 rounded-xl shadow-lg border border-gray-200 dark:border-white/10">
                     
                     {/* Header Section: Title and Back Button */}
                     <div className="flex justify-between items-start mb-6">
@@ -910,7 +910,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                 {/* Summary Modal */}
                 {isSummaryModalOpen && (
                     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 animate-fade-in">
-                        <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto flex flex-col border border-gray-200 dark:border-gray-700">
+                        <div className="bg-white/90 backdrop-blur-xl dark:bg-gray-900/95 dark:backdrop-blur-xl rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto flex flex-col border border-gray-200 dark:border-gray-700">
                             <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center sticky top-0 bg-white dark:bg-gray-900 z-10">
                                 <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Review Your Order</h2>
                                 <button onClick={() => setIsSummaryModalOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors"><X size={24} /></button>

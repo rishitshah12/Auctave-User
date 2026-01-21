@@ -40,6 +40,7 @@ import { quoteService } from './quote.service';
 import { MyQuotesPage } from './MyQuotesPage';
 import { QuoteDetailPage } from './QuoteDetailPage';
 import { FactoryDetailPage } from './FactoryDetailPage';
+import { theme } from './theme';
 
 // --- Type Definitions ---
 
@@ -109,6 +110,7 @@ const App: FC = () => {
     // State to track global loading requests (counter handles concurrent fetches)
     const [loadingCount, setLoadingCount] = useState<number>(0);
     const quotesAbortController = useRef<AbortController | null>(null);
+    const [myQuotesFilter, setMyQuotesFilter] = useState<string>('All');
 
     // State for dark mode
     const [darkMode, setDarkMode] = useState<boolean>(() => {
@@ -127,7 +129,7 @@ const App: FC = () => {
     // State to store data entered in the Order Form
     const [orderFormData, setOrderFormData] = useState<OrderFormData>({
         lineItems: [{
-            id: Date.now(),
+            id: Date.now(), 
             category: 'T-shirt',
             fabricQuality: '100% Cotton',
             weightGSM: '180',
@@ -237,12 +239,22 @@ const App: FC = () => {
             setSelectedFactory(data as Factory);
         }
         if (page === 'quoteDetail') {
+            console.log('[App.tsx] Setting selectedQuote, files:', (data as QuoteRequest)?.files);
             setSelectedQuote(data as QuoteRequest);
         }
         // Reset active CRM order if leaving CRM page
         if (page !== 'crm') {
             setActiveCrmOrderKey(null); 
         }
+
+        if (page === 'myQuotes') {
+            if (typeof data === 'string') {
+                setMyQuotesFilter(data);
+            } else {
+                setMyQuotesFilter('All');
+            }
+        }
+
         // Update the current page state
         setCurrentPage(page);
         if (page !== 'login') {
@@ -395,6 +407,7 @@ const App: FC = () => {
                 if (error) throw error; 
                 
                 if (data && !signal.aborted) {
+                    console.log('[App.tsx] Raw quotes from DB:', data.map((q: any) => ({ id: q.id, files: q.files })));
                     const transformedQuotes: QuoteRequest[] = data.map((q: any) => ({
                         id: q.id,
                         factory: q.factory_data,
@@ -407,6 +420,7 @@ const App: FC = () => {
                         response_details: q.response_details,
                         negotiation_details: q.negotiation_details
                     }));
+                    console.log('[App.tsx] Transformed quotes files:', transformedQuotes.map(q => ({ id: q.id, files: q.files })));
                     setQuoteRequests(transformedQuotes);
                     sessionStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify(transformedQuotes));
                 }
@@ -465,8 +479,12 @@ const App: FC = () => {
                 };
 
                 // Update the quotes list with the new data
-                setQuoteRequests(prevQuotes => prevQuotes.map(q => q.id === transformedQuote.id ? transformedQuote : q));
-                // Note: We don't strictly need to update sessionStorage here as the next fetch will do it, but we could.
+                setQuoteRequests(prevQuotes => {
+                    const updatedQuotes = prevQuotes.map(q => q.id === transformedQuote.id ? transformedQuote : q);
+                    // Update sessionStorage cache to keep it in sync
+                    sessionStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify(updatedQuotes));
+                    return updatedQuotes;
+                });
                 // If the user is viewing the detail page of the updated quote, refresh it too
                 setSelectedQuote(prevSelected => (prevSelected && prevSelected.id === transformedQuote.id) ? transformedQuote : prevSelected);
 
@@ -486,9 +504,13 @@ const App: FC = () => {
     const handleSignOut = useCallback(async (skipConfirmation = false) => {
         if (!skipConfirmation && !window.confirm("Are you sure you want to log out?")) return;
         try {
-            // Sign out from Supabase to terminate the session
-            await supabase.auth.signOut({ scope: 'global' });
-
+            // Sign out from Supabase to terminate the session with a timeout to prevent hanging
+            const signOutPromise = supabase.auth.signOut({ scope: 'global' });
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Sign out timed out')), 2000));
+            await Promise.race([signOutPromise, timeoutPromise]);
+        } catch (error) {
+            console.error("Sign out error:", error);
+        } finally {
             // Clear all user-related state
             setUser(null);
             setUserProfile(null);
@@ -498,17 +520,14 @@ const App: FC = () => {
             localStorage.removeItem('garment_erp_last_page');
             localStorage.removeItem('garment_erp_last_activity');
 
-            // Clear sessionStorage cache
-            sessionStorage.removeItem('garment_erp_factories');
+            // Clear all session storage to prevent data leaks between users
+            sessionStorage.clear();
 
             // Navigate to login page
             setCurrentPage('login');
 
             // Show success notification
             showToast('You have been logged out successfully.', 'success');
-        } catch (error) {
-            console.error("Sign out error:", error);
-            showToast('Failed to log out. Please try again.', 'error');
         }
     }, [showToast]);
 
@@ -641,43 +660,47 @@ const App: FC = () => {
     // Function to submit a quote request to Supabase
     const submitQuoteRequest = async (quoteData: { factory?: { id: string; name: string; location: string; imageUrl: string }, order: OrderFormData, files?: File[] }) => {
         showToast('Submitting quote request...', 'success');
-        
-        const uploadedFilePaths: string[] = [];
+        try {
+            const uploadedFilePaths: string[] = [];
 
-        // 1. Upload Files to Supabase Storage
-        if (quoteData.files && quoteData.files.length > 0) {
-            for (const file of quoteData.files) {
-                try {
-                    // Create a unique file path: userId/timestamp_filename
-                    const filePath = `${user.id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
-                    
-                    const { data, error } = await supabase.storage
-                        .from('quote-attachments')
-                        .upload(filePath, file);
+            // 1. Upload Files to Supabase Storage
+            if (quoteData.files && quoteData.files.length > 0) {
+                for (const file of quoteData.files) {
+                    try {
+                        // Create a unique file path: userId/timestamp_filename
+                        const filePath = `${user.id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+                        
+                        const { data, error } = await supabase.storage
+                            .from('quote-attachments')
+                            .upload(filePath, file);
 
-                    if (error) throw error;
-                    if (data) uploadedFilePaths.push(data.path);
-                } catch (error: any) {
-                    console.error('File upload error:', error);
-                    showToast(`Failed to upload ${file.name}: ${error.message}`, 'error');
+                        if (error) throw error;
+                        if (data) uploadedFilePaths.push(data.path);
+                    } catch (error: any) {
+                        console.error('File upload error:', error);
+                        showToast(`Failed to upload ${file.name}: ${error.message}`, 'error');
+                    }
                 }
             }
-        }
 
-        const payload = {
-            user_id: user.id,
-            factory_id: quoteData.factory?.id || null,
-            factory_data: quoteData.factory || null,
-            order_details: quoteData.order,
-            status: 'Pending',
-            files: uploadedFilePaths
-        };
+            const payload = {
+                user_id: user.id,
+                factory_id: quoteData.factory?.id || null,
+                factory_data: quoteData.factory || null,
+                order_details: quoteData.order,
+                status: 'Pending',
+                files: uploadedFilePaths
+            };
 
-        const { error } = await quoteService.create(payload);
+            // Add timeout to create request to prevent hanging
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), 20000));
+            const { error } = await Promise.race([
+                quoteService.create(payload),
+                timeoutPromise
+            ]) as any;
 
-        if (error) {
-            showToast('Failed to submit quote: ' + error.message, 'error');
-        } else {
+            if (error) throw error;
+
             showToast('Quote request submitted successfully!');
             // Refresh quotes from Supabase to update the UI
             const { data, error: fetchError } = await quoteService.getQuotesByUser(user.id);
@@ -685,6 +708,7 @@ const App: FC = () => {
                 console.error('Error fetching quotes:', fetchError);
                 showToast('Quote submitted but failed to refresh list.', 'error');
             } else if (data) {
+                console.log('[App.tsx] After submit - Raw quotes from DB:', data.map((q: any) => ({ id: q.id, files: q.files })));
                 const transformedQuotes: QuoteRequest[] = data.map((q: any) => ({
                     id: q.id,
                     factory: q.factory_data,
@@ -697,9 +721,15 @@ const App: FC = () => {
                     response_details: q.response_details,
                     negotiation_details: q.negotiation_details
                 }));
+                console.log('[App.tsx] After submit - Transformed quotes files:', transformedQuotes.map(q => ({ id: q.id, files: q.files })));
                 setQuoteRequests(transformedQuotes);
+                // Update sessionStorage cache to include the new quote with files
+                sessionStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify(transformedQuotes));
             }
             handleSetCurrentPage('myQuotes');
+        } catch (error: any) {
+            console.error('Submit quote error:', error);
+            showToast('Failed to submit quote: ' + (error.message || 'Unknown error'), 'error');
         }
     };
 
@@ -825,10 +855,10 @@ const App: FC = () => {
 
         return (
             <div className="min-h-screen bg-gray-25 dark:bg-black flex items-center justify-center p-4">
-                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-2xl border border-gray-200 dark:border-white/10 p-8 w-full max-w-md">
+                <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-2xl border border-gray-200 dark:border-white/10 p-8 w-full max-w-md">
                     <div className="flex items-center gap-3 mb-6">
                         <div className="p-2 bg-red-100 rounded-lg">
-                            <Lock className="w-6 h-6 text-[#c20c0b]" />
+                            <Lock className="w-6 h-6 text-[var(--color-primary)]" />
                         </div>
                         <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Create New Password</h2>
                     </div>
@@ -836,9 +866,9 @@ const App: FC = () => {
                         Since this is your first time signing in (or you used a one-time code), please set a secure password for future logins.
                     </p>
                     <form onSubmit={handleSavePassword} className="space-y-4">
-                        <div> <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label> <input type="password" required value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" /> </div>
-                        <div> <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label> <input type="password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" /> </div>
-                        <button type="submit" disabled={loading} className="w-full bg-[#c20c0b] text-white font-bold py-3 px-4 rounded-xl hover:bg-[#a50a09] transition-colors disabled:opacity-70"> {loading ? 'Saving...' : 'Create Password'} </button>
+                        <div> <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label> <input type="password" required value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]" /> </div>
+                        <div> <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label> <input type="password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]" /> </div>
+                        <button type="submit" disabled={loading} className="w-full bg-[var(--color-primary)] text-white font-bold py-3 px-4 rounded-xl hover:bg-[var(--color-primary-hover)] transition-colors disabled:opacity-70"> {loading ? 'Saving...' : 'Create Password'} </button>
                     </form>
                 </div>
             </div>
@@ -878,7 +908,7 @@ const App: FC = () => {
             }
             await saveUserProfile(profileData);
         };
-        return ( <MainLayout {...layoutProps} hideSidebar={!userProfile}> <div className="max-w-2xl mx-auto"> <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 sm:p-8 rounded-xl shadow-lg border border-gray-200 dark:border-white/10"> <h2 className="text-3xl font-bold text-gray-800 dark:text-white mb-6 text-center">{userProfile ? 'Update Your Profile' : 'Complete Your Profile'}</h2> <p className="text-center text-gray-500 dark:text-gray-400 mb-6">Fields marked with * are required to access the platform.</p> {authError && <p className="text-red-500 mb-4">{authError}</p>} <form onSubmit={handleSaveProfile} className="grid grid-cols-1 md:grid-cols-2 gap-6"> <div> <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name <span className="text-red-500">*</span></label> <input type="text" id="name" name="name" value={profileData.name} onChange={handleProfileChange} required className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-700 text-gray-900 dark:text-white" /> </div> <div> <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Company Name <span className="text-red-500">*</span></label> <input type="text" id="companyName" name="companyName" value={profileData.companyName} onChange={handleProfileChange} required className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-700 text-gray-900 dark:text-white" /> </div> <div className="md:col-span-2"> <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email <span className="text-red-500">*</span></label> <input type="email" id="email" name="email" value={profileData.email} onChange={handleProfileChange} required className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-700 text-gray-900 dark:text-white" /> </div> <div> <label htmlFor="phone" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone <span className="text-red-500">*</span></label> <input type="tel" id="phone" name="phone" value={profileData.phone} onChange={handleProfileChange} required className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-700 text-gray-900 dark:text-white" /> </div> <div> <label htmlFor="country" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Country</label> <select id="country" name="country" value={profileData.country} onChange={handleProfileChange} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-700 text-gray-900 dark:text-white"> <option value="">Select a country</option> {countries.map(country => (<option key={country} value={country}>{country}</option>))} </select> </div> <div> <label htmlFor="jobRole" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Job Role</label> <select id="jobRole" name="jobRole" value={profileData.jobRole} onChange={handleProfileChange} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-700 text-gray-900 dark:text-white"> <option value="">Select a role</option> {jobRoles.map(role => (<option key={role} value={role}>{role}</option>))} </select> </div> <div> <label htmlFor="categorySpecialization" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category Specialization</label> <input type="text" id="categorySpecialization" name="categorySpecialization" placeholder="e.g., Activewear, Denim" value={profileData.categorySpecialization} onChange={handleProfileChange} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-700 text-gray-900 dark:text-white" /> </div> <div> <label htmlFor="yearlyEstRevenue" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Est. Yearly Revenue (USD)</label> <select id="yearlyEstRevenue" name="yearlyEstRevenue" value={profileData.yearlyEstRevenue} onChange={handleProfileChange} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-700 text-gray-900 dark:text-white"> <option value="">Select a revenue range</option> {revenueRanges.map(range => (<option key={range} value={range}>{range}</option>))} </select> </div> <div className="md:col-span-2 text-right mt-4"> <button type="submit" disabled={isProfileLoading} className="w-full md:w-auto px-6 py-3 text-white rounded-md font-semibold bg-[#c20c0b] hover:bg-[#a50a09] transition shadow-md disabled:opacity-50"> {isProfileLoading ? 'Saving...' : (userProfile ? 'Save Profile' : 'Complete Profile & Continue')} </button> </div> </form> </div> </div> </MainLayout> );
+        return ( <MainLayout {...layoutProps} hideSidebar={!userProfile}> <div className="max-w-2xl mx-auto"> <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md p-6 sm:p-8 rounded-xl shadow-lg border border-gray-200 dark:border-white/10"> <h2 className="text-3xl font-bold text-gray-800 dark:text-white mb-6 text-center">{userProfile ? 'Update Your Profile' : 'Complete Your Profile'}</h2> <p className="text-center text-gray-500 dark:text-gray-400 mb-6">Fields marked with * are required to access the platform.</p> {authError && <p className="text-red-500 mb-4">{authError}</p>} <form onSubmit={handleSaveProfile} className="grid grid-cols-1 md:grid-cols-2 gap-6"> <div> <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name <span className="text-red-500">*</span></label> <input type="text" id="name" name="name" value={profileData.name} onChange={handleProfileChange} required className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] bg-white dark:bg-gray-700 text-gray-900 dark:text-white" /> </div> <div> <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Company Name <span className="text-red-500">*</span></label> <input type="text" id="companyName" name="companyName" value={profileData.companyName} onChange={handleProfileChange} required className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] bg-white dark:bg-gray-700 text-gray-900 dark:text-white" /> </div> <div className="md:col-span-2"> <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email <span className="text-red-500">*</span></label> <input type="email" id="email" name="email" value={profileData.email} onChange={handleProfileChange} required className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] bg-white dark:bg-gray-700 text-gray-900 dark:text-white" /> </div> <div> <label htmlFor="phone" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone <span className="text-red-500">*</span></label> <input type="tel" id="phone" name="phone" value={profileData.phone} onChange={handleProfileChange} required className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] bg-white dark:bg-gray-700 text-gray-900 dark:text-white" /> </div> <div> <label htmlFor="country" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Country</label> <select id="country" name="country" value={profileData.country} onChange={handleProfileChange} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] bg-white dark:bg-gray-700 text-gray-900 dark:text-white"> <option value="">Select a country</option> {countries.map(country => (<option key={country} value={country}>{country}</option>))} </select> </div> <div> <label htmlFor="jobRole" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Job Role</label> <select id="jobRole" name="jobRole" value={profileData.jobRole} onChange={handleProfileChange} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] bg-white dark:bg-gray-700 text-gray-900 dark:text-white"> <option value="">Select a role</option> {jobRoles.map(role => (<option key={role} value={role}>{role}</option>))} </select> </div> <div> <label htmlFor="categorySpecialization" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category Specialization</label> <input type="text" id="categorySpecialization" name="categorySpecialization" placeholder="e.g., Activewear, Denim" value={profileData.categorySpecialization} onChange={handleProfileChange} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] bg-white dark:bg-gray-700 text-gray-900 dark:text-white" /> </div> <div> <label htmlFor="yearlyEstRevenue" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Est. Yearly Revenue (USD)</label> <select id="yearlyEstRevenue" name="yearlyEstRevenue" value={profileData.yearlyEstRevenue} onChange={handleProfileChange} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] bg-white dark:bg-gray-700 text-gray-900 dark:text-white"> <option value="">Select a revenue range</option> {revenueRanges.map(range => (<option key={range} value={range}>{range}</option>))} </select> </div> <div className="md:col-span-2 text-right mt-4"> <button type="submit" disabled={isProfileLoading} className="w-full md:w-auto px-6 py-3 text-white rounded-md font-semibold bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] transition shadow-md disabled:opacity-50"> {isProfileLoading ? 'Saving...' : (userProfile ? 'Save Profile' : 'Complete Profile & Continue')} </button> </div> </form> </div> </div> </MainLayout> );
     };
 
     // Component for user settings
@@ -898,7 +928,7 @@ const App: FC = () => {
                     <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-8">Settings</h1>
                     <div className="space-y-6">
                         {/* Dark Mode Toggle */}
-                        <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10 flex items-center justify-between transition-colors">
+                        <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10 flex items-center justify-between transition-colors">
                             <div className="flex items-center gap-4">
                                 <div className="bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 p-3 rounded-lg">
                                     <Moon size={20} />
@@ -924,9 +954,9 @@ const App: FC = () => {
                         </div>
 
                         {settingsOptions.map((opt, index) => (
-                            <div key={index} className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10 flex items-center justify-between transition-colors">
+                            <div key={index} className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10 flex items-center justify-between transition-colors">
                                 <div className="flex items-center gap-4">
-                                    <div className="bg-red-100 dark:bg-red-900/30 text-[#c20c0b] dark:text-red-400 p-3 rounded-lg">{opt.icon}</div>
+                                    <div className="bg-red-100 dark:bg-red-900/30 text-[var(--color-primary)] dark:text-red-400 p-3 rounded-lg">{opt.icon}</div>
                                     <div>
                                         <h3 className="text-lg font-semibold text-gray-800 dark:text-white">{opt.title}</h3>
                                         <p className="text-sm text-gray-500 dark:text-gray-200">{opt.description}</p>
@@ -937,17 +967,17 @@ const App: FC = () => {
                                 </button>
                             </div>
                         ))}
-                            <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10 transition-colors">
+                            <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10 transition-colors">
                                 <div className="flex items-center gap-4">
-                                    <div className="bg-red-100 dark:bg-red-900/30 text-[#c20c0b] dark:text-red-400 p-3 rounded-lg"><MapPin size={20}/></div>
+                                    <div className="bg-red-100 dark:bg-red-900/30 text-[var(--color-primary)] dark:text-red-400 p-3 rounded-lg"><MapPin size={20}/></div>
                                     <div>
                                         <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Change Location</h3>
                                         <p className="text-sm text-gray-500 dark:text-gray-200">Update your primary business location.</p>
                                     </div>
                                 </div>
                                 <div className="mt-4 flex gap-4 items-center">
-                                    <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} className="flex-grow p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
-                                    <button onClick={handleLocationSave} className="bg-[#c20c0b] text-white font-semibold py-2 px-4 rounded-lg hover:bg-[#a50a09] transition">Save</button>
+                                    <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} className="flex-grow p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                                    <button onClick={handleLocationSave} className="bg-[var(--color-primary)] text-white font-semibold py-2 px-4 rounded-lg hover:bg-[var(--color-primary-hover)] transition">Save</button>
                                 </div>
                             </div>
                     </div>
@@ -961,7 +991,7 @@ const App: FC = () => {
         <MainLayout {...layoutProps}>
             <div className="space-y-6">
                 <div>
-                    <button onClick={() => handleSetCurrentPage('orderForm')} className="text-[#c20c0b] font-semibold mb-4 flex items-center hover:underline">
+                    <button onClick={() => handleSetCurrentPage('orderForm')} className="text-[var(--color-primary)] font-semibold mb-4 flex items-center hover:underline">
                         <ChevronLeft className="h-5 w-5 mr-1" />
                         Back to Order Form
                     </button>
@@ -980,7 +1010,7 @@ const App: FC = () => {
                         ))}
                     </div>
                 ) : (
-                    <div className="text-center py-10 bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-lg shadow-md border border-gray-200 dark:border-white/10">
+                    <div className="text-center py-10 bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md rounded-lg shadow-md border border-gray-200 dark:border-white/10">
                         <h3 className="text-xl font-semibold text-gray-700">No factories match your criteria.</h3>
                         <p className="text-gray-500 mt-2">Try adjusting your product category in the order form.</p>
                     </div>
@@ -999,14 +1029,14 @@ const App: FC = () => {
             <MainLayout {...layoutProps}>
                 <div className="space-y-8">
                     <div>
-                        <button onClick={() => handleSetCurrentPage('factoryDetail', selectedFactory)} className="text-[#c20c0b] font-semibold mb-4 flex items-center hover:underline">
+                        <button onClick={() => handleSetCurrentPage('factoryDetail', selectedFactory)} className="text-[var(--color-primary)] font-semibold mb-4 flex items-center hover:underline">
                             <ChevronLeft className="h-5 w-5 mr-1" />
                             Back to Factory Details
                         </button>
                         <h2 className="text-3xl font-bold text-gray-800 dark:text-white">AI Sourcing Tools for {selectedFactory.name}</h2>
                         <p className="text-gray-500 mt-1">Generate documents and get insights for your order.</p>
                     </div>
-                    <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-lg border border-gray-200 dark:border-white/10">
+                    <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-lg border border-gray-200 dark:border-white/10">
                         <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Your Order Details</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             {orderFormData.lineItems.map((item, idx) => (
@@ -1019,28 +1049,28 @@ const App: FC = () => {
                         </div>
                     </div>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <AiCard icon={<FileText className="mr-2 text-[#c20c0b]"/>} title="Generate Contract Brief">
-                            <div className="flex-grow min-h-[150px] prose prose-sm max-w-none whitespace-pre-wrap">{isLoadingBrief ? <div className="flex items-center justify-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#c20c0b]"></div></div> : contractBrief ? <div dangerouslySetInnerHTML={{ __html: contractBrief.replace(/\n/g, '<br/>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} /> : <p className="text-gray-500 not-prose">Generate a professional brief to share with the factory.</p>}</div>
-                            <button onClick={generateContractBrief} disabled={isLoadingBrief} className="mt-4 w-full px-5 py-2 text-sm text-white rounded-lg font-semibold bg-[#c20c0b] hover:bg-[#a50a09] transition disabled:opacity-50">
+                        <AiCard icon={<FileText className="mr-2 text-[var(--color-primary)]"/>} title="Generate Contract Brief">
+                            <div className="flex-grow min-h-[150px] prose prose-sm max-w-none whitespace-pre-wrap">{isLoadingBrief ? <div className="flex items-center justify-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-primary)]"></div></div> : contractBrief ? <div dangerouslySetInnerHTML={{ __html: contractBrief.replace(/\n/g, '<br/>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} /> : <p className="text-gray-500 not-prose">Generate a professional brief to share with the factory.</p>}</div>
+                            <button onClick={generateContractBrief} disabled={isLoadingBrief} className="mt-4 w-full px-5 py-2 text-sm text-white rounded-lg font-semibold bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] transition disabled:opacity-50">
                                 {isLoadingBrief ? 'Generating...' : 'Generate Brief'}
                             </button>
                         </AiCard>
-                        <AiCard icon={<MessageSquare className="mr-2 text-[#c20c0b]"/>} title="Draft Outreach Email">
-                            <div className="flex-grow min-h-[150px] prose prose-sm max-w-none whitespace-pre-wrap">{isLoadingEmail ? <div className="flex items-center justify-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#c20c0b]"></div></div> : outreachEmail ? <div dangerouslySetInnerHTML={{ __html: outreachEmail.replace(/\n/g, '<br/>') }} /> : <p className="text-gray-500 not-prose">First, generate a contract brief.</p>}</div>
+                        <AiCard icon={<MessageSquare className="mr-2 text-[var(--color-primary)]"/>} title="Draft Outreach Email">
+                            <div className="flex-grow min-h-[150px] prose prose-sm max-w-none whitespace-pre-wrap">{isLoadingEmail ? <div className="flex items-center justify-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-primary)]"></div></div> : outreachEmail ? <div dangerouslySetInnerHTML={{ __html: outreachEmail.replace(/\n/g, '<br/>') }} /> : <p className="text-gray-500 not-prose">First, generate a contract brief.</p>}</div>
                             {outreachEmail && !isLoadingEmail && <button onClick={() => copyToClipboard(outreachEmail.replace(/<br\/>/g, '\n'), 'Email content copied!')} className="mt-4 w-full px-5 py-2 text-sm text-indigo-700 rounded-lg font-semibold bg-indigo-100 hover:bg-indigo-200 transition flex items-center justify-center"><ClipboardCopy size={16} className="mr-2"/>Copy Email</button>}
                             <button onClick={generateOutreachEmail} disabled={isLoadingEmail || !contractBrief || !selectedFactory} className="mt-2 w-full px-5 py-2 text-sm text-white rounded-lg font-semibold bg-[#c20c0b] hover:bg-[#a50a09] transition disabled:opacity-50">
                                 {isLoadingEmail ? 'Drafting...' : 'Draft Email'}
                             </button>
                         </AiCard>
-                        <AiCard icon={<BrainCircuit className="mr-2 text-[#c20c0b]"/>} title="Suggest Optimizations">
-                            <div className="flex-grow min-h-[150px] prose prose-sm max-w-none whitespace-pre-wrap">{isLoadingOptimizations ? <div className="flex items-center justify-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#c20c0b]"></div></div> : optimizationSuggestions ? <div dangerouslySetInnerHTML={{ __html: optimizationSuggestions.replace(/\n/g, '<br/>').replace(/- \*\*(.*?)\*\*:/g, '<br/><strong>$1:</strong>') }} /> : <p className="text-gray-500 not-prose">Find ways to improve cost, quality, or sustainability.</p>}</div>
-                            <button onClick={suggestOptimizations} disabled={isLoadingOptimizations} className="mt-4 w-full px-5 py-2 text-sm text-white rounded-lg font-semibold bg-[#c20c0b] hover:bg-[#a50a09] transition disabled:opacity-50">
+                        <AiCard icon={<BrainCircuit className="mr-2 text-[var(--color-primary)]"/>} title="Suggest Optimizations">
+                            <div className="flex-grow min-h-[150px] prose prose-sm max-w-none whitespace-pre-wrap">{isLoadingOptimizations ? <div className="flex items-center justify-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-primary)]"></div></div> : optimizationSuggestions ? <div dangerouslySetInnerHTML={{ __html: optimizationSuggestions.replace(/\n/g, '<br/>').replace(/- \*\*(.*?)\*\*:/g, '<br/><strong>$1:</strong>') }} /> : <p className="text-gray-500 not-prose">Find ways to improve cost, quality, or sustainability.</p>}</div>
+                            <button onClick={suggestOptimizations} disabled={isLoadingOptimizations} className="mt-4 w-full px-5 py-2 text-sm text-white rounded-lg font-semibold bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] transition disabled:opacity-50">
                                 {isLoadingOptimizations ? 'Analyzing...' : 'Get Suggestions'}
                             </button>
                         </AiCard>
-                        <AiCard icon={<BadgePercent className="mr-2 text-[#c20c0b]"/>} title="Negotiation Advisor">
-                            <div className="flex-grow min-h-[150px] prose prose-sm max-w-none whitespace-pre-wrap">{isLoadingNegotiation ? <div className="flex items-center justify-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#c20c0b]"></div></div> : negotiationTips ? <div dangerouslySetInnerHTML={{ __html: negotiationTips.replace(/\n/g, '<br/>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} /> : <p className="text-gray-500 not-prose">Get AI-powered negotiation points and cultural tips.</p>}</div>
-                            <button onClick={getNegotiationTips} disabled={isLoadingNegotiation} className="mt-4 w-full px-5 py-2 text-sm text-white rounded-lg font-semibold bg-[#c20c0b] hover:bg-[#a50a09] transition disabled:opacity-50">
+                        <AiCard icon={<BadgePercent className="mr-2 text-[var(--color-primary)]"/>} title="Negotiation Advisor">
+                            <div className="flex-grow min-h-[150px] prose prose-sm max-w-none whitespace-pre-wrap">{isLoadingNegotiation ? <div className="flex items-center justify-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-primary)]"></div></div> : negotiationTips ? <div dangerouslySetInnerHTML={{ __html: negotiationTips.replace(/\n/g, '<br/>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} /> : <p className="text-gray-500 not-prose">Get AI-powered negotiation points and cultural tips.</p>}</div>
+                            <button onClick={getNegotiationTips} disabled={isLoadingNegotiation} className="mt-4 w-full px-5 py-2 text-sm text-white rounded-lg font-semibold bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] transition disabled:opacity-50">
                                 {isLoadingNegotiation ? 'Advising...' : 'Get Negotiation Tips'}
                             </button>
                         </AiCard>
@@ -1063,11 +1093,11 @@ const App: FC = () => {
             <MainLayout {...layoutProps}>
                 <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-2">Order Tracking</h1>
                 <p className="text-gray-500 dark:text-gray-200 mb-6">Follow your shipment from production to delivery.</p>
-                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-lg border border-gray-200 dark:border-white/10">
+                <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-lg border border-gray-200 dark:border-white/10">
                     <div className="p-4 border-b border-gray-200 dark:border-white/10">
                         <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
                             {Object.keys(trackingData).map(orderKey => (
-                                <button key={orderKey} onClick={() => setActiveOrderKey(orderKey)} className={`flex-shrink-0 py-2 px-4 font-semibold text-sm rounded-lg transition-colors ${activeOrderKey === orderKey ? 'bg-red-100 text-[#c20c0b]' : 'text-gray-500 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
+                                <button key={orderKey} onClick={() => setActiveOrderKey(orderKey)} className={`flex-shrink-0 py-2 px-4 font-semibold text-sm rounded-lg transition-colors ${activeOrderKey === orderKey ? 'bg-red-100 text-[var(--color-primary)]' : 'text-gray-500 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
                                     {orderKey}
                                 </button>
                             ))}
@@ -1091,7 +1121,7 @@ const App: FC = () => {
                                         {/* Content */}
                                         <div className="flex items-center gap-4 ml-8">
                                             <div className={`p-3 rounded-full ${
-                                                isComplete ? 'bg-red-100 text-[#c20c0b]' :
+                                                isComplete ? 'bg-red-100 text-[var(--color-primary)]' :
                                                 isInProgress ? 'bg-blue-100 text-blue-600' :
                                                 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500'
                                             }`}>
@@ -1150,14 +1180,14 @@ const App: FC = () => {
 
         return (
             <>
-                <button onClick={() => setIsOpen(!isOpen)} className="fixed bottom-24 md:bottom-6 right-6 bg-[#c20c0b] text-white p-4 rounded-full shadow-lg hover:bg-[#a50a09] transition-transform hover:scale-110 z-50">
+                <button onClick={() => setIsOpen(!isOpen)} className="fixed bottom-24 md:bottom-6 right-6 bg-[var(--color-primary)] text-white p-4 rounded-full shadow-lg hover:bg-[var(--color-primary-hover)] transition-transform hover:scale-110 z-50">
                     {isOpen ? <X className="h-8 w-8" /> : <Bot className="h-8 w-8" />}
                 </button>
                 {isOpen && (
-                    <div className="fixed bottom-24 right-6 w-full max-w-sm h-[70vh] bg-white dark:bg-gray-900/95 dark:backdrop-blur-xl rounded-2xl shadow-2xl flex flex-col transition-all duration-300 z-50 animate-fade-in sm:bottom-6 sm:max-w-md border border-gray-200 dark:border-white/10">
+                    <div className="fixed bottom-24 right-6 w-full max-w-sm h-[70vh] bg-white/90 backdrop-blur-xl dark:bg-gray-900/95 dark:backdrop-blur-xl rounded-2xl shadow-2xl flex flex-col transition-all duration-300 z-50 animate-fade-in sm:bottom-6 sm:max-w-md border border-gray-200 dark:border-white/10">
                         <header className="p-4 flex items-center gap-2 border-b dark:border-gray-700">
                             <div className="p-1.5 bg-red-100 rounded-md">
-                                <Bot className="w-5 h-5 text-[#c20c0b]" />
+                                <Bot className="w-5 h-5 text-[var(--color-primary)]" />
                             </div>
                             <h3 className="font-bold text-sm text-gray-800 dark:text-white">Auctave Brain</h3>
                             <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-gray-600 ml-auto p-1"><X size={20} /></button>
@@ -1192,7 +1222,7 @@ const App: FC = () => {
     const renderPage = () => {
         // Show loading spinner if auth is not ready
         if (!isAuthReady) {
-            return <div className="flex items-center justify-center min-h-screen bg-gray-100"><div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#c20c0b]"></div></div>;
+            return <div className="flex items-center justify-center min-h-screen bg-gray-100"><div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[var(--color-primary)]"></div></div>;
         }
 
         // 1. Check Dynamic Routes from MasterController (Enables Extensibility)
@@ -1232,7 +1262,7 @@ const App: FC = () => {
             case 'settings': return <SettingsPage />;
             case 'tracking': return <OrderTrackingPage />;
             case 'trending': return <TrendingPage />;
-            case 'myQuotes': return <MyQuotesPage quoteRequests={quoteRequests} handleSetCurrentPage={handleSetCurrentPage} layoutProps={layoutProps} isLoading={isQuotesLoading} onRefresh={fetchUserQuotes} />;
+            case 'myQuotes': return <MyQuotesPage quoteRequests={quoteRequests} handleSetCurrentPage={handleSetCurrentPage} layoutProps={layoutProps} isLoading={isQuotesLoading} onRefresh={fetchUserQuotes} initialFilterStatus={myQuotesFilter} />;
             case 'quoteRequest': return <QuoteRequestPage />;
             case 'quoteDetail': return <QuoteDetailPage 
                 selectedQuote={selectedQuote} 
@@ -1312,12 +1342,12 @@ const App: FC = () => {
                     <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-6">Latest Articles</h2>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                         {trendBlogs.map(blog => (
-                            <div key={blog.id} className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-md border border-gray-200 dark:border-white/10 overflow-hidden group cursor-pointer">
+                            <div key={blog.id} className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-md border border-gray-200 dark:border-white/10 overflow-hidden group cursor-pointer">
                                 <div className="overflow-hidden">
                                     <img src={blog.imageUrl} alt={blog.title} className="h-48 w-full object-cover group-hover:scale-105 transition-transform duration-300" />
                                 </div>
                                 <div className="p-6">
-                                    <span className="text-xs font-semibold bg-red-100 text-[#c20c0b] px-2 py-1 rounded-full">{blog.category}</span>
+                                    <span className="text-xs font-semibold bg-red-100 text-[var(--color-primary)] px-2 py-1 rounded-full">{blog.category}</span>
                                     <h3 className="font-bold text-lg text-gray-800 dark:text-white mt-3 mb-2">{blog.title}</h3>
                                     <p className="text-sm text-gray-500 dark:text-gray-200">By {blog.author} · {blog.date}</p>
                                 </div>
@@ -1371,11 +1401,11 @@ const App: FC = () => {
         return (
             <MainLayout {...layoutProps}>
                 <div className="max-w-4xl mx-auto">
-                    <button onClick={() => handleSetCurrentPage('factoryDetail', selectedFactory)} className="text-[#c20c0b] font-semibold mb-4 flex items-center hover:underline">
+                    <button onClick={() => handleSetCurrentPage('factoryDetail', selectedFactory)} className="text-[var(--color-primary)] font-semibold mb-4 flex items-center hover:underline">
                         <ChevronLeft className="h-5 w-5 mr-1" />
                         Back to Factory Details
                     </button>
-                    <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-8 rounded-xl shadow-lg border border-gray-200 dark:border-white/10">
+                    <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md p-8 rounded-xl shadow-lg border border-gray-200 dark:border-white/10">
                         <h2 className="text-3xl font-bold text-gray-800 dark:text-white mb-2">Request a Quote</h2>
                         <p className="text-gray-500 dark:text-gray-200 mb-6">Review your order details and submit your request to <span className="font-semibold">{selectedFactory.name}</span>.</p>
                         <form onSubmit={handleQuoteSubmit}>
@@ -1418,7 +1448,7 @@ const App: FC = () => {
                                 )}
                             </div>
                             <div className="mt-8 text-right">
-                                <button type="submit" className="px-8 py-3 text-white rounded-lg font-semibold bg-[#c20c0b] hover:bg-[#a50a09] transition shadow-md">
+                                <button type="submit" className="px-8 py-3 text-white rounded-lg font-semibold bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] transition shadow-md">
                                     Submit Quote Request
                                 </button>
                             </div>
@@ -1434,6 +1464,8 @@ const App: FC = () => {
             q.id === id ? { ...q, status: status as any, ...additionalData } : q
         );
         setQuoteRequests(updatedQuotes);
+        // Update sessionStorage cache to keep it in sync
+        sessionStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify(updatedQuotes));
         if (selectedQuote && selectedQuote.id === id) {
             setSelectedQuote(prev => prev ? { ...prev, status: status as any, ...additionalData } : null);
         }
@@ -1485,22 +1517,22 @@ const App: FC = () => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                      <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10">
+                      <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10">
                           <h3 className="text-sm font-medium text-gray-500">Total in Escrow</h3>
                           <p className="text-3xl font-bold text-gray-800 dark:text-white mt-2">${totalHeld.toLocaleString()}</p>
                       </div>
-                      <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10">
+                      <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10">
                           <h3 className="text-sm font-medium text-gray-500">Total Released</h3>
                           <p className="text-3xl font-bold text-gray-800 dark:text-white mt-2">${totalReleased.toLocaleString()}</p>
                       </div>
-                      <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10">
+                      <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10">
                           <h3 className="text-sm font-medium text-gray-500">Next Payout</h3>
                           <p className="text-3xl font-bold text-gray-800 dark:text-white mt-2">$10,625</p>
                           <p className="text-xs text-gray-400">on July 12, 2025 for PO-2024-001</p>
                       </div>
                 </div>
 
-                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
                     <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                             <thead className="bg-gray-50 dark:bg-gray-700/50">
@@ -1513,7 +1545,7 @@ const App: FC = () => {
                             <tbody className="bg-white dark:bg-gray-900/40 divide-y divide-gray-200 dark:divide-gray-700">
                                 {billingData.map(item => (
                                     <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-[#c20c0b] hover:underline cursor-pointer">{item.orderId}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-[var(--color-primary)] hover:underline cursor-pointer">{item.orderId}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 dark:text-white">{item.product}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-200">${item.totalAmount.toLocaleString()}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-semibold">${item.amountReleased.toLocaleString()}</td>
@@ -1524,7 +1556,7 @@ const App: FC = () => {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            <button className="text-[#c20c0b] hover:text-[#a50a09]">View Details</button>
+                                            <button className="text-[var(--color-primary)] hover:text-[var(--color-primary-hover)]">View Details</button>
                                         </td>
                                     </tr>
                                 ))}
@@ -1542,6 +1574,10 @@ const App: FC = () => {
             {/* Global styles for fonts and animations */}
             <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+                :root {
+                    --color-primary: ${theme.colors.primary};
+                    --color-primary-hover: ${theme.colors.primaryHover};
+                }
                 body {
                     font-family: 'Inter', sans-serif;
                 }
@@ -1552,6 +1588,33 @@ const App: FC = () => {
                 .animate-card-enter { opacity: 0; animation: card-enter 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards; }
                 .scrollbar-hide::-webkit-scrollbar { display: none; }
                 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+                /* Custom Scrollbar */
+                ::-webkit-scrollbar {
+                    width: 6px;
+                    height: 6px;
+                }
+                ::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+                ::-webkit-scrollbar-thumb {
+                    background: #d1d5db;
+                    border-radius: 3px;
+                }
+                ::-webkit-scrollbar-thumb:hover {
+                    background: #9ca3af;
+                }
+
+                /* Dark Mode Scrollbar */
+                .dark ::-webkit-scrollbar-track {
+                    background: #111827; 
+                }
+                .dark ::-webkit-scrollbar-thumb {
+                    background: #4b5563;
+                }
+                .dark ::-webkit-scrollbar-thumb:hover {
+                    background: #6b7280;
+                }
             `}</style>
             {/* Toast notification component */}
             <Toast {...toast} />

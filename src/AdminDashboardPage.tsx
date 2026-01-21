@@ -90,7 +90,7 @@ export const AdminDashboardPage: FC<AdminDashboardPageProps> = (props) => {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     {statCards.map((stat, index) => (
-                        <div key={index} className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10 flex items-center justify-between">
+                        <div key={index} className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10 flex items-center justify-between cursor-pointer hover:scale-105 transition-transform">
                             <div>
                                 <p className="text-sm font-medium text-gray-500 dark:text-gray-200">{stat.title}</p>
                                 <p className="text-2xl font-bold text-gray-800 dark:text-white mt-1">{isLoading ? '...' : stat.value}</p>

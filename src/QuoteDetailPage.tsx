@@ -3,8 +3,8 @@ import { MainLayout } from './MainLayout';
 import { QuoteRequest, NegotiationHistoryItem } from './types';
 import { quoteService } from './quote.service';
 import {
-    ChevronLeft, MapPin, Calendar, Package, Shirt, DollarSign, Clock, ArrowRight,
-    FileText, MessageSquare, CheckCircle, AlertCircle, X, Globe, Download, ChevronDown, History, Printer
+    ChevronLeft, ChevronRight, MapPin, Calendar, Package, Shirt, DollarSign, Clock, ArrowRight,
+    FileText, MessageSquare, CheckCircle, AlertCircle, X, Globe, Download, ChevronDown, History, Printer, Check, CheckCheck, Eye, RefreshCw, Image as ImageIcon
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -17,36 +17,84 @@ interface QuoteDetailPageProps {
     layoutProps: any;
 }
 
-export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({ 
-    selectedQuote, 
-    handleSetCurrentPage, 
-    updateQuoteStatus, 
-    createCrmOrder, 
-    layoutProps 
+export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
+    selectedQuote: initialQuote,
+    handleSetCurrentPage,
+    updateQuoteStatus,
+    createCrmOrder,
+    layoutProps
 }) => {
+    // Use local state for the quote so we can refresh it if needed
+    const [quote, setQuote] = useState<QuoteRequest | null>(initialQuote);
     const [isNegotiationModalOpen, setIsNegotiationModalOpen] = useState(false);
     const quoteDetailsRef = useRef<HTMLDivElement>(null);
     const pdfContentRef = useRef<HTMLDivElement>(null);
     const [fileLinks, setFileLinks] = useState<{ name: string; url: string }[]>([]);
     const [activeTab, setActiveTab] = useState(0);
     const fileLinksAbortController = useRef<AbortController | null>(null);
+    const [isLoadingFiles, setIsLoadingFiles] = useState(false);
+
+    // Lightbox state
+    const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+    const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+    // Filter for image files for the lightbox
+    const imageFiles = fileLinks.filter(f => f.name.match(/\.(jpg|jpeg|png|gif|webp)$/i));
+
+    useEffect(() => {
+        const fetchFreshQuoteData = async () => {
+            if (!initialQuote?.id) {
+                setQuote(initialQuote);
+                return;
+            }
+
+            // If files are already present, no need to fetch
+            if (initialQuote.files && initialQuote.files.length > 0) {
+                setQuote(initialQuote);
+                return;
+            }
+
+            try {
+                const { data, error } = await quoteService.getQuoteById(initialQuote.id);
+                if (error) {
+                    console.error('[QuoteDetailPage] Error fetching quote:', error);
+                    setQuote(initialQuote); // Fallback to initial data on error
+                    return;
+                }
+                if (data) {
+                    // Combine initial data with freshly fetched data to ensure everything is up-to-date
+                    setQuote({ ...initialQuote, ...data });
+                }
+            } catch (err) {
+                console.error('[QuoteDetailPage] Exception fetching quote:', err);
+                setQuote(initialQuote); // Fallback on exception
+            }
+        };
+
+        fetchFreshQuoteData();
+    }, [initialQuote]);
 
     const fetchSignedUrls = useCallback(async () => {
-        if (!selectedQuote?.files || selectedQuote.files.length === 0) {
+        console.log('[QuoteDetailPage] fetchSignedUrls called, quote.files:', quote?.files);
+        if (!quote?.files || quote.files.length === 0) {
+            console.log('[QuoteDetailPage] No files found in quote');
             setFileLinks([]);
             return;
         }
 
-        const CACHE_KEY = `garment_erp_quote_files_${selectedQuote.id}`;
+        const CACHE_KEY = `garment_erp_quote_files_${quote.id}`;
         const cached = sessionStorage.getItem(CACHE_KEY);
         if (cached) {
             const { timestamp, links } = JSON.parse(cached);
             // Cache valid for 50 minutes (URLs expire in 60)
-            if (Date.now() - timestamp < 50 * 60 * 1000) {
+            // Also invalidate cache if it's empty but we now have files (data was updated)
+            if (Date.now() - timestamp < 50 * 60 * 1000 && links.length > 0) {
                 setFileLinks(links);
                 return;
             }
         }
+
+        setIsLoadingFiles(true);
 
         if (fileLinksAbortController.current) fileLinksAbortController.current.abort();
         fileLinksAbortController.current = new AbortController();
@@ -56,41 +104,72 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         while (attempts < 3) {
             try {
                 if (signal.aborted) return;
-                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000));
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 20000));
                 
-                const urlsPromise = Promise.all(selectedQuote.files.map(async (path) => {
-                    const { data, error } = await layoutProps.supabase.storage
-                        .from('quote-attachments')
-                        .createSignedUrl(path, 3600); // URL valid for 1 hour
-                    
-                    if (error) throw error;
+                const urlsPromise = Promise.all(quote.files.map(async (path) => {
+                    try {
+                        // Ensure path doesn't have leading slash if not needed, or handle bucket prefix if present
+                        const cleanPath = path.startsWith('quote-attachments/') ? path.replace('quote-attachments/', '') : path;
+                        const { data, error } = await layoutProps.supabase.storage
+                            .from('quote-attachments')
+                            .createSignedUrl(cleanPath, 3600); // URL valid for 1 hour
+                        
+                        const fileName = path.split('/').pop() || 'document';
+                        const cleanName = fileName.replace(/^\d+_/, '');
 
-                    const fileName = path.split('/').pop() || 'document';
-                    const cleanName = fileName.replace(/^\d+_/, '');
+                        if (error) {
+                            console.error(`[QuoteDetailPage] Error loading ${path}:`, error);
+                            if (error.message.includes('row-level security') || error.message.includes('violates')) {
+                                return { name: cleanName, url: '', error: 'Access Denied' };
+                            }
+                            return { name: cleanName, url: '' };
+                        }
 
-                    return {
-                        name: cleanName,
-                        url: data?.signedUrl || '#'
-                    };
+                        return {
+                            name: cleanName,
+                            url: data?.signedUrl || ''
+                        };
+                    } catch (err) {
+                        console.error(`[QuoteDetailPage] Failed to load attachment: ${path}`, err);
+                        const fileName = path.split('/').pop() || 'document';
+                        const cleanName = fileName.replace(/^\d+_/, '');
+                        return { name: cleanName, url: '' };
+                    }
                 }));
 
-                const urls = await Promise.race([urlsPromise, timeoutPromise]) as { name: string; url: string }[];
+                const results = await Promise.race([urlsPromise, timeoutPromise]) as { name: string; url: string }[];
+                const urls = results;
 
                 if (!signal.aborted) {
+                    const hasErrors = urls.some(u => !u.url);
                     setFileLinks(urls);
-                    sessionStorage.setItem(CACHE_KEY, JSON.stringify({
-                        timestamp: Date.now(),
-                        links: urls
-                    }));
+                    if (!hasErrors) {
+                        sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+                            timestamp: Date.now(),
+                            links: urls
+                        }));
+                    }
+                    setIsLoadingFiles(false);
                 }
                 return;
             } catch (err: any) {
                 if (err.name === 'AbortError' || signal.aborted) return;
+                console.warn(`[QuoteDetailPage] Attempt ${attempts + 1} failed:`, err);
                 attempts++;
                 await new Promise(r => setTimeout(r, 1000 * attempts));
             }
         }
-    }, [selectedQuote, layoutProps.supabase]);
+        
+        // Fallback: If all retries failed, show files with error state
+        if (!signal.aborted && fileLinks.length === 0) {
+            setFileLinks(quote.files.map(path => ({
+                name: path.split('/').pop()?.replace(/^\d+_/, '') || 'document',
+                url: '',
+                error: 'Failed to load'
+            })));
+            if (!signal.aborted) setIsLoadingFiles(false);
+        }
+    }, [quote, layoutProps.supabase]);
 
     useEffect(() => {
         fetchSignedUrls();
@@ -99,12 +178,22 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         };
     }, [fetchSignedUrls]);
 
-    if (!selectedQuote) {
+    const openLightbox = (fileUrl: string) => {
+        const index = imageFiles.findIndex(img => img.url === fileUrl);
+        if (index !== -1) {
+            setCurrentImageIndex(index);
+            setIsLightboxOpen(true);
+        }
+    };
+
+    if (!quote) {
         handleSetCurrentPage('myQuotes');
         return null;
     }
 
-    const { factory, order, status, submittedAt, id, response_details } = selectedQuote;
+    console.log('[QuoteDetailPage] Rendering with quote.files:', quote.files);
+
+    const { factory, order, status, submittedAt, id, response_details } = quote;
 
     const showToast = (message: string, type: 'success' | 'error' = 'success') => {
         if (window.showToast) window.showToast(message, type);
@@ -214,22 +303,28 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
     };
 
     const handleAcceptQuote = async () => {
+        const newStatus = status === 'Admin Accepted' ? 'Accepted' : 'Client Accepted';
         const acceptedAt = new Date().toISOString();
         const updatedResponseDetails = {
             ...(response_details || {}),
-            acceptedAt: acceptedAt
+            acceptedAt: newStatus === 'Accepted' ? acceptedAt : undefined
         };
-        const { error } = await quoteService.update(id, { status: 'Accepted', response_details: updatedResponseDetails });
+        const { error } = await quoteService.update(id, { status: newStatus, response_details: updatedResponseDetails });
 
         if (error) {
             showToast('Failed to update quote status: ' + error.message, 'error');
             return;
         }
 
-        updateQuoteStatus(id, 'Accepted', { acceptedAt, response_details: updatedResponseDetails });
-        createCrmOrder(selectedQuote);
-        showToast('Quote Accepted! A new order has been created in the CRM portal.');
-        handleSetCurrentPage('crm');
+        updateQuoteStatus(id, newStatus, { acceptedAt: newStatus === 'Accepted' ? acceptedAt : undefined, response_details: updatedResponseDetails });
+        
+        if (newStatus === 'Accepted') {
+            createCrmOrder(quote);
+            showToast('Quote Accepted! A new order has been created in the CRM portal.');
+            handleSetCurrentPage('crm');
+        } else {
+            showToast('Quote approved. Waiting for admin confirmation.');
+        }
     };
 
     const handleDeclineQuote = async () => {
@@ -248,7 +343,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
     };
 
     const handleNegotiationSubmit = async (counterPrice: string, details: string, lineItemNegotiations: any[]) => {
-        const updatedLineItems = selectedQuote.order.lineItems.map(item => {
+        const updatedLineItems = quote.order.lineItems.map(item => {
             const negotiation = lineItemNegotiations.find(neg => neg.lineItemId === item.id);
             if (negotiation && negotiation.counterPrice) {
                 return { ...item, targetPrice: negotiation.counterPrice };
@@ -257,7 +352,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         });
 
         const updatedOrderDetails = {
-            ...selectedQuote.order,
+            ...quote.order,
             lineItems: updatedLineItems
         };
 
@@ -271,7 +366,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
             lineItemPrices: lineItemNegotiations.map(n => ({ lineItemId: n.lineItemId, price: n.counterPrice }))
         };
 
-        const updatedHistory = [...(selectedQuote.negotiation_details?.history || []), newHistoryItem];
+        const updatedHistory = [...(quote.negotiation_details?.history || []), newHistoryItem];
 
         const negotiationPayload = {
             counterPrice,
@@ -304,7 +399,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         if (!target || isNaN(targetNum) || targetNum === 0) return null;
 
         return (
-            <div className="text-xs font-medium text-gray-500 mt-1">
+            <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mt-1">
                 Target: ${target}
             </div>
         );
@@ -317,6 +412,8 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
             case 'Accepted': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
             case 'Declined': return 'bg-red-50 text-red-700 border-red-200';
             case 'In Negotiation': return 'bg-purple-50 text-purple-700 border-purple-200';
+            case 'Admin Accepted': return 'bg-teal-50 text-teal-700 border-teal-200';
+            case 'Client Accepted': return 'bg-cyan-50 text-cyan-700 border-cyan-200';
             default: return 'bg-gray-50 text-gray-700 border-gray-200';
         }
     };
@@ -328,13 +425,15 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
             case 'Accepted': return 'from-emerald-500 to-green-400';
             case 'Declined': return 'from-red-500 to-pink-500';
             case 'In Negotiation': return 'from-purple-500 to-indigo-400';
+            case 'Admin Accepted': return 'from-teal-500 to-teal-400';
+            case 'Client Accepted': return 'from-cyan-500 to-cyan-400';
             default: return 'from-gray-400 to-gray-300';
         }
     };
 
     const getLineItemHistory = (lineItemId: number) => {
-        if (!selectedQuote?.negotiation_details?.history) return [];
-        return selectedQuote.negotiation_details.history
+        if (!quote?.negotiation_details?.history) return [];
+        return quote.negotiation_details.history
             .filter(h => h.lineItemPrices?.some(p => p.lineItemId === lineItemId))
             .map(h => ({
                 ...h,
@@ -343,24 +442,24 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
     };
 
     const negotiationHistory = React.useMemo(() => {
-        if (selectedQuote.negotiation_details?.history && selectedQuote.negotiation_details.history.length > 0) {
-            return selectedQuote.negotiation_details.history;
+        if (quote.negotiation_details?.history && quote.negotiation_details.history.length > 0) {
+            return quote.negotiation_details.history;
         }
         
         const history: any[] = [];
         // If we have response details but no history array, treat it as the first history item
-        if (selectedQuote.response_details && (selectedQuote.status === 'Responded' || selectedQuote.status === 'Accepted' || selectedQuote.status === 'Declined' || selectedQuote.status === 'In Negotiation')) {
+        if (quote.response_details && (quote.status === 'Responded' || quote.status === 'Accepted' || quote.status === 'Declined' || quote.status === 'In Negotiation' || quote.status === 'Admin Accepted' || quote.status === 'Client Accepted')) {
              history.push({
                 id: 'initial-response',
                 sender: 'factory',
-                message: selectedQuote.response_details.notes,
-                price: selectedQuote.response_details.price,
-                timestamp: selectedQuote.response_details.respondedAt || selectedQuote.submittedAt,
+                message: quote.response_details.notes,
+                price: quote.response_details.price,
+                timestamp: quote.response_details.respondedAt || quote.submittedAt,
                 action: 'offer'
             });
         }
         return history;
-    }, [selectedQuote]);
+    }, [quote]);
 
     return (
         <MainLayout {...layoutProps}>
@@ -383,10 +482,15 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                 <button onClick={() => setIsNegotiationModalOpen(true)} className="px-5 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-white font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-all shadow-sm">
                                     Negotiate
                                 </button>
-                                <button onClick={handleAcceptQuote} className="px-5 py-2 bg-[#c20c0b] text-white font-medium rounded-lg hover:bg-[#a50a09] transition-all shadow-md flex items-center gap-2">
-                                    <CheckCircle size={18} /> Accept Quote
+                                <button onClick={handleAcceptQuote} className="px-5 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-all shadow-md flex items-center gap-2">
+                                    <Check size={18} /> Approve Quote
                                 </button>
                             </>
+                        )}
+                        {status === 'Admin Accepted' && (
+                            <button onClick={handleAcceptQuote} className="px-5 py-2 bg-[#c20c0b] text-white font-medium rounded-lg hover:bg-[#a50a09] transition-all shadow-md flex items-center gap-2">
+                                <CheckCheck size={18} /> Finalize Acceptance
+                            </button>
                         )}
                     </div>
                 </div>
@@ -405,13 +509,15 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                         <Calendar size={14} className="mr-1.5"/> Submitted on {new Date(submittedAt).toLocaleDateString()}
                                     </p>
                                 </div>
-                                <span className={`px-3 py-1 text-xs font-bold uppercase tracking-wide rounded-full border ${getStatusColor(status)}`}>
-                                    {status}
+                                <span className={`px-3 py-1 text-xs font-bold uppercase tracking-wide rounded-full border ${getStatusColor(status)} flex items-center gap-1`}>
+                                    {status === 'Accepted' && <CheckCheck size={14} />}
+                                    {(status === 'Admin Accepted' || status === 'Client Accepted') && <Check size={14} />}
+                                    {status === 'Admin Accepted' ? 'Admin Approved' : status === 'Client Accepted' ? 'Client Approved' : status}
                                 </span>
                             </div>
                             
                             {/* Factory Response Summary (if available) */}
-                            {(status === 'Responded' || status === 'In Negotiation' || status === 'Accepted') && response_details && (
+                            {(status === 'Responded' || status === 'In Negotiation' || status === 'Accepted' || status === 'Admin Accepted' || status === 'Client Accepted') && response_details && (
                                 <div className="mt-6 p-5 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-200 dark:border-white/10 shadow-sm">
                                     <div className="flex items-center justify-between mb-4">
                                         <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
@@ -450,7 +556,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                         <button
                                             key={index}
                                             onClick={() => setActiveTab(index)}
-                                            className={`pb-3 text-sm font-medium transition-all border-b-2 whitespace-nowrap ${
+                                            className={`pb-3 text-sm font-medium transition-all border-b-2 whitespace-nowrap cursor-pointer ${
                                                 activeTab === index
                                                     ? 'border-[#c20c0b] text-[#c20c0b]'
                                                     : 'border-transparent text-gray-500 dark:text-gray-200 hover:text-gray-700 dark:hover:text-white'
@@ -507,7 +613,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                         <p className="text-xs text-white uppercase font-bold tracking-wider">{showAgreedPrice ? 'Agreed Price' : 'Target Price'}</p>
                                                     </div>
                                                     <div className="p-3 bg-white dark:bg-gray-800">
-                                                        <p className={`font-bold text-sm ${showAgreedPrice ? 'text-green-600' : 'text-[#c20c0b]'}`}>${showAgreedPrice ? agreedPrice : item.targetPrice}</p>
+                                                        <p className={`font-bold text-sm ${showAgreedPrice ? 'text-green-600 dark:text-green-400' : 'text-[#c20c0b] dark:text-red-400'}`}>${showAgreedPrice ? agreedPrice : item.targetPrice}</p>
                                                     </div>
                                                 </div>
                                             </div>
@@ -591,6 +697,58 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                 })}
                             </div>
                         </div>
+
+                        {/* Attachments Section */}
+                        <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden p-6">
+                            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center">
+                                <FileText size={20} className="mr-2 text-[#c20c0b]" /> Attachments
+                            </h3>
+                            {isLoadingFiles ? (
+                                <div className="flex justify-center py-8">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#c20c0b]"></div>
+                                </div>
+                            ) : fileLinks.length > 0 ? (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    {fileLinks.map((file, i) => {
+                                        const isImage = file.name.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+                                        const hasUrl = !!file.url;
+                                        const errorMsg = (file as any).error;
+                                        return (
+                                        <div key={i} className={`flex items-center gap-3 p-4 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 transition-all group ${hasUrl ? 'hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer' : 'opacity-70'}`} onClick={() => hasUrl && (isImage ? openLightbox(file.url) : window.open(file.url, '_blank'))}>
+                                            <div className="p-2.5 bg-white dark:bg-gray-700 rounded-lg text-[#c20c0b] shadow-sm">
+                                                {isImage ? (
+                                                    hasUrl ? <img src={file.url} alt={file.name} className="w-6 h-6 object-cover" /> : <ImageIcon size={20} />
+                                                ) : (
+                                                    <FileText size={20} />
+                                                )}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{file.name}</p>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400 group-hover:text-[#c20c0b] transition-colors flex items-center gap-1">
+                                                    {hasUrl ? (isImage ? <><Eye size={12}/> Preview</> : 'Click to download') : <span className="text-red-500">{errorMsg || 'Failed to load'}</span>}
+                                                </p>
+                                            </div>
+                                            {hasUrl && (
+                                                <a href={file.url} target="_blank" rel="noopener noreferrer" className="p-2 text-gray-400 dark:text-gray-500 hover:text-[#c20c0b] transition-colors" title="Download" onClick={(e) => e.stopPropagation()}>
+                                                    <Download size={18} />
+                                                </a>
+                                            )}
+                                        </div>
+                                    )})}
+                                </div>
+                            ) : quote?.files && quote.files.length > 0 ? (
+                                <div className="text-center py-8 text-red-500 dark:text-red-400 italic bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800">
+                                    <p className="mb-2">Failed to load attachments.</p>
+                                    <button onClick={fetchSignedUrls} className="text-sm font-bold underline hover:text-red-700 dark:hover:text-red-300 flex items-center justify-center gap-1 mx-auto">
+                                        <RefreshCw size={14} /> Retry
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="text-center py-8 text-gray-500 dark:text-gray-400 italic bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-dashed border-gray-200 dark:border-gray-700">
+                                    No attachments found for this quote.
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     {/* Sidebar Column */}
@@ -635,32 +793,6 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                             </div>
                         </div>
 
-                        {/* Documents Card */}
-                        {fileLinks.length > 0 && (
-                            <div className="rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
-                                <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-6 py-4">
-                                    <h3 className="text-sm font-bold text-white uppercase tracking-wider">Documents</h3>
-                                </div>
-                                <ul className="p-6 bg-white dark:bg-gray-800 space-y-3">
-                                    {fileLinks.map((file, i) => (
-                                        <li key={i}>
-                                            <a href={file.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-100 dark:border-white/10 transition-all group">
-                                                <div className="p-2 bg-white dark:bg-gray-800 rounded-lg text-[#c20c0b] shadow-sm overflow-hidden">
-                                                    {file.name.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
-                                                        <img src={file.url} alt={file.name} className="w-5 h-5 object-cover" />
-                                                    ) : (
-                                                        <FileText size={18} />
-                                                    )}
-                                                </div>
-                                                <span className="text-sm font-medium text-gray-700 dark:text-white truncate flex-1">{file.name}</span>
-                                                <Download size={16} className="text-gray-400 dark:text-gray-500 group-hover:text-[#c20c0b]" />
-                                            </a>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
-                        
                         {/* Help Card */}
                          <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 text-white shadow-lg">
                             <h3 className="font-bold mb-2 flex items-center gap-2">
@@ -730,12 +862,14 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                         {/* 3. Current Status */}
                         <div className="relative pl-10">
                             <div className={`absolute left-0 top-1.5 w-3 h-3 rounded-full border-2 border-white dark:border-gray-800 ring-4 z-10 ${
-                                status === 'Accepted' ? 'bg-emerald-500 ring-emerald-50 dark:ring-emerald-900/30' : 
+                                status === 'Accepted' || status === 'Admin Accepted' || status === 'Client Accepted' ? 'bg-emerald-500 ring-emerald-50 dark:ring-emerald-900/30' : 
                                 status === 'Declined' ? 'bg-red-500 ring-red-50 dark:ring-red-900/30' : 'bg-amber-500 ring-amber-50 dark:ring-amber-900/30'
                             }`}></div>
                             <div>
-                                <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border ${getStatusColor(status)}`}>
-                                    Current Status: {status}
+                                <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border ${getStatusColor(status)} gap-1`}>
+                                    {status === 'Accepted' && <CheckCheck size={12} />}
+                                    {(status === 'Admin Accepted' || status === 'Client Accepted') && <Check size={12} />}
+                                    Current Status: {status === 'Admin Accepted' ? 'Admin Approved' : status === 'Client Accepted' ? 'Client Approved' : status}
                                 </span>
                             </div>
                         </div>
@@ -765,8 +899,8 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                         <div>
                             <h3 className="text-xs font-bold uppercase text-gray-400 tracking-wider mb-3">Client Details</h3>
                             <div className="text-sm">
-                                <p className="font-bold text-gray-900 text-lg">{(selectedQuote as any).companyName || 'Client Company'}</p>
-                                <p className="text-gray-600">{(selectedQuote as any).clientName || 'Client Name'}</p>
+                                <p className="font-bold text-gray-900 text-lg">{(quote as any).companyName || 'Client Company'}</p>
+                                <p className="text-gray-600">{(quote as any).clientName || 'Client Name'}</p>
                                 <div className="mt-3 text-gray-500">
                                     <p>Destination: {order.shippingCountry}</p>
                                     <p>Port: {order.shippingPort}</p>
@@ -814,25 +948,52 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                     </div>
 
                     {/* Totals */}
-                    {(status === 'Responded' || status === 'Accepted') && response_details && (
-                        <div className="mt-10 bg-gray-50 p-6 rounded-xl border border-gray-200 break-inside-avoid">
+                    {(status === 'Responded' || status === 'Accepted' || status === 'Admin Accepted' || status === 'Client Accepted') && response_details && (
+                        <div className="mt-10 bg-gray-50 dark:bg-gray-800/50 p-6 rounded-xl border border-gray-200 dark:border-white/10 break-inside-avoid">
                             <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-xl font-bold text-gray-900">Total Quoted Price</h3>
-                                <p className="text-4xl font-bold text-green-700">${response_details.price}</p>
+                                <h3 className="text-xl font-bold text-gray-900 dark:text-white">Total Quoted Price</h3>
+                                <p className="text-4xl font-bold text-green-700 dark:text-green-400">${response_details.price}</p>
                             </div>
-                            <div className="grid grid-cols-2 gap-4 text-sm border-t border-gray-200 pt-4">
-                                <div><span className="text-gray-500 font-medium">Lead Time:</span> <span className="font-bold">{response_details.leadTime}</span></div>
-                                {response_details.respondedAt && <div><span className="text-gray-500 font-medium">Date:</span> <span>{new Date(response_details.respondedAt).toLocaleDateString()}</span></div>}
+                            <div className="grid grid-cols-2 gap-4 text-sm border-t border-gray-200 dark:border-gray-700 pt-4">
+                                <div><span className="text-gray-500 dark:text-gray-400 font-medium">Lead Time:</span> <span className="font-bold dark:text-white">{response_details.leadTime}</span></div>
+                                {response_details.respondedAt && <div><span className="text-gray-500 dark:text-gray-400 font-medium">Date:</span> <span className="dark:text-white">{new Date(response_details.respondedAt).toLocaleDateString()}</span></div>}
                             </div>
                             {response_details.notes && (
-                                <div className="mt-4 text-sm text-gray-600 italic">
-                                    <span className="font-bold not-italic text-gray-800">Notes:</span> {response_details.notes}
+                                <div className="mt-4 text-sm text-gray-600 dark:text-gray-300 italic">
+                                    <span className="font-bold not-italic text-gray-800 dark:text-gray-100">Notes:</span> {response_details.notes}
                                 </div>
                             )}
                         </div>
                     )}
                 </div>
             </div>
+
+            {/* Lightbox Modal */}
+            {isLightboxOpen && (
+                <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex items-center justify-center p-4 animate-fade-in" onClick={() => setIsLightboxOpen(false)}>
+                    <button onClick={() => setIsLightboxOpen(false)} className="absolute top-6 right-6 text-white/70 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors z-50">
+                        <X size={32} />
+                    </button>
+                    <div className="relative w-full h-full flex items-center justify-center" onClick={e => e.stopPropagation()}>
+                        {imageFiles.length > 1 && (
+                            <>
+                                <button onClick={(e) => { e.stopPropagation(); setCurrentImageIndex((prev) => (prev - 1 + imageFiles.length) % imageFiles.length); }} className="absolute left-2 md:left-8 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/50 hover:bg-black/70 text-white transition-all border border-white/10 backdrop-blur-sm group cursor-pointer">
+                                    <ChevronLeft size={32} className="group-hover:-translate-x-1 transition-transform" />
+                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); setCurrentImageIndex((prev) => (prev + 1) % imageFiles.length); }} className="absolute right-2 md:right-8 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/50 hover:bg-black/70 text-white transition-all border border-white/10 backdrop-blur-sm group cursor-pointer">
+                                    <ChevronRight size={32} className="group-hover:translate-x-1 transition-transform" />
+                                </button>
+                            </>
+                        )}
+                        {imageFiles[currentImageIndex] && (
+                            <img src={imageFiles[currentImageIndex].url} alt={imageFiles[currentImageIndex].name} className="max-h-[85vh] max-w-[90vw] object-contain rounded-lg shadow-2xl select-none" />
+                        )}
+                        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white text-sm bg-black/50 px-3 py-1 rounded-full border border-white/20">
+                            {currentImageIndex + 1} / {imageFiles.length}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Negotiation Modal */}
             {isNegotiationModalOpen && (

@@ -86,7 +86,7 @@ export interface QuoteRequest {
     id: string;
     factory: any; // You can replace 'any' with 'Factory' if available
     order: OrderFormData;
-    status: 'Pending' | 'Responded' | 'Accepted' | 'Declined' | 'In Negotiation';
+    status: 'Pending' | 'Responded' | 'Accepted' | 'Declined' | 'In Negotiation' | 'Admin Accepted' | 'Client Accepted' | 'Trashed';
     submittedAt: string;
     acceptedAt?: string;
     userId: string;

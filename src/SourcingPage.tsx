@@ -6,6 +6,9 @@ import {
     Building, ChevronLeft, ChevronRight, Package, Trash2, X, Bell
 } from 'lucide-react';
 import { Factory, UserProfile, QuoteRequest } from '../src/types';
+import {
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell
+} from 'recharts';
 import { supabase } from '../src/supabaseClient';
 import { MainLayout } from '../src/MainLayout';
 import { FactoryCard } from '../src/FactoryCard';
@@ -29,6 +32,210 @@ interface SourcingPageProps {
     quoteRequests?: QuoteRequest[];
     setGlobalLoading?: (isLoading: boolean) => void;
 }
+
+const DashboardCard: FC<{ icon: ReactNode; title: string; value: string | number; colorClass: string }> = React.memo(({ icon, title, value, colorClass }) => (
+    <div className={`relative p-5 rounded-xl overflow-hidden bg-white dark:bg-gray-900/40 dark:backdrop-blur-md shadow-lg border border-gray-200 dark:border-white/10 transition-transform hover:scale-105 cursor-pointer`}>
+        <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${colorClass}`}></div>
+        <div className="flex items-start justify-between">
+            <div>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-200">{title}</p>
+                <p className="text-3xl font-bold text-gray-800 dark:text-white mt-1">{value}</p>
+            </div>
+            <div className={`p-2 rounded-full bg-opacity-20 ${colorClass.split(' ')[0].replace('from-', 'bg-')}`}>
+                {icon}
+            </div>
+        </div>
+    </div>
+));
+
+const Dashboard: FC<{ quoteRequests: QuoteRequest[]; handleSetCurrentPage: (page: string, data?: any) => void; setSelectedGarmentCategory: (category: string) => void }> = React.memo(({ quoteRequests, handleSetCurrentPage, setSelectedGarmentCategory }) => {
+    // Calculate dynamic metrics from quoteRequests
+    const acceptedQuotes = useMemo(() => quoteRequests.filter(q => q.status === 'Accepted'), [quoteRequests]);
+    const activeOrdersCount = acceptedQuotes.length;
+    
+    const unitsInProduction = useMemo(() => acceptedQuotes.reduce((total, quote) => {
+        const lineItems = quote.order?.lineItems || [];
+        const qty = lineItems.reduce((acc, item) => {
+            // Handle potential non-numeric qty (e.g. "5000" or "20ft Container")
+            const parsed = parseInt(String(item.qty || '0').replace(/[^0-9]/g, ''));
+            return acc + (isNaN(parsed) ? 0 : parsed);
+        }, 0);
+        return total + qty;
+    }, 0), [acceptedQuotes]);
+
+    const totalOrderValue = useMemo(() => acceptedQuotes.reduce((total, quote) => {
+        // Price might be a range or text, try to parse float
+        const priceStr = String(quote.response_details?.price || '0').replace(/[^0-9.]/g, '');
+        const price = parseFloat(priceStr);
+        return total + (isNaN(price) ? 0 : price);
+    }, 0), [acceptedQuotes]);
+
+    const uniqueFactories = useMemo(() => new Set(quoteRequests.map(q => q.factory?.id).filter(Boolean)).size, [quoteRequests]);
+
+    // Prepare Chart Data
+    const { pieData, barData } = useMemo(() => {
+        const statusCounts = quoteRequests.reduce((acc, quote) => {
+            acc[quote.status] = (acc[quote.status] || 0) + 1;
+            return acc;
+        }, {} as Record<string, number>);
+
+        const pieData = Object.keys(statusCounts).map(status => ({
+            name: status,
+            value: statusCounts[status]
+        }));
+        
+        // If no data, provide placeholder for pie chart to look good or just empty
+        if (pieData.length === 0) {
+            pieData.push({ name: 'No Data', value: 1 });
+        }
+
+        const categoryDataMap = quoteRequests.reduce((acc, quote) => {
+            const lineItems = quote.order?.lineItems || [];
+            lineItems.forEach(item => {
+                const qty = parseInt(String(item.qty || '0').replace(/[^0-9]/g, '')) || 0;
+                if (!acc[item.category]) acc[item.category] = 0;
+                acc[item.category] += qty;
+            });
+            return acc;
+        }, {} as Record<string, number>);
+
+        const barData = Object.keys(categoryDataMap).map(cat => ({
+            name: cat,
+            units: categoryDataMap[cat]
+        })).sort((a, b) => b.units - a.units).slice(0, 5);
+
+        return { pieData, barData };
+    }, [quoteRequests]);
+
+    const STATUS_GRADIENTS: Record<string, { id: string; start: string; end: string }> = {
+        'Accepted': { id: 'gradAccepted', start: '#34D399', end: '#059669' },       // Emerald 400 -> 600
+        'In Negotiation': { id: 'gradNegotiation', start: '#A78BFA', end: '#7C3AED' }, // Purple 400 -> 600
+        'Pending': { id: 'gradPending', start: '#FBBF24', end: '#D97706' },        // Amber 400 -> 600
+        'Responded': { id: 'gradResponded', start: '#60A5FA', end: '#2563EB' },      // Blue 400 -> 600
+        'Declined': { id: 'gradDeclined', start: '#F87171', end: '#DC2626' },       // Red 400 -> 600
+        'No Data': { id: 'gradNoData', start: '#E5E7EB', end: '#9CA3AF' },        // Gray 200 -> 400
+    };
+
+    const CATEGORY_GRADIENTS = [
+        { id: 'catGrad0', start: '#60A5FA', end: '#2563EB' }, // Blue
+        { id: 'catGrad1', start: '#34D399', end: '#059669' }, // Emerald
+        { id: 'catGrad2', start: '#FBBF24', end: '#D97706' }, // Amber
+        { id: 'catGrad3', start: '#F87171', end: '#DC2626' }, // Red
+        { id: 'catGrad4', start: '#A78BFA', end: '#7C3AED' }, // Purple
+        { id: 'catGrad5', start: '#2DD4BF', end: '#0F766E' }, // Teal
+    ];
+
+    return(
+        <section className="mb-8 space-y-8 animate-fade-in">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <DashboardCard title="Accepted Orders" value={activeOrdersCount} icon={<Briefcase className="text-[#c20c0b]" size={24}/>} colorClass="from-[#c20c0b] to-red-500" />
+                <DashboardCard title="Units (Accepted)" value={unitsInProduction.toLocaleString()} icon={<Truck className="text-blue-600" size={24}/>} colorClass="from-blue-500 to-cyan-500" />
+                <DashboardCard title="Total Value" value={`$${totalOrderValue.toLocaleString()}`} icon={<DollarSign className="text-green-600" size={24}/>} colorClass="from-green-500 to-emerald-500" />
+                <DashboardCard title="Engaged Factories" value={uniqueFactories} icon={<Building className="text-orange-600" size={24}/>} colorClass="from-orange-500 to-amber-500" />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Quote Status Chart */}
+                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-lg border border-gray-200 dark:border-white/10 flex flex-col">
+                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4">Quote Status Distribution</h3>
+                    <div className="flex-grow min-h-[300px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <defs>
+                                    {Object.values(STATUS_GRADIENTS).map(grad => (
+                                        <linearGradient key={grad.id} id={grad.id} x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="0%" stopColor={grad.start} stopOpacity={1}/>
+                                            <stop offset="100%" stopColor={grad.end} stopOpacity={1}/>
+                                        </linearGradient>
+                                    ))}
+                                </defs>
+                                <Pie
+                                    data={pieData}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={60}
+                                    outerRadius={100}
+                                    fill="#8884d8"
+                                    paddingAngle={5}
+                                    dataKey="value"
+                                    label={({ name, percent = 0 }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                                    onClick={(data) => {
+                                        if (data && data.name && data.name !== 'No Data') {
+                                            handleSetCurrentPage('myQuotes', data.name);
+                                        }
+                                    }}
+                                    animationDuration={1000}
+                                    animationEasing="ease-out"
+                                >
+                                    {pieData.map((entry, index) => {
+                                        const grad = STATUS_GRADIENTS[entry.name] || STATUS_GRADIENTS['No Data'];
+                                        return (
+                                            <Cell 
+                                                key={`cell-${index}`} 
+                                                fill={`url(#${grad.id})`} 
+                                                style={{ cursor: entry.name !== 'No Data' ? 'pointer' : 'default' }}
+                                                className="transition-all duration-300 hover:brightness-110 hover:drop-shadow-[0_0_10px_rgba(0,0,0,0.5)] stroke-none"
+                                            />
+                                        );
+                                    })}
+                                </Pie>
+                                <Tooltip 
+                                    contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                                    itemStyle={{ color: '#374151' }}
+                                />
+                                <Legend verticalAlign="bottom" height={36}/>
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+
+                {/* Category Volume Chart */}
+                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-lg border border-gray-200 dark:border-white/10 flex flex-col">
+                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4">Requested Volume by Category</h3>
+                    <div className="flex-grow min-h-[300px]">
+                        {barData.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={barData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                                    <defs>
+                                        {CATEGORY_GRADIENTS.map(grad => (
+                                            <linearGradient key={grad.id} id={grad.id} x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="0%" stopColor={grad.start} stopOpacity={1}/>
+                                                <stop offset="100%" stopColor={grad.end} stopOpacity={1}/>
+                                            </linearGradient>
+                                        ))}
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" opacity={0.5} />
+                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 12 }} />
+                                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 12 }} />
+                                    <Tooltip 
+                                        cursor={{ fill: 'transparent' }}
+                                        contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                                        itemStyle={{ color: '#374151' }}
+                                    />
+                                    <Bar dataKey="units" fill="#c20c0b" radius={[4, 4, 0, 0]} barSize={50} animationDuration={1500} animationEasing="ease-out">
+                                        {barData.map((entry, index) => (
+                                            <Cell 
+                                                key={`cell-${index}`} 
+                                                fill={`url(#${CATEGORY_GRADIENTS[index % CATEGORY_GRADIENTS.length].id})`} 
+                                                style={{ cursor: 'pointer' }}
+                                                onClick={() => setSelectedGarmentCategory(entry.name)}
+                                                className="transition-all duration-300 hover:brightness-110 hover:drop-shadow-[0_0_10px_rgba(0,0,0,0.5)]"
+                                            />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        ) : (
+                            <div className="h-full flex items-center justify-center text-gray-400">
+                                No volume data available
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </section>
+    );
+});
 
 export const SourcingPage: FC<SourcingPageProps> = (props) => {
     const { pageKey, user, userProfile, handleSelectFactory, toggleMenu, selectedGarmentCategory, setSelectedGarmentCategory, handleSetCurrentPage, handleSignOut, showToast, notificationCount = 0, quoteRequests = [], setGlobalLoading } = props;
@@ -204,40 +411,6 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
         if (type === 'rating') return filters.rating === value;
         if (type === 'tag') return filters.tags.includes(value);
         return false;
-    };
-
-    const DashboardCard: FC<{ icon: ReactNode; title: string; value: string | number; colorClass: string }> = ({ icon, title, value, colorClass }) => (
-        <div className={`relative p-5 rounded-xl overflow-hidden bg-white dark:bg-gray-900/40 dark:backdrop-blur-md shadow-lg border border-gray-200 dark:border-white/10 transition-transform hover:scale-105`}>
-            <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${colorClass}`}></div>
-            <div className="flex items-start justify-between">
-                <div>
-                    <p className="text-sm font-medium text-gray-500 dark:text-gray-200">{title}</p>
-                    <p className="text-3xl font-bold text-gray-800 dark:text-white mt-1">{value}</p>
-                </div>
-                <div className={`p-2 rounded-full bg-opacity-20 ${colorClass.split(' ')[0].replace('from-', 'bg-')}`}>
-                    {icon}
-                </div>
-            </div>
-        </div>
-    );
-
-    const Dashboard: FC = () => {
-        const dashboardData = {
-            activeOrders: 3,
-            unitsInProduction: '17,500',
-            totalOrderValue: '$125.5K',
-            partnerFactories: allFactories.length,
-        };
-        return(
-            <section className="mb-8">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <DashboardCard title="Active Orders" value={dashboardData.activeOrders} icon={<Briefcase className="text-[#c20c0b]" size={24}/>} colorClass="from-[#c20c0b] to-red-500" />
-                    <DashboardCard title="Units in Production" value={dashboardData.unitsInProduction} icon={<Truck className="text-blue-600" size={24}/>} colorClass="from-blue-500 to-cyan-500" />
-                    <DashboardCard title="Total Order Value" value={dashboardData.totalOrderValue} icon={<DollarSign className="text-green-600" size={24}/>} colorClass="from-green-500 to-emerald-500" />
-                    <DashboardCard title="Partner Factories" value={dashboardData.partnerFactories} icon={<Building className="text-orange-600" size={24}/>} colorClass="from-orange-500 to-amber-500" />
-                </div>
-            </section>
-        );
     };
 
     const CategoryCarousel: FC = () => {
@@ -437,7 +610,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
             </header>
 
             {/* Dashboard Stats: Displays key metrics like Active Orders */}
-            <Dashboard />
+            <Dashboard quoteRequests={quoteRequests} handleSetCurrentPage={handleSetCurrentPage} setSelectedGarmentCategory={setSelectedGarmentCategory} />
 
             {/* Category Carousel: Horizontal scrollable list of garment types */}
             <section className="mb-6"><CategoryCarousel /></section>

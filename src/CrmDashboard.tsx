@@ -152,24 +152,24 @@ export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user
     const MarkdownRenderer: FC<{ text: string }> = ({ text }) => {
         if (!text) return null;
         const lines = text.split('\n').map((line, i) => {
-            if (line.startsWith('###')) return <h3 key={i} className="text-xl font-bold text-gray-800 mb-4">{line.replace('###', '')}</h3>;
-            if (line.startsWith('**')) return <p key={i} className="font-semibold text-gray-700 mt-4 mb-1">{line.replace(/\*\*/g, '')}</p>;
-            if (line.startsWith('- ')) return <li key={i} className="flex items-start my-1 text-gray-600"><span className="mr-3 mt-1.5 text-[#c20c0b]">∙</span><span>{line.substring(2)}</span></li>;
-            return <p key={i} className="text-gray-600">{line}</p>;
+            if (line.startsWith('###')) return <h3 key={i} className="text-xl font-bold text-gray-800 dark:text-white mb-4">{line.replace('###', '')}</h3>;
+            if (line.startsWith('**')) return <p key={i} className="font-semibold text-gray-700 dark:text-gray-200 mt-4 mb-1">{line.replace(/\*\*/g, '')}</p>;
+            if (line.startsWith('- ')) return <li key={i} className="flex items-start my-1 text-gray-600 dark:text-gray-300"><span className="mr-3 mt-1.5 text-[#c20c0b]">∙</span><span>{line.substring(2)}</span></li>;
+            return <p key={i} className="text-gray-600 dark:text-gray-300">{line}</p>;
         });
         return <div className="space-y-1">{lines}</div>;
     };
 
     const AIOrderSummaryModal: FC = () => (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60] p-4 animate-fade-in" onClick={() => setIsSummaryModalOpen(false)}>
-            <div className="bg-white dark:bg-gray-900/95 dark:backdrop-blur-xl rounded-2xl shadow-2xl p-6 sm:p-8 w-full max-w-2xl relative border border-gray-200 dark:border-white/10" onClick={e => e.stopPropagation()}>
+            <div className="bg-white/90 backdrop-blur-xl dark:bg-gray-900/95 dark:backdrop-blur-xl rounded-2xl shadow-2xl p-6 sm:p-8 w-full max-w-2xl relative border border-gray-200 dark:border-white/10" onClick={e => e.stopPropagation()}>
                 <button onClick={() => setIsSummaryModalOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition"> <X size={24} /> </button>
                 <div className="flex items-center gap-3 mb-6">
-                    <div className="p-2 bg-red-100 rounded-lg"> <Bot className="w-6 h-6 text-[#c20c0b]" /> </div>
+                    <div className="p-2 bg-red-100 rounded-lg"> <Bot className="w-6 h-6 text-[var(--color-primary)]" /> </div>
                     <h2 className="text-2xl font-bold text-gray-800 dark:text-white">AI Order Summary</h2>
                 </div>
                 <div className="min-h-[200px] prose prose-sm max-w-none">
-                    {isSummaryLoading ? ( <div className="flex items-center justify-center h-full flex-col"> <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#c20c0b]"></div> <p className="mt-4 text-gray-500">Analyzing order data...</p> </div> ) : ( <MarkdownRenderer text={orderSummary} /> )}
+                    {isSummaryLoading ? ( <div className="flex items-center justify-center h-full flex-col"> <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--color-primary)]"></div> <p className="mt-4 text-gray-500">Analyzing order data...</p> </div> ) : ( <MarkdownRenderer text={orderSummary} /> )}
                 </div>
             </div>
         </div>
@@ -178,26 +178,26 @@ export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center mb-6">
-                <h1 className="text-3xl font-bold text-gray-800">CRM Portal</h1>
-                <button className="bg-[#c20c0b] text-white font-semibold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-[#a50a09] transition">
+                <h1 className="text-3xl font-bold text-gray-800 dark:text-white">CRM Portal</h1>
+                <button className="bg-[var(--color-primary)] text-white font-semibold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-[var(--color-primary-hover)] transition">
                     <Plus size={18} /> Add Task
                 </button>
             </div>
             {loading ? (
                 <div className="text-center py-12 text-gray-500">Loading your orders...</div>
             ) : Object.keys(crmData).length === 0 ? (
-                <div className="text-center py-12 bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-sm border border-gray-200 dark:border-white/10">
+                <div className="text-center py-12 bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-sm border border-gray-200 dark:border-white/10">
                     <h3 className="text-xl font-semibold text-gray-800 mb-2">No Active Orders</h3>
                     <p className="text-gray-500">You don't have any active orders yet.</p>
                 </div>
             ) : (
-                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-lg p-4 sm:p-6 border border-gray-200 dark:border-white/10">
+                <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-lg p-4 sm:p-6 border border-gray-200 dark:border-white/10">
                     <div className="border-b border-gray-200 dark:border-white/10 pb-4">
                         <div className="flex flex-wrap items-center justify-between gap-y-4 gap-x-2">
                             {/* Order Tabs */}
                             <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
                                 {Object.keys(crmData).map(orderKey => (
-                                <button key={orderKey} onClick={() => setActiveOrderKey(orderKey)} className={`flex-shrink-0 py-2 px-4 font-semibold text-sm rounded-t-lg transition-colors ${activeOrderKey === orderKey ? 'border-b-2 border-[#c20c0b] text-[#c20c0b]' : 'text-gray-500 dark:text-gray-200 hover:text-gray-700 dark:hover:text-white'}`}>
+                                <button key={orderKey} onClick={() => setActiveOrderKey(orderKey)} className={`flex-shrink-0 py-2 px-4 font-semibold text-sm rounded-t-lg transition-colors ${activeOrderKey === orderKey ? 'border-b-2 border-[var(--color-primary)] text-[var(--color-primary)]' : 'text-gray-500 dark:text-gray-200 hover:text-gray-700 dark:hover:text-white'}`}>
                                         {crmData[orderKey].product}
                                     </button>
                                 ))}
@@ -213,12 +213,12 @@ export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user
                                         {name: 'Dashboard', icon: <PieChartIcon size={16}/>},
                                         {name: 'Gantt', icon: <GanttChartSquare size={16}/>}
                                     ].map(view => (
-                                        <button key={view.name} onClick={() => setActiveView(view.name)} className={`flex items-center gap-2 py-1.5 px-3 text-sm font-semibold rounded-md transition-colors ${activeView === view.name ? 'bg-white text-[#c20c0b] shadow-sm' : 'text-gray-600 hover:bg-gray-200'}`}>
+                                        <button key={view.name} onClick={() => setActiveView(view.name)} className={`flex items-center gap-2 py-1.5 px-3 text-sm font-semibold rounded-md transition-colors ${activeView === view.name ? 'bg-white dark:bg-gray-600 text-[var(--color-primary)] dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>
                                             {view.icon} <span className="hidden sm:inline">{view.name}</span>
                                         </button>
                                     ))}
                                 </div>
-                                <button onClick={generateOrderSummary} className="p-2.5 bg-red-100 text-[#c20c0b] rounded-lg hover:bg-red-200 transition-colors" title="Generate AI Summary">
+                                <button onClick={generateOrderSummary} className="p-2.5 bg-red-100 text-[var(--color-primary)] rounded-lg hover:bg-red-200 transition-colors" title="Generate AI Summary">
                                     <Bot size={18}/>
                                 </button>
                             </div>

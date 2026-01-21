@@ -2,7 +2,7 @@ import React, { useState, FC } from 'react';
 import { MainLayout } from './MainLayout';
 import { QuoteRequest } from './types';
 import {
-    Plus, MapPin, Globe, Shirt, Package, Clock, ChevronRight, FileQuestion, RefreshCw, MessageSquare, Bell, Calendar, DollarSign, CheckCircle
+    Plus, MapPin, Globe, Shirt, Package, Clock, ChevronRight, FileQuestion, RefreshCw, MessageSquare, Bell, Calendar, DollarSign, CheckCircle, Check, CheckCheck
 } from 'lucide-react';
 
 interface MyQuotesPageProps {
@@ -11,10 +11,11 @@ interface MyQuotesPageProps {
     layoutProps: any;
     isLoading: boolean;
     onRefresh: () => void;
+    initialFilterStatus?: string;
 }
 
-export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCurrentPage, layoutProps, isLoading, onRefresh }) => {
-    const [filterStatus, setFilterStatus] = useState('All');
+export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCurrentPage, layoutProps, isLoading, onRefresh, initialFilterStatus }) => {
+    const [filterStatus, setFilterStatus] = useState(initialFilterStatus || 'All');
     const [dateFilter, setDateFilter] = useState('All Time');
     const [customStartDate, setCustomStartDate] = useState('');
     const [customEndDate, setCustomEndDate] = useState('');
@@ -27,6 +28,8 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
             case 'Accepted': return 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800';
             case 'Declined': return 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-100 dark:border-red-800';
             case 'In Negotiation': return 'bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-100 dark:border-purple-800';
+            case 'Admin Accepted': return 'bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 border-teal-100 dark:border-teal-800';
+            case 'Client Accepted': return 'bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400 border-cyan-100 dark:border-cyan-800';
             default: return 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-100 dark:border-gray-700';
         }
     };
@@ -38,6 +41,8 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
             case 'Accepted': return 'from-emerald-600 to-emerald-300';
             case 'Declined': return 'from-red-500 to-pink-400';
             case 'In Negotiation': return 'from-purple-500 to-indigo-300';
+            case 'Admin Accepted': return 'from-teal-500 to-teal-300';
+            case 'Client Accepted': return 'from-cyan-500 to-cyan-300';
             default: return 'from-gray-400 to-gray-200';
         }
     };
@@ -49,6 +54,8 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
             case 'Accepted': return 'hover:shadow-[0_8px_30px_rgba(16,185,129,0.15)]';
             case 'Declined': return 'hover:shadow-[0_8px_30px_rgba(239,68,68,0.15)]';
             case 'In Negotiation': return 'hover:shadow-[0_8px_30px_rgba(168,85,247,0.15)]';
+            case 'Admin Accepted': return 'hover:shadow-[0_8px_30px_rgba(20,184,166,0.15)]';
+            case 'Client Accepted': return 'hover:shadow-[0_8px_30px_rgba(6,182,212,0.15)]';
             default: return 'hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)]';
         }
     };
@@ -70,6 +77,8 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
         else if (quote.status === 'In Negotiation') label = 'Updated';
         else if (quote.status === 'Responded') label = 'Received';
         else if (quote.status === 'Declined') label = 'Declined';
+        else if (quote.status === 'Admin Accepted') label = 'Admin Approved';
+        else if (quote.status === 'Client Accepted') label = 'You Approved';
         return { label, date };
     };
 
@@ -144,6 +153,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
 
     const filteredQuotes = (quoteRequests || [])
         .filter(quote => filterStatus === 'All' || quote.status === filterStatus)
+        .filter(quote => quote.status !== 'Trashed')
         .filter(checkDateFilter)
         .sort((a, b) => new Date(getQuoteTimestamp(b)).getTime() - new Date(getQuoteTimestamp(a)).getTime());
 
@@ -244,8 +254,10 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                                 <span className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800">
                                     #{quote.id.slice(0, 8)}
                                 </span>
-                                <span className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full border ${getStatusColor(quote.status)}`}>
-                                    {quote.status}
+                                <span className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full border ${getStatusColor(quote.status)} flex items-center gap-1`}>
+                                    {quote.status === 'Accepted' && <CheckCheck size={12} />}
+                                    {(quote.status === 'Admin Accepted' || quote.status === 'Client Accepted') && <Check size={12} />}
+                                    {quote.status === 'Admin Accepted' ? 'Admin Approved' : quote.status === 'Client Accepted' ? 'You Approved' : quote.status}
                                 </span>
                             </div>
 
@@ -330,6 +342,14 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                                 ) : quote.status === 'Accepted' && isUnread(quote) ? (
                                     <div className="flex items-center text-xs text-emerald-600 dark:text-emerald-400 font-medium">
                                         <CheckCircle size={14} className="mr-1.5" /> Quote Accepted
+                                    </div>
+                                ) : quote.status === 'Client Accepted' ? (
+                                    <div className="flex items-center text-xs text-cyan-600 dark:text-cyan-400 font-medium">
+                                        <Check size={14} className="mr-1.5" /> You Approved
+                                    </div>
+                                ) : quote.status === 'Admin Accepted' ? (
+                                    <div className="flex items-center text-xs text-teal-600 dark:text-teal-400 font-medium">
+                                        <Check size={14} className="mr-1.5" /> Action Required: Finalize
                                     </div>
                                 ) : (
                                     <div className="text-xs text-gray-400 dark:text-gray-200 font-medium">View Details</div>

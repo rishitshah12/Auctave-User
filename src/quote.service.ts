@@ -79,6 +79,22 @@ export class QuoteService extends BaseService<any> {
         }
     }
 
+    // Method to retrieve a single quote by its ID
+    async getQuoteById(quoteId: string): Promise<ServiceResponse<any>> {
+        try {
+            const { data, error } = await supabase
+                .from(this.config.tableName)
+                .select('*')
+                .eq('id', quoteId)
+                .single();
+
+            if (error) throw error;
+            return { data, error: null };
+        } catch (err: any) {
+            return { data: null, error: this.handleError(err) };
+        }
+    }
+
     // Method to retrieve all quotes (typically for admin use)
     async getAllQuotes(): Promise<ServiceResponse<any[]>> {
         try {

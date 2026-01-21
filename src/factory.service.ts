@@ -23,7 +23,7 @@ interface FactoryDB {
     updated_at?: string;
 }
 
-export class FactoryService extends BaseService<FactoryDB> {
+export class FactoryService extends BaseService<Factory> {
     constructor() {
         super({
             tableName: 'factories',
@@ -82,46 +82,46 @@ export class FactoryService extends BaseService<FactoryDB> {
         const result = await super.getAll(select);
         if (result.data) {
             return {
-                data: result.data.map(dbFactory => this.fromDatabase(dbFactory)),
+                data: result.data.map(dbFactory => this.fromDatabase(dbFactory as unknown as FactoryDB)),
                 error: null
             };
         }
-        return result as ServiceResponse<Factory[]>;
+        return result;
     }
 
     async getById(id: string, select: string = '*'): Promise<ServiceResponse<Factory>> {
         const result = await super.getById(id, select);
         if (result.data) {
             return {
-                data: this.fromDatabase(result.data),
+                data: this.fromDatabase(result.data as unknown as FactoryDB),
                 error: null
             };
         }
-        return result as ServiceResponse<Factory>;
+        return result;
     }
 
     async create(payload: Partial<Factory>): Promise<ServiceResponse<Factory>> {
         const dbPayload = this.toDatabase(payload);
-        const result = await super.create(dbPayload);
+        const result = await super.create(dbPayload as Partial<Factory>);
         if (result.data) {
             return {
-                data: this.fromDatabase(result.data),
+                data: this.fromDatabase(result.data as unknown as FactoryDB),
                 error: null
             };
         }
-        return result as ServiceResponse<Factory>;
+        return result;
     }
 
     async update(id: string, payload: Partial<Factory>): Promise<ServiceResponse<Factory>> {
         const dbPayload = this.toDatabase(payload);
-        const result = await super.update(id, dbPayload);
+        const result = await super.update(id, dbPayload as Partial<Factory>);
         if (result.data) {
             return {
-                data: this.fromDatabase(result.data),
+                data: this.fromDatabase(result.data as unknown as FactoryDB),
                 error: null
             };
         }
-        return result as ServiceResponse<Factory>;
+        return result;
     }
 
     // Upload image to Supabase Storage
@@ -131,7 +131,7 @@ export class FactoryService extends BaseService<FactoryDB> {
             const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
             const filePath = `factory-images/${fileName}`;
 
-            const { data, error } = await supabase.storage
+            const { error } = await supabase.storage
                 .from('factories')
                 .upload(filePath, file, {
                     cacheControl: '3600',

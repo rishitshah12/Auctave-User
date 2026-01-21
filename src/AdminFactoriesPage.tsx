@@ -63,8 +63,8 @@ const ChipInput: FC<{
                 {values?.map((v, i) => {
                     const [text, tagColor] = enableColor ? v.split(':') : [v, null];
                     return (
-                        <span key={i} style={tagColor ? { backgroundColor: tagColor, color: '#fff', borderColor: tagColor } : {}} className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-md text-sm flex items-center gap-1 border border-gray-200 dark:border-gray-600 dark:text-white">
-                            {text} <button type="button" onClick={() => onRemove(i)}><X size={12}/></button>
+                        <span key={i} style={tagColor ? { backgroundColor: tagColor, color: '#fff', borderColor: tagColor } : {}} className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-md text-sm flex items-center gap-1 border border-gray-200 dark:border-gray-600 dark:text-white transition-all hover:shadow-sm">
+                            {text} <button type="button" onClick={() => onRemove(i)} className="hover:text-red-500 transition-colors"><X size={12}/></button>
                         </span>
                     );
                 })}
@@ -92,7 +92,7 @@ const ChipInput: FC<{
                                             key={c}
                                             type="button"
                                             onClick={() => { setColor(c); setShowPicker(false); }}
-                                            className={`w-6 h-6 rounded-full border-2 transition-all ${color === c ? 'border-gray-600 dark:border-white scale-110' : 'border-transparent hover:scale-110'}`}
+                                            className={`w-6 h-6 rounded-full border-2 transition-all cursor-pointer ${color === c ? 'border-gray-600 dark:border-white scale-110' : 'border-transparent hover:scale-110'}`}
                                             style={{ backgroundColor: c }}
                                         />
                                     ))}
@@ -110,7 +110,7 @@ const ChipInput: FC<{
                             key={s} 
                             type="button" 
                             onClick={() => onAdd(s)}
-                            className="text-xs bg-gray-50 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 px-2 py-1 rounded border border-gray-200 dark:border-gray-700 transition-colors"
+                            className="text-xs bg-gray-50 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 px-2 py-1 rounded border border-gray-200 dark:border-gray-700 transition-colors cursor-pointer"
                         >
                             + {s}
                         </button>
@@ -535,7 +535,7 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                     {displayedFactories.map((f: any) => (
-                        <div key={f.id} className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden flex flex-col transition-all hover:shadow-xl group hover:-translate-y-1 duration-300">
+                        <div key={f.id} className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden flex flex-col transition-all hover:shadow-xl group hover:-translate-y-1 duration-300">
                             <div className="relative h-48">
                                 {f.imageUrl ? (
                                     <img 
@@ -613,7 +613,7 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
                     <button
                         onClick={() => setCurrentPageIndex(p => Math.max(1, p - 1))}
                         disabled={currentPageIndex === 1}
-                        className="p-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                        className="p-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer"
                     >
                         <ChevronLeft size={20} className="text-gray-600 dark:text-gray-200" />
                     </button>
@@ -623,7 +623,7 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
                     <button
                         onClick={() => setCurrentPageIndex(p => Math.min(totalPages, p + 1))}
                         disabled={currentPageIndex === totalPages}
-                        className="p-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                        className="p-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer"
                     >
                         <ChevronRight size={20} className="text-gray-600 dark:text-gray-200" />
                     </button>
@@ -633,7 +633,7 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
             {/* Modal for Add/Edit Factory */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white dark:bg-gray-900/95 dark:backdrop-blur-xl p-8 rounded-lg shadow-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/10">
+                    <div className="bg-white/90 backdrop-blur-xl dark:bg-gray-900/95 dark:backdrop-blur-xl p-8 rounded-lg shadow-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/10">
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{isPreviewMode ? 'Preview Factory Card' : (editingFactory.id ? 'Edit Factory' : 'Add New Factory')}</h2>
                             <button onClick={() => setIsModalOpen(false)} className="text-gray-500 hover:text-gray-700"><X size={24} /></button>
@@ -726,10 +726,10 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
                                             <div className="w-20"> <label className="text-xs text-gray-500 dark:text-gray-200">Total</label> <input type="number" value={slot.totalSlots} onChange={e => updateMachineSlot(idx, 'totalSlots', parseInt(e.target.value))} className="w-full p-1 border dark:border-gray-500 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#c20c0b] focus:outline-none" /> </div>
                                             <div className="w-20"> <label className="text-xs text-gray-500 dark:text-gray-200">Avail</label> <input type="number" value={slot.availableSlots} onChange={e => updateMachineSlot(idx, 'availableSlots', parseInt(e.target.value))} className="w-full p-1 border dark:border-gray-500 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#c20c0b] focus:outline-none" /> </div>
                                             <div className="w-32"> <label className="text-xs text-gray-500 dark:text-gray-200">Next Date</label> <input type="date" value={slot.nextAvailable} onChange={e => updateMachineSlot(idx, 'nextAvailable', e.target.value)} className="w-full p-1 border dark:border-gray-500 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#c20c0b] focus:outline-none" /> </div>
-                                            <button type="button" onClick={() => removeMachineSlot(idx)} className="text-red-500 p-1"><Trash2 size={16} /></button>
+                                            <button type="button" onClick={() => removeMachineSlot(idx)} className="text-red-500 p-1 hover:text-red-700 transition-colors"><Trash2 size={16} /></button>
                                         </div>
                                     ))}
-                                    <button type="button" onClick={addMachineSlot} className="text-sm text-[#c20c0b] font-semibold flex items-center gap-1"><Plus size={16}/> Add Machine Slot</button>
+                                    <button type="button" onClick={addMachineSlot} className="text-sm text-[#c20c0b] font-semibold flex items-center gap-1 hover:text-[#a50a09] transition-colors"><Plus size={16}/> Add Machine Slot</button>
                                 </div>
                             </div>
 
@@ -754,12 +754,12 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
                                                             }
                                                         </div>
                                                         <input type="text" placeholder="Category Name" value={cat.name} onChange={e => updateProductCategory(idx, 'name', e.target.value)} className="flex-grow p-1 border dark:border-gray-500 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#c20c0b] focus:outline-none" />
-                                                        <button type="button" onClick={() => removeProductCategory(idx)} className="text-red-500"><Trash2 size={16} /></button>
+                                                        <button type="button" onClick={() => removeProductCategory(idx)} className="text-red-500 hover:text-red-700 transition-colors"><Trash2 size={16} /></button>
                                                     </div>
                                                     <input type="text" placeholder="Description" value={cat.description} onChange={e => updateProductCategory(idx, 'description', e.target.value)} className="w-full p-1 border dark:border-gray-500 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#c20c0b] focus:outline-none" />
                                                 </div>
                                             ))}
-                                            <button type="button" onClick={addProductCategory} className="text-sm text-[#c20c0b] font-semibold flex items-center gap-1"><Plus size={16}/> Add Category</button>
+                                            <button type="button" onClick={addProductCategory} className="text-sm text-[#c20c0b] font-semibold flex items-center gap-1 hover:text-[#a50a09] transition-colors"><Plus size={16}/> Add Category</button>
                                         </div>
                                     </div>
                                     {/* Fabric Options */}
@@ -771,10 +771,10 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
                                                     <input type="text" placeholder="Fabric Name" value={opt.name} onChange={e => updateFabricOption(idx, 'name', e.target.value)} className="flex-grow p-1 border dark:border-gray-500 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#c20c0b] focus:outline-none" />
                                                     <input type="text" placeholder="Composition" value={opt.composition} onChange={e => updateFabricOption(idx, 'composition', e.target.value)} className="flex-grow p-1 border dark:border-gray-500 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#c20c0b] focus:outline-none" />
                                                     <input type="text" placeholder="Use Cases" value={opt.useCases} onChange={e => updateFabricOption(idx, 'useCases', e.target.value)} className="flex-grow p-1 border dark:border-gray-500 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#c20c0b] focus:outline-none" />
-                                                    <button type="button" onClick={() => removeFabricOption(idx)} className="text-red-500"><Trash2 size={16} /></button>
+                                                    <button type="button" onClick={() => removeFabricOption(idx)} className="text-red-500 hover:text-red-700 transition-colors"><Trash2 size={16} /></button>
                                                 </div>
                                             ))}
-                                            <button type="button" onClick={addFabricOption} className="text-sm text-[#c20c0b] font-semibold flex items-center gap-1"><Plus size={16}/> Add Fabric</button>
+                                            <button type="button" onClick={addFabricOption} className="text-sm text-[#c20c0b] font-semibold flex items-center gap-1 hover:text-[#a50a09] transition-colors"><Plus size={16}/> Add Fabric</button>
                                         </div>
                                     </div>
                                 </div>
@@ -800,7 +800,7 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
                                             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
                                                 <GripVertical className="text-white drop-shadow-md" />
                                             </div>
-                                            <button type="button" onClick={() => removeGalleryImage(index)} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"><X size={12} /></button>
+                                            <button type="button" onClick={() => removeGalleryImage(index)} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"><X size={12} /></button>
                                             {index === 0 && <span className="absolute bottom-1 left-1 bg-black/60 text-white text-[10px] px-1.5 rounded">Thumbnail</span>}
                                         </div>
                                     ))}

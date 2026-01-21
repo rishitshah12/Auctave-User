@@ -119,15 +119,15 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                         {/* Gallery Navigation */}
                         {gallery.length > 1 && (
                             <>
-                                <button onClick={(e) => { e.stopPropagation(); prevImage(); }} className="absolute left-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/10 backdrop-blur-md hover:bg-white/20 text-white transition-all opacity-0 group-hover:opacity-100 border border-white/10">
+                                <button onClick={(e) => { e.stopPropagation(); prevImage(); }} className="absolute left-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/10 backdrop-blur-md hover:bg-white/20 text-white transition-all opacity-0 group-hover:opacity-100 border border-white/10 cursor-pointer">
                                     <ChevronLeft size={24} />
                                 </button>
-                                <button onClick={(e) => { e.stopPropagation(); nextImage(); }} className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/10 backdrop-blur-md hover:bg-white/20 text-white transition-all opacity-0 group-hover:opacity-100 border border-white/10">
+                                <button onClick={(e) => { e.stopPropagation(); nextImage(); }} className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/10 backdrop-blur-md hover:bg-white/20 text-white transition-all opacity-0 group-hover:opacity-100 border border-white/10 cursor-pointer">
                                     <ChevronRight size={24} />
                                 </button>
                                 <div className="absolute bottom-6 right-6 flex space-x-2">
                                     {gallery.map((_, index) => (
-                                        <button key={index} onClick={() => setCurrentImageIndex(index)} className={`w-2 h-2 rounded-full transition-all ${index === currentImageIndex ? 'bg-white w-6' : 'bg-white/50 hover:bg-white/80'}`}></button>
+                                        <button key={index} onClick={() => setCurrentImageIndex(index)} className={`w-2 h-2 rounded-full transition-all cursor-pointer ${index === currentImageIndex ? 'bg-white w-6' : 'bg-white/50 hover:bg-white/80'}`}></button>
                                     ))}
                                 </div>
                             </>
@@ -163,13 +163,13 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                         <div className="flex space-x-8">
                             <button
                                 onClick={() => setActiveTab('overview')}
-                                className={`py-4 text-sm font-bold border-b-2 transition-colors ${activeTab === 'overview' ? 'border-[#c20c0b] text-[#c20c0b]' : 'border-transparent text-gray-500 dark:text-gray-200 hover:text-gray-700 dark:hover:text-white'}`}
+                                className={`py-4 text-sm font-bold border-b-2 transition-colors cursor-pointer ${activeTab === 'overview' ? 'border-[#c20c0b] text-[#c20c0b]' : 'border-transparent text-gray-500 dark:text-gray-200 hover:text-gray-700 dark:hover:text-white'}`}
                             >
                                 Overview
                             </button>
                             <button
                                 onClick={() => setActiveTab('catalog')}
-                                className={`py-4 text-sm font-bold border-b-2 transition-colors ${activeTab === 'catalog' ? 'border-[#c20c0b] text-[#c20c0b]' : 'border-transparent text-gray-500 dark:text-gray-200 hover:text-gray-700 dark:hover:text-white'}`}
+                                className={`py-4 text-sm font-bold border-b-2 transition-colors cursor-pointer ${activeTab === 'catalog' ? 'border-[#c20c0b] text-[#c20c0b]' : 'border-transparent text-gray-500 dark:text-gray-200 hover:text-gray-700 dark:hover:text-white'}`}
                             >
                                 Product Catalog
                             </button>
@@ -260,7 +260,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                                     </div>
                                 </div>
                                 
-                                <button onClick={() => setActiveTab('catalog')} className="w-full py-3 px-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-white font-bold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm flex items-center justify-center gap-2 group">
+                                <button onClick={() => setActiveTab('catalog')} className="w-full py-3 px-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-white font-bold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm flex items-center justify-center gap-2 group cursor-pointer">
                                     <BookOpen size={18} className="group-hover:text-[#c20c0b] transition-colors" /> View Product Catalog
                                 </button>
                             </div>
@@ -360,10 +360,10 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                     <div className="relative w-full h-full flex items-center justify-center" onClick={e => e.stopPropagation()}>
                         {gallery.length > 1 && (
                             <>
-                                <button onClick={(e) => { e.stopPropagation(); prevImage(); }} className="absolute left-2 md:left-8 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/50 hover:bg-black/70 text-white transition-all border border-white/10 backdrop-blur-sm group">
+                                <button onClick={(e) => { e.stopPropagation(); prevImage(); }} className="absolute left-2 md:left-8 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/50 hover:bg-black/70 text-white transition-all border border-white/10 backdrop-blur-sm group cursor-pointer">
                                     <ChevronLeft size={32} className="group-hover:-translate-x-1 transition-transform" />
                                 </button>
-                                <button onClick={(e) => { e.stopPropagation(); nextImage(); }} className="absolute right-2 md:right-8 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/50 hover:bg-black/70 text-white transition-all border border-white/10 backdrop-blur-sm group">
+                                <button onClick={(e) => { e.stopPropagation(); nextImage(); }} className="absolute right-2 md:right-8 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/50 hover:bg-black/70 text-white transition-all border border-white/10 backdrop-blur-sm group cursor-pointer">
                                     <ChevronRight size={32} className="group-hover:translate-x-1 transition-transform" />
                                 </button>
                             </>
@@ -371,7 +371,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                         <img src={gallery[currentImageIndex]} alt={selectedFactory.name} className="max-h-[85vh] max-w-[90vw] object-contain rounded-lg shadow-2xl select-none" />
                         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex space-x-3 bg-black/50 px-4 py-2 rounded-full backdrop-blur-sm border border-white/10">
                             {gallery.map((_, index) => (
-                                <button key={index} onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(index); }} className={`w-2.5 h-2.5 rounded-full transition-all ${index === currentImageIndex ? 'bg-white scale-125' : 'bg-white/40 hover:bg-white/60'}`}></button>
+                                <button key={index} onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(index); }} className={`w-2.5 h-2.5 rounded-full transition-all cursor-pointer ${index === currentImageIndex ? 'bg-white scale-125' : 'bg-white/40 hover:bg-white/60'}`}></button>
                             ))}
                         </div>
                     </div>

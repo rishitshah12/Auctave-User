@@ -144,8 +144,8 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-200">{client.email}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-200">{client.job_role || 'N/A'}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                <button onClick={() => handleEditClick(client)} className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 mr-4">Edit</button>
-                                                <button onClick={() => handleDeleteClient(client.id)} className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300">Delete</button>
+                                                <button onClick={() => handleEditClick(client)} className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 mr-4 hover:underline transition-colors">Edit</button>
+                                                <button onClick={() => handleDeleteClient(client.id)} className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 hover:underline transition-colors">Delete</button>
                                             </td>
                                         </tr>
                                     ))

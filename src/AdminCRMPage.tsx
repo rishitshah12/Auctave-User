@@ -355,7 +355,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                 </div>
 
                 {/* Client Selector */}
-                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-lg border border-gray-100 dark:border-white/10">
+                <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-lg border border-gray-100 dark:border-white/10">
                     <label className="block text-sm font-medium text-gray-700 dark:text-white mb-2">Select Client</label>
                     <select 
                         value={selectedClientId} 
@@ -371,7 +371,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
 
                 {/* Orders List */}
                 {selectedClientId && (
-                    <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-lg overflow-hidden border border-gray-100 dark:border-white/10 p-6">
+                    <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-lg overflow-hidden border border-gray-100 dark:border-white/10 p-6">
                         {isLoading ? (
                             <div className="p-8 text-center text-gray-500">Loading orders...</div>
                         ) : orders.length === 0 ? (
@@ -406,7 +406,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                                     {name: 'Dashboard', icon: <PieChartIcon size={16}/>},
                                                     {name: 'Gantt', icon: <GanttChartSquare size={16}/>}
                                                 ].map(view => (
-                                                    <button key={view.name} onClick={() => setActiveView(view.name)} className={`flex items-center gap-2 py-1.5 px-3 text-sm font-semibold rounded-md transition-colors ${activeView === view.name ? 'bg-white dark:bg-gray-600 text-[#c20c0b] shadow-sm' : 'text-gray-600 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
+                                                    <button key={view.name} onClick={() => setActiveView(view.name)} className={`flex items-center gap-2 py-1.5 px-3 text-sm font-semibold rounded-md transition-colors cursor-pointer ${activeView === view.name ? 'bg-white dark:bg-gray-600 text-[#c20c0b] shadow-sm' : 'text-gray-600 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
                                                         {view.icon} <span className="hidden sm:inline">{view.name}</span>
                                                     </button>
                                                 ))}
@@ -452,7 +452,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
             {/* Create Order Modal */}
             {isCreateOrderOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-gray-900/95 dark:backdrop-blur-xl rounded-xl shadow-2xl w-full max-w-md border border-gray-200 dark:border-white/10">
+                    <div className="bg-white/90 backdrop-blur-xl dark:bg-gray-900/95 dark:backdrop-blur-xl rounded-xl shadow-2xl w-full max-w-md border border-gray-200 dark:border-white/10">
                         <div className="p-6 border-b border-gray-100 dark:border-white/10 flex justify-between items-center">
                             <h2 className="text-xl font-bold text-gray-800 dark:text-white">Start New Order</h2>
                             <button onClick={() => setIsCreateOrderOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={24} /></button>
@@ -506,7 +506,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
             {/* Edit Order Modal */}
             {isModalOpen && editingOrder && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-gray-900/95 dark:backdrop-blur-xl rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/10">
+                    <div className="bg-white/90 backdrop-blur-xl dark:bg-gray-900/95 dark:backdrop-blur-xl rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/10">
                         <div className="p-6 border-b border-gray-100 dark:border-white/10 flex justify-between items-center sticky top-0 bg-white dark:bg-gray-900 z-10">
                             <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Manage Order</h2>
                             <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={24} /></button>
@@ -533,7 +533,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                             <div>
                                 <div className="flex justify-between items-center mb-4">
                                     <h3 className="text-lg font-bold text-gray-800 dark:text-white">Production Tasks</h3>
-                                    <button onClick={addTask} className="text-sm text-[#c20c0b] font-semibold flex items-center gap-1"><Plus size={16}/> Add Task</button>
+                                    <button onClick={addTask} className="text-sm text-[#c20c0b] font-semibold flex items-center gap-1 hover:text-[#a50a09] transition-colors"><Plus size={16}/> Add Task</button>
                                 </div>
                                 <div className="space-y-3">
                                     {(editingOrder.tasks || []).map((task: any, idx: number) => (
@@ -543,7 +543,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                                 <option>TO DO</option><option>IN PROGRESS</option><option>COMPLETE</option>
                                             </select>
                                             <input type="date" value={task.plannedEndDate} onChange={(e) => updateTask(idx, 'plannedEndDate', e.target.value)} className="p-1 border dark:border-gray-500 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
-                                            <button onClick={() => removeTask(idx)} className="text-red-500 hover:text-red-700"><Trash2 size={16} /></button>
+                                            <button onClick={() => removeTask(idx)} className="text-red-500 hover:text-red-700 transition-colors"><Trash2 size={16} /></button>
                                         </div>
                                     ))}
                                 </div>
@@ -553,7 +553,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                             <div>
                                 <div className="flex justify-between items-center mb-4">
                                     <h3 className="text-lg font-bold text-gray-800 dark:text-white">Documents</h3>
-                                    <button onClick={addDocument} className="text-sm text-[#c20c0b] font-semibold flex items-center gap-1"><Plus size={16}/> Add Document</button>
+                                    <button onClick={addDocument} className="text-sm text-[#c20c0b] font-semibold flex items-center gap-1 hover:text-[#a50a09] transition-colors"><Plus size={16}/> Add Document</button>
                                 </div>
                                 <div className="space-y-3">
                                     {(editingOrder.documents || []).map((doc: any, idx: number) => (
@@ -561,7 +561,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                             <FileText size={16} className="text-gray-400" />
                                             <input type="text" value={doc.name} onChange={(e) => updateDocument(idx, 'name', e.target.value)} className="flex-grow p-1 border dark:border-gray-500 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white" placeholder="Document Name" />
                                             <input type="text" value={doc.type} onChange={(e) => updateDocument(idx, 'type', e.target.value)} className="w-24 p-1 border dark:border-gray-500 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white" placeholder="Type" />
-                                            <button onClick={() => removeDocument(idx)} className="text-red-500 hover:text-red-700"><Trash2 size={16} /></button>
+                                            <button onClick={() => removeDocument(idx)} className="text-red-500 hover:text-red-700 transition-colors"><Trash2 size={16} /></button>
                                         </div>
                                     ))}
                                 </div>
