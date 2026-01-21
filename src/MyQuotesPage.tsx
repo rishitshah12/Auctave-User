@@ -14,6 +14,23 @@ interface MyQuotesPageProps {
     initialFilterStatus?: string;
 }
 
+const formatFriendlyDate = (dateString: string) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    const now = new Date();
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    const isToday = date.getDate() === now.getDate() && date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+    const isYesterday = date.getDate() === yesterday.getDate() && date.getMonth() === yesterday.getMonth() && date.getFullYear() === yesterday.getFullYear();
+    
+    const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    
+    if (isToday) return `Today at ${timeStr}`;
+    if (isYesterday) return `Yesterday at ${timeStr}`;
+    return `${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at ${timeStr}`;
+};
+
 export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCurrentPage, layoutProps, isLoading, onRefresh, initialFilterStatus }) => {
     const [filterStatus, setFilterStatus] = useState(initialFilterStatus || 'All');
     const [dateFilter, setDateFilter] = useState('All Time');
@@ -79,7 +96,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
         else if (quote.status === 'Declined') label = 'Declined';
         else if (quote.status === 'Admin Accepted') label = 'Admin Approved';
         else if (quote.status === 'Client Accepted') label = 'You Approved';
-        return { label, date };
+        return { label, date: formatFriendlyDate(date) };
     };
 
     const checkDateFilter = (quote: QuoteRequest) => {
@@ -277,7 +294,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                                     {quote.order?.lineItems?.length > 1 ? `${quote.order.lineItems.length} Product Types` : (quote.order?.lineItems?.[0]?.category || 'Unknown Product')}
                                 </h3>
                                 <p className="text-xs text-gray-400 dark:text-gray-200 mb-6">
-                                    {getDisplayDateInfo(quote).label} {new Date(getDisplayDateInfo(quote).date).toLocaleDateString()}
+                                    {getDisplayDateInfo(quote).label} {getDisplayDateInfo(quote).date}
                                 </p>
 
                                 <div className="flex items-center gap-8 mb-6">

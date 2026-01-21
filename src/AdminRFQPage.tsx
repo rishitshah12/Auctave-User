@@ -3,7 +3,7 @@ import { MainLayout } from './MainLayout';
 import { quoteService } from './quote.service';
 import { crmService } from './crm.service';
 import { QuoteRequest, NegotiationHistoryItem } from './types';
-import { MapPin, Shirt, Package, Clock, ChevronRight, ChevronLeft, FileQuestion, MessageSquare, CheckCircle, XCircle, X, Download, RefreshCw, User, Building, Calendar, FileText, Eye, EyeOff, CheckSquare, ArrowUp, ArrowDown, ChevronDown, History, DollarSign, Search, Mail, Phone, Check, CheckCheck, Trash2, RotateCcw, Image as ImageIcon } from 'lucide-react';
+import { MapPin, Shirt, Package, Clock, ChevronRight, ChevronLeft, FileQuestion, MessageSquare, CheckCircle, XCircle, X, Download, RefreshCw, User, Building, Calendar, FileText, Eye, EyeOff, CheckSquare, ArrowUp, ArrowDown, ChevronDown, ChevronUp, History, DollarSign, Search, Mail, Phone, Check, CheckCheck, Trash2, RotateCcw, Image as ImageIcon } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
@@ -20,6 +20,25 @@ interface AdminRFQPageProps {
     isAdmin: boolean;
     supabase: any;
 }
+
+const formatFriendlyDate = (dateString: string) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    const now = new Date();
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    const isToday = date.getDate() === now.getDate() && date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+    const isYesterday = date.getDate() === yesterday.getDate() && date.getMonth() === yesterday.getMonth() && date.getFullYear() === yesterday.getFullYear();
+    
+    const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    
+    if (isToday) return `Today at ${timeStr}`;
+    if (isYesterday) return `Yesterday at ${timeStr}`;
+    return `${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at ${timeStr}`;
+};
+
+const SIZE_ORDER = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL'];
 
 export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
     const CACHE_KEY = 'garment_erp_admin_quotes';
@@ -67,6 +86,13 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
     // Lightbox state
     const [isLightboxOpen, setIsLightboxOpen] = useState(false);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
+    const [expandedItems, setExpandedItems] = useState<number[]>([]);
+
+    const toggleExpand = (index: number) => {
+        setExpandedItems(prev => 
+            prev.includes(index) ? prev.filter(i => i !== index) : [...prev, index]
+        );
+    };
 
     const showToast = (message: string, type: 'success' | 'error' = 'success') => {
         if (window.showToast) window.showToast(message, type);
@@ -434,7 +460,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
         else if (quote.status === 'Admin Accepted') label = 'Approved by You';
         else if (quote.status === 'Client Accepted') label = 'Approved by Client';
         else if (quote.status === 'Trashed') label = 'Deleted';
-        return { label, date };
+        return { label, date: formatFriendlyDate(date) };
     };
 
     const getPriority = (status: string) => {
@@ -827,7 +853,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
         );
     };
 
-    const handleDownloadPdf = () => {
+    const handleDownloadPdf = async () => {
         const input = quoteDetailsRef.current;
         if (!input || !selectedQuote) {
             showToast('Could not find content to download.', 'error');
@@ -836,12 +862,64 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
 
         showToast('Generating PDF...', 'success');
 
-        html2canvas(input, {
-            scale: 2,
-            useCORS: true,
-            logging: false,
-            backgroundColor: '#ffffff'
-        }).then(canvas => {
+        try {
+            // Create a temporary container to render the content for capture
+            const tempContainer = document.createElement('div');
+            tempContainer.style.position = 'absolute';
+            tempContainer.style.top = '0';
+            tempContainer.style.left = '0';
+            tempContainer.style.zIndex = '-9999';
+            tempContainer.style.width = `${input.offsetWidth}px`;
+            
+            // Clone the content
+            const clone = input.cloneNode(true) as HTMLElement;
+            tempContainer.appendChild(clone);
+            document.body.appendChild(tempContainer);
+
+            // Helper to convert modern CSS colors (like oklch) to standard RGB/Hex for html2canvas
+            const ctx = document.createElement('canvas').getContext('2d');
+            const sanitizeColors = (element: HTMLElement) => {
+                if (!ctx) return;
+                const style = window.getComputedStyle(element);
+                const processProperty = (prop: string) => {
+                    const val = style.getPropertyValue(prop);
+                    if (val && (val.includes('oklch') || val.includes('oklab') || val.includes('lch') || val.includes('lab'))) {
+                        ctx.fillStyle = val;
+                        const converted = ctx.fillStyle;
+                        if (converted) {
+                             element.style.setProperty(prop, converted);
+                        }
+                    }
+                };
+                ['color', 'background-color', 'border-top-color', 'border-right-color', 'border-bottom-color', 'border-left-color', 'fill', 'stroke'].forEach(processProperty);
+            };
+
+            // Apply sanitization to the clone and all its descendants
+            sanitizeColors(clone);
+            const allElements = clone.getElementsByTagName('*');
+            for (let i = 0; i < allElements.length; i++) {
+                sanitizeColors(allElements[i] as HTMLElement);
+            }
+
+            // Explicitly set crossOrigin for images to help html2canvas capture them
+            const allImages = clone.getElementsByTagName('img');
+            for (let i = 0; i < allImages.length; i++) {
+                allImages[i].crossOrigin = "anonymous";
+            }
+
+            // Wait a brief moment for images to settle
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            const canvas = await html2canvas(clone, {
+                scale: 2,
+                useCORS: true,
+                logging: false,
+                backgroundColor: '#ffffff'
+            });
+
+            // Clean up
+            document.body.removeChild(tempContainer);
+
             const imgData = canvas.toDataURL('image/png');
             const pdf = new jsPDF({
                 orientation: 'p',
@@ -850,10 +928,11 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
             });
             pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
             pdf.save(`RFQ-${selectedQuote.id.slice(0, 8)}.pdf`);
-        }).catch(err => {
+            showToast('PDF downloaded successfully!', 'success');
+        } catch (err) {
             showToast('Failed to generate PDF.', 'error');
             console.error("PDF generation error:", err);
-        });
+        }
     };
 
     // Construct history for display
@@ -920,7 +999,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                 </span>
                             </div>
                             <div className="flex flex-wrap gap-4 text-sm text-gray-500 dark:text-gray-400">
-                                <div className="flex items-center gap-1"><Calendar size={16}/> {new Date(selectedQuote.submittedAt).toLocaleDateString()}</div>
+                                <div className="flex items-center gap-1"><Calendar size={16}/> {formatFriendlyDate(selectedQuote.submittedAt)}</div>
                             </div>
                         </div>
                     </div>
@@ -979,7 +1058,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                      <div className="bg-white dark:bg-gray-900/60 p-4 rounded-xl border border-gray-200 dark:border-white/10 shadow-sm h-full flex flex-col">
                                         <div className="flex justify-between items-center mb-2">
                                             <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Request</span>
-                                            <span className="text-xs text-gray-400 dark:text-gray-500">{new Date(selectedQuote.submittedAt).toLocaleDateString()}</span>
+                                            <span className="text-xs text-gray-400 dark:text-gray-500">{formatFriendlyDate(selectedQuote.submittedAt)}</span>
                                         </div>
                                         <p className="text-sm text-gray-700 dark:text-white font-medium">Initial Quote Request</p>
                                      </div>
@@ -994,7 +1073,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                                     {item.sender === 'factory' ? 'You' : 'Client'}
                                                 </span>
                                                 <span className="text-xs text-gray-400 dark:text-gray-500">
-                                                    {new Date(item.timestamp).toLocaleDateString()}
+                                                    {formatFriendlyDate(item.timestamp)}
                                                 </span>
                                             </div>
                                             {item.price && (
@@ -1038,156 +1117,88 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                 <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center">
                                     <Package size={20} className="mr-2 text-[#c20c0b]" /> Products & Specifications
                                 </h3>
-                                <div className="space-y-6">
-                                    {selectedQuote.order?.lineItems?.map((item, idx) => (
-                                        <div key={idx} className="bg-white/60 dark:bg-gray-800/40 rounded-xl overflow-hidden border border-gray-200 dark:border-white/10 shadow-sm hover:shadow-md transition-all duration-200">
-                                            {/* Item Header with Target Price Prominence */}
-                                            <div className="bg-gray-50/50 dark:bg-gray-700/30 px-6 py-4 border-b border-gray-100 dark:border-white/10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                                                <div className="flex items-center gap-3">
-                                                    <span className="bg-red-100 text-[#c20c0b] text-xs font-bold px-2.5 py-1 rounded-md border border-red-200">#{idx + 1}</span>
-                                                    <h4 className="font-bold text-gray-800 dark:text-white text-lg">{item.category}</h4>
-                                                </div>
-                                                <div className="flex items-center gap-6">
-                                                    <div className="text-right">
-                                                        <p className="text-[10px] text-gray-500 dark:text-white uppercase font-bold tracking-wider">Quantity</p>
-                                                        <p className="font-semibold text-gray-900 dark:text-white">{item.qty} {item.quantityType === 'container' ? '' : 'units'}</p>
-                                                    </div>
-                                                    <div className="text-right pl-6 border-l border-gray-200 dark:border-gray-600">
-                                                        {(() => {
-                                                            const itemResponse = selectedQuote.response_details?.lineItemResponses?.find(r => r.lineItemId === item.id);
-                                                            const isAccepted = selectedQuote.status === 'Accepted';
-                                                            const showAgreedPrice = isAccepted;
-                                                            const agreedPrice = (isAccepted && selectedQuote.response_details?.acceptedAt && itemResponse?.price)
-                                                                ? itemResponse.price
-                                                                : item.targetPrice;
-                                                            return (
-                                                                <>
-                                                                    <p className="text-[10px] text-gray-500 dark:text-white uppercase font-bold tracking-wider">{showAgreedPrice ? 'Agreed Price' : 'Target Price'}</p>
-                                                                    <p className={`text-xl font-bold ${showAgreedPrice ? 'text-green-600 dark:text-green-400' : 'text-[#c20c0b] dark:text-red-400'}`}>${showAgreedPrice ? agreedPrice : item.targetPrice}</p>
-                                                                </>
-                                                            );
-                                                        })()}
-                                                    </div>
-                                                </div>
+                                <div className="space-y-4">
+                                    {selectedQuote.order?.lineItems?.map((item, idx) => {
+                                        const isExpanded = expandedItems.includes(idx);
+                                        const itemResponse = selectedQuote.response_details?.lineItemResponses?.find(r => r.lineItemId === item.id);
+                                        const history = getLineItemHistory(item.id);
+                                        const isAccepted = selectedQuote.status === 'Accepted';
+                                        const showAgreedPrice = isAccepted;
+                                        const agreedPrice = (isAccepted && selectedQuote.response_details?.acceptedAt && itemResponse?.price) ? itemResponse.price : item.targetPrice;
 
-                                                {/* Price History Log */}
-                                                {(() => {
-                                                    const history = getLineItemHistory(item.id);
-                                                    if (history.length === 0) return null;
-                                                    return (
-                                                        <details className="group mt-4 border-t border-gray-100 dark:border-white/10 pt-3">
-                                                            <summary className="flex items-center justify-between cursor-pointer text-xs font-semibold text-gray-500 dark:text-white hover:text-[#c20c0b] transition-colors list-none select-none">
-                                                                <span className="flex items-center gap-1"><History size={12}/> Price History ({history.length})</span>
-                                                                <ChevronDown size={14} className="group-open:rotate-180 transition-transform" />
-                                                            </summary>
-                                                            <div className="mt-3 space-y-2 pl-2 border-l-2 border-gray-100 dark:border-gray-700">
-                                                                {history.map((h, i) => (
-                                                                    <div key={i} className="flex justify-between items-center text-xs">
-                                                                        <div>
-                                                                            <span className={`font-medium ${h.sender === 'factory' ? 'text-[#c20c0b]' : 'text-blue-600'}`}>
-                                                                                {h.sender === 'factory' ? 'You' : 'Client'}
-                                                                            </span>
-                                                                            <span className="text-gray-400 dark:text-white ml-2">{new Date(h.timestamp).toLocaleDateString()}</span>
-                                                                        </div>
-                                                                        <span className="font-bold text-gray-700 dark:text-gray-300">${h.price}</span>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        </details>
-                                                    );
-                                                })()}
-                                            </div>
-
-                                            <div className="p-6">
-                                                {/* Core Specs Grid */}
-                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6">
-                                                    <div className="p-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg border border-gray-100 dark:border-white/10">
-                                                        <p className="text-xs text-gray-500 dark:text-white mb-1">Fabric</p>
-                                                        <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.fabricQuality}</p>
-                                                    </div>
-                                                    <div className="p-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg border border-gray-100 dark:border-white/10">
-                                                        <p className="text-xs text-gray-500 dark:text-white mb-1">Weight</p>
-                                                        <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.weightGSM} GSM</p>
-                                                    </div>
-                                                    {item.styleOption && (
-                                                        <div className="p-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg border border-gray-100 dark:border-white/10">
-                                                            <p className="text-xs text-gray-500 dark:text-white mb-1">Style</p>
-                                                            <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.styleOption}</p>
-                                                        </div>
-                                                    )}
-                                                    {item.sleeveOption && (
-                                                        <div className="p-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg border border-gray-100 dark:border-white/10">
-                                                            <p className="text-xs text-gray-500 dark:text-white mb-1">Sleeve</p>
-                                                            <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.sleeveOption}</p>
-                                                        </div>
-                                                    )}
-                                                </div>
-
-                                                {/* Size Breakdown */}
-                                                <div className="mb-6">
-                                                    <p className="text-xs text-gray-500 dark:text-white uppercase font-bold tracking-wider mb-3">Size Breakdown</p>
-                                                    {Object.keys(item.sizeRatio).length > 0 ? (
-                                                        <div className="flex flex-wrap gap-2">
-                                                            {Object.entries(item.sizeRatio).map(([size, ratio]) => (
-                                                                <div key={size} className="flex flex-col items-center justify-center bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md min-w-[3rem] py-1.5">
-                                                                    <span className="text-xs font-bold text-gray-800 dark:text-white">{size}</span>
-                                                                    <span className="text-[10px] text-gray-500 dark:text-white font-medium">{ratio}</span>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    ) : (
-                                                        <div className="flex flex-wrap gap-2">
-                                                            {item.sizeRange.map(size => (
-                                                                <span key={size} className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-white text-xs font-medium rounded-full">{size}</span>
-                                                            ))}
-                                                            {item.customSize && <span className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-white text-xs font-medium rounded-full">{item.customSize}</span>}
-                                                        </div>
-                                                    )}
-                                                </div>
-
-                                                {/* Detailed Requirements */}
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                    <div className="bg-gray-50 dark:bg-gray-700/30 p-4 rounded-lg border border-gray-100 dark:border-white/10">
-                                                        <p className="text-xs text-gray-500 dark:text-white uppercase font-bold tracking-wider mb-2">Packaging & Labeling</p>
-                                                        <div className="space-y-2 text-sm">
-                                                            <div className="flex justify-between"><span className="text-gray-500 dark:text-white">Packaging:</span> <span className="font-medium text-gray-900 dark:text-white text-right">{item.packagingReqs}</span></div>
-                                                            {item.labelingReqs && <div className="flex justify-between"><span className="text-gray-500 dark:text-white">Labeling:</span> <span className="font-medium text-gray-900 dark:text-white text-right">{item.labelingReqs}</span></div>}
-                                                        </div>
-                                                    </div>
-                                                    {(item.trimsAndAccessories || item.specialInstructions) && (
-                                                        <div className="bg-gray-50 dark:bg-gray-700/30 p-4 rounded-lg border border-gray-100 dark:border-white/10">
-                                                            <p className="text-xs text-gray-500 dark:text-white uppercase font-bold tracking-wider mb-2">Additional Details</p>
-                                                            <div className="space-y-2 text-sm">
-                                                                {item.trimsAndAccessories && <div><span className="text-gray-500 dark:text-white block mb-1">Trims:</span> <span className="font-medium text-gray-900 dark:text-white">{item.trimsAndAccessories}</span></div>}
-                                                                {item.specialInstructions && <div><span className="text-gray-500 dark:text-white block mb-1">Instructions:</span> <span className="font-medium text-gray-900 dark:text-white bg-yellow-50 dark:bg-yellow-900/20 px-2 py-1 rounded border border-yellow-100 dark:border-yellow-800 inline-block w-full">{item.specialInstructions}</span></div>}
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            
-                                            {/* Display Response if available */}
-                                            {selectedQuote.response_details?.lineItemResponses?.find(r => r.lineItemId === item.id) && (
-                                                <div className="bg-green-50/50 px-6 py-4 border-t border-green-100 flex justify-between items-center">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="p-2 bg-green-100 text-green-700 rounded-full"><CheckCircle size={18}/></div>
+                                        return (
+                                            <div key={idx} className="bg-white/60 dark:bg-gray-800/40 rounded-xl overflow-hidden border border-gray-200 dark:border-white/10 shadow-sm transition-all duration-200">
+                                                <div onClick={() => toggleExpand(idx)} className={`p-5 flex justify-between items-center cursor-pointer transition-colors ${isExpanded ? 'bg-gray-50/50 dark:bg-gray-700/30' : 'hover:bg-gray-50/50 dark:hover:bg-gray-700/20'}`}>
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="bg-red-100 text-[#c20c0b] text-xs font-bold w-8 h-8 flex items-center justify-center rounded-md border border-red-200">#{idx + 1}</div>
                                                         <div>
-                                                            <p className="text-sm font-bold text-green-900">Quoted Price</p>
-                                                            {selectedQuote.response_details.respondedAt && (
-                                                                <p className="text-[10px] text-green-600">
-                                                                    {new Date(selectedQuote.response_details.respondedAt).toLocaleDateString()}
-                                                                </p>
+                                                            <h4 className="font-bold text-gray-800 dark:text-white text-lg">{item.category}</h4>
+                                                            <p className="text-sm text-gray-500 dark:text-gray-400">{item.qty} {item.quantityType === 'container' ? '' : 'units'}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="text-right">
+                                                            <p className="text-[10px] text-gray-500 dark:text-white uppercase font-bold tracking-wider">{showAgreedPrice ? 'Agreed Price' : 'Target Price'}</p>
+                                                            <p className={`text-xl font-bold ${showAgreedPrice ? 'text-green-600 dark:text-green-400' : 'text-[#c20c0b] dark:text-red-400'}`}>${showAgreedPrice ? agreedPrice : item.targetPrice}</p>
+                                                        </div>
+                                                        {isExpanded ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
+                                                    </div>
+                                                </div>
+
+                                                {isExpanded && (
+                                                    <div className="p-6 border-t border-gray-100 dark:border-white/10 animate-fade-in">
+                                                        {/* Core Specs Grid */}
+                                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6">
+                                                            <div className="p-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg border border-gray-100 dark:border-white/10"> <p className="text-xs text-gray-500 dark:text-white mb-1">Fabric</p> <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.fabricQuality}</p> </div>
+                                                            <div className="p-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg border border-gray-100 dark:border-white/10"> <p className="text-xs text-gray-500 dark:text-white mb-1">Weight</p> <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.weightGSM} GSM</p> </div>
+                                                            {item.styleOption && <div className="p-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg border border-gray-100 dark:border-white/10"> <p className="text-xs text-gray-500 dark:text-white mb-1">Style</p> <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.styleOption}</p> </div>}
+                                                            {item.sleeveOption && <div className="p-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg border border-gray-100 dark:border-white/10"> <p className="text-xs text-gray-500 dark:text-white mb-1">Sleeve</p> <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.sleeveOption}</p> </div>}
+                                                        </div>
+                                                        {/* Size Breakdown */}
+                                                        <div className="mb-6">
+                                                            <p className="text-xs text-gray-500 dark:text-white uppercase font-bold tracking-wider mb-3">Size Breakdown</p>
+                                                            {Object.keys(item.sizeRatio).length > 0 ? (
+                                                                <div className="flex flex-wrap gap-2"> {Object.entries(item.sizeRatio)
+                                                                    .sort(([sizeA], [sizeB]) => SIZE_ORDER.indexOf(sizeA) - SIZE_ORDER.indexOf(sizeB))
+                                                                    .map(([size, ratio]) => ( <div key={size} className="flex flex-col items-center justify-center bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md min-w-[3rem] py-1.5"> <span className="text-xs font-bold text-gray-800 dark:text-white">{size}</span> <span className="text-[10px] text-gray-500 dark:text-white font-medium">{ratio}</span> </div> ))} </div>
+                                                            ) : (
+                                                                <div className="flex flex-wrap gap-2"> {item.sizeRange.map(size => ( <span key={size} className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-white text-xs font-medium rounded-full">{size}</span> ))} {item.customSize && <span className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-white text-xs font-medium rounded-full">{item.customSize}</span>} </div>
                                                             )}
                                                         </div>
+                                                        {/* Detailed Requirements */}
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                            <div className="bg-gray-50 dark:bg-gray-700/30 p-4 rounded-lg border border-gray-100 dark:border-white/10"> <p className="text-xs text-gray-500 dark:text-white uppercase font-bold tracking-wider mb-2">Packaging & Labeling</p> <div className="space-y-2 text-sm"> <div className="flex justify-between"><span className="text-gray-500 dark:text-white">Packaging:</span> <span className="font-medium text-gray-900 dark:text-white text-right">{item.packagingReqs}</span></div> {item.labelingReqs && <div className="flex justify-between"><span className="text-gray-500 dark:text-white">Labeling:</span> <span className="font-medium text-gray-900 dark:text-white text-right">{item.labelingReqs}</span></div>} </div> </div>
+                                                            {(item.trimsAndAccessories || item.specialInstructions) && <div className="bg-gray-50 dark:bg-gray-700/30 p-4 rounded-lg border border-gray-100 dark:border-white/10"> <p className="text-xs text-gray-500 dark:text-white uppercase font-bold tracking-wider mb-2">Additional Details</p> <div className="space-y-2 text-sm"> {item.trimsAndAccessories && <div><span className="text-gray-500 dark:text-white block mb-1">Trims:</span> <span className="font-medium text-gray-900 dark:text-white">{item.trimsAndAccessories}</span></div>} {item.specialInstructions && <div><span className="text-gray-500 dark:text-white block mb-1">Instructions:</span> <span className="font-medium text-gray-900 dark:text-white bg-yellow-50 dark:bg-yellow-900/20 px-2 py-1 rounded border border-yellow-100 dark:border-yellow-800 inline-block w-full">{item.specialInstructions}</span></div>} </div> </div>}
+                                                        </div>
+                                                        {/* Price History Log */}
+                                                        {history.length > 0 && <details className="group mt-4 border-t border-gray-100 dark:border-white/10 pt-3"> <summary className="flex items-center justify-between cursor-pointer text-xs font-semibold text-gray-500 dark:text-white hover:text-[#c20c0b] transition-colors list-none select-none"> <span className="flex items-center gap-1"><History size={12}/> Price History ({history.length})</span> <ChevronDown size={14} className="group-open:rotate-180 transition-transform" /> </summary> <div className="mt-3 space-y-2 pl-2 border-l-2 border-gray-100 dark:border-gray-700"> {history.map((h, i) => ( <div key={i} className="flex justify-between items-center text-xs"> <div> <span className={`font-medium ${h.sender === 'factory' ? 'text-[#c20c0b]' : 'text-blue-600'}`}>{h.sender === 'factory' ? 'You' : 'Client'}</span> <span className="text-gray-400 dark:text-white ml-2">{formatFriendlyDate(h.timestamp)}</span> </div> <span className="font-bold text-gray-700 dark:text-gray-300">${h.price}</span> </div> ))} </div> </details>}
+                                                        
+                                                        {/* Respond Button */}
+                                                        <div className="mt-6 pt-4 border-t border-gray-100 dark:border-white/10 flex justify-end">
+                                                            <button onClick={() => setIsResponseModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 font-semibold rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors">
+                                                                <MessageSquare size={16} /> Set Price
+                                                            </button>
+                                                        </div>
                                                     </div>
-                                                    <div className="text-right">
-                                                        <span className="text-2xl font-bold text-green-700">${selectedQuote.response_details.lineItemResponses.find(r => r.lineItemId === item.id)?.price}</span>
-                                                        <PriceDifference target={item.targetPrice} quoted={selectedQuote.response_details.lineItemResponses.find(r => r.lineItemId === item.id)?.price || '0'} />
+                                                )}
+                                                {itemResponse && (
+                                                    <div className="bg-green-50/50 dark:bg-green-900/20 px-6 py-4 border-t border-green-100 dark:border-green-800 flex justify-between items-center">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="p-2 bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-200 rounded-full"><CheckCircle size={18}/></div>
+                                                            <div>
+                                                                <p className="text-sm font-bold text-green-900 dark:text-green-100">Quoted Price</p>
+                                                                {selectedQuote.response_details?.respondedAt && <p className="text-[10px] text-green-600 dark:text-green-300">{formatFriendlyDate(selectedQuote.response_details.respondedAt)}</p>}
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <span className="text-2xl font-bold text-green-700 dark:text-green-400">${itemResponse.price}</span>
+                                                            <PriceDifference target={item.targetPrice} quoted={itemResponse.price || '0'} />
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
+                                                )}
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
 
@@ -1611,7 +1622,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                     {quote.order?.lineItems?.length > 1 ? `${quote.order.lineItems.length} Product Types` : (quote.order?.lineItems?.[0]?.category || 'Unknown Product')}
                                 </h3>
                                 <p className="text-xs text-gray-400 dark:text-white mb-6">
-                                    {getDisplayDateInfo(quote).label} {new Date(getDisplayDateInfo(quote).date).toLocaleDateString()}
+                                    {getDisplayDateInfo(quote).label} {getDisplayDateInfo(quote).date}
                                 </p>
 
                                 <div className="flex items-center gap-8 mb-6">

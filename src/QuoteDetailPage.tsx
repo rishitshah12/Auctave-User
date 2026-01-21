@@ -4,7 +4,7 @@ import { QuoteRequest, NegotiationHistoryItem } from './types';
 import { quoteService } from './quote.service';
 import {
     ChevronLeft, ChevronRight, MapPin, Calendar, Package, Shirt, DollarSign, Clock, ArrowRight,
-    FileText, MessageSquare, CheckCircle, AlertCircle, X, Globe, Download, ChevronDown, History, Printer, Check, CheckCheck, Eye, RefreshCw, Image as ImageIcon
+    FileText, MessageSquare, CheckCircle, AlertCircle, X, Globe, Download, ChevronDown, ChevronUp, History, Printer, Check, CheckCheck, Eye, RefreshCw, Image as ImageIcon
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -16,6 +16,25 @@ interface QuoteDetailPageProps {
     createCrmOrder: (quote: QuoteRequest) => void;
     layoutProps: any;
 }
+
+const formatFriendlyDate = (dateString: string) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    const now = new Date();
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    const isToday = date.getDate() === now.getDate() && date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+    const isYesterday = date.getDate() === yesterday.getDate() && date.getMonth() === yesterday.getMonth() && date.getFullYear() === yesterday.getFullYear();
+    
+    const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    
+    if (isToday) return `Today at ${timeStr}`;
+    if (isYesterday) return `Yesterday at ${timeStr}`;
+    return `${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at ${timeStr}`;
+};
+
+const SIZE_ORDER = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL'];
 
 export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
     selectedQuote: initialQuote,
@@ -30,7 +49,13 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
     const quoteDetailsRef = useRef<HTMLDivElement>(null);
     const pdfContentRef = useRef<HTMLDivElement>(null);
     const [fileLinks, setFileLinks] = useState<{ name: string; url: string }[]>([]);
-    const [activeTab, setActiveTab] = useState(0);
+    const [expandedItems, setExpandedItems] = useState<number[]>([]);
+
+    const toggleExpand = (index: number) => {
+        setExpandedItems(prev => 
+            prev.includes(index) ? prev.filter(i => i !== index) : [...prev, index]
+        );
+    };
     const fileLinksAbortController = useRef<AbortController | null>(null);
     const [isLoadingFiles, setIsLoadingFiles] = useState(false);
 
@@ -246,6 +271,12 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
             const allElements = clone.getElementsByTagName('*');
             for (let i = 0; i < allElements.length; i++) {
                 sanitizeColors(allElements[i] as HTMLElement);
+            }
+
+            // Explicitly set crossOrigin for images to help html2canvas capture them
+            const allImages = clone.getElementsByTagName('img');
+            for (let i = 0; i < allImages.length; i++) {
+                allImages[i].crossOrigin = "anonymous";
             }
 
             // Wait a brief moment for images/fonts to settle in the clone
@@ -506,7 +537,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                 <div>
                                     <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">Quote #{id.slice(0, 8)}</h1>
                                     <p className="text-gray-500 dark:text-gray-200 text-sm flex items-center">
-                                        <Calendar size={14} className="mr-1.5"/> Submitted on {new Date(submittedAt).toLocaleDateString()}
+                                        <Calendar size={14} className="mr-1.5"/> Submitted on {formatFriendlyDate(submittedAt)}
                                     </p>
                                 </div>
                                 <span className={`px-3 py-1 text-xs font-bold uppercase tracking-wide rounded-full border ${getStatusColor(status)} flex items-center gap-1`}>
@@ -525,7 +556,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                             Factory Offer
                                         </h3>
                                         {response_details.respondedAt && (
-                                            <span className="text-xs text-gray-500 dark:text-gray-200">Received {new Date(response_details.respondedAt).toLocaleDateString()}</span>
+                                            <span className="text-xs text-gray-500 dark:text-gray-200">Received {formatFriendlyDate(response_details.respondedAt)}</span>
                                         )}
                                     </div>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -547,155 +578,179 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                             )}
                         </div>
 
-                        {/* Product Details (Tabs) */}
-                        <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
-                            <div className="border-b border-gray-200 dark:border-white/10 px-6 pt-4 bg-gray-50/30 dark:bg-gray-700/30">
-                                <h3 className="font-bold text-gray-900 dark:text-white mb-4">Product Specifications</h3>
-                                <div className="flex gap-6 overflow-x-auto scrollbar-hide -mb-px">
-                                    {order.lineItems.map((item, index) => (
-                                        <button
-                                            key={index}
-                                            onClick={() => setActiveTab(index)}
-                                            className={`pb-3 text-sm font-medium transition-all border-b-2 whitespace-nowrap cursor-pointer ${
-                                                activeTab === index
-                                                    ? 'border-[#c20c0b] text-[#c20c0b]'
-                                                    : 'border-transparent text-gray-500 dark:text-gray-200 hover:text-gray-700 dark:hover:text-white'
-                                            }`}
+                        {/* Product Details (List) */}
+                        <div className="space-y-4">
+                            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Product Specifications</h3>
+                            {order.lineItems.map((item, index) => {
+                                const isExpanded = expandedItems.includes(index);
+                                const itemResponse = response_details?.lineItemResponses?.find(r => r.lineItemId === item.id);
+                                const history = getLineItemHistory(item.id);
+
+                                const isAccepted = status === 'Accepted';
+                                const showAgreedPrice = isAccepted;
+                                const agreedPrice = (isAccepted && response_details?.acceptedAt && itemResponse?.price) 
+                                    ? itemResponse.price 
+                                    : item.targetPrice;
+
+                                return (
+                                    <div key={index} className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-sm border border-gray-200 dark:border-white/10 overflow-hidden transition-all duration-200">
+                                        <div 
+                                            onClick={() => toggleExpand(index)}
+                                            className={`p-5 flex justify-between items-center cursor-pointer transition-colors ${isExpanded ? 'bg-gray-50 dark:bg-gray-800/50' : 'hover:bg-gray-50 dark:hover:bg-gray-800/30'}`}
                                         >
-                                            {item.category}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                            
-                            <div className="p-6">
-                                {order.lineItems.map((item, index) => {
-                                    if (index !== activeTab) return null;
-                                    const itemResponse = response_details?.lineItemResponses?.find(r => r.lineItemId === item.id);
-                                    const history = getLineItemHistory(item.id);
-
-                                    const isAccepted = status === 'Accepted';
-                                    const showAgreedPrice = isAccepted;
-                                    const agreedPrice = (isAccepted && response_details?.acceptedAt && itemResponse?.price) 
-                                        ? itemResponse.price 
-                                        : item.targetPrice;
-
-                                    return (
-                                        <div key={index} className="animate-fade-in">
-                                            {/* Item Details Grid */}
-                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                                                <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
-                                                    <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-3 py-2">
-                                                        <p className="text-xs text-white uppercase font-bold tracking-wider">Fabric</p>
-                                                    </div>
-                                                    <div className="p-3 bg-white dark:bg-gray-800">
-                                                        <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.fabricQuality}</p>
-                                                    </div>
+                                            <div className="flex items-center gap-4">
+                                                <div className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 font-bold text-sm w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700">
+                                                    {index + 1}
                                                 </div>
-                                                <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
-                                                    <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-3 py-2">
-                                                        <p className="text-xs text-white uppercase font-bold tracking-wider">Weight</p>
-                                                    </div>
-                                                    <div className="p-3 bg-white dark:bg-gray-800">
-                                                        <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.weightGSM} GSM</p>
-                                                    </div>
-                                                </div>
-                                                <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
-                                                    <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-3 py-2">
-                                                        <p className="text-xs text-white uppercase font-bold tracking-wider">Quantity</p>
-                                                    </div>
-                                                    <div className="p-3 bg-white dark:bg-gray-800">
-                                                        <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.qty} {item.quantityType === 'container' ? '' : 'units'}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
-                                                    <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-3 py-2">
-                                                        <p className="text-xs text-white uppercase font-bold tracking-wider">{showAgreedPrice ? 'Agreed Price' : 'Target Price'}</p>
-                                                    </div>
-                                                    <div className="p-3 bg-white dark:bg-gray-800">
-                                                        <p className={`font-bold text-sm ${showAgreedPrice ? 'text-green-600 dark:text-green-400' : 'text-[#c20c0b] dark:text-red-400'}`}>${showAgreedPrice ? agreedPrice : item.targetPrice}</p>
-                                                    </div>
+                                                <div>
+                                                    <h4 className="font-bold text-gray-900 dark:text-white text-lg">{item.category}</h4>
+                                                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                                                        {item.qty} {item.quantityType === 'container' ? '' : 'units'} • Target: ${item.targetPrice}
+                                                    </p>
                                                 </div>
                                             </div>
-
-                                            {/* Size Breakdown */}
-                                            <div className="mb-6">
-                                                <p className="text-xs text-gray-500 dark:text-gray-200 uppercase font-bold tracking-wider mb-3">Size Breakdown</p>
-                                                {Object.keys(item.sizeRatio).length > 0 ? (
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {Object.entries(item.sizeRatio).map(([size, ratio]) => (
-                                                            <div key={size} className="flex flex-col items-center justify-center bg-white dark:bg-gray-700 border border-gray-200 dark:border-white/10 rounded-md min-w-[3rem] py-1.5">
-                                                                <span className="text-xs font-bold text-gray-800 dark:text-white">{size}</span>
-                                                                <span className="text-[10px] text-gray-500 dark:text-gray-200 font-medium">{ratio}</span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                ) : (
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {item.sizeRange.map(size => (
-                                                            <span key={size} className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs font-medium rounded-full">{size}</span>
-                                                        ))}
-                                                        {item.customSize && <span className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-medium rounded-full">{item.customSize}</span>}
+                                            <div className="flex items-center gap-4">
+                                                {showAgreedPrice && (
+                                                    <div className="text-right hidden sm:block">
+                                                        <p className="text-[10px] uppercase font-bold text-green-600 dark:text-green-400 tracking-wider">Agreed Price</p>
+                                                        <p className="font-bold text-green-700 dark:text-green-400">${agreedPrice}</p>
                                                     </div>
                                                 )}
+                                                {isExpanded ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
                                             </div>
-
-                                            {/* Detailed Requirements */}
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                                                <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
-                                                    <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-5 py-3">
-                                                        <p className="text-xs text-white uppercase font-bold tracking-wider">Packaging & Labeling</p>
+                                        </div>
+                                        
+                                        {isExpanded && (
+                                            <div className="p-6 border-t border-gray-100 dark:border-white/10 animate-fade-in">
+                                                {/* Item Details Grid */}
+                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                                    <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                                                        <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-3 py-2">
+                                                            <p className="text-xs text-white uppercase font-bold tracking-wider">Fabric</p>
+                                                        </div>
+                                                        <div className="p-3 bg-white dark:bg-gray-800">
+                                                            <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.fabricQuality}</p>
+                                                        </div>
                                                     </div>
-                                                    <div className="p-5 bg-white dark:bg-gray-800 space-y-3 text-sm">
-                                                        <div className="flex justify-between items-start"><span className="text-gray-500 dark:text-gray-200">Packaging:</span> <span className="font-medium text-gray-900 dark:text-white text-right ml-4">{item.packagingReqs}</span></div>
-                                                        {item.labelingReqs && <div className="flex justify-between items-start"><span className="text-gray-500 dark:text-gray-200">Labeling:</span> <span className="font-medium text-gray-900 dark:text-white text-right ml-4">{item.labelingReqs}</span></div>}
+                                                    <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                                                        <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-3 py-2">
+                                                            <p className="text-xs text-white uppercase font-bold tracking-wider">Weight</p>
+                                                        </div>
+                                                        <div className="p-3 bg-white dark:bg-gray-800">
+                                                            <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.weightGSM} GSM</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                                                        <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-3 py-2">
+                                                            <p className="text-xs text-white uppercase font-bold tracking-wider">Quantity</p>
+                                                        </div>
+                                                        <div className="p-3 bg-white dark:bg-gray-800">
+                                                            <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.qty} {item.quantityType === 'container' ? '' : 'units'}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                                                        <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-3 py-2">
+                                                            <p className="text-xs text-white uppercase font-bold tracking-wider">{showAgreedPrice ? 'Agreed Price' : 'Target Price'}</p>
+                                                        </div>
+                                                        <div className="p-3 bg-white dark:bg-gray-800">
+                                                            <p className={`font-bold text-sm ${showAgreedPrice ? 'text-green-600 dark:text-green-400' : 'text-[#c20c0b] dark:text-red-400'}`}>${showAgreedPrice ? agreedPrice : item.targetPrice}</p>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                                {(item.trimsAndAccessories || item.specialInstructions) && (
+
+                                                {/* Size Breakdown */}
+                                                <div className="mb-6">
+                                                    <p className="text-xs text-gray-500 dark:text-gray-200 uppercase font-bold tracking-wider mb-3">Size Breakdown</p>
+                                                    {Object.keys(item.sizeRatio).length > 0 ? (
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {Object.entries(item.sizeRatio)
+                                                                .sort(([sizeA], [sizeB]) => SIZE_ORDER.indexOf(sizeA) - SIZE_ORDER.indexOf(sizeB))
+                                                                .map(([size, ratio]) => (
+                                                                <div key={size} className="flex flex-col items-center justify-center bg-white dark:bg-gray-700 border border-gray-200 dark:border-white/10 rounded-md min-w-[3rem] py-1.5">
+                                                                    <span className="text-xs font-bold text-gray-800 dark:text-white">{size}</span>
+                                                                    <span className="text-[10px] text-gray-500 dark:text-gray-200 font-medium">{ratio}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {item.sizeRange.map(size => (
+                                                                <span key={size} className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs font-medium rounded-full">{size}</span>
+                                                            ))}
+                                                            {item.customSize && <span className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-medium rounded-full">{item.customSize}</span>}
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Detailed Requirements */}
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                                                     <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
                                                         <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-5 py-3">
-                                                            <p className="text-xs text-white uppercase font-bold tracking-wider">Additional Details</p>
+                                                            <p className="text-xs text-white uppercase font-bold tracking-wider">Packaging & Labeling</p>
                                                         </div>
                                                         <div className="p-5 bg-white dark:bg-gray-800 space-y-3 text-sm">
-                                                            {item.trimsAndAccessories && <div><span className="text-gray-500 dark:text-gray-200 block mb-1">Trims:</span> <span className="font-medium text-gray-900 dark:text-white">{item.trimsAndAccessories}</span></div>}
-                                                            {item.specialInstructions && <div><span className="text-gray-500 dark:text-gray-200 block mb-1">Instructions:</span> <span className="font-medium text-gray-900 dark:text-white bg-yellow-50 dark:bg-yellow-900/30 px-2 py-1 rounded border border-yellow-100 dark:border-yellow-800 inline-block w-full">{item.specialInstructions}</span></div>}
+                                                            <div className="flex justify-between items-start"><span className="text-gray-500 dark:text-gray-200">Packaging:</span> <span className="font-medium text-gray-900 dark:text-white text-right ml-4">{item.packagingReqs}</span></div>
+                                                            {item.labelingReqs && <div className="flex justify-between items-start"><span className="text-gray-500 dark:text-gray-200">Labeling:</span> <span className="font-medium text-gray-900 dark:text-white text-right ml-4">{item.labelingReqs}</span></div>}
+                                                        </div>
+                                                    </div>
+                                                    {(item.trimsAndAccessories || item.specialInstructions) && (
+                                                        <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                                                            <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-5 py-3">
+                                                                <p className="text-xs text-white uppercase font-bold tracking-wider">Additional Details</p>
+                                                            </div>
+                                                            <div className="p-5 bg-white dark:bg-gray-800 space-y-3 text-sm">
+                                                                {item.trimsAndAccessories && <div><span className="text-gray-500 dark:text-gray-200 block mb-1">Trims:</span> <span className="font-medium text-gray-900 dark:text-white">{item.trimsAndAccessories}</span></div>}
+                                                                {item.specialInstructions && <div><span className="text-gray-500 dark:text-gray-200 block mb-1">Instructions:</span> <span className="font-medium text-gray-900 dark:text-white bg-yellow-50 dark:bg-yellow-900/30 px-2 py-1 rounded border border-yellow-100 dark:border-yellow-800 inline-block w-full">{item.specialInstructions}</span></div>}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Price History Log */}
+                                                {history.length > 0 && (
+                                                    <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-200 dark:border-white/10 p-5 shadow-inner">
+                                                        <h4 className="text-sm font-bold text-gray-700 dark:text-white mb-4 flex items-center gap-2">
+                                                            <History size={16}/> Price Negotiation History
+                                                        </h4>
+                                                        <div className="space-y-4 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                                                            {history.map((h, i) => (
+                                                                <div key={i} className={`flex ${h.sender === 'client' ? 'justify-end' : 'justify-start'}`}>
+                                                                    <div className={`max-w-[85%] rounded-2xl p-3 shadow-sm ${h.sender === 'client' ? 'bg-[#c20c0b] text-white rounded-tr-none' : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-white/10 text-gray-800 dark:text-white rounded-tl-none'}`}>
+                                                                        <div className="flex justify-between items-center gap-4 mb-1">
+                                                                            <span className={`text-[10px] font-bold uppercase ${h.sender === 'client' ? 'text-red-200' : 'text-gray-500 dark:text-gray-200'}`}>
+                                                                                {h.sender === 'client' ? 'You' : 'Factory'}
+                                                                            </span>
+                                                                            <span className={`text-[10px] ${h.sender === 'client' ? 'text-red-200' : 'text-gray-400 dark:text-gray-200'}`}>
+                                                                                {new Date(h.timestamp).toLocaleDateString()}
+                                                                            </span>
+                                                                        </div>
+                                                                        <div className="font-bold text-lg mb-1">
+                                                                            ${h.price}
+                                                                        </div>
+                                                                        {h.message && <p className="text-xs opacity-90 whitespace-pre-wrap">{h.message}</p>}
+                                                                    </div>
+                                                                </div>
+                                                            ))}
                                                         </div>
                                                     </div>
                                                 )}
-                                            </div>
 
-                                            {/* Price History Log */}
-                                            {history.length > 0 && (
-                                                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-200 dark:border-white/10 p-5 shadow-inner">
-                                                    <h4 className="text-sm font-bold text-gray-700 dark:text-white mb-4 flex items-center gap-2">
-                                                        <History size={16}/> Price Negotiation History
-                                                    </h4>
-                                                    <div className="space-y-4 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
-                                                        {history.map((h, i) => (
-                                                            <div key={i} className={`flex ${h.sender === 'client' ? 'justify-end' : 'justify-start'}`}>
-                                                                <div className={`max-w-[85%] rounded-2xl p-3 shadow-sm ${h.sender === 'client' ? 'bg-[#c20c0b] text-white rounded-tr-none' : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-white/10 text-gray-800 dark:text-white rounded-tl-none'}`}>
-                                                                    <div className="flex justify-between items-center gap-4 mb-1">
-                                                                        <span className={`text-[10px] font-bold uppercase ${h.sender === 'client' ? 'text-red-200' : 'text-gray-500 dark:text-gray-200'}`}>
-                                                                            {h.sender === 'client' ? 'You' : 'Factory'}
-                                                                        </span>
-                                                                        <span className={`text-[10px] ${h.sender === 'client' ? 'text-red-200' : 'text-gray-400 dark:text-gray-200'}`}>
-                                                                            {new Date(h.timestamp).toLocaleDateString()}
-                                                                        </span>
-                                                                    </div>
-                                                                    <div className="font-bold text-lg mb-1">
-                                                                        ${h.price}
-                                                                    </div>
-                                                                    {h.message && <p className="text-xs opacity-90 whitespace-pre-wrap">{h.message}</p>}
-                                                                </div>
-                                                            </div>
-                                                        ))}
+                                                {/* Respond Button */}
+                                                {(status === 'Responded' || status === 'In Negotiation') && (
+                                                    <div className="mt-6 pt-4 border-t border-gray-100 dark:border-white/10 flex justify-end">
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); setIsNegotiationModalOpen(true); }}
+                                                            className="flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 font-semibold rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors"
+                                                        >
+                                                            <MessageSquare size={16} /> Negotiate / Respond
+                                                        </button>
                                                     </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )
-                                })}
-                            </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
 
                         {/* Attachments Section */}
@@ -818,7 +873,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                             <div className="absolute left-0 top-1.5 w-3 h-3 rounded-full bg-gray-300 dark:bg-gray-600 border-2 border-white dark:border-gray-800 ring-4 ring-gray-50 dark:ring-white/10 z-10"></div>
                             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-baseline mb-1">
                                 <span className="font-bold text-gray-900 dark:text-white">Quote Request Submitted</span>
-                                <span className="text-xs text-gray-400 dark:text-gray-200 font-medium">{new Date(submittedAt).toLocaleString()}</span>
+                                <span className="text-xs text-gray-400 dark:text-gray-200 font-medium">{formatFriendlyDate(submittedAt)}</span>
                             </div>
                             <p className="text-sm text-gray-500 dark:text-gray-200">Initial request sent to {factory?.name || 'factories'}.</p>
                         </div>
@@ -840,7 +895,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                 {item.action}
                                             </span>
                                         </div>
-                                        <span className="text-xs text-gray-400 dark:text-gray-200 font-medium">{new Date(item.timestamp).toLocaleString()}</span>
+                                        <span className="text-xs text-gray-400 dark:text-gray-200 font-medium">{formatFriendlyDate(item.timestamp)}</span>
                                     </div>
                                     
                                     {item.price && (
@@ -956,7 +1011,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                             </div>
                             <div className="grid grid-cols-2 gap-4 text-sm border-t border-gray-200 dark:border-gray-700 pt-4">
                                 <div><span className="text-gray-500 dark:text-gray-400 font-medium">Lead Time:</span> <span className="font-bold dark:text-white">{response_details.leadTime}</span></div>
-                                {response_details.respondedAt && <div><span className="text-gray-500 dark:text-gray-400 font-medium">Date:</span> <span className="dark:text-white">{new Date(response_details.respondedAt).toLocaleDateString()}</span></div>}
+                                {response_details.respondedAt && <div><span className="text-gray-500 dark:text-gray-400 font-medium">Date:</span> <span className="dark:text-white">{formatFriendlyDate(response_details.respondedAt)}</span></div>}
                             </div>
                             {response_details.notes && (
                                 <div className="mt-4 text-sm text-gray-600 dark:text-gray-300 italic">
