@@ -4,7 +4,7 @@ import { QuoteRequest, NegotiationHistoryItem } from './types';
 import { quoteService } from './quote.service';
 import {
     ChevronLeft, ChevronRight, MapPin, Calendar, Package, Shirt, DollarSign, Clock, ArrowRight,
-    FileText, MessageSquare, CheckCircle, AlertCircle, X, Globe, Download, ChevronDown, ChevronUp, History, Printer, Check, CheckCheck, Eye, RefreshCw, Image as ImageIcon
+    FileText, MessageSquare, CheckCircle, AlertCircle, X, Globe, Download, ChevronDown, ChevronUp, History, Printer, Check, CheckCheck, Eye, RefreshCw, Image as ImageIcon, Edit, Scale, Paperclip, Send, Circle
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -46,10 +46,13 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
     // Use local state for the quote so we can refresh it if needed
     const [quote, setQuote] = useState<QuoteRequest | null>(initialQuote);
     const [isNegotiationModalOpen, setIsNegotiationModalOpen] = useState(false);
+    const [negotiatingItem, setNegotiatingItem] = useState<any | null>(null);
+    const [historyModalData, setHistoryModalData] = useState<any | null>(null);
     const quoteDetailsRef = useRef<HTMLDivElement>(null);
     const pdfContentRef = useRef<HTMLDivElement>(null);
     const [fileLinks, setFileLinks] = useState<{ name: string; url: string }[]>([]);
     const [expandedItems, setExpandedItems] = useState<number[]>([]);
+    const [chatStates, setChatStates] = useState<Record<number, { message: string; file: File | null }>>({});
 
     const toggleExpand = (index: number) => {
         setExpandedItems(prev => 
@@ -333,24 +336,114 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         }
     };
 
-    const handleAcceptQuote = async () => {
-        const newStatus = status === 'Admin Accepted' ? 'Accepted' : 'Client Accepted';
-        const acceptedAt = new Date().toISOString();
-        const updatedResponseDetails = {
-            ...(response_details || {}),
-            acceptedAt: newStatus === 'Accepted' ? acceptedAt : undefined
+    const handleToggleLineItemApproval = async (lineItemId: number, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!quote) return;
+
+        const currentApprovals = quote.negotiation_details?.clientApprovedLineItems || [];
+        const isApproved = currentApprovals.includes(lineItemId);
+        
+        if (!isApproved) {
+            if (!window.confirm("Are you sure you want to approve this product list item?")) return;
+        }
+
+        let newApprovals;
+        if (isApproved) {
+            newApprovals = currentApprovals.filter((id: number) => id !== lineItemId);
+        } else {
+            newApprovals = [...currentApprovals, lineItemId];
+        }
+
+        const updatedNegotiationDetails = {
+            ...(quote.negotiation_details || {}),
+            clientApprovedLineItems: newApprovals
         };
-        const { error } = await quoteService.update(id, { status: newStatus, response_details: updatedResponseDetails });
+
+        // Check statuses
+        const allLineItems = quote.order.lineItems;
+        const allClientApproved = allLineItems.every(item => newApprovals.includes(item.id));
+        const adminApprovals = quote.negotiation_details?.adminApprovedLineItems || [];
+        const allAdminApproved = allLineItems.every(item => adminApprovals.includes(item.id));
+
+        let newStatus = quote.status;
+        let toastMessage = '';
+        
+        if (allClientApproved && allAdminApproved) {
+            newStatus = 'Accepted';
+            toastMessage = 'All items approved by both parties. Quote Accepted!';
+        } else if (allClientApproved) {
+            newStatus = 'Client Accepted';
+            toastMessage = 'All items approved. Quote marked as Client Approved.';
+        } else if (allAdminApproved) {
+            newStatus = 'Admin Accepted';
+        } else {
+            newStatus = 'In Negotiation';
+        }
+
+        const updates: any = { status: newStatus, negotiation_details: updatedNegotiationDetails };
+        if (newStatus === 'Accepted' && quote.status !== 'Accepted') {
+            updates.response_details = { ...(quote.response_details || {}), acceptedAt: new Date().toISOString() };
+        }
+
+        // Optimistic update
+        const updatedQuote = { ...quote, ...updates };
+        setQuote(updatedQuote);
+        updateQuoteStatus(quote.id, newStatus, updates);
+        
+        await quoteService.update(quote.id, updates);
+
+        if (toastMessage && newStatus !== quote.status) showToast(toastMessage);
+
+        if (newStatus === 'Accepted' && quote.status !== 'Accepted') {
+             createCrmOrder(updatedQuote);
+             handleSetCurrentPage('crm');
+        }
+    };
+
+    const handleAcceptQuote = async () => {
+        const newStatus: QuoteRequest['status'] = status === 'Admin Accepted' ? 'Accepted' : 'Client Accepted';
+        const acceptedAt = new Date().toISOString();
+        
+        // Auto-approve all line items
+        const allLineItemIds = quote.order.lineItems.map(i => i.id);
+        const updatedNegotiationDetails = {
+            ...(quote.negotiation_details || {}),
+            clientApprovedLineItems: allLineItemIds
+        };
+
+        const updatedResponseDetails = response_details ? {
+            ...response_details,
+            acceptedAt: newStatus === 'Accepted' ? acceptedAt : undefined
+        } : undefined;
+        
+        const { error } = await quoteService.update(id, { 
+            status: newStatus, 
+            response_details: updatedResponseDetails,
+            negotiation_details: updatedNegotiationDetails
+        });
 
         if (error) {
             showToast('Failed to update quote status: ' + error.message, 'error');
             return;
         }
 
-        updateQuoteStatus(id, newStatus, { acceptedAt: newStatus === 'Accepted' ? acceptedAt : undefined, response_details: updatedResponseDetails });
+        // Update local state
+        const updatedQuote = { 
+            ...quote, 
+            status: newStatus, 
+            response_details: updatedResponseDetails,
+            negotiation_details: updatedNegotiationDetails
+        };
+        setQuote(updatedQuote);
+
+        updateQuoteStatus(id, newStatus, { 
+            acceptedAt: newStatus === 'Accepted' ? acceptedAt : undefined, 
+            response_details: updatedResponseDetails,
+            negotiation_details: updatedNegotiationDetails
+        });
         
         if (newStatus === 'Accepted') {
-            createCrmOrder(quote);
+            createCrmOrder(updatedQuote);
             showToast('Quote Accepted! A new order has been created in the CRM portal.');
             handleSetCurrentPage('crm');
         } else {
@@ -425,6 +518,22 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         }
     };
 
+    const handleSingleItemNegotiation = (price: string, note: string) => {
+        if (!negotiatingItem) return;
+        
+        const lineItemNegotiations = [{
+            lineItemId: negotiatingItem.id,
+            counterPrice: price
+        }];
+        
+        handleNegotiationSubmit(
+            '', // No total price update for single item
+            note || `Negotiation for ${negotiatingItem.category}`,
+            lineItemNegotiations
+        );
+        setNegotiatingItem(null);
+    };
+
     const PriceDifference: FC<{ target: string, quoted: string }> = ({ target, quoted }) => {
         const targetNum = parseFloat(target);
         if (!target || isNaN(targetNum) || targetNum === 0) return null;
@@ -465,11 +574,12 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
     const getLineItemHistory = (lineItemId: number) => {
         if (!quote?.negotiation_details?.history) return [];
         return quote.negotiation_details.history
-            .filter(h => h.lineItemPrices?.some(p => p.lineItemId === lineItemId))
+            .filter(h => h.lineItemPrices?.some(p => p.lineItemId === lineItemId) || h.relatedLineItemId === lineItemId)
             .map(h => ({
                 ...h,
                 price: h.lineItemPrices?.find(p => p.lineItemId === lineItemId)?.price
-            }));
+            }))
+            .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
     };
 
     const negotiationHistory = React.useMemo(() => {
@@ -492,6 +602,50 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         return history;
     }, [quote]);
 
+    const handleSendChat = async (lineItemId: number) => {
+        const chatState = chatStates[lineItemId] || { message: '', file: null };
+        if (!chatState.message.trim() && !chatState.file) return;
+
+        let attachmentUrl = '';
+        if (chatState.file) {
+            try {
+                const fileExt = chatState.file.name.split('.').pop();
+                const fileName = `${quote.id}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+                const { data, error } = await layoutProps.supabase.storage
+                    .from('quote-attachments')
+                    .upload(fileName, chatState.file);
+                
+                if (error) throw error;
+                if (data) attachmentUrl = data.path;
+            } catch (error: any) {
+                console.error('Upload error:', error);
+                showToast('Failed to upload attachment', 'error');
+                return;
+            }
+        }
+
+        const newHistoryItem: NegotiationHistoryItem = {
+            id: Date.now().toString(),
+            sender: 'client',
+            message: chatState.message,
+            timestamp: new Date().toISOString(),
+            action: 'info',
+            relatedLineItemId: lineItemId,
+            attachments: attachmentUrl ? [attachmentUrl] : []
+        };
+
+        const updatedHistory = [...(quote.negotiation_details?.history || []), newHistoryItem];
+        const { error } = await quoteService.update(quote.id, {
+            negotiation_details: { ...quote.negotiation_details, history: updatedHistory }
+        });
+
+        if (error) showToast('Failed to send message', 'error');
+        else {
+            setQuote(prev => prev ? { ...prev, negotiation_details: { ...prev.negotiation_details, history: updatedHistory } } : null);
+            setChatStates(prev => ({ ...prev, [lineItemId]: { message: '', file: null } }));
+        }
+    };
+
     return (
         <MainLayout {...layoutProps}>
             <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -508,15 +662,15 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                             <Printer size={18} />
                             <span className="hidden sm:inline">Download PDF</span>
                         </button>
+                        {(status === 'Responded' || status === 'In Negotiation' || status === 'Admin Accepted') && (
+                            <button onClick={() => setIsNegotiationModalOpen(true)} className="px-5 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-white font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-all shadow-sm">
+                                Negotiate
+                            </button>
+                        )}
                         {(status === 'Responded' || status === 'In Negotiation') && (
-                            <>
-                                <button onClick={() => setIsNegotiationModalOpen(true)} className="px-5 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-white font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-all shadow-sm">
-                                    Negotiate
-                                </button>
-                                <button onClick={handleAcceptQuote} className="px-5 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-all shadow-md flex items-center gap-2">
-                                    <Check size={18} /> Approve Quote
-                                </button>
-                            </>
+                            <button onClick={handleAcceptQuote} className="px-5 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-all shadow-md flex items-center gap-2">
+                                <Check size={18} /> Approve Quote
+                            </button>
                         )}
                         {status === 'Admin Accepted' && (
                             <button onClick={handleAcceptQuote} className="px-5 py-2 bg-[#c20c0b] text-white font-medium rounded-lg hover:bg-[#a50a09] transition-all shadow-md flex items-center gap-2">
@@ -579,12 +733,23 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                         </div>
 
                         {/* Product Details (List) */}
-                        <div className="space-y-4">
-                            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Product Specifications</h3>
+                        <div className="space-y-3">
+                            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Product Specifications</h3>
+                            <div className="hidden md:grid grid-cols-12 gap-4 w-full text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider px-4 mb-2">
+                                <div className="col-span-4 text-left">Product</div>
+                                <div className="col-span-2 text-center">Qty</div>
+                                <div className="col-span-2 text-right">Target</div>
+                                <div className="col-span-2 text-right">Quoted</div>
+                                <div className="col-span-2"></div>
+                            </div>
+                            
                             {order.lineItems.map((item, index) => {
                                 const isExpanded = expandedItems.includes(index);
                                 const itemResponse = response_details?.lineItemResponses?.find(r => r.lineItemId === item.id);
                                 const history = getLineItemHistory(item.id);
+                                
+                                const isClientApproved = quote.negotiation_details?.clientApprovedLineItems?.includes(item.id);
+                                const isAdminApproved = quote.negotiation_details?.adminApprovedLineItems?.includes(item.id);
 
                                 const isAccepted = status === 'Accepted';
                                 const showAgreedPrice = isAccepted;
@@ -593,35 +758,95 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                     : item.targetPrice;
 
                                 return (
-                                    <div key={index} className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-sm border border-gray-200 dark:border-white/10 overflow-hidden transition-all duration-200">
+                                    <div key={index} className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-sm border border-gray-200 dark:border-white/10 overflow-hidden transition-all duration-200">
                                         <div 
                                             onClick={() => toggleExpand(index)}
-                                            className={`p-5 flex justify-between items-center cursor-pointer transition-colors ${isExpanded ? 'bg-gray-50 dark:bg-gray-800/50' : 'hover:bg-gray-50 dark:hover:bg-gray-800/30'}`}
+                                            className={`p-4 grid grid-cols-1 md:grid-cols-12 gap-4 items-center cursor-pointer transition-colors ${isExpanded ? 'bg-gray-50 dark:bg-gray-800/50' : 'hover:bg-gray-50 dark:hover:bg-white/10'}`}
                                         >
-                                            <div className="flex items-center gap-4">
-                                                <div className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 font-bold text-sm w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700">
+                                            {/* Product Info */}
+                                            <div className="md:col-span-4 flex items-center gap-3">
+                                                <div className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 font-bold text-xs w-7 h-7 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 shrink-0">
                                                     {index + 1}
                                                 </div>
                                                 <div>
-                                                    <h4 className="font-bold text-gray-900 dark:text-white text-lg">{item.category}</h4>
-                                                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                                                        {item.qty} {item.quantityType === 'container' ? '' : 'units'} • Target: ${item.targetPrice}
+                                                    <h4 className="font-bold text-gray-900 dark:text-white text-sm">{item.category}</h4>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1">
+                                                        {item.fabricQuality} • {item.weightGSM} GSM
                                                     </p>
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-4">
-                                                {showAgreedPrice && (
-                                                    <div className="text-right hidden sm:block">
-                                                        <p className="text-[10px] uppercase font-bold text-green-600 dark:text-green-400 tracking-wider">Agreed Price</p>
-                                                        <p className="font-bold text-green-700 dark:text-green-400">${agreedPrice}</p>
-                                                    </div>
+
+                                            {/* Qty */}
+                                            <div className="md:col-span-2 text-sm text-gray-700 dark:text-gray-200 md:text-center">
+                                                <span className="md:hidden font-medium text-gray-500 mr-2">Qty:</span>
+                                                {item.qty} {item.quantityType === 'container' ? '' : 'units'}
+                                            </div>
+
+                                            {/* Target Price */}
+                                            <div className="md:col-span-2 text-sm text-right flex items-center justify-end gap-2">
+                                                <span className="md:hidden font-medium text-gray-500">Target:</span>
+                                                <span className="font-medium text-gray-900 dark:text-white">${item.targetPrice}</span>
+                                                {(status === 'Responded' || status === 'In Negotiation' || status === 'Admin Accepted') && (
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); setNegotiatingItem(item); }}
+                                                        className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors"
+                                                        title="Negotiate Item Price"
+                                                    >
+                                                        <Edit size={14} />
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            {/* Quoted Price */}
+                                            <div className="md:col-span-2 text-sm text-right">
+                                                <span className="md:hidden font-medium text-gray-500 mr-2">Quoted:</span>
+                                                {showAgreedPrice ? <span className="font-bold text-green-600 dark:text-green-400">${agreedPrice}</span> : (itemResponse?.price ? <span className="font-bold text-[#c20c0b] dark:text-red-400">${itemResponse.price}</span> : <span className="text-gray-400">-</span>)}
+                                            </div>
+
+                                            {/* Expand Icon */}
+                                            <div className="md:col-span-2 flex justify-end items-center gap-2">
+                                                {(status === 'Responded' || status === 'In Negotiation' || status === 'Admin Accepted' || status === 'Client Accepted') && (
+                                                    <button
+                                                        onClick={(e) => handleToggleLineItemApproval(item.id, e)}
+                                                        className={`p-2 rounded-full transition-all border ${
+                                                            isClientApproved
+                                                                ? 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800'
+                                                                : isAdminApproved
+                                                                    ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800'
+                                                                    : 'bg-white text-gray-400 border-gray-200 hover:bg-gray-50 hover:text-green-600 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700 dark:hover:bg-gray-700'
+                                                        }`}
+                                                        title={
+                                                            isClientApproved && isAdminApproved ? "Price agreed by both parties" :
+                                                            isClientApproved ? "Approved by you. Waiting for Admin." :
+                                                            isAdminApproved ? "Admin has approved. Click to accept." :
+                                                            "Click to approve this price"
+                                                        }
+                                                    >
+                                                        {isClientApproved ? (
+                                                            isAdminApproved ? <CheckCheck size={18} /> : <Check size={18} />
+                                                        ) : (
+                                                            <Circle size={18} />
+                                                        )}
+                                                    </button>
+                                                )}
+                                                {(history.length > 0 || itemResponse?.price) && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setHistoryModalData({ item, history, itemResponse, response_details: quote.response_details, isAccepted, agreedPrice });
+                                                        }}
+                                                        className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors rounded-full hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                                        title="View Price History"
+                                                    >
+                                                        <History size={18} />
+                                                    </button>
                                                 )}
                                                 {isExpanded ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
                                             </div>
                                         </div>
                                         
                                         {isExpanded && (
-                                            <div className="p-6 border-t border-gray-100 dark:border-white/10 animate-fade-in">
+                                            <div className="p-5 border-t border-gray-100 dark:border-white/10 bg-gray-50/50 dark:bg-gray-800/30 animate-fade-in">
                                                 {/* Item Details Grid */}
                                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                                                     <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
@@ -706,37 +931,78 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                     )}
                                                 </div>
 
-                                                {/* Price History Log */}
-                                                {history.length > 0 && (
-                                                    <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-200 dark:border-white/10 p-5 shadow-inner">
-                                                        <h4 className="text-sm font-bold text-gray-700 dark:text-white mb-4 flex items-center gap-2">
-                                                            <History size={16}/> Price Negotiation History
-                                                        </h4>
-                                                        <div className="space-y-4 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
-                                                            {history.map((h, i) => (
+                                                {/* Chat / History Section */}
+                                                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-200 dark:border-white/10 p-4 shadow-inner flex flex-col h-[400px]">
+                                                    <h4 className="text-sm font-bold text-gray-700 dark:text-white mb-3 flex items-center gap-2 px-1">
+                                                        <MessageSquare size={16}/> Discussion & History
+                                                    </h4>
+                                                    
+                                                    {/* Messages Area */}
+                                                    <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3 mb-3">
+                                                        {history.length === 0 ? (
+                                                            <div className="text-center text-gray-400 text-xs py-10">No history yet. Start a discussion.</div>
+                                                        ) : (
+                                                            history.map((h, i) => (
                                                                 <div key={i} className={`flex ${h.sender === 'client' ? 'justify-end' : 'justify-start'}`}>
                                                                     <div className={`max-w-[85%] rounded-2xl p-3 shadow-sm ${h.sender === 'client' ? 'bg-[#c20c0b] text-white rounded-tr-none' : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-white/10 text-gray-800 dark:text-white rounded-tl-none'}`}>
                                                                         <div className="flex justify-between items-center gap-4 mb-1">
-                                                                            <span className={`text-[10px] font-bold uppercase ${h.sender === 'client' ? 'text-red-200' : 'text-gray-500 dark:text-gray-200'}`}>
+                                                                            <span className={`text-[10px] font-bold uppercase ${h.sender === 'client' ? 'text-red-200' : 'text-gray-500 dark:text-gray-400'}`}>
                                                                                 {h.sender === 'client' ? 'You' : 'Factory'}
                                                                             </span>
-                                                                            <span className={`text-[10px] ${h.sender === 'client' ? 'text-red-200' : 'text-gray-400 dark:text-gray-200'}`}>
+                                                                            <span className={`text-[10px] ${h.sender === 'client' ? 'text-red-200' : 'text-gray-400 dark:text-gray-500'}`}>
                                                                                 {new Date(h.timestamp).toLocaleDateString()}
                                                                             </span>
                                                                         </div>
-                                                                        <div className="font-bold text-lg mb-1">
-                                                                            ${h.price}
-                                                                        </div>
+                                                                        {h.price && <div className="font-bold text-lg mb-1">${h.price}</div>}
                                                                         {h.message && <p className="text-xs opacity-90 whitespace-pre-wrap">{h.message}</p>}
+                                                                        {h.attachments && h.attachments.length > 0 && (
+                                                                            <div className="mt-2 pt-2 border-t border-white/20">
+                                                                                <div className="flex items-center gap-1 text-xs opacity-80">
+                                                                                    <Paperclip size={12} />
+                                                                                    <span>Attachment</span>
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
                                                                     </div>
                                                                 </div>
-                                                            ))}
-                                                        </div>
+                                                            ))
+                                                        )}
                                                     </div>
-                                                )}
+
+                                                    {/* Input Area */}
+                                                    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-600 p-2 flex items-end gap-2">
+                                                        <button className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors relative" onClick={() => document.getElementById(`file-upload-${item.id}`)?.click()}>
+                                                            <Paperclip size={20} />
+                                                            {chatStates[item.id]?.file && <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>}
+                                                        </button>
+                                                        <input type="file" id={`file-upload-${item.id}`} className="hidden" onChange={(e) => e.target.files && setChatStates(prev => ({ ...prev, [item.id]: { ...prev[item.id], file: e.target.files![0] } }))} />
+                                                        
+                                                        <textarea 
+                                                            value={chatStates[item.id]?.message || ''}
+                                                            onChange={(e) => setChatStates(prev => ({ ...prev, [item.id]: { ...prev[item.id], message: e.target.value } }))}
+                                                            placeholder="Type a message..." 
+                                                            className="flex-1 bg-transparent border-none focus:ring-0 text-sm text-gray-800 dark:text-white resize-none max-h-24 py-2"
+                                                            rows={1}
+                                                            onKeyDown={(e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendChat(item.id); } }}
+                                                        />
+                                                        <button 
+                                                            onClick={() => handleSendChat(item.id)}
+                                                            disabled={!chatStates[item.id]?.message?.trim() && !chatStates[item.id]?.file}
+                                                            className="p-2 bg-[#c20c0b] text-white rounded-lg hover:bg-[#a50a09] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                                        >
+                                                            <Send size={18} />
+                                                        </button>
+                                                    </div>
+                                                    {chatStates[item.id]?.file && (
+                                                        <div className="mt-2 text-xs text-gray-500 flex items-center justify-between bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
+                                                            <span className="truncate max-w-[200px]">{chatStates[item.id].file?.name}</span>
+                                                            <button onClick={() => setChatStates(prev => ({ ...prev, [item.id]: { ...prev[item.id], file: null } }))} className="text-red-500 hover:text-red-700"><X size={12}/></button>
+                                                        </div>
+                                                    )}
+                                                </div>
 
                                                 {/* Respond Button */}
-                                                {(status === 'Responded' || status === 'In Negotiation') && (
+                                                {(status === 'Responded' || status === 'In Negotiation' || status === 'Admin Accepted') && (
                                                     <div className="mt-6 pt-4 border-t border-gray-100 dark:border-white/10 flex justify-end">
                                                         <button 
                                                             onClick={(e) => { e.stopPropagation(); setIsNegotiationModalOpen(true); }}
@@ -751,6 +1017,21 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                     </div>
                                 );
                             })}
+
+                            {/* Totals Footer (Desktop) */}
+                            <div className="hidden md:grid grid-cols-12 gap-4 w-full px-4 mt-2 border-t border-gray-200 dark:border-white/10 pt-4">
+                                <div className="col-span-4 text-right text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider self-center">Total Quantity</div>
+                                <div className="col-span-2 text-center">
+                                    <p className="text-sm font-bold text-gray-900 dark:text-white">{quote.order?.lineItems?.reduce((acc, item) => acc + (parseInt(item.qty) || 0), 0).toLocaleString()}</p>
+                                </div>
+                                <div className="col-span-6"></div>
+                            </div>
+
+                            {/* Totals Footer (Mobile) */}
+                            <div className="md:hidden mt-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-white/10 flex justify-between items-center">
+                                <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Total Quantity</span>
+                                <span className="text-sm font-bold text-gray-900 dark:text-white">{quote.order?.lineItems?.reduce((acc, item) => acc + (parseInt(item.qty) || 0), 0).toLocaleString()}</span>
+                            </div>
                         </div>
 
                         {/* Attachments Section */}
@@ -1058,6 +1339,23 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                     lineItems={order.lineItems}
                 />
             )}
+
+            {/* Single Item Negotiation Modal */}
+            {negotiatingItem && (
+                <SingleItemNegotiationModal
+                    item={negotiatingItem}
+                    onSubmit={handleSingleItemNegotiation}
+                    onClose={() => setNegotiatingItem(null)}
+                />
+            )}
+
+            {/* Price History Modal */}
+            {historyModalData && (
+                <PriceHistoryModal
+                    data={historyModalData}
+                    onClose={() => setHistoryModalData(null)}
+                />
+            )}
         </MainLayout>
     );
 };
@@ -1140,6 +1438,155 @@ const NegotiationModal: FC<{ onSubmit: (counterPrice: string, details: string, l
                     <div className="flex justify-end gap-3 pt-2">
                         <button type="button" onClick={onClose} className="px-5 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-semibold rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors border border-transparent dark:border-white/10">Cancel</button>
                         <button type="submit" className="px-5 py-2.5 bg-[#c20c0b] text-white font-semibold rounded-xl hover:bg-[#a50a09] transition-colors shadow-md">Submit Offer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+const PriceHistoryModal: FC<{ 
+    data: { item: any, history: any[], itemResponse: any, response_details: any, isAccepted: boolean, agreedPrice: string }; 
+    onClose: () => void 
+}> = ({ data, onClose }) => {
+    const { item, history, itemResponse, response_details, isAccepted, agreedPrice } = data;
+    
+    // Group history into rows (Client Counter -> Factory Response)
+    const groupedHistory = React.useMemo(() => {
+        const rows: { client?: any, factory?: any }[] = [];
+        let currentRow: { client?: any, factory?: any } = {};
+
+        // Process history chronologically
+        history.forEach(h => {
+            if (h.sender === 'client') {
+                if (currentRow.factory) {
+                    rows.push(currentRow);
+                    currentRow = {};
+                }
+                currentRow.client = h;
+            } else {
+                if (currentRow.client) {
+                    currentRow.factory = h;
+                    rows.push(currentRow);
+                    currentRow = {};
+                } else {
+                    rows.push({ factory: h });
+                }
+            }
+        });
+        if (currentRow.client || currentRow.factory) rows.push(currentRow);
+        return rows.reverse(); // Show newest first
+    }, [history]);
+
+    const acceptedHistoryRowIndex = isAccepted && agreedPrice 
+        ? groupedHistory.findIndex(row => row.factory?.price === agreedPrice) 
+        : -1;
+
+    return (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[80] p-4 animate-fade-in">
+            <div className="bg-white dark:bg-gray-900/95 dark:backdrop-blur-xl p-6 rounded-2xl shadow-2xl w-full max-w-2xl border border-gray-200 dark:border-white/10 relative">
+                <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"><X size={24} /></button>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-1 flex items-center gap-2">
+                    <History size={20} className="text-blue-600"/> Price History
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">{item.category}</p>
+                
+                <div className="overflow-hidden rounded-lg border border-gray-100 dark:border-gray-700">
+                    <table className="min-w-full divide-y divide-gray-100 dark:divide-gray-700">
+                        <thead className="bg-gray-50 dark:bg-gray-700/50">
+                            <tr>
+                                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-1/2">Your Target Price</th>
+                                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-1/2">Factory Price</th>
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
+                            {groupedHistory.map((row, i) => (
+                                <tr key={i} className={i === acceptedHistoryRowIndex ? 'bg-green-50 dark:bg-green-900/20' : ''}>
+                                    <td className="px-4 py-3 whitespace-nowrap text-right align-top">
+                                        {row.client ? (
+                                            <div>
+                                                <div className="text-lg font-bold text-blue-600 dark:text-blue-400">${row.client.price}</div>
+                                                <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                                    {new Date(row.client.timestamp).toLocaleDateString()} <span className="opacity-75">{new Date(row.client.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                                </div>
+                                            </div>
+                                        ) : <span className="text-gray-300 dark:text-gray-600">-</span>}
+                                    </td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-right align-top">
+                                        {row.factory ? (
+                                            <div>
+                                                <div className="text-lg font-bold text-[#c20c0b] dark:text-red-400">${row.factory.price}</div>
+                                                <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                                    {new Date(row.factory.timestamp).toLocaleDateString()} <span className="opacity-75">{new Date(row.factory.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                                </div>
+                                            </div>
+                                        ) : <span className="text-gray-300 dark:text-gray-600">-</span>}
+                                    </td>
+                                </tr>
+                            ))}
+                            <tr className={isAccepted && acceptedHistoryRowIndex === -1 ? 'bg-green-50 dark:bg-green-900/20' : ''}>
+                                <td className="px-4 py-3 whitespace-nowrap text-right align-top">
+                                    <span className="text-gray-300 dark:text-gray-600">-</span>
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap text-right align-top">
+                                    <div>
+                                        <div className="text-lg font-bold text-[#c20c0b] dark:text-red-400">${itemResponse?.price || '-'}</div>
+                                        <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                            {response_details?.respondedAt ? (
+                                                <>
+                                                    {new Date(response_details.respondedAt).toLocaleDateString()} <span className="opacity-75">{new Date(response_details.respondedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                                </>
+                                            ) : 'Initial Quote'}
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const SingleItemNegotiationModal: FC<{ item: any; onSubmit: (price: string, note: string) => void; onClose: () => void }> = ({ item, onSubmit, onClose }) => {
+    const [price, setPrice] = useState('');
+    const [note, setNote] = useState('');
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        onSubmit(price, note);
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in z-[70]">
+            <div className="bg-white dark:bg-gray-900/95 dark:backdrop-blur-xl p-6 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-200 dark:border-white/10">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">Negotiate {item.category}</h3>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors"><X size={20} /></button>
+                </div>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Current Target: ${item.targetPrice}</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Your Counter Price ($)</label>
+                        <input
+                            type="number"
+                            step="0.01"
+                            required
+                            value={price}
+                            onChange={(e) => setPrice(e.target.value)}
+                            className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#c20c0b] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            placeholder="0.00"
+                            autoFocus
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Note (Optional)</label>
+                        <textarea value={note} onChange={(e) => setNote(e.target.value)} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#c20c0b] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white" rows={2} placeholder="Reason for price change..." />
+                    </div>
+                    <div className="flex justify-end gap-2 pt-2">
+                        <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm font-medium">Cancel</button>
+                        <button type="submit" className="px-4 py-2 bg-[#c20c0b] text-white rounded-lg hover:bg-[#a50a09] text-sm font-medium">Update Price</button>
                     </div>
                 </form>
             </div>

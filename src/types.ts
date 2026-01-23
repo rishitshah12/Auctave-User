@@ -80,6 +80,8 @@ export interface NegotiationHistoryItem {
     timestamp: string;
     action?: 'offer' | 'counter' | 'accept' | 'decline' | 'info';
     lineItemPrices?: { lineItemId: number; price: string }[];
+    attachments?: string[];
+    relatedLineItemId?: number;
 }
 
 export interface QuoteRequest {
@@ -115,6 +117,8 @@ export interface QuoteRequest {
             notes?: string;
         }[];
         history?: NegotiationHistoryItem[];
+        adminApprovedLineItems?: number[];
+        clientApprovedLineItems?: number[];
     };
 }
 

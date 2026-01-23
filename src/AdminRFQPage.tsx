@@ -3,7 +3,7 @@ import { MainLayout } from './MainLayout';
 import { quoteService } from './quote.service';
 import { crmService } from './crm.service';
 import { QuoteRequest, NegotiationHistoryItem } from './types';
-import { MapPin, Shirt, Package, Clock, ChevronRight, ChevronLeft, FileQuestion, MessageSquare, CheckCircle, XCircle, X, Download, RefreshCw, User, Building, Calendar, FileText, Eye, EyeOff, CheckSquare, ArrowUp, ArrowDown, ChevronDown, ChevronUp, History, DollarSign, Search, Mail, Phone, Check, CheckCheck, Trash2, RotateCcw, Image as ImageIcon } from 'lucide-react';
+import { MapPin, Shirt, Package, Clock, ChevronRight, ChevronLeft, FileQuestion, MessageSquare, CheckCircle, XCircle, X, Download, RefreshCw, User, Building, Calendar, FileText, Eye, EyeOff, CheckSquare, ArrowUp, ArrowDown, ChevronDown, ChevronUp, History, DollarSign, Search, Mail, Phone, Check, CheckCheck, Trash2, RotateCcw, Image as ImageIcon, Scale, Paperclip, Send, Circle } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
@@ -87,6 +87,8 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
     const [isLightboxOpen, setIsLightboxOpen] = useState(false);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [expandedItems, setExpandedItems] = useState<number[]>([]);
+    const [chatStates, setChatStates] = useState<Record<number, { message: string; file: File | null }>>({});
+    const [historyModalData, setHistoryModalData] = useState<any | null>(null);
 
     const toggleExpand = (index: number) => {
         setExpandedItems(prev => 
@@ -387,14 +389,40 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
     };
 
     const handleUpdateStatus = async (quoteId: string, newStatus: QuoteRequest['status']) => {
-        const { error } = await quoteService.update(quoteId, { status: newStatus });
+        let negotiationUpdate = {};
+        let updatedNegotiationDetails = null;
+
+        // If approving, select all line items
+        if (newStatus === 'Admin Accepted' || newStatus === 'Accepted') {
+             const quote = quotes.find(q => q.id === quoteId);
+             if (quote) {
+                 const allLineItemIds = quote.order.lineItems.map(i => i.id);
+                 updatedNegotiationDetails = {
+                     ...(quote.negotiation_details || {}),
+                     adminApprovedLineItems: allLineItemIds
+                 };
+                 negotiationUpdate = { negotiation_details: updatedNegotiationDetails };
+             }
+        }
+
+        const { error } = await quoteService.update(quoteId, { status: newStatus, ...negotiationUpdate });
         if (error) {
             showToast('Failed to update status', 'error');
         } else {
             showToast(`Quote marked as ${newStatus}`);
-            setQuotes(prev => prev.map(q => q.id === quoteId ? { ...q, status: newStatus } : q));
+            
+            setQuotes(prev => prev.map(q => q.id === quoteId ? { 
+                ...q, 
+                status: newStatus,
+                ...(updatedNegotiationDetails ? { negotiation_details: updatedNegotiationDetails } : {})
+            } : q));
+
             if (selectedQuote && selectedQuote.id === quoteId) {
-                setSelectedQuote(prev => prev ? { ...prev, status: newStatus } : null);
+                setSelectedQuote(prev => prev ? { 
+                    ...prev, 
+                    status: newStatus,
+                    ...(updatedNegotiationDetails ? { negotiation_details: updatedNegotiationDetails } : {})
+                } : null);
             }
 
             if (newStatus === 'Accepted') {
@@ -581,7 +609,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
             notes: '' 
         })).filter(r => r.price !== '');
 
-        const newStatus: QuoteRequest['status'] = selectedQuote.status === 'In Negotiation' ? 'In Negotiation' : 'Responded';
+        const newStatus: QuoteRequest['status'] = (selectedQuote.status === 'In Negotiation' || selectedQuote.status === 'Client Accepted') ? 'In Negotiation' : 'Responded';
 
         const newHistoryItem: NegotiationHistoryItem = {
             id: Date.now().toString(),
@@ -967,12 +995,119 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
     const getLineItemHistory = (lineItemId: number) => {
         if (!selectedQuote?.negotiation_details?.history) return [];
         return selectedQuote.negotiation_details.history
-            .filter(h => h.lineItemPrices?.some(p => p.lineItemId === lineItemId))
+            .filter(h => h.lineItemPrices?.some(p => p.lineItemId === lineItemId) || h.relatedLineItemId === lineItemId)
             .map(h => ({
                 ...h,
                 price: h.lineItemPrices?.find(p => p.lineItemId === lineItemId)?.price
             }))
-            .reverse();
+            .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    };
+
+    const handleSendChat = async (lineItemId: number) => {
+        if (!selectedQuote) return;
+        const chatState = chatStates[lineItemId] || { message: '', file: null };
+        if (!chatState.message.trim() && !chatState.file) return;
+
+        let attachmentUrl = '';
+        if (chatState.file) {
+            try {
+                const fileExt = chatState.file.name.split('.').pop();
+                const fileName = `${selectedQuote.id}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+                const { data, error } = await props.supabase.storage
+                    .from('quote-attachments')
+                    .upload(fileName, chatState.file);
+                
+                if (error) throw error;
+                if (data) attachmentUrl = data.path;
+            } catch (error: any) {
+                console.error('Upload error:', error);
+                showToast('Failed to upload attachment', 'error');
+                return;
+            }
+        }
+
+        const newHistoryItem: NegotiationHistoryItem = {
+            id: Date.now().toString(),
+            sender: 'factory',
+            message: chatState.message,
+            timestamp: new Date().toISOString(),
+            action: 'info',
+            relatedLineItemId: lineItemId,
+            attachments: attachmentUrl ? [attachmentUrl] : []
+        };
+
+        const updatedHistory = [...(selectedQuote.negotiation_details?.history || []), newHistoryItem];
+        const { error } = await quoteService.update(selectedQuote.id, {
+            negotiation_details: { ...selectedQuote.negotiation_details, history: updatedHistory }
+        });
+
+        if (error) showToast('Failed to send message', 'error');
+        else {
+            setSelectedQuote(prev => prev ? { ...prev, negotiation_details: { ...prev.negotiation_details, history: updatedHistory } } : null);
+            setChatStates(prev => ({ ...prev, [lineItemId]: { message: '', file: null } }));
+        }
+    };
+
+    const handleToggleLineItemApproval = async (lineItemId: number, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!selectedQuote) return;
+
+        const currentApprovals = selectedQuote.negotiation_details?.adminApprovedLineItems || [];
+        const isApproved = currentApprovals.includes(lineItemId);
+        
+        if (!isApproved) {
+            if (!window.confirm("Are you sure you want to approve this product list item?")) return;
+        }
+
+        let newApprovals;
+        if (isApproved) {
+            newApprovals = currentApprovals.filter((id: number) => id !== lineItemId);
+        } else {
+            newApprovals = [...currentApprovals, lineItemId];
+        }
+
+        const updatedNegotiationDetails = {
+            ...(selectedQuote.negotiation_details || {}),
+            adminApprovedLineItems: newApprovals
+        };
+
+        // Check statuses
+        const allLineItems = selectedQuote.order.lineItems;
+        const allAdminApproved = allLineItems.every(item => newApprovals.includes(item.id));
+        const clientApprovals = selectedQuote.negotiation_details?.clientApprovedLineItems || [];
+        const allClientApproved = allLineItems.every(item => clientApprovals.includes(item.id));
+
+        let newStatus = selectedQuote.status;
+        let toastMessage = '';
+        
+        if (allAdminApproved && allClientApproved) {
+            newStatus = 'Accepted';
+            toastMessage = 'All items approved by both parties. Quote Accepted!';
+        } else if (allAdminApproved) {
+            newStatus = 'Admin Accepted';
+            toastMessage = 'All items approved. Quote marked as Admin Approved.';
+        } else if (allClientApproved) {
+            newStatus = 'Client Accepted';
+        } else {
+            newStatus = 'In Negotiation';
+        }
+
+        const updates: any = { status: newStatus, negotiation_details: updatedNegotiationDetails };
+        if (newStatus === 'Accepted' && selectedQuote.status !== 'Accepted') {
+            updates.response_details = { ...(selectedQuote.response_details || {}), acceptedAt: new Date().toISOString() };
+        }
+
+        // Optimistic update
+        const updatedQuote = { ...selectedQuote, ...updates };
+        setSelectedQuote(updatedQuote);
+        setQuotes(prev => prev.map(q => q.id === selectedQuote.id ? updatedQuote : q));
+        await quoteService.update(selectedQuote.id, updates);
+
+        if (toastMessage && newStatus !== selectedQuote.status) showToast(toastMessage);
+
+        if (newStatus === 'Accepted' && selectedQuote.status !== 'Accepted') {
+             createCrmOrderFromQuote(updatedQuote);
+        }
     };
 
     if (selectedQuote) {
@@ -1113,92 +1248,385 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
                         {/* Left Column: Order Details */}
                         <div className="lg:col-span-2 space-y-8">
-                            <div>
-                                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center">
-                                    <Package size={20} className="mr-2 text-[#c20c0b]" /> Products & Specifications
+                            <div className="space-y-3">
+                                <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center mb-4">
+                                    <Package size={20} className="mr-2 text-[#c20c0b]" /> Product Specifications
                                 </h3>
-                                <div className="space-y-4">
-                                    {selectedQuote.order?.lineItems?.map((item, idx) => {
-                                        const isExpanded = expandedItems.includes(idx);
-                                        const itemResponse = selectedQuote.response_details?.lineItemResponses?.find(r => r.lineItemId === item.id);
-                                        const history = getLineItemHistory(item.id);
-                                        const isAccepted = selectedQuote.status === 'Accepted';
-                                        const showAgreedPrice = isAccepted;
-                                        const agreedPrice = (isAccepted && selectedQuote.response_details?.acceptedAt && itemResponse?.price) ? itemResponse.price : item.targetPrice;
+                                <div className="hidden md:grid grid-cols-12 gap-4 w-full text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider px-4 mb-2">
+                                    <div className="col-span-4 text-left">Product</div>
+                                    <div className="col-span-2 text-center">Qty</div>
+                                    <div className="col-span-2 text-right">Target</div>
+                                    <div className="col-span-2 text-right">Quoted</div>
+                                    <div className="col-span-2"></div>
+                                </div>
+                                
+                                {selectedQuote.order?.lineItems?.map((item, idx) => {
+                                    const isExpanded = expandedItems.includes(idx);
+                                    const itemResponse = selectedQuote.response_details?.lineItemResponses?.find(r => r.lineItemId === item.id);
+                                    const history = getLineItemHistory(item.id);
+                                    const isAccepted = selectedQuote.status === 'Accepted';
+                                    const isClientApproved = selectedQuote.negotiation_details?.clientApprovedLineItems?.includes(item.id);
+                                    const isAdminApproved = selectedQuote.negotiation_details?.adminApprovedLineItems?.includes(item.id);
 
-                                        return (
-                                            <div key={idx} className="bg-white/60 dark:bg-gray-800/40 rounded-xl overflow-hidden border border-gray-200 dark:border-white/10 shadow-sm transition-all duration-200">
-                                                <div onClick={() => toggleExpand(idx)} className={`p-5 flex justify-between items-center cursor-pointer transition-colors ${isExpanded ? 'bg-gray-50/50 dark:bg-gray-700/30' : 'hover:bg-gray-50/50 dark:hover:bg-gray-700/20'}`}>
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="bg-red-100 text-[#c20c0b] text-xs font-bold w-8 h-8 flex items-center justify-center rounded-md border border-red-200">#{idx + 1}</div>
-                                                        <div>
-                                                            <h4 className="font-bold text-gray-800 dark:text-white text-lg">{item.category}</h4>
-                                                            <p className="text-sm text-gray-500 dark:text-gray-400">{item.qty} {item.quantityType === 'container' ? '' : 'units'}</p>
-                                                        </div>
+                                    const showAgreedPrice = isAccepted;
+                                    const agreedPrice = (isAccepted && selectedQuote.response_details?.acceptedAt && itemResponse?.price)
+                                        ? itemResponse.price
+                                        : item.targetPrice;
+
+                                    // Group history into rows (Client Counter -> Factory Response)
+                                    const groupedHistory: { client?: { price: string; timestamp: string }; factory?: { price: string; timestamp: string } }[] = (() => {
+                                        const rows: { client?: { price: string; timestamp: string }; factory?: { price: string; timestamp: string } }[] = [];
+                                        let currentRow: { client?: { price: string; timestamp: string }; factory?: { price: string; timestamp: string } } = {};
+                                        history.forEach((h: { sender: string; price?: string; timestamp: string }) => {
+                                            if (h.sender === 'client') {
+                                                if (currentRow.factory) {
+                                                    rows.push(currentRow);
+                                                    currentRow = {};
+                                                }
+                                                currentRow.client = { price: h.price || '', timestamp: h.timestamp };
+                                            } else {
+                                                if (currentRow.client) {
+                                                    currentRow.factory = { price: h.price || '', timestamp: h.timestamp };
+                                                    rows.push(currentRow);
+                                                    currentRow = {};
+                                                } else {
+                                                    rows.push({ factory: { price: h.price || '', timestamp: h.timestamp } });
+                                                }
+                                            }
+                                        });
+                                        if (currentRow.client || currentRow.factory) rows.push(currentRow);
+                                        return rows.reverse();
+                                    })();
+
+                                    const acceptedHistoryRowIndex = isAccepted && agreedPrice
+                                        ? groupedHistory.findIndex(row => row.factory?.price === agreedPrice)
+                                        : -1;
+
+                                    return (
+                                        <div key={idx} className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-sm border border-gray-200 dark:border-white/10 overflow-hidden transition-all duration-200">
+                                            <div 
+                                                onClick={() => toggleExpand(idx)}
+                                                className={`p-4 grid grid-cols-1 md:grid-cols-12 gap-4 items-center cursor-pointer transition-colors ${isExpanded ? 'bg-gray-50 dark:bg-gray-800/50' : 'hover:bg-gray-50 dark:hover:bg-gray-800/30'}`}
+                                            >
+                                                {/* Product Info */}
+                                                <div className="md:col-span-4 flex items-center gap-3">
+                                                    <div className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 font-bold text-xs w-7 h-7 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 shrink-0">
+                                                        {idx + 1}
                                                     </div>
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="text-right">
-                                                            <p className="text-[10px] text-gray-500 dark:text-white uppercase font-bold tracking-wider">{showAgreedPrice ? 'Agreed Price' : 'Target Price'}</p>
-                                                            <p className={`text-xl font-bold ${showAgreedPrice ? 'text-green-600 dark:text-green-400' : 'text-[#c20c0b] dark:text-red-400'}`}>${showAgreedPrice ? agreedPrice : item.targetPrice}</p>
-                                                        </div>
-                                                        {isExpanded ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
+                                                    <div>
+                                                        <h4 className="font-bold text-gray-900 dark:text-white text-sm">{item.category}</h4>
+                                                        <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1">
+                                                            {item.fabricQuality} • {item.weightGSM} GSM
+                                                        </p>
                                                     </div>
                                                 </div>
 
-                                                {isExpanded && (
-                                                    <div className="p-6 border-t border-gray-100 dark:border-white/10 animate-fade-in">
-                                                        {/* Core Specs Grid */}
-                                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6">
-                                                            <div className="p-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg border border-gray-100 dark:border-white/10"> <p className="text-xs text-gray-500 dark:text-white mb-1">Fabric</p> <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.fabricQuality}</p> </div>
-                                                            <div className="p-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg border border-gray-100 dark:border-white/10"> <p className="text-xs text-gray-500 dark:text-white mb-1">Weight</p> <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.weightGSM} GSM</p> </div>
-                                                            {item.styleOption && <div className="p-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg border border-gray-100 dark:border-white/10"> <p className="text-xs text-gray-500 dark:text-white mb-1">Style</p> <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.styleOption}</p> </div>}
-                                                            {item.sleeveOption && <div className="p-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg border border-gray-100 dark:border-white/10"> <p className="text-xs text-gray-500 dark:text-white mb-1">Sleeve</p> <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.sleeveOption}</p> </div>}
-                                                        </div>
-                                                        {/* Size Breakdown */}
-                                                        <div className="mb-6">
-                                                            <p className="text-xs text-gray-500 dark:text-white uppercase font-bold tracking-wider mb-3">Size Breakdown</p>
-                                                            {Object.keys(item.sizeRatio).length > 0 ? (
-                                                                <div className="flex flex-wrap gap-2"> {Object.entries(item.sizeRatio)
-                                                                    .sort(([sizeA], [sizeB]) => SIZE_ORDER.indexOf(sizeA) - SIZE_ORDER.indexOf(sizeB))
-                                                                    .map(([size, ratio]) => ( <div key={size} className="flex flex-col items-center justify-center bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md min-w-[3rem] py-1.5"> <span className="text-xs font-bold text-gray-800 dark:text-white">{size}</span> <span className="text-[10px] text-gray-500 dark:text-white font-medium">{ratio}</span> </div> ))} </div>
+                                                {/* Qty */}
+                                                <div className="md:col-span-2 text-sm text-gray-700 dark:text-gray-200 md:text-center">
+                                                    <span className="md:hidden font-medium text-gray-500 mr-2">Qty:</span>
+                                                    {item.qty} {item.quantityType === 'container' ? '' : 'units'}
+                                                </div>
+
+                                                {/* Target Price */}
+                                                <div className="md:col-span-2 text-sm text-right flex items-center justify-end gap-2">
+                                                    <span className="md:hidden font-medium text-gray-500">Target:</span>
+                                                    <span className="font-medium text-gray-900 dark:text-white">${item.targetPrice}</span>
+                                                </div>
+
+                                                {/* Quoted Price */}
+                                                <div className="md:col-span-2 text-sm text-right">
+                                                    <span className="md:hidden font-medium text-gray-500 mr-2">Quoted:</span>
+                                                    {showAgreedPrice ? <span className="font-bold text-green-600 dark:text-green-400">${agreedPrice}</span> : (itemResponse?.price ? <span className="font-bold text-[#c20c0b] dark:text-red-400">${itemResponse.price}</span> : <span className="text-gray-400">-</span>)}
+                                                </div>
+
+                                                {/* Expand Icon */}
+                                                <div className="md:col-span-2 flex justify-end items-center gap-2">
+                                                    {(selectedQuote.status !== 'Pending' && selectedQuote.status !== 'Trashed') && (
+                                                        <button
+                                                            onClick={(e) => handleToggleLineItemApproval(item.id, e)}
+                                                            className={`p-2 rounded-full transition-all border ${
+                                                                isAdminApproved
+                                                                    ? 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800'
+                                                                    : isClientApproved
+                                                                        ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800'
+                                                                        : 'bg-white text-gray-400 border-gray-200 hover:bg-gray-50 hover:text-green-600 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700 dark:hover:bg-gray-700'
+                                                            }`}
+                                                            title={
+                                                                isClientApproved && isAdminApproved ? "Price agreed by both parties" :
+                                                                isAdminApproved ? "Approved by you. Waiting for Client." :
+                                                                isClientApproved ? "Client has approved. Click to accept." :
+                                                                "Click to approve this price"
+                                                            }
+                                                        >
+                                                            {isAdminApproved ? (
+                                                                isClientApproved ? <CheckCheck size={18} /> : <Check size={18} />
                                                             ) : (
-                                                                <div className="flex flex-wrap gap-2"> {item.sizeRange.map(size => ( <span key={size} className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-white text-xs font-medium rounded-full">{size}</span> ))} {item.customSize && <span className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-white text-xs font-medium rounded-full">{item.customSize}</span>} </div>
+                                                                <Circle size={18} />
                                                             )}
-                                                        </div>
-                                                        {/* Detailed Requirements */}
-                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                            <div className="bg-gray-50 dark:bg-gray-700/30 p-4 rounded-lg border border-gray-100 dark:border-white/10"> <p className="text-xs text-gray-500 dark:text-white uppercase font-bold tracking-wider mb-2">Packaging & Labeling</p> <div className="space-y-2 text-sm"> <div className="flex justify-between"><span className="text-gray-500 dark:text-white">Packaging:</span> <span className="font-medium text-gray-900 dark:text-white text-right">{item.packagingReqs}</span></div> {item.labelingReqs && <div className="flex justify-between"><span className="text-gray-500 dark:text-white">Labeling:</span> <span className="font-medium text-gray-900 dark:text-white text-right">{item.labelingReqs}</span></div>} </div> </div>
-                                                            {(item.trimsAndAccessories || item.specialInstructions) && <div className="bg-gray-50 dark:bg-gray-700/30 p-4 rounded-lg border border-gray-100 dark:border-white/10"> <p className="text-xs text-gray-500 dark:text-white uppercase font-bold tracking-wider mb-2">Additional Details</p> <div className="space-y-2 text-sm"> {item.trimsAndAccessories && <div><span className="text-gray-500 dark:text-white block mb-1">Trims:</span> <span className="font-medium text-gray-900 dark:text-white">{item.trimsAndAccessories}</span></div>} {item.specialInstructions && <div><span className="text-gray-500 dark:text-white block mb-1">Instructions:</span> <span className="font-medium text-gray-900 dark:text-white bg-yellow-50 dark:bg-yellow-900/20 px-2 py-1 rounded border border-yellow-100 dark:border-yellow-800 inline-block w-full">{item.specialInstructions}</span></div>} </div> </div>}
-                                                        </div>
-                                                        {/* Price History Log */}
-                                                        {history.length > 0 && <details className="group mt-4 border-t border-gray-100 dark:border-white/10 pt-3"> <summary className="flex items-center justify-between cursor-pointer text-xs font-semibold text-gray-500 dark:text-white hover:text-[#c20c0b] transition-colors list-none select-none"> <span className="flex items-center gap-1"><History size={12}/> Price History ({history.length})</span> <ChevronDown size={14} className="group-open:rotate-180 transition-transform" /> </summary> <div className="mt-3 space-y-2 pl-2 border-l-2 border-gray-100 dark:border-gray-700"> {history.map((h, i) => ( <div key={i} className="flex justify-between items-center text-xs"> <div> <span className={`font-medium ${h.sender === 'factory' ? 'text-[#c20c0b]' : 'text-blue-600'}`}>{h.sender === 'factory' ? 'You' : 'Client'}</span> <span className="text-gray-400 dark:text-white ml-2">{formatFriendlyDate(h.timestamp)}</span> </div> <span className="font-bold text-gray-700 dark:text-gray-300">${h.price}</span> </div> ))} </div> </details>}
-                                                        
-                                                        {/* Respond Button */}
-                                                        <div className="mt-6 pt-4 border-t border-gray-100 dark:border-white/10 flex justify-end">
-                                                            <button onClick={() => setIsResponseModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 font-semibold rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors">
-                                                                <MessageSquare size={16} /> Set Price
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                                {itemResponse && (
-                                                    <div className="bg-green-50/50 dark:bg-green-900/20 px-6 py-4 border-t border-green-100 dark:border-green-800 flex justify-between items-center">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="p-2 bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-200 rounded-full"><CheckCircle size={18}/></div>
-                                                            <div>
-                                                                <p className="text-sm font-bold text-green-900 dark:text-green-100">Quoted Price</p>
-                                                                {selectedQuote.response_details?.respondedAt && <p className="text-[10px] text-green-600 dark:text-green-300">{formatFriendlyDate(selectedQuote.response_details.respondedAt)}</p>}
+                                                        </button>
+                                                    )}
+                                                    {(history.length > 0 || itemResponse?.price) && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setHistoryModalData({ item, history, itemResponse, response_details: selectedQuote.response_details, isAccepted, agreedPrice });
+                                                            }}
+                                                            className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors rounded-full hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                                            title="View Price History"
+                                                        >
+                                                            <History size={18} />
+                                                        </button>
+                                                    )}
+                                                    {isExpanded ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
+                                                </div>
+                                            </div>
+                                            
+                                            {isExpanded && (
+                                                <div className="p-5 border-t border-gray-100 dark:border-white/10 bg-gray-50/50 dark:bg-gray-800/30 animate-fade-in">
+                                                    {/* Item Details Grid */}
+                                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                                        <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                                                            <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-3 py-2">
+                                                                <p className="text-xs text-white uppercase font-bold tracking-wider">Fabric</p>
+                                                            </div>
+                                                            <div className="p-3 bg-white dark:bg-gray-800">
+                                                                <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.fabricQuality}</p>
                                                             </div>
                                                         </div>
-                                                        <div className="text-right">
-                                                            <span className="text-2xl font-bold text-green-700 dark:text-green-400">${itemResponse.price}</span>
-                                                            <PriceDifference target={item.targetPrice} quoted={itemResponse.price || '0'} />
+                                                        <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                                                            <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-3 py-2">
+                                                                <p className="text-xs text-white uppercase font-bold tracking-wider">Weight</p>
+                                                            </div>
+                                                            <div className="p-3 bg-white dark:bg-gray-800">
+                                                                <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.weightGSM} GSM</p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                                                            <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-3 py-2">
+                                                                <p className="text-xs text-white uppercase font-bold tracking-wider">Quantity</p>
+                                                            </div>
+                                                            <div className="p-3 bg-white dark:bg-gray-800">
+                                                                <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.qty} {item.quantityType === 'container' ? '' : 'units'}</p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                                                            <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-3 py-2">
+                                                                <p className="text-xs text-white uppercase font-bold tracking-wider">{showAgreedPrice ? 'Agreed Price' : 'Target Price'}</p>
+                                                            </div>
+                                                            <div className="p-3 bg-white dark:bg-gray-800">
+                                                                <p className={`font-bold text-sm ${showAgreedPrice ? 'text-green-600 dark:text-green-400' : 'text-[#c20c0b] dark:text-red-400'}`}>${showAgreedPrice ? agreedPrice : item.targetPrice}</p>
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
+
+                                                    {/* Size Breakdown */}
+                                                    <div className="mb-6">
+                                                        <p className="text-xs text-gray-500 dark:text-gray-200 uppercase font-bold tracking-wider mb-3">Size Breakdown</p>
+                                                        {Object.keys(item.sizeRatio).length > 0 ? (
+                                                            <div className="flex flex-wrap gap-2">
+                                                                {Object.entries(item.sizeRatio)
+                                                                    .sort(([sizeA], [sizeB]) => SIZE_ORDER.indexOf(sizeA) - SIZE_ORDER.indexOf(sizeB))
+                                                                    .map(([size, ratio]) => (
+                                                                    <div key={size} className="flex flex-col items-center justify-center bg-white dark:bg-gray-700 border border-gray-200 dark:border-white/10 rounded-md min-w-[3rem] py-1.5">
+                                                                        <span className="text-xs font-bold text-gray-800 dark:text-white">{size}</span>
+                                                                        <span className="text-[10px] text-gray-500 dark:text-gray-200 font-medium">{ratio}</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex flex-wrap gap-2">
+                                                                {item.sizeRange.map(size => (
+                                                                    <span key={size} className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs font-medium rounded-full">{size}</span>
+                                                                ))}
+                                                                {item.customSize && <span className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-medium rounded-full">{item.customSize}</span>}
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Price Comparison Card */}
+                                                    {itemResponse?.price && (
+                                                        <div className="mb-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 shadow-sm">
+                                                            <div className="flex items-center justify-between mb-4">
+                                                                <h4 className="font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                                                                    <Scale size={18} className="text-blue-600" /> Price History
+                                                                </h4>
+                                                            </div>
+                                                            <div className="overflow-hidden rounded-lg border border-gray-100 dark:border-gray-700">
+                                                                <table className="min-w-full divide-y divide-gray-100 dark:divide-gray-700">
+                                                                    <thead className="bg-gray-50 dark:bg-gray-700/50">
+                                                                        <tr>
+                                                                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-1/2">Client Target Price</th>
+                                                                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-1/2">Your Quoted Price</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
+                                                                        {groupedHistory.map((row, i) => (
+                                                                            <tr key={i} className={i === acceptedHistoryRowIndex ? 'bg-green-50 dark:bg-green-900/20' : ''}>
+                                                                                <td className="px-4 py-3 whitespace-nowrap text-right align-top">
+                                                                                    {row.client ? (
+                                                                                        <div>
+                                                                                            <div className="text-lg font-bold text-blue-600 dark:text-blue-400">${row.client.price}</div>
+                                                                                            <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                                                                                {new Date(row.client.timestamp).toLocaleDateString()} <span className="opacity-75">{new Date(row.client.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    ) : <span className="text-gray-300 dark:text-gray-600">-</span>}
+                                                                                </td>
+                                                                                <td className="px-4 py-3 whitespace-nowrap text-right align-top">
+                                                                                    {row.factory ? (
+                                                                                        <div>
+                                                                                            <div className="text-lg font-bold text-[#c20c0b] dark:text-red-400">${row.factory.price}</div>
+                                                                                            <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                                                                                {new Date(row.factory.timestamp).toLocaleDateString()} <span className="opacity-75">{new Date(row.factory.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    ) : <span className="text-gray-300 dark:text-gray-600">-</span>}
+                                                                                </td>
+                                                                            </tr>
+                                                                        ))}
+                                                                        {/* Always show initial quote row at the bottom */}
+                                                                        <tr className={isAccepted && acceptedHistoryRowIndex === -1 ? 'bg-green-50 dark:bg-green-900/20' : ''}>
+                                                                            <td className="px-4 py-3 whitespace-nowrap text-right align-top">
+                                                                                <span className="text-gray-300 dark:text-gray-600">-</span>
+                                                                            </td>
+                                                                            <td className="px-4 py-3 whitespace-nowrap text-right align-top">
+                                                                                <div>
+                                                                                    <div className="text-lg font-bold text-[#c20c0b] dark:text-red-400">${itemResponse.price}</div>
+                                                                                    <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                                                                        {selectedQuote.response_details?.respondedAt ? (
+                                                                                            <>
+                                                                                                {new Date(selectedQuote.response_details.respondedAt).toLocaleDateString()} <span className="opacity-75">{new Date(selectedQuote.response_details.respondedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                                                                            </>
+                                                                                        ) : 'Initial Quote'}
+                                                                                    </div>
+                                                                                </div>
+                                                                            </td>
+                                                                        </tr>
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Detailed Requirements */}
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                                        <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                                                            <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-5 py-3">
+                                                                <p className="text-xs text-white uppercase font-bold tracking-wider">Packaging & Labeling</p>
+                                                            </div>
+                                                            <div className="p-5 bg-white dark:bg-gray-800 space-y-3 text-sm">
+                                                                <div className="flex justify-between items-start"><span className="text-gray-500 dark:text-gray-200">Packaging:</span> <span className="font-medium text-gray-900 dark:text-white text-right ml-4">{item.packagingReqs}</span></div>
+                                                                {item.labelingReqs && <div className="flex justify-between items-start"><span className="text-gray-500 dark:text-gray-200">Labeling:</span> <span className="font-medium text-gray-900 dark:text-white text-right ml-4">{item.labelingReqs}</span></div>}
+                                                            </div>
+                                                        </div>
+                                                        {(item.trimsAndAccessories || item.specialInstructions) && (
+                                                            <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                                                                <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-5 py-3">
+                                                                    <p className="text-xs text-white uppercase font-bold tracking-wider">Additional Details</p>
+                                                                </div>
+                                                                <div className="p-5 bg-white dark:bg-gray-800 space-y-3 text-sm">
+                                                                    {item.trimsAndAccessories && <div><span className="text-gray-500 dark:text-gray-200 block mb-1">Trims:</span> <span className="font-medium text-gray-900 dark:text-white">{item.trimsAndAccessories}</span></div>}
+                                                                    {item.specialInstructions && <div><span className="text-gray-500 dark:text-gray-200 block mb-1">Instructions:</span> <span className="font-medium text-gray-900 dark:text-white bg-yellow-50 dark:bg-yellow-900/30 px-2 py-1 rounded border border-yellow-100 dark:border-yellow-800 inline-block w-full">{item.specialInstructions}</span></div>}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Chat / History Section */}
+                                                    <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-200 dark:border-white/10 p-4 shadow-inner flex flex-col h-[400px] mb-6">
+                                                        <h4 className="text-sm font-bold text-gray-700 dark:text-white mb-3 flex items-center gap-2 px-1">
+                                                            <MessageSquare size={16}/> Discussion & History
+                                                        </h4>
+
+                                                        {/* Messages Area */}
+                                                        <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3 mb-3">
+                                                            {history.length === 0 ? (
+                                                                <div className="text-center text-gray-400 text-xs py-10">No history yet.</div>
+                                                            ) : (
+                                                                history.map((h, i) => (
+                                                                    <div key={i} className={`flex ${h.sender === 'factory' ? 'justify-end' : 'justify-start'}`}>
+                                                                        <div className={`max-w-[85%] rounded-2xl p-3 shadow-sm ${h.sender === 'factory' ? 'bg-[#c20c0b] text-white rounded-tr-none' : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-white/10 text-gray-800 dark:text-white rounded-tl-none'}`}>
+                                                                            <div className="flex justify-between items-center gap-4 mb-1">
+                                                                                <span className={`text-[10px] font-bold uppercase ${h.sender === 'factory' ? 'text-red-200' : 'text-gray-500 dark:text-gray-400'}`}>
+                                                                                    {h.sender === 'factory' ? 'You' : 'Client'}
+                                                                                </span>
+                                                                                <span className={`text-[10px] ${h.sender === 'factory' ? 'text-red-200' : 'text-gray-400 dark:text-gray-500'}`}>
+                                                                                    {new Date(h.timestamp).toLocaleDateString()}
+                                                                                </span>
+                                                                            </div>
+                                                                            {h.price && <div className="font-bold text-lg mb-1">${h.price}</div>}
+                                                                            {h.message && <p className="text-xs opacity-90 whitespace-pre-wrap">{h.message}</p>}
+                                                                            {h.attachments && h.attachments.length > 0 && (
+                                                                                <div className="mt-2 pt-2 border-t border-white/20">
+                                                                                    <div className="flex items-center gap-1 text-xs opacity-80">
+                                                                                        <Paperclip size={12} />
+                                                                                        <span>Attachment</span>
+                                                                                    </div>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                ))
+                                                            )}
+                                                        </div>
+
+                                                        {/* Input Area */}
+                                                        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-600 p-2 flex items-end gap-2">
+                                                            <button className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors relative" onClick={() => document.getElementById(`file-upload-${item.id}`)?.click()}>
+                                                                <Paperclip size={20} />
+                                                                {chatStates[item.id]?.file && <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>}
+                                                            </button>
+                                                            <input type="file" id={`file-upload-${item.id}`} className="hidden" onChange={(e) => e.target.files && setChatStates(prev => ({ ...prev, [item.id]: { ...prev[item.id], file: e.target.files![0] } }))} />
+
+                                                            <textarea
+                                                                value={chatStates[item.id]?.message || ''}
+                                                                onChange={(e) => setChatStates(prev => ({ ...prev, [item.id]: { ...prev[item.id], message: e.target.value } }))}
+                                                                placeholder="Type a message..."
+                                                                className="flex-1 bg-transparent border-none focus:ring-0 text-sm text-gray-800 dark:text-white resize-none max-h-24 py-2"
+                                                                rows={1}
+                                                                onKeyDown={(e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendChat(item.id); } }}
+                                                            />
+                                                            <button
+                                                                onClick={() => handleSendChat(item.id)}
+                                                                disabled={!chatStates[item.id]?.message?.trim() && !chatStates[item.id]?.file}
+                                                                className="p-2 bg-[#c20c0b] text-white rounded-lg hover:bg-[#a50a09] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                                            >
+                                                                <Send size={18} />
+                                                            </button>
+                                                        </div>
+                                                        {chatStates[item.id]?.file && (
+                                                            <div className="mt-2 text-xs text-gray-500 flex items-center justify-between bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
+                                                                <span className="truncate max-w-[200px]">{chatStates[item.id].file?.name}</span>
+                                                                <button onClick={() => setChatStates(prev => ({ ...prev, [item.id]: { ...prev[item.id], file: null } }))} className="text-red-500 hover:text-red-700"><X size={12}/></button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Respond Button */}
+                                                    <div className="mt-6 pt-4 border-t border-gray-100 dark:border-white/10 flex justify-end">
+                                                        <button onClick={() => setIsResponseModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 font-semibold rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors">
+                                                            <MessageSquare size={16} /> Set Price
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+
+                                {/* Totals Footer (Desktop) */}
+                                <div className="hidden md:grid grid-cols-12 gap-4 w-full px-4 mt-2 border-t border-gray-200 dark:border-white/10 pt-4">
+                                    <div className="col-span-4 text-right text-xs font-bold text-gray-500 dark:text-white uppercase tracking-wider self-center">Total Quantity</div>
+                                    <div className="col-span-2 text-center">
+                                        <p className="text-sm font-bold text-gray-900 dark:text-white">{selectedQuote.order?.lineItems?.reduce((acc, item) => acc + (parseInt(item.qty) || 0), 0).toLocaleString()}</p>
+                                    </div>
+                                    <div className="col-span-6"></div>
+                                </div>
+
+                                {/* Totals Footer (Mobile) */}
+                                <div className="md:hidden mt-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-white/10 flex justify-between items-center">
+                                    <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Total Quantity</span>
+                                    <span className="text-sm font-bold text-gray-900 dark:text-white">{selectedQuote.order?.lineItems?.reduce((acc, item) => acc + (parseInt(item.qty) || 0), 0).toLocaleString()}</span>
                                 </div>
                             </div>
 
@@ -1364,6 +1792,14 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                 </div>
                             </div>
                         </div>
+                    )}
+
+                    {/* Price History Modal */}
+                    {historyModalData && (
+                        <PriceHistoryModal
+                            data={historyModalData}
+                            onClose={() => setHistoryModalData(null)}
+                        />
                     )}
 
                     {/* Lightbox Modal */}
@@ -1736,5 +2172,109 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                 </div>
             )}
         </MainLayout>
+    );
+};
+
+const PriceHistoryModal: FC<{ 
+    data: { item: any, history: any[], itemResponse: any, response_details: any, isAccepted: boolean, agreedPrice: string }; 
+    onClose: () => void 
+}> = ({ data, onClose }) => {
+    const { item, history, itemResponse, response_details, isAccepted, agreedPrice } = data;
+    
+    // Group history into rows (Client Counter -> Factory Response)
+    const groupedHistory = React.useMemo(() => {
+        const rows: { client?: any, factory?: any }[] = [];
+        let currentRow: { client?: any, factory?: any } = {};
+
+        // Process history chronologically
+        history.forEach(h => {
+            if (h.sender === 'client') {
+                if (currentRow.factory) {
+                    rows.push(currentRow);
+                    currentRow = {};
+                }
+                currentRow.client = h;
+            } else {
+                if (currentRow.client) {
+                    currentRow.factory = h;
+                    rows.push(currentRow);
+                    currentRow = {};
+                } else {
+                    rows.push({ factory: h });
+                }
+            }
+        });
+        if (currentRow.client || currentRow.factory) rows.push(currentRow);
+        return rows.reverse(); // Show newest first
+    }, [history]);
+
+    const acceptedHistoryRowIndex = isAccepted && agreedPrice 
+        ? groupedHistory.findIndex(row => row.factory?.price === agreedPrice) 
+        : -1;
+
+    return (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[80] p-4 animate-fade-in">
+            <div className="bg-white dark:bg-gray-900/95 dark:backdrop-blur-xl p-6 rounded-2xl shadow-2xl w-full max-w-2xl border border-gray-200 dark:border-white/10 relative">
+                <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"><X size={24} /></button>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-1 flex items-center gap-2">
+                    <History size={20} className="text-blue-600"/> Price History
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">{item.category}</p>
+                
+                <div className="overflow-hidden rounded-lg border border-gray-100 dark:border-gray-700">
+                    <table className="min-w-full divide-y divide-gray-100 dark:divide-gray-700">
+                        <thead className="bg-gray-50 dark:bg-gray-700/50">
+                            <tr>
+                                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-1/2">Client Target Price</th>
+                                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-1/2">Your Quoted Price</th>
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
+                            {groupedHistory.map((row, i) => (
+                                <tr key={i} className={i === acceptedHistoryRowIndex ? 'bg-green-50 dark:bg-green-900/20' : ''}>
+                                    <td className="px-4 py-3 whitespace-nowrap text-right align-top">
+                                        {row.client ? (
+                                            <div>
+                                                <div className="text-lg font-bold text-blue-600 dark:text-blue-400">${row.client.price}</div>
+                                                <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                                    {new Date(row.client.timestamp).toLocaleDateString()} <span className="opacity-75">{new Date(row.client.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                                </div>
+                                            </div>
+                                        ) : <span className="text-gray-300 dark:text-gray-600">-</span>}
+                                    </td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-right align-top">
+                                        {row.factory ? (
+                                            <div>
+                                                <div className="text-lg font-bold text-[#c20c0b] dark:text-red-400">${row.factory.price}</div>
+                                                <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                                    {new Date(row.factory.timestamp).toLocaleDateString()} <span className="opacity-75">{new Date(row.factory.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                                </div>
+                                            </div>
+                                        ) : <span className="text-gray-300 dark:text-gray-600">-</span>}
+                                    </td>
+                                </tr>
+                            ))}
+                            <tr className={isAccepted && acceptedHistoryRowIndex === -1 ? 'bg-green-50 dark:bg-green-900/20' : ''}>
+                                <td className="px-4 py-3 whitespace-nowrap text-right align-top">
+                                    <span className="text-gray-300 dark:text-gray-600">-</span>
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap text-right align-top">
+                                    <div>
+                                        <div className="text-lg font-bold text-[#c20c0b] dark:text-red-400">${itemResponse?.price || '-'}</div>
+                                        <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                            {response_details?.respondedAt ? (
+                                                <>
+                                                    {new Date(response_details.respondedAt).toLocaleDateString()} <span className="opacity-75">{new Date(response_details.respondedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                                </>
+                                            ) : 'Initial Quote'}
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     );
 };
