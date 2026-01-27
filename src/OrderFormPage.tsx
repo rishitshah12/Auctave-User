@@ -1,13 +1,14 @@
 // Import necessary React tools: FC (Functional Component type), ReactNode (for rendering children), useRef (for accessing DOM elements), and useState (for managing data).
 import React, { FC, ReactNode, useRef, useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 // Import specific icons from the 'lucide-react' library to use in the form UI.
 import {
-    Shirt, Package, Award, Weight, Palette, DollarSign, Map as MapIcon, Box, Tag, ChevronLeft, Ruler, Scissors, Image as ImageIcon, FileText, Upload, AlertCircle, Globe, Anchor, Plus, Trash2, Copy, X
+    Shirt, Package, Award, Weight, Palette, DollarSign, Map as MapIcon, Box, Tag, ChevronLeft, Ruler, Scissors, Image as ImageIcon, FileText, Upload, AlertCircle, Globe, Anchor, Plus, Trash2, Copy, X, ChevronRight
 } from 'lucide-react';
 // Import the main layout wrapper which provides the sidebar and header structure.
 import { MainLayout } from '../src/MainLayout';
 // Import the TypeScript definition for the order form data structure.
-import { OrderFormData } from '../src/types';
+import { OrderFormData, QuoteRequest } from '../src/types';
 
 // Define the properties (props) that this component expects to receive from its parent (App.tsx).
 interface OrderFormPageProps {
@@ -25,8 +26,12 @@ interface OrderFormPageProps {
     
     // --- Page Specific Props ---
     // Function provided by App.tsx to handle the actual submission logic (saving to DB, etc.).
-    handleSubmitOrderForm: (formData: OrderFormData, files: File[]) => void; 
+    handleSubmitOrderForm: (formData: OrderFormData, files: File[]) => void;
+    handleAddToQuoteRequest: (quoteId: string, formData: OrderFormData, files: File[]) => void;
+    quoteRequests: QuoteRequest[];
 }
+
+const generateId = () => Date.now() + Math.random();
 
 const COUNTRIES = [
     "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Cabo Verde", "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo (Congo-Brazzaville)", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czechia (Czech Republic)", "Democratic Republic of the Congo", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Eswatini (fmr. 'Swaziland')", "Ethiopia", "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Holy See", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar (formerly Burma)", "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Korea", "North Macedonia", "Norway", "Oman", "Pakistan", "Palau", "Palestine State", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Korea", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria", "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States of America", "Uruguay", "Uzbekistan", "Vanuatu", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"
@@ -246,6 +251,26 @@ const FileDropZone: FC<{
 }> = ({ label, accept, multiple, onFilesSelected, icon, selectedFiles, previews }) => {
     const [isDragging, setIsDragging] = useState(false);
 
+    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+
+    const validateFiles = (files: File[]) => {
+        const validFiles: File[] = [];
+        const invalidFiles: string[] = [];
+
+        files.forEach(file => {
+            if (file.size <= MAX_FILE_SIZE) {
+                validFiles.push(file);
+            } else {
+                invalidFiles.push(file.name);
+            }
+        });
+
+        if (invalidFiles.length > 0 && window.showToast) {
+            window.showToast(`File(s) too large (max 50MB): ${invalidFiles.join(', ')}`, 'error');
+        }
+        return validFiles;
+    };
+
     const handleDragOver = (e: React.DragEvent) => {
         e.preventDefault();
         setIsDragging(true);
@@ -260,13 +285,22 @@ const FileDropZone: FC<{
         e.preventDefault();
         setIsDragging(false);
         if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-            onFilesSelected(Array.from(e.dataTransfer.files));
+            const files = Array.from(e.dataTransfer.files);
+            const validFiles = validateFiles(files);
+            if (validFiles.length > 0) {
+                onFilesSelected(validFiles);
+            }
         }
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
-            onFilesSelected(Array.from(e.target.files));
+            const files = Array.from(e.target.files);
+            const validFiles = validateFiles(files);
+            if (validFiles.length > 0) {
+                onFilesSelected(validFiles);
+            }
+            e.target.value = ''; // Reset input to allow re-selection
         }
     };
 
@@ -292,7 +326,7 @@ const FileDropZone: FC<{
                     <span className="font-semibold text-[#c20c0b]">Click to upload</span> or drag and drop
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-200 mb-4">
-                    {accept.replace(/\./g, '').toUpperCase().split(',').join(', ')} (Max 10MB)
+                    {accept.replace(/\./g, '').toUpperCase().split(',').join(', ')} (Max 50MB)
                 </p>
                 <input 
                     type="file" 
@@ -349,35 +383,92 @@ const FileDropZone: FC<{
     );
 };
 
+// --- Quote Selection Card Component ---
+const QuoteSelectionCard: FC<{ quote: QuoteRequest, onSelect: () => void }> = ({ quote, onSelect }) => {
+    // Calculate total quantity for units
+    const totalUnits = quote.order?.lineItems?.reduce((sum, item) => {
+        return item.quantityType === 'units' ? sum + (parseInt(item.qty) || 0) : sum;
+    }, 0) || 0;
+    
+    // Get unique categories
+    const categories = Array.from(new Set(quote.order?.lineItems?.map(i => i.category) || [])).join(', ');
+
+    return (
+        <div onClick={onSelect} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-all group">
+            <div className="flex justify-between items-start mb-3">
+                <div>
+                    <div className="flex items-center gap-2">
+                        <p className="font-bold text-gray-800 dark:text-white">RFQ #{quote.id.slice(0, 8)}</p>
+                        <span className={`px-2 py-0.5 text-[10px] font-semibold rounded-full border ${
+                            quote.status === 'Accepted' ? 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800' : 
+                            quote.status === 'Pending' ? 'bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800' : 
+                            'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600'
+                        }`}>
+                            {quote.status}
+                        </span>
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Created on {new Date(quote.submittedAt).toLocaleDateString()}
+                    </p>
+                </div>
+                <div className="text-right">
+                     <p className="text-sm font-medium text-gray-900 dark:text-white">{quote.factory?.name || 'General Inquiry'}</p>
+                     <p className="text-xs text-gray-500 dark:text-gray-400">{quote.order?.shippingCountry || 'N/A'}</p>
+                </div>
+            </div>
+            
+            <div className="bg-gray-50 dark:bg-gray-800/50 rounded p-3 text-sm text-gray-600 dark:text-gray-300 border border-gray-100 dark:border-gray-700">
+                <div className="flex justify-between mb-1">
+                    <span className="text-gray-500 dark:text-gray-400 text-xs uppercase font-semibold">Products</span>
+                    <span className="font-medium truncate max-w-[200px] text-right">{categories || 'No products'}</span>
+                </div>
+                <div className="flex justify-between">
+                    <span className="text-gray-500 dark:text-gray-400 text-xs uppercase font-semibold">Volume</span>
+                    <span className="font-medium">{quote.order?.lineItems?.length || 0} Line Items {totalUnits > 0 ? `(${totalUnits.toLocaleString()} units)` : ''}</span>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// Define the OrderFormPage component using the props interface defined above.
+
+
+
 // --- Helper Component ---
 // A small reusable component to render a form field with a label and an icon.
-const FormField: FC<{ icon: ReactNode; label: string; children: ReactNode; required?: boolean }> = ({ icon, label, children, required }) => (
+const FormField: FC<{ icon: ReactNode; label: string; children: ReactNode; required?: boolean; error?: string }> = ({ icon, label, children, required, error }) => (
     <div>
         {/* Render the label text above the input */}
-        <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
+        <label className={`block text-sm font-medium mb-1 ${error ? 'text-red-600 dark:text-red-400' : 'text-gray-700 dark:text-white'}`}>
             {label} {required && <span className="text-red-500">*</span>}
         </label>
         <div className="relative">
             {/* Position the icon inside the input area on the left side */}
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <div className={`absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none ${error ? 'text-red-500' : ''}`}>
                 {icon}
             </div>
             {/* Render the actual input element (passed as children) */}
             {children}
         </div>
+        {error && <p className="mt-1 text-xs text-red-600 dark:text-red-400 animate-fade-in">{error}</p>}
     </div>
 );
 
 // Define the OrderFormPage component using the props interface defined above.
 export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
     // Destructure (extract) specific functions we need from the props object.
-    const { handleSetCurrentPage, handleSubmitOrderForm } = props;
+    const { handleSetCurrentPage, handleSubmitOrderForm, handleAddToQuoteRequest, quoteRequests } = props;
+
+    const [orderType, setOrderType] = useState<'new' | 'existing'>('new');
+    const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
+    const [errors, setErrors] = useState<Record<string, string>>({});
 
     // --- State Management ---
     // Initialize the form state with default values so the fields aren't empty when the user arrives.
     const [formState, setFormState] = useState<OrderFormData>({
         lineItems: [{
-            id: Date.now(),
+            id: generateId(),
             category: 'T-shirt',
             qty: '',
             fabricQuality: '',
@@ -405,13 +496,21 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
     const [samplePreviews, setSamplePreviews] = useState<string[]>([]);
     const [docFiles, setDocFiles] = useState<File[]>([]);
     const [availablePorts, setAvailablePorts] = useState<string[]>([]);
+    const [isLoadingPorts, setIsLoadingPorts] = useState(false);
     const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
+    const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+    const tabsContainerRef = useRef<HTMLDivElement>(null);
 
     const containerOptions = ["20ft FCL", "40ft FCL", "20ft HC FCL", "40ft HC FCL"];
 
     useEffect(() => {
         if (formState.shippingCountry) {
-            fetchPortsForCountry(formState.shippingCountry).then(setAvailablePorts);
+            setIsLoadingPorts(true);
+            setAvailablePorts([]); // Clear previous ports to avoid confusion
+            fetchPortsForCountry(formState.shippingCountry).then(ports => {
+                setAvailablePorts(ports);
+                setIsLoadingPorts(false);
+            });
         } else {
             setAvailablePorts([]);
         }
@@ -419,6 +518,8 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
 
     // Create a reference to the hidden file input element so we can reset it if needed.
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const getInputClass = (error?: string) => `w-full pl-10 p-3 border rounded-md focus:outline-none focus:ring-2 transition-colors ${error ? 'border-red-500 focus:ring-red-500 bg-red-50 dark:bg-red-900/10 text-gray-900 dark:text-white' : 'border-gray-300 dark:border-gray-600 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white'}`;
 
     // --- Event Handlers ---
 
@@ -435,16 +536,57 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
         // Update the form state, keeping previous values (...prev) and overwriting the changed field.
         setFormState(prev => {
             if (name === 'shippingCountry') {
+                if (orderType === 'existing') return prev;
+                setErrors(prev => ({ ...prev, shippingCountry: '' }));
                 return { ...prev, [name]: value, shippingPort: '' };
             }
             if (name === 'shippingPort') {
+                if (orderType === 'existing') return prev;
+                setErrors(prev => ({ ...prev, shippingPort: '' }));
                 return { ...prev, [name]: value };
             }
             // Update active line item
             const newItems = [...prev.lineItems];
+            // Clear error for this field
+            if (errors[`lineItems[${activeItemIndex}].${name}`]) {
+                setErrors(prev => ({ ...prev, [`lineItems[${activeItemIndex}].${name}`]: '' }));
+            }
             newItems[activeItemIndex] = { ...newItems[activeItemIndex], [name]: value };
             return { ...prev, lineItems: newItems };
         }); 
+    };
+
+    const handleOrderTypeChange = (type: 'new' | 'existing') => {
+        setOrderType(type);
+        setSelectedQuoteId(null);
+        // Reset form to default state
+        setFormState({
+            lineItems: [{
+                id: generateId(),
+                category: 'T-shirt',
+                qty: '',
+                fabricQuality: '',
+                weightGSM: '',
+                targetPrice: '',
+                packagingReqs: '',
+                labelingReqs: '',
+                styleOption: '',
+                sizeRange: [],
+                customSize: '',
+                sizeRatio: {},
+                sleeveOption: '',
+                trimsAndAccessories: '',
+                specialInstructions: '',
+                quantityType: 'units'
+            }],
+            shippingCountry: '',
+            shippingPort: ''
+        });
+        setErrors({});
+        setSampleFiles([]);
+        setDocFiles([]);
+        setSamplePreviews([]);
+        setActiveItemIndex(0);
     };
 
     const handleSizeCheckbox = (size: string) => {
@@ -456,8 +598,31 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
             
             const newItems = [...prev.lineItems];
             newItems[activeItemIndex] = { ...currentItem, sizeRange: newRange };
+            setErrors(prev => ({ ...prev, [`lineItems[${activeItemIndex}].sizeRange`]: '' }));
             return { ...prev, lineItems: newItems };
         });
+    };
+
+    const handleSelectQuote = (quoteId: string) => {
+        const quote = quoteRequests.find(q => q.id === quoteId);
+        if (quote) {
+            setSelectedQuoteId(quoteId);
+            setFormState({
+                lineItems: [{
+                    id: generateId(),
+                    category: 'T-shirt',
+                    qty: '', fabricQuality: '', weightGSM: '', targetPrice: '', packagingReqs: '', labelingReqs: '', styleOption: '',
+                    sizeRange: [], customSize: '', sizeRatio: {}, sleeveOption: '', trimsAndAccessories: '', specialInstructions: '', quantityType: 'units'
+                }],
+                shippingCountry: quote.order.shippingCountry,
+                shippingPort: quote.order.shippingPort
+            });
+            setErrors({});
+            setSampleFiles([]);
+            setDocFiles([]);
+            setSamplePreviews([]);
+            setActiveItemIndex(0);
+        }
     };
 
     const onSampleFilesSelected = (files: File[]) => {
@@ -465,10 +630,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
         
         // Create previews
         const newPreviews = files.map(file => URL.createObjectURL(file));
-        setSamplePreviews(prev => {
-            prev.forEach(url => URL.revokeObjectURL(url)); // Cleanup old
-            return newPreviews;
-        });
+        setSamplePreviews(newPreviews);
     };
     
     useEffect(() => {
@@ -483,7 +645,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
         setFormState(prev => ({
             ...prev,
             lineItems: [...prev.lineItems, {
-                id: Date.now(),
+                id: generateId(),
                 category: 'T-shirt',
                 qty: '',
                 fabricQuality: '',
@@ -504,6 +666,16 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
         setActiveItemIndex(formState.lineItems.length);
     };
 
+    useEffect(() => {
+        if (tabsContainerRef.current) {
+            const activeTab = tabsContainerRef.current.children[activeItemIndex] as HTMLElement;
+            if (activeTab) {
+                activeTab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            }
+        }
+    }, [activeItemIndex]);
+
+
     const handleRemoveItem = (index: number) => {
         if (formState.lineItems.length <= 1) return;
         setFormState(prev => ({
@@ -517,7 +689,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
         const itemToDuplicate = formState.lineItems[index];
         const newItem = {
             ...JSON.parse(JSON.stringify(itemToDuplicate)), // Deep copy to avoid reference issues
-            id: Date.now(),
+            id: generateId(),
         };
 
         setFormState(prev => {
@@ -533,6 +705,9 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
         // Prevent the default browser behavior (which would reload the page).
         e.preventDefault(); 
 
+        const newErrors: Record<string, string> = {};
+        let firstErrorId: string | null = null;
+
         // --- Line Item Validation ---
         const lineItemRequiredFields = [
             { key: 'category', label: 'Product Category' },
@@ -542,81 +717,127 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
             { key: 'packagingReqs', label: 'Packaging Option' },
         ];
 
-        for (let i = 0; i < formState.lineItems.length; i++) {
-            const item = formState.lineItems[i];
-            for (const field of lineItemRequiredFields) {
-                const value = (item as any)[field.key];
-                if (!value || (typeof value === 'string' && value.trim() === '')) {
-                    if (window.showToast) window.showToast(`Product ${i + 1}: ${field.label} is required.`, 'error');
-                    return;
+        formState.lineItems.forEach((item, index) => {
+            lineItemRequiredFields.forEach(field => {
+                const val = (item as any)[field.key];
+                if (!val || (typeof val === 'string' && val.trim() === '')) {
+                    const key = `lineItems[${index}].${field.key}`;
+                    newErrors[key] = `${field.label} is required`;
+                    if (!firstErrorId) firstErrorId = key;
                 }
-            }
+            });
+
             if (item.sizeRange.length === 0) {
-                if (window.showToast) window.showToast(`Product ${i + 1}: Size Range is required.`, 'error');
-                return;
+                const key = `lineItems[${index}].sizeRange`;
+                newErrors[key] = 'Size Range is required';
+                if (!firstErrorId) firstErrorId = key;
             }
-        }
+        });
 
         // --- Main Form Validation ---
         if (!formState.shippingCountry || formState.shippingCountry.trim() === '') {
-             if (window.showToast) window.showToast(`Destination Country is required.`, 'error');
-             return;
+             newErrors['shippingCountry'] = 'Destination Country is required';
+             if (!firstErrorId) firstErrorId = 'shippingCountry';
         }
         if (!formState.shippingPort || formState.shippingPort.trim() === '') {
-             if (window.showToast) window.showToast(`Destination Port is required.`, 'error');
-             return;
+             newErrors['shippingPort'] = 'Destination Port is required';
+             if (!firstErrorId) firstErrorId = 'shippingPort';
+        } else {
+            const isKnownCountry = COUNTRIES.includes(formState.shippingCountry);
+            if (isKnownCountry && !availablePorts.includes(formState.shippingPort)) {
+                newErrors['shippingPort'] = 'Invalid port for selected country';
+                if (!firstErrorId) firstErrorId = 'shippingPort';
+            }
         }
 
-        if (formState.shippingCountry && availablePorts.length > 0 && !availablePorts.includes(formState.shippingPort)) {
-            if (window.showToast) window.showToast('The selected Destination Port is not valid for the chosen country.', 'error');
+        setErrors(newErrors);
+
+        if (Object.keys(newErrors).length > 0) {
+            if (window.showToast) window.showToast('Please fix the errors in the form.', 'error');
+            if (firstErrorId) {
+                // If error is in a line item, switch to that tab
+                const match = firstErrorId.match(/lineItems\[(\d+)\]/);
+                if (match) {
+                    setActiveItemIndex(parseInt(match[1]));
+                }
+                // Scroll to the error field
+                setTimeout(() => {
+                    const element = document.getElementById(firstErrorId!);
+                    if (element) {
+                        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        element.focus();
+                    }
+                }, 100);
+            }
             return;
         }
 
-        // Open summary modal instead of submitting directly
+        // Open summary modal for both new and existing RFQs
         setIsSummaryModalOpen(true);
     };
 
     const handleConfirmSubmit = () => {
-        // Call the parent function passed via props to process the data.
-        handleSubmitOrderForm(formState, [...sampleFiles, ...docFiles]); 
+        if (orderType === 'existing' && selectedQuoteId) {
+            handleAddToQuoteRequest(selectedQuoteId, formState, [...sampleFiles, ...docFiles]);
+        } else {
+            handleSubmitOrderForm(formState, [...sampleFiles, ...docFiles]);
+        }
         setIsSummaryModalOpen(false);
     };
 
     const handleResetForm = () => {
-        if (window.confirm('Are you sure you want to reset the form? All entered data will be lost.')) {
-            setFormState({
-                lineItems: [{
-                    id: Date.now(),
-                    category: 'T-shirt',
-                    qty: '',
-                    fabricQuality: '',
-                    weightGSM: '',
-                    targetPrice: '',
-                    packagingReqs: '',
-                    labelingReqs: '',
-                    styleOption: '',
-                    sizeRange: [],
-                    customSize: '',
-                    sizeRatio: {},
-                    sleeveOption: '',
-                    trimsAndAccessories: '',
-                    specialInstructions: ''
-                }],
-                shippingCountry: '',
-                shippingPort: ''
-            });
-            setSampleFiles([]);
-            setSamplePreviews([]);
-            setDocFiles([]);
-            setAvailablePorts([]);
-            setActiveItemIndex(0);
-            if (window.showToast) window.showToast('Form reset successfully.');
-        }
+        setIsResetModalOpen(true);
+    };
+
+    const confirmReset = () => {
+        setFormState({
+            lineItems: [{
+                id: generateId(),
+                category: 'T-shirt',
+                qty: '',
+                fabricQuality: '',
+                weightGSM: '',
+                targetPrice: '',
+                packagingReqs: '',
+                labelingReqs: '',
+                styleOption: '',
+                sizeRange: [],
+                customSize: '',
+                sizeRatio: {},
+                sleeveOption: '',
+                trimsAndAccessories: '',
+                specialInstructions: '',
+                quantityType: 'units'
+            }],
+            shippingCountry: '',
+            shippingPort: ''
+        });
+        setErrors({});
+        setSampleFiles([]);
+        setSamplePreviews([]);
+        setDocFiles([]);
+        setAvailablePorts([]);
+        setActiveItemIndex(0);
+        setIsResetModalOpen(false);
+        if (window.showToast) window.showToast('Form reset successfully.');
     };
 
     const sizeOptions = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'];
     const activeItem = formState.lineItems[activeItemIndex];
     const isUpperBody = ['T-shirt', 'Polo Shirt', 'Hoodies', 'Jackets', 'Shirts', 'Casual Shirts'].includes(activeItem.category);
+
+    const totalEstimatedCost = formState.lineItems.reduce((sum, item) => {
+        if (item.quantityType === 'units' && item.qty && item.targetPrice) {
+            const qty = parseFloat(item.qty);
+            const price = parseFloat(item.targetPrice);
+            if (!isNaN(qty) && !isNaN(price)) {
+                return sum + (qty * price);
+            }
+        }
+        return sum;
+    }, 0);
+
+    const hasContainerItems = formState.lineItems.some(item => item.quantityType === 'container' && item.targetPrice);
 
     const setQuantityType = (type: 'units' | 'container') => {
         setFormState(prev => {
@@ -647,13 +868,44 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                         </button>
                     </div>
 
+                    <div className="flex p-1 bg-gray-100 dark:bg-gray-700 rounded-xl mb-8">
+                        <button type="button" onClick={() => handleOrderTypeChange('new')} className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-2 ${orderType === 'new' ? 'bg-white dark:bg-gray-800 shadow-sm text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
+                            <Plus size={16} />
+                            Create New RFQ
+                        </button>
+                        <button type="button" onClick={() => handleOrderTypeChange('existing')} className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-2 ${orderType === 'existing' ? 'bg-white dark:bg-gray-800 shadow-sm text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
+                            <Package className="h-5 w-5" />
+                            Add to Existing RFQ
+                        </button>
+                    </div>
+
+                    {orderType === 'existing' && selectedQuoteId === null && (
+                        <div className="animate-fade-in">
+                            <h3 className="text-xl font-semibold text-gray-700 dark:text-white mb-4">Select an existing RFQ</h3>
+                            <div className="space-y-3 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
+                                {quoteRequests.filter(q => q.status !== 'Trashed').length > 0 ? (
+                                    quoteRequests.filter(q => q.status !== 'Trashed').map(quote => (
+                                        <QuoteSelectionCard key={quote.id} quote={quote} onSelect={() => handleSelectQuote(quote.id)} />
+                                    ))
+                                ) : (
+                                    <p className="text-center text-gray-500 py-8">You have no existing RFQs to add to.</p>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     {/* The Form Element */}
-                    <form onSubmit={onFormSubmit} className="space-y-8">
+                    {(orderType === 'new' || selectedQuoteId !== null) && (
+                        <form onSubmit={onFormSubmit} className="space-y-8 animate-fade-in">
                         
                         {/* Line Item Tabs */}
-                        <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-2">
+                        <div className="relative mb-6 group">
+                            <div 
+                                ref={tabsContainerRef}
+                                className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory"
+                            >
                             {formState.lineItems.map((item, index) => (
-                                <div key={item.id} className="flex items-center">
+                                <div key={item.id} className="flex items-center snap-start flex-shrink-0">
                                     <button
                                         type="button"
                                         onClick={() => setActiveItemIndex(index)}
@@ -696,6 +948,12 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                             >
                                 <Plus size={16} /> Add Product
                             </button>
+                            </div>
+                            {/* Scroll Hint Gradient */}
+                            <div className="absolute right-0 top-0 bottom-2 w-8 bg-gradient-to-l from-white dark:from-gray-900 to-transparent pointer-events-none md:hidden"></div>
+                            <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 md:hidden pointer-events-none text-gray-400 opacity-50">
+                                <ChevronRight size={16} />
+                            </div>
                         </div>
 
                         {/* Section 1: Basic Details */}
@@ -703,8 +961,8 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                             <legend className="text-lg font-semibold text-gray-700 dark:text-white mb-4">Basic Details</legend>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {/* Product Category Dropdown */}
-                                <FormField label="Product Category" icon={<Shirt className="h-5 w-5 text-gray-400" />} required>
-                                    <select name="category" value={activeItem.category} onChange={handleFormChange} className="w-full pl-10 p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white appearance-none">
+                                <FormField label="Product Category" icon={<Shirt className="h-5 w-5 text-gray-400" />} required error={errors[`lineItems[${activeItemIndex}].category`]}>
+                                    <select id={`lineItems[${activeItemIndex}].category`} name="category" value={activeItem.category} onChange={handleFormChange} className={`${getInputClass(errors[`lineItems[${activeItemIndex}].category`])} appearance-none`}>
                                         <option>T-shirt</option> <option>Polo Shirt</option> <option>Hoodies</option> <option>Jeans</option> <option>Jackets</option> <option>Shirts</option> <option>Casual Shirts</option> <option>Trousers</option>
                                     </select>
                                 </FormField>
@@ -719,12 +977,12 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                         </button>
                                     </div>
                                     {activeItem.quantityType === 'units' ? (
-                                        <FormField label="Order Quantity (Units)" icon={<Package className="h-5 w-5 text-gray-400" />} required>
-                                            <input type="number" min="0" name="qty" value={activeItem.qty} onChange={handleFormChange} placeholder="e.g., 5000" className="w-full pl-10 p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
+                                        <FormField label="Order Quantity (Units)" icon={<Package className="h-5 w-5 text-gray-400" />} required error={errors[`lineItems[${activeItemIndex}].qty`]}>
+                                            <input id={`lineItems[${activeItemIndex}].qty`} type="number" min="0" name="qty" value={activeItem.qty} onChange={handleFormChange} placeholder="e.g., 5000" className={getInputClass(errors[`lineItems[${activeItemIndex}].qty`])} />
                                         </FormField>
                                     ) : (
-                                        <FormField label="Container Load" icon={<Package className="h-5 w-5 text-gray-400" />} required>
-                                            <select name="qty" value={activeItem.qty} onChange={handleFormChange} className="w-full pl-10 p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white appearance-none">
+                                        <FormField label="Container Load" icon={<Package className="h-5 w-5 text-gray-400" />} required error={errors[`lineItems[${activeItemIndex}].qty`]}>
+                                            <select id={`lineItems[${activeItemIndex}].qty`} name="qty" value={activeItem.qty} onChange={handleFormChange} className={`${getInputClass(errors[`lineItems[${activeItemIndex}].qty`])} appearance-none`}>
                                                 <option value="">Select Container Type</option>
                                                 {containerOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                                             </select>
@@ -732,12 +990,12 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                     )}
                                 </div>
                                 {/* Fabric Weight Input */}
-                                <FormField label="Fabric Weight (GSM)" icon={<Weight className="h-5 w-5 text-gray-400" />} required>
-                                    <input type="number" min="0" name="weightGSM" value={activeItem.weightGSM} onChange={handleFormChange} placeholder="e.g., 180" className="w-full pl-10 p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
+                                <FormField label="Fabric Weight (GSM)" icon={<Weight className="h-5 w-5 text-gray-400" />} required error={errors[`lineItems[${activeItemIndex}].weightGSM`]}>
+                                    <input id={`lineItems[${activeItemIndex}].weightGSM`} type="number" min="0" name="weightGSM" value={activeItem.weightGSM} onChange={handleFormChange} placeholder="e.g., 180" className={getInputClass(errors[`lineItems[${activeItemIndex}].weightGSM`])} />
                                 </FormField>
                                 {/* Fabric Quality Input */}
-                                <FormField label="Fabric Quality/Composition" icon={<Award className="h-5 w-5 text-gray-400" />} required>
-                                    <input type="text" name="fabricQuality" value={activeItem.fabricQuality} onChange={handleFormChange} placeholder="e.g., 100% Organic Cotton" className="w-full pl-10 p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
+                                <FormField label="Fabric Quality/Composition" icon={<Award className="h-5 w-5 text-gray-400" />} required error={errors[`lineItems[${activeItemIndex}].fabricQuality`]}>
+                                    <input id={`lineItems[${activeItemIndex}].fabricQuality`} type="text" name="fabricQuality" value={activeItem.fabricQuality} onChange={handleFormChange} placeholder="e.g., 100% Organic Cotton" className={getInputClass(errors[`lineItems[${activeItemIndex}].fabricQuality`])} />
                                 </FormField>
                             </div>
                         </fieldset>
@@ -748,7 +1006,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                             <div className="space-y-6">
                                 {/* 1. Size Range */}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-white mb-2">Size Range <span className="text-red-500">*</span></label>
+                                    <label id={`lineItems[${activeItemIndex}].sizeRange`} className={`block text-sm font-medium mb-2 ${errors[`lineItems[${activeItemIndex}].sizeRange`] ? 'text-red-600 dark:text-red-400' : 'text-gray-700 dark:text-white'}`}>Size Range <span className="text-red-500">*</span></label>
                                     <div className="flex flex-wrap gap-3">
                                         {sizeOptions.map(size => (
                                             <label key={size} className="inline-flex items-center bg-gray-50 dark:bg-gray-800 px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
@@ -776,6 +1034,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                             <input type="text" name="customSize" value={activeItem.customSize} onChange={handleFormChange} placeholder="Enter custom sizes (e.g., 4XL, 5XL)" className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm" />
                                         </div>
                                     )}
+                                    {errors[`lineItems[${activeItemIndex}].sizeRange`] && <p className="mt-1 text-xs text-red-600 dark:text-red-400 animate-fade-in">{errors[`lineItems[${activeItemIndex}].sizeRange`]}</p>}
                                 </div>
 
                                 {/* 2. Size Ratio */}
@@ -813,8 +1072,8 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
 
                                 {/* 3. Sleeve Options (Upper Body Only) */}
                                 {isUpperBody && (
-                                    <FormField label="Sleeve Options" icon={<Shirt className="h-5 w-5 text-gray-400" />}>
-                                        <select name="sleeveOption" value={activeItem.sleeveOption} onChange={handleFormChange} className="w-full pl-10 p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white">
+                                    <FormField label="Sleeve Options" icon={<Shirt className="h-5 w-5 text-gray-400" />} error={errors[`lineItems[${activeItemIndex}].sleeveOption`]}>
+                                        <select id={`lineItems[${activeItemIndex}].sleeveOption`} name="sleeveOption" value={activeItem.sleeveOption} onChange={handleFormChange} className={getInputClass(errors[`lineItems[${activeItemIndex}].sleeveOption`])}>
                                             <option value="">Select Sleeve Type</option>
                                             <option>Short Sleeve</option>
                                             <option>Long Sleeve</option>
@@ -826,13 +1085,13 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                 )}
 
                                 {/* 4. Packaging Option */}
-                                <FormField label="Packaging Option" icon={<Box className="h-5 w-5 text-gray-400" />} required>
-                                    <input type="text" name="packagingReqs" value={activeItem.packagingReqs} onChange={handleFormChange} placeholder="e.g., Poly bag with warning text" className="w-full pl-10 p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
+                                <FormField label="Packaging Option" icon={<Box className="h-5 w-5 text-gray-400" />} required error={errors[`lineItems[${activeItemIndex}].packagingReqs`]}>
+                                    <input id={`lineItems[${activeItemIndex}].packagingReqs`} type="text" name="packagingReqs" value={activeItem.packagingReqs} onChange={handleFormChange} placeholder="e.g., Poly bag with warning text" className={getInputClass(errors[`lineItems[${activeItemIndex}].packagingReqs`])} />
                                 </FormField>
 
                                 {/* 5. Trims & Accessories */}
-                                <FormField label="Trims & Accessories" icon={<Scissors className="h-5 w-5 text-gray-400" />}>
-                                    <input type="text" name="trimsAndAccessories" value={activeItem.trimsAndAccessories} onChange={handleFormChange} placeholder="e.g., YKK Zippers, Metal Buttons" className="w-full pl-10 p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
+                                <FormField label="Trims & Accessories" icon={<Scissors className="h-5 w-5 text-gray-400" />} error={errors[`lineItems[${activeItemIndex}].trimsAndAccessories`]}>
+                                    <input id={`lineItems[${activeItemIndex}].trimsAndAccessories`} type="text" name="trimsAndAccessories" value={activeItem.trimsAndAccessories} onChange={handleFormChange} placeholder="e.g., YKK Zippers, Metal Buttons" className={getInputClass(errors[`lineItems[${activeItemIndex}].trimsAndAccessories`])} />
                                 </FormField>
 
                                 {/* 6. Sample Photo Upload */}
@@ -862,14 +1121,14 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
 
                                 {/* 8. Special Instructions */}
                                 <div className="md:col-span-2">
-                                    <FormField label="Special Instructions" icon={<AlertCircle className="h-5 w-5 text-gray-400" />}>
-                                        <textarea name="specialInstructions" value={activeItem.specialInstructions} onChange={handleFormChange} rows={3} placeholder="Any other specific requirements..." className="w-full pl-10 p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white"></textarea>
+                                    <FormField label="Special Instructions" icon={<AlertCircle className="h-5 w-5 text-gray-400" />} error={errors[`lineItems[${activeItemIndex}].specialInstructions`]}>
+                                        <textarea id={`lineItems[${activeItemIndex}].specialInstructions`} name="specialInstructions" value={activeItem.specialInstructions} onChange={handleFormChange} rows={3} placeholder="Any other specific requirements..." className={getInputClass(errors[`lineItems[${activeItemIndex}].specialInstructions`])}></textarea>
                                     </FormField>
                                 </div>
 
                                 {/* 9. Target Price */}
-                                <FormField label="Target Price per Unit (USD)" icon={<DollarSign className="h-5 w-5 text-gray-400" />}>
-                                    <input type="number" min="0" step="0.01" name="targetPrice" value={activeItem.targetPrice} onChange={handleFormChange} placeholder="e.g., 4.50" className="w-full pl-10 p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
+                                <FormField label="Target Price per Unit (USD)" icon={<DollarSign className="h-5 w-5 text-gray-400" />} error={errors[`lineItems[${activeItemIndex}].targetPrice`]}>
+                                    <input id={`lineItems[${activeItemIndex}].targetPrice`} type="number" min="0" step="0.01" name="targetPrice" value={activeItem.targetPrice} onChange={handleFormChange} placeholder="e.g., 4.50" className={getInputClass(errors[`lineItems[${activeItemIndex}].targetPrice`])} />
                                 </FormField>
                             </div>
                         </fieldset>
@@ -879,15 +1138,20 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                             <legend className="text-lg font-semibold text-gray-700 dark:text-white mb-4">Logistics & Commercials</legend>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {/* Destination Country */}
-                                <FormField label="Destination Country" icon={<Globe className="h-5 w-5 text-gray-400" />} required>
-                                    <input type="text" name="shippingCountry" value={formState.shippingCountry} onChange={handleFormChange} list="countries" placeholder="Select Country" className="w-full pl-10 p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
+                                <FormField label="Destination Country" icon={<Globe className="h-5 w-5 text-gray-400" />} required error={errors.shippingCountry}>
+                                    <input id="shippingCountry" type="text" name="shippingCountry" value={formState.shippingCountry} onChange={handleFormChange} list="countries" placeholder="Select Country" className={getInputClass(errors.shippingCountry)} disabled={orderType === 'existing'} />
                                     <datalist id="countries">
                                         {COUNTRIES.map(c => <option key={c} value={c} />)}
                                     </datalist>
                                 </FormField>
                                 {/* Destination Port */}
-                                <FormField label="Destination Port" icon={<Anchor className="h-5 w-5 text-gray-400" />} required>
-                                    <input type="text" name="shippingPort" value={formState.shippingPort} onChange={handleFormChange} list="ports" placeholder="Select Port" className="w-full pl-10 p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
+                                <FormField label="Destination Port" icon={<Anchor className="h-5 w-5 text-gray-400" />} required error={errors.shippingPort}>
+                                    <input id="shippingPort" type="text" name="shippingPort" value={formState.shippingPort} onChange={handleFormChange} list="ports" placeholder={isLoadingPorts ? "Loading ports..." : "Select Port"} className={getInputClass(errors.shippingPort)} disabled={orderType === 'existing'} />
+                                    {isLoadingPorts && (
+                                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#c20c0b]"></div>
+                                        </div>
+                                    )}
                                     <datalist id="ports">
                                         {availablePorts.map(p => <option key={p} value={p} />)}
                                     </datalist>
@@ -900,19 +1164,20 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                             <button type="button" onClick={handleResetForm} className="w-full md:w-auto px-6 py-3 text-gray-700 dark:text-white font-semibold bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition">
                                 Reset Form
                             </button>
-                            <button type="submit" className="w-full md:w-auto px-8 py-3 text-white rounded-lg font-semibold bg-[#c20c0b] hover:bg-[#a50a09] transition shadow-md"> 
-                                Submit Quote Request 
+                            <button type="submit" className="w-full md:w-auto px-8 py-3 text-white rounded-lg font-semibold bg-[#c20c0b] hover:bg-[#a50a09] transition shadow-md">
+                                {orderType === 'new' ? 'Submit Quote Request' : 'Add Products to RFQ'}
                             </button> 
                         </div>
                     </form>
+                    )}
                 </div>
 
                 {/* Summary Modal */}
                 {isSummaryModalOpen && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 animate-fade-in">
+                    createPortal(<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 animate-fade-in">
                         <div className="bg-white/90 backdrop-blur-xl dark:bg-gray-900/95 dark:backdrop-blur-xl rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto flex flex-col border border-gray-200 dark:border-gray-700">
                             <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center sticky top-0 bg-white dark:bg-gray-900 z-10">
-                                <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Review Your Order</h2>
+                                <h2 className="text-2xl font-bold text-gray-800 dark:text-white">{orderType === 'existing' ? 'Review Addition to RFQ' : 'Review Your Order'}</h2>
                                 <button onClick={() => setIsSummaryModalOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors"><X size={24} /></button>
                             </div>
                             
@@ -931,6 +1196,56 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                         </div>
                                     </div>
                                 </div>
+
+                                {/* Cost Breakdown Section */}
+                                {(totalEstimatedCost > 0 || hasContainerItems) && (
+                                    <div className="bg-green-50 dark:bg-green-900/20 p-5 rounded-xl border border-green-100 dark:border-green-800">
+                                        <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-3 flex items-center">
+                                            <DollarSign size={20} className="mr-2 text-green-600 dark:text-green-400"/> Estimated Cost Breakdown
+                                        </h3>
+                                        <div className="space-y-2">
+                                            {formState.lineItems.map((item, idx) => {
+                                                if (!item.targetPrice) return null;
+                                                
+                                                if (item.quantityType === 'units') {
+                                                    if (!item.qty) return null;
+                                                    const qty = parseFloat(item.qty);
+                                                    const price = parseFloat(item.targetPrice);
+                                                    if (isNaN(qty) || isNaN(price)) return null;
+                                                    const itemTotal = qty * price;
+                                                    return (
+                                                        <div key={item.id} className="flex justify-between text-sm">
+                                                            <span className="text-gray-600 dark:text-gray-300">
+                                                                {idx + 1}. {item.category} ({qty.toLocaleString()} x ${price.toFixed(2)})
+                                                            </span>
+                                                            <span className="font-medium text-gray-900 dark:text-white">
+                                                                ${itemTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                } else {
+                                                    return (
+                                                        <div key={item.id} className="flex justify-between text-sm">
+                                                            <span className="text-gray-600 dark:text-gray-300">
+                                                                {idx + 1}. {item.category} ({item.qty} @ ${item.targetPrice}/unit)
+                                                            </span>
+                                                            <span className="font-medium text-gray-500 dark:text-gray-400 italic">
+                                                                N/A (Container)
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                }
+                                            })}
+                                            <div className="border-t border-green-200 dark:border-green-700 pt-2 mt-2 flex justify-between items-center">
+                                                <span className="font-bold text-gray-800 dark:text-white">Total Estimated Target</span>
+                                                <span className="font-bold text-green-700 dark:text-green-400 text-lg">
+                                                    ${totalEstimatedCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    {hasContainerItems && <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-1"> + Container Costs</span>}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* Products Section */}
                                 <div>
@@ -979,11 +1294,35 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                     Edit Order
                                 </button>
                                 <button onClick={handleConfirmSubmit} className="px-8 py-3 bg-[#c20c0b] text-white font-bold rounded-xl hover:bg-[#a50a09] shadow-md transition-transform transform hover:scale-105">
-                                    Confirm & Submit
+                                    {orderType === 'existing' ? 'Confirm & Add to RFQ' : 'Confirm & Submit'}
                                 </button>
                             </div>
                         </div>
-                    </div>
+                    </div>, document.body)
+                )}
+
+                {/* Reset Confirmation Modal */}
+                {isResetModalOpen && (
+                    createPortal(<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 animate-fade-in">
+                        <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-md border border-gray-200 dark:border-gray-700 p-6">
+                            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Reset Form?</h3>
+                            <p className="text-gray-600 dark:text-gray-300 mb-6">Are you sure you want to reset the form? All entered data will be lost.</p>
+                            <div className="flex justify-end gap-3">
+                                <button 
+                                    onClick={() => setIsResetModalOpen(false)}
+                                    className="px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button 
+                                    onClick={confirmReset}
+                                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                                >
+                                    Reset Form
+                                </button>
+                            </div>
+                        </div>
+                    </div>, document.body)
                 )}
             </div>
         </MainLayout>

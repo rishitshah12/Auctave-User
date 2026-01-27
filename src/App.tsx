@@ -733,6 +733,75 @@ const App: FC = () => {
         }
     };
 
+    const addToQuoteRequest = async (quoteId: string, newOrderDetails: OrderFormData, files: File[]) => {
+        showToast('Adding to quote request...', 'success');
+        try {
+            setGlobalLoading(true);
+            const { data: existingQuote, error: fetchError } = await quoteService.getQuoteById(quoteId);
+            if (fetchError) throw fetchError;
+            if (!existingQuote) throw new Error("Quote not found");
+
+            const uploadedFilePaths: string[] = [];
+            if (files && files.length > 0) {
+                for (const file of files) {
+                    const filePath = `${user.id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+                    const { data, error } = await supabase.storage
+                        .from('quote-attachments')
+                        .upload(filePath, file);
+                    if (error) throw error;
+                    if (data) uploadedFilePaths.push(data.path);
+                }
+            }
+
+            const existingLineItems = existingQuote.order_details.lineItems || [];
+            const newLineItems = newOrderDetails.lineItems.map(item => ({
+                ...item,
+                id: Date.now() + Math.random() * 1000 // ensure unique id
+            }));
+            const combinedLineItems = [...existingLineItems, ...newLineItems];
+
+            const updatedOrderDetails = {
+                ...existingQuote.order_details,
+                lineItems: combinedLineItems,
+            };
+
+            const existingFiles = existingQuote.files || [];
+            const combinedFiles = [...existingFiles, ...uploadedFilePaths];
+
+            const newStatus = ['Accepted', 'Declined'].includes(existingQuote.status) ? 'In Negotiation' : existingQuote.status;
+
+            const { error: updateError } = await quoteService.update(quoteId, {
+                order_details: updatedOrderDetails,
+                files: combinedFiles,
+                status: newStatus,
+            });
+
+            if (updateError) throw updateError;
+
+            showToast('Successfully added to quote request!');
+            await fetchUserQuotes();
+            
+            const transformedQuote: QuoteRequest = {
+                id: existingQuote.id,
+                factory: existingQuote.factory_data,
+                order: updatedOrderDetails,
+                status: newStatus as any,
+                submittedAt: existingQuote.created_at,
+                acceptedAt: existingQuote.accepted_at || existingQuote.response_details?.acceptedAt,
+                userId: existingQuote.user_id,
+                files: combinedFiles,
+                response_details: existingQuote.response_details,
+                negotiation_details: existingQuote.negotiation_details
+            };
+            handleSetCurrentPage('quoteDetail', transformedQuote);
+        } catch (error: any) {
+            console.error('Add to quote error:', error);
+            showToast('Failed to add to quote: ' + (error.message || 'Unknown error'), 'error');
+        } finally {
+            setGlobalLoading(false);
+        }
+    };
+
     // --- Gemini API Call (Live) ---
     
     // Function to call the Gemini AI API via Supabase Edge Function
@@ -814,6 +883,7 @@ const App: FC = () => {
         handleSetCurrentPage,
         handleSignOut,
         isAdmin,
+    quoteRequests,
         supabase,
         darkMode,
         globalLoading: loadingCount > 0,
@@ -1249,6 +1319,8 @@ const App: FC = () => {
             case 'orderForm': return <OrderFormPage
                 {...layoutProps}
                 handleSubmitOrderForm={handleSubmitOrderForm}
+                handleAddToQuoteRequest={addToQuoteRequest}
+                quoteRequests={quoteRequests}
             />;
             case 'crm': return (
                 <MainLayout {...layoutProps}>

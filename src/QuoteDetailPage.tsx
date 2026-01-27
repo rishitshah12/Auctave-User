@@ -1,10 +1,12 @@
 import React, { useState, FC, useRef, useEffect, ReactNode, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { MainLayout } from './MainLayout';
 import { QuoteRequest, NegotiationHistoryItem } from './types';
 import { quoteService } from './quote.service';
 import {
     ChevronLeft, ChevronRight, MapPin, Calendar, Package, Shirt, DollarSign, Clock, ArrowRight,
-    FileText, MessageSquare, CheckCircle, AlertCircle, X, Globe, Download, ChevronDown, ChevronUp, History, Printer, Check, CheckCheck, Eye, RefreshCw, Image as ImageIcon, Edit, Scale, Paperclip, Send, Circle
+    FileText, MessageSquare, CheckCircle, AlertCircle, X, Globe, Download, ChevronDown, ChevronUp, History, Printer, Check, CheckCheck, Eye, RefreshCw, Image as ImageIcon, Edit, Scale, Paperclip, Send, Circle,
+    Layers, Scissors, Factory, ShieldCheck, Truck, LifeBuoy, ClipboardList, Plus, Trash2, GripVertical
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -37,6 +39,31 @@ const formatFriendlyDate = (dateString: string) => {
 
 const SIZE_ORDER = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL'];
 
+interface ExecutionStep {
+    title: string;
+    description: string;
+}
+
+const DEFAULT_EXECUTION_PLAN: ExecutionStep[] = [
+    { title: "Raw Material Sourcing", description: "Fabric and trims will be sourced from our centralized warehouse to ensure consistency and availability." },
+    { title: "Fabric Cutting", description: "Cutting will be carried out at one of our trusted partner factories using standardized cutting methods." },
+    { title: "Production Allocation", description: "Production will be distributed across two verified partner factories to maintain timelines and capacity efficiency." },
+    { title: "Quality Control", description: "Daily in-line quality checks at partner factories. Final quality inspection upon receipt at the factori.com warehouse." },
+    { title: "Packaging", description: "Finished goods will be packed in bundled form as per agreed packaging instructions." },
+    { title: "Dispatch & Delivery", description: "Goods will be dispatched after final QC and delivered to Pune. Logistics coordination will be managed post-production." },
+    { title: "Risk Mitigation", description: "In case of delays at any single unit, production will be balanced across partner factories to safeguard timelines." }
+];
+
+const STEP_COLORS = [
+    { bg: 'bg-blue-100 dark:bg-blue-900/20', border: 'border-blue-500', text: 'text-blue-600 dark:text-blue-400', subtleBorder: 'border-blue-200 dark:border-blue-800' },
+    { bg: 'bg-purple-100 dark:bg-purple-900/20', border: 'border-purple-500', text: 'text-purple-600 dark:text-purple-400', subtleBorder: 'border-purple-200 dark:border-purple-800' },
+    { bg: 'bg-emerald-100 dark:bg-emerald-900/20', border: 'border-emerald-500', text: 'text-emerald-600 dark:text-emerald-400', subtleBorder: 'border-emerald-200 dark:border-emerald-800' },
+    { bg: 'bg-amber-100 dark:bg-amber-900/20', border: 'border-amber-500', text: 'text-amber-600 dark:text-amber-400', subtleBorder: 'border-amber-200 dark:border-amber-800' },
+    { bg: 'bg-pink-100 dark:bg-pink-900/20', border: 'border-pink-500', text: 'text-pink-600 dark:text-pink-400', subtleBorder: 'border-pink-200 dark:border-pink-800' },
+    { bg: 'bg-cyan-100 dark:bg-cyan-900/20', border: 'border-cyan-500', text: 'text-cyan-600 dark:text-cyan-400', subtleBorder: 'border-cyan-200 dark:border-cyan-800' },
+    { bg: 'bg-rose-100 dark:bg-rose-900/20', border: 'border-rose-500', text: 'text-rose-600 dark:text-rose-400', subtleBorder: 'border-rose-200 dark:border-rose-800' },
+];
+
 export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
     selectedQuote: initialQuote,
     handleSetCurrentPage,
@@ -47,6 +74,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
     // Use local state for the quote so we can refresh it if needed
     const [quote, setQuote] = useState<QuoteRequest | null>(initialQuote);
     const [isNegotiationModalOpen, setIsNegotiationModalOpen] = useState(false);
+    const [isExecutionPlanModalOpen, setIsExecutionPlanModalOpen] = useState(false);
     const [negotiatingItem, setNegotiatingItem] = useState<any | null>(null);
     const [historyModalData, setHistoryModalData] = useState<any | null>(null);
     const quoteDetailsRef = useRef<HTMLDivElement>(null);
@@ -54,6 +82,8 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
     const [fileLinks, setFileLinks] = useState<{ name: string; url: string }[]>([]);
     const [expandedItems, setExpandedItems] = useState<number[]>([]);
     const [chatStates, setChatStates] = useState<Record<number, { message: string; file: File | null }>>({});
+    const [expandedExecutionSteps, setExpandedExecutionSteps] = useState<number[]>([]);
+    const [isExecutionPlanExpanded, setIsExecutionPlanExpanded] = useState(true);
 
     const toggleExpand = (index: number) => {
         setExpandedItems(prev => 
@@ -102,6 +132,14 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
 
         fetchFreshQuoteData();
     }, [initialQuote]);
+
+    useEffect(() => {
+        if (quote) {
+             const plan = (quote as any).execution_plan || DEFAULT_EXECUTION_PLAN;
+             // Initialize all steps as expanded by default
+             setExpandedExecutionSteps(plan.map((_: any, i: number) => i));
+        }
+    }, [quote]);
 
     const fetchSignedUrls = useCallback(async () => {
         console.log('[QuoteDetailPage] fetchSignedUrls called, quote.files:', quote?.files);
@@ -334,6 +372,23 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         } catch (err: any) {
             console.error("PDF generation error:", err);
             showToast(`Failed to generate PDF: ${err.message || err}`, 'error');
+        }
+    };
+
+    const handleSaveExecutionPlan = async (newPlan: ExecutionStep[]) => {
+        if (!quote) return;
+        const updatedQuote = { ...quote, execution_plan: newPlan };
+        setQuote(updatedQuote as any);
+        setIsExecutionPlanModalOpen(false);
+        
+        const { error } = await quoteService.update(quote.id, {
+            execution_plan: newPlan
+        } as any);
+        
+        if (error) {
+            showToast('Failed to update execution plan', 'error');
+        } else {
+            showToast('Execution plan updated successfully');
         }
     };
 
@@ -651,6 +706,27 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         }
     };
 
+    const getStepIcon = (index: number, title: string) => {
+        const lowerTitle = title.toLowerCase();
+        if (lowerTitle.includes('sourcing') || lowerTitle.includes('material')) return <Layers size={20} />;
+        if (lowerTitle.includes('cutting')) return <Scissors size={20} />;
+        if (lowerTitle.includes('production') || lowerTitle.includes('allocation')) return <Factory size={20} />;
+        if (lowerTitle.includes('quality') || lowerTitle.includes('qc')) return <ShieldCheck size={20} />;
+        if (lowerTitle.includes('packaging') || lowerTitle.includes('pack')) return <Package size={20} />;
+        if (lowerTitle.includes('dispatch') || lowerTitle.includes('delivery') || lowerTitle.includes('logistics')) return <Truck size={20} />;
+        if (lowerTitle.includes('risk') || lowerTitle.includes('mitigation')) return <LifeBuoy size={20} />;
+        return <ClipboardList size={20} />;
+    };
+
+    const toggleExecutionStep = (index: number) => {
+        setExpandedExecutionSteps(prev => 
+            prev.includes(index) ? prev.filter(i => i !== index) : [...prev, index]
+        );
+    };
+
+    const executionPlan: ExecutionStep[] = (quote as any).execution_plan || DEFAULT_EXECUTION_PLAN;
+    const showExecutionPlan = (status !== 'Pending' && status !== 'Trashed') || layoutProps.isAdmin;
+
     return (
         <MainLayout {...layoutProps}>
             <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -752,14 +828,14 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                 const isExpanded = expandedItems.includes(index);
                                 const itemResponse = response_details?.lineItemResponses?.find(r => r.lineItemId === item.id);
                                 const history = getLineItemHistory(item.id);
-                                
+
                                 const isClientApproved = quote.negotiation_details?.clientApprovedLineItems?.includes(item.id);
                                 const isAdminApproved = quote.negotiation_details?.adminApprovedLineItems?.includes(item.id);
 
                                 const isAccepted = status === 'Accepted';
                                 const showAgreedPrice = isAccepted;
-                                const agreedPrice = (isAccepted && response_details?.acceptedAt && itemResponse?.price) 
-                                    ? itemResponse.price 
+                                const agreedPrice = (isAccepted && response_details?.acceptedAt && itemResponse?.price)
+                                    ? itemResponse.price
                                     : item.targetPrice;
 
                                 return (
@@ -1023,21 +1099,119 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                 );
                             })}
 
-                            {/* Totals Footer (Desktop) */}
-                            <div className="hidden md:grid grid-cols-12 gap-4 w-full px-4 mt-2 border-t border-gray-200 dark:border-white/10 pt-4">
-                                <div className="col-span-4 text-right text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider self-center">Total Quantity</div>
-                                <div className="col-span-2 text-center">
-                                    <p className="text-sm font-bold text-gray-900 dark:text-white">{quote.order?.lineItems?.reduce((acc, item) => acc + (parseInt(item.qty) || 0), 0).toLocaleString()}</p>
-                                </div>
-                                <div className="col-span-6"></div>
-                            </div>
+                            {/* Totals Footer */}
+                            {(() => {
+                                const totalTargetCost = order.lineItems.reduce((acc, item) => {
+                                    if (item.quantityType === 'units' && item.qty && item.targetPrice) {
+                                        const qty = parseFloat(item.qty);
+                                        const price = parseFloat(item.targetPrice);
+                                        if (!isNaN(qty) && !isNaN(price)) {
+                                            return acc + (qty * price);
+                                        }
+                                    }
+                                    return acc;
+                                }, 0);
+                                return (
+                                    <>
+                                        {/* Desktop */}
+                                        <div className="hidden md:grid grid-cols-12 gap-4 w-full px-4 mt-2 border-t border-gray-200 dark:border-white/10 pt-4">
+                                            <div className="col-span-4 text-right text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider self-center">Totals</div>
+                                            <div className="col-span-2 text-center">
+                                                <p className="text-sm font-bold text-gray-900 dark:text-white">{quote.order?.lineItems?.reduce((acc, item) => acc + (parseInt(item.qty) || 0), 0).toLocaleString()}</p>
+                                            </div>
+                                            <div className="col-span-2 text-right">
+                                                {totalTargetCost > 0 && (
+                                                    <p className="text-sm font-bold text-gray-900 dark:text-white" title="Total Estimated Target Cost">
+                                                        ${totalTargetCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <div className="col-span-4"></div>
+                                        </div>
 
-                            {/* Totals Footer (Mobile) */}
-                            <div className="md:hidden mt-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-white/10 flex justify-between items-center">
-                                <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Total Quantity</span>
-                                <span className="text-sm font-bold text-gray-900 dark:text-white">{quote.order?.lineItems?.reduce((acc, item) => acc + (parseInt(item.qty) || 0), 0).toLocaleString()}</span>
-                            </div>
+                                        {/* Mobile */}
+                                        <div className="md:hidden mt-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-white/10 flex justify-between items-center">
+                                            <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Total Quantity</span>
+                                            <span className="text-sm font-bold text-gray-900 dark:text-white">{quote.order?.lineItems?.reduce((acc, item) => acc + (parseInt(item.qty) || 0), 0).toLocaleString()}</span>
+                                        </div>
+                                        {totalTargetCost > 0 && (
+                                            <div className="md:hidden mt-2 bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-white/10 flex justify-between items-center">
+                                                <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Est. Target Cost</span>
+                                                <span className="text-sm font-bold text-gray-900 dark:text-white">${totalTargetCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                            </div>
+                                        )}
+                                    </>
+                                );
+                            })()}
                         </div>
+
+                        {/* Execution Plan Section */}
+                        {showExecutionPlan && (
+                            <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden p-6 sm:p-8">
+                                <div 
+                                    className="flex justify-between items-center mb-8 cursor-pointer"
+                                    onClick={() => setIsExecutionPlanExpanded(!isExecutionPlanExpanded)}
+                                >
+                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
+                                        <ClipboardList size={24} className="mr-3 text-[#c20c0b]" /> Execution Plan
+                                    </h3>
+                                    <div className="flex items-center gap-3">
+                                    {layoutProps.isAdmin && isExecutionPlanExpanded && (
+                                        <button 
+                                            onClick={() => setIsExecutionPlanModalOpen(true)}
+                                            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                                        >
+                                            <Edit size={16} /> Edit Plan
+                                        </button>
+                                    )}
+                                    {isExecutionPlanExpanded ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
+                                    </div>
+                                </div>
+
+                                {isExecutionPlanExpanded && (
+                                <div className="relative animate-fade-in">
+                                    {/* Connecting Line */}
+                                    <div className="absolute left-6 top-4 bottom-4 w-0.5 bg-gray-200 dark:bg-gray-700"></div>
+
+                                    <div className="space-y-8">
+                                        {executionPlan.map((step, index) => {
+                                            const color = STEP_COLORS[index % STEP_COLORS.length];
+                                            const isExpanded = expandedExecutionSteps.includes(index);
+                                            return (
+                                                <div 
+                                                    key={index} 
+                                                    className="relative flex items-start group animate-fade-in"
+                                                    style={{ animationDelay: `${index * 150}ms`, animationFillMode: 'both' }}
+                                                >
+                                                    {/* Step Number/Icon */}
+                                                    <div 
+                                                        className={`relative z-10 flex items-center justify-center w-12 h-12 rounded-full bg-white dark:bg-gray-800 border-2 shadow-sm shrink-0 group-hover:scale-110 transition-transform duration-300 cursor-pointer ${color.border} ${color.text} ${color.bg}`}
+                                                        onClick={() => toggleExecutionStep(index)}
+                                                    >
+                                                        {getStepIcon(index, step.title)}
+                                                    </div>
+                                                    
+                                                    {/* Content */}
+                                                    <div 
+                                                        className={`ml-6 flex-1 cursor-pointer rounded-xl border p-4 transition-all ${isExpanded ? 'bg-white dark:bg-gray-800 shadow-sm' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50 border-transparent'} ${isExpanded ? color.subtleBorder : ''}`} 
+                                                        onClick={() => toggleExecutionStep(index)}
+                                                    >
+                                                        <div className="flex items-center justify-between">
+                                                            <h4 className={`text-lg font-bold ${isExpanded ? color.text : 'text-gray-900 dark:text-white'} mb-1`}>{step.title}</h4>
+                                                            {isExpanded ? <ChevronUp size={16} className={color.text} /> : <ChevronDown size={16} className="text-gray-400" />}
+                                                        </div>
+                                                        {isExpanded && (
+                                                            <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed animate-fade-in mt-2">{step.description}</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* Attachments Section */}
                         <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden p-6">
@@ -1310,7 +1484,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
             </div>
 
             {/* Lightbox Modal */}
-            {isLightboxOpen && (
+            {isLightboxOpen && createPortal(
                 <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex items-center justify-center p-4 animate-fade-in" onClick={() => setIsLightboxOpen(false)}>
                     <button onClick={() => setIsLightboxOpen(false)} className="absolute top-6 right-6 text-white/70 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors z-50">
                         <X size={32} />
@@ -1333,7 +1507,8 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                             {currentImageIndex + 1} / {imageFiles.length}
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* Negotiation Modal */}
@@ -1361,6 +1536,15 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                     onClose={() => setHistoryModalData(null)}
                 />
             )}
+
+            {/* Execution Plan Edit Modal */}
+            {isExecutionPlanModalOpen && (
+                <EditExecutionPlanModal
+                    initialPlan={executionPlan}
+                    onSave={handleSaveExecutionPlan}
+                    onClose={() => setIsExecutionPlanModalOpen(false)}
+                />
+            )}
         </MainLayout>
     );
 };
@@ -1379,7 +1563,7 @@ const NegotiationModal: FC<{ onSubmit: (counterPrice: string, details: string, l
         onSubmit(counterPrice, details, lineItemNegotiations);
     };
 
-    return (
+    return createPortal(
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in z-[60]">
             <div className="bg-white dark:bg-gray-900/95 dark:backdrop-blur-xl p-8 rounded-2xl shadow-2xl w-full max-w-md transform transition-all scale-100 border border-gray-200 dark:border-white/10">
                 <div className="flex justify-between items-center mb-6">
@@ -1447,7 +1631,107 @@ const NegotiationModal: FC<{ onSubmit: (counterPrice: string, details: string, l
                 </form>
             </div>
         </div>
-    );
+    , document.body);
+};
+
+const EditExecutionPlanModal: FC<{ initialPlan: ExecutionStep[]; onSave: (plan: ExecutionStep[]) => void; onClose: () => void }> = ({ initialPlan, onSave, onClose }) => {
+    const [plan, setPlan] = useState<ExecutionStep[]>(initialPlan);
+    const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+
+    const handleStepChange = (index: number, field: keyof ExecutionStep, value: string) => {
+        const newPlan = [...plan];
+        newPlan[index] = { ...newPlan[index], [field]: value };
+        setPlan(newPlan);
+    };
+
+    const handleAddStep = () => {
+        setPlan([...plan, { title: '', description: '' }]);
+    };
+
+    const handleRemoveStep = (index: number) => {
+        setPlan(plan.filter((_, i) => i !== index));
+    };
+
+    const handleDragStart = (index: number) => {
+        setDraggedIndex(index);
+    };
+
+    const handleDragOver = (e: React.DragEvent, index: number) => {
+        e.preventDefault();
+        if (draggedIndex === null || draggedIndex === index) return;
+        
+        const newPlan = [...plan];
+        const draggedItem = newPlan[draggedIndex];
+        newPlan.splice(draggedIndex, 1);
+        newPlan.splice(index, 0, draggedItem);
+        
+        setPlan(newPlan);
+        setDraggedIndex(index);
+    };
+
+    const handleDragEnd = () => {
+        setDraggedIndex(null);
+    };
+
+    return createPortal(
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[90] p-4 animate-fade-in">
+            <div className="bg-white dark:bg-gray-900/95 dark:backdrop-blur-xl p-6 rounded-2xl shadow-2xl w-full max-w-2xl border border-gray-200 dark:border-white/10 flex flex-col max-h-[90vh]">
+                <div className="flex justify-between items-center mb-6 shrink-0">
+                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Edit Execution Plan</h2>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors"><X size={24} /></button>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto pr-2 space-y-4 mb-6 custom-scrollbar">
+                    {plan.map((step, index) => (
+                        <div 
+                            key={index} 
+                            className={`bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-200 dark:border-white/10 relative group transition-all ${draggedIndex === index ? 'opacity-50' : 'opacity-100'}`}
+                            draggable
+                            onDragStart={() => handleDragStart(index)}
+                            onDragOver={(e) => handleDragOver(e, index)}
+                            onDragEnd={handleDragEnd}
+                        >
+                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                                <div className="p-1.5 text-gray-400 cursor-grab active:cursor-grabbing" title="Drag to reorder">
+                                    <GripVertical size={16} />
+                                </div>
+                                <button onClick={() => handleRemoveStep(index)} className="p-1.5 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors" title="Remove Step">
+                                    <Trash2 size={16} />
+                                </button>
+                            </div>
+                            <div className="flex items-center gap-3 mb-3">
+                                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-700 text-xs font-bold text-gray-600 dark:text-gray-300 cursor-grab active:cursor-grabbing">
+                                    {index + 1}
+                                </span>
+                                <input
+                                    type="text"
+                                    value={step.title}
+                                    onChange={(e) => handleStepChange(index, 'title', e.target.value)}
+                                    placeholder="Step Title"
+                                    className="flex-1 bg-transparent border-b border-gray-300 dark:border-gray-600 focus:border-[#c20c0b] outline-none px-1 py-0.5 font-bold text-gray-900 dark:text-white"
+                                />
+                            </div>
+                            <textarea
+                                value={step.description}
+                                onChange={(e) => handleStepChange(index, 'description', e.target.value)}
+                                placeholder="Step Description"
+                                rows={2}
+                                className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-sm focus:ring-2 focus:ring-[#c20c0b] outline-none text-gray-700 dark:text-gray-200"
+                            />
+                        </div>
+                    ))}
+                    <button onClick={handleAddStep} className="w-full py-3 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl text-gray-500 dark:text-gray-400 font-medium hover:border-[#c20c0b] hover:text-[#c20c0b] transition-colors flex items-center justify-center gap-2">
+                        <Plus size={20} /> Add Step
+                    </button>
+                </div>
+
+                <div className="flex justify-end gap-3 shrink-0 pt-4 border-t border-gray-100 dark:border-white/10">
+                    <button onClick={onClose} className="px-5 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-semibold rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">Cancel</button>
+                    <button onClick={() => onSave(plan)} className="px-5 py-2.5 bg-[#c20c0b] text-white font-semibold rounded-xl hover:bg-[#a50a09] transition-colors shadow-md">Save Plan</button>
+                </div>
+            </div>
+        </div>
+    , document.body);
 };
 
 const PriceHistoryModal: FC<{ 
@@ -1487,7 +1771,7 @@ const PriceHistoryModal: FC<{
         ? groupedHistory.findIndex(row => row.factory?.price === agreedPrice) 
         : -1;
 
-    return (
+    return createPortal(
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[80] p-4 animate-fade-in">
             <div className="bg-white dark:bg-gray-900/95 dark:backdrop-blur-xl p-6 rounded-2xl shadow-2xl w-full max-w-2xl border border-gray-200 dark:border-white/10 relative">
                 <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"><X size={24} /></button>
@@ -1551,7 +1835,7 @@ const PriceHistoryModal: FC<{
                 </div>
             </div>
         </div>
-    );
+    , document.body);
 };
 
 const SingleItemNegotiationModal: FC<{ item: any; onSubmit: (price: string, note: string) => void; onClose: () => void }> = ({ item, onSubmit, onClose }) => {
@@ -1563,7 +1847,7 @@ const SingleItemNegotiationModal: FC<{ item: any; onSubmit: (price: string, note
         onSubmit(price, note);
     };
 
-    return (
+    return createPortal(
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in z-[70]">
             <div className="bg-white dark:bg-gray-900/95 dark:backdrop-blur-xl p-6 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-200 dark:border-white/10">
                 <div className="flex justify-between items-center mb-4">
@@ -1596,5 +1880,5 @@ const SingleItemNegotiationModal: FC<{ item: any; onSubmit: (price: string, note
                 </form>
             </div>
         </div>
-    );
+    , document.body);
 };
