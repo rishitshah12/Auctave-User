@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import confetti from 'canvas-confetti';
 
 interface QuoteDetailPageProps {
     selectedQuote: QuoteRequest | null;
@@ -371,9 +372,11 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         if (allClientApproved && allAdminApproved) {
             newStatus = 'Accepted';
             toastMessage = 'All items approved by both parties. Quote Accepted!';
+            confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 }, ticks: 400 });
         } else if (allClientApproved) {
             newStatus = 'Client Accepted';
             toastMessage = 'All items approved. Quote marked as Client Approved.';
+            confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 }, ticks: 400 });
         } else if (allAdminApproved) {
             newStatus = 'Admin Accepted';
         } else {
@@ -443,10 +446,12 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         });
         
         if (newStatus === 'Accepted') {
+            confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 }, ticks: 400 });
             createCrmOrder(updatedQuote);
             showToast('Quote Accepted! A new order has been created in the CRM portal.');
             handleSetCurrentPage('crm');
         } else {
+            confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 }, ticks: 400 });
             showToast('Quote approved. Waiting for admin confirmation.');
         }
     };

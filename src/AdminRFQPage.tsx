@@ -6,6 +6,7 @@ import { QuoteRequest, NegotiationHistoryItem } from './types';
 import { MapPin, Shirt, Package, Clock, ChevronRight, ChevronLeft, FileQuestion, MessageSquare, CheckCircle, XCircle, X, Download, RefreshCw, User, Building, Calendar, FileText, Eye, EyeOff, CheckSquare, ArrowUp, ArrowDown, ChevronDown, ChevronUp, History, DollarSign, Search, Mail, Phone, Check, CheckCheck, Trash2, RotateCcw, Image as ImageIcon, Scale, Paperclip, Send, Circle } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import confetti from 'canvas-confetti';
 
 interface AdminRFQPageProps {
     pageKey: number;
@@ -423,6 +424,10 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                     status: newStatus,
                     ...(updatedNegotiationDetails ? { negotiation_details: updatedNegotiationDetails } : {})
                 } : null);
+            }
+
+            if (newStatus === 'Accepted' || newStatus === 'Admin Accepted') {
+                confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 }, ticks: 400 });
             }
 
             if (newStatus === 'Accepted') {
@@ -1083,9 +1088,11 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
         if (allAdminApproved && allClientApproved) {
             newStatus = 'Accepted';
             toastMessage = 'All items approved by both parties. Quote Accepted!';
+            confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 }, ticks: 400 });
         } else if (allAdminApproved) {
             newStatus = 'Admin Accepted';
             toastMessage = 'All items approved. Quote marked as Admin Approved.';
+            confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 }, ticks: 400 });
         } else if (allClientApproved) {
             newStatus = 'Client Accepted';
         } else {
