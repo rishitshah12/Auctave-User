@@ -15,7 +15,8 @@ export interface LineItem {
     fabricQuality: string;
     weightGSM: string;
     styleOption: string;
-    qty: string;
+    qty: number;
+    containerType?: string;
     targetPrice: string;
     packagingReqs: string;
     labelingReqs: string;
@@ -32,6 +33,7 @@ export interface OrderFormData {
     lineItems: LineItem[];
     shippingCountry: string;
     shippingPort: string;
+    draftId?: string;
 }
 
 export interface MachineSlot {
@@ -88,13 +90,19 @@ export interface QuoteRequest {
     id: string;
     factory: any; // You can replace 'any' with 'Factory' if available
     order: OrderFormData;
-    status: 'Pending' | 'Responded' | 'Accepted' | 'Declined' | 'In Negotiation' | 'Admin Accepted' | 'Client Accepted' | 'Trashed';
+    status: 'Pending' | 'Responded' | 'Accepted' | 'Declined' | 'In Negotiation' | 'Admin Accepted' | 'Client Accepted' | 'Trashed' | 'Draft';
     submittedAt: string;
     acceptedAt?: string;
     userId: string;
     files: string[];
     clientName?: string;
     companyName?: string;
+    clientEmail?: string;
+    clientPhone?: string;
+    clientCountry?: string;
+    clientJobRole?: string;
+    clientRevenue?: string;
+    clientSpecialization?: string;
     response_details?: {
         price: string;
         leadTime: string;

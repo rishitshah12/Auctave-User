@@ -8,6 +8,8 @@ import { MapPin, Shirt, Package, Clock, ChevronRight, ChevronLeft, FileQuestion,
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import confetti from 'canvas-confetti';
+import { formatFriendlyDate, getStatusColor, getStatusGradientBorder, getStatusHoverShadow } from './utils';
+import { useToast } from './ToastContext';
 
 interface AdminRFQPageProps {
     pageKey: number;
@@ -22,23 +24,6 @@ interface AdminRFQPageProps {
     isAdmin: boolean;
     supabase: any;
 }
-
-const formatFriendlyDate = (dateString: string) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    const now = new Date();
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    
-    const isToday = date.getDate() === now.getDate() && date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-    const isYesterday = date.getDate() === yesterday.getDate() && date.getMonth() === yesterday.getMonth() && date.getFullYear() === yesterday.getFullYear();
-    
-    const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-    
-    if (isToday) return `Today at ${timeStr}`;
-    if (isYesterday) return `Yesterday at ${timeStr}`;
-    return `${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at ${timeStr}`;
-};
 
 const SIZE_ORDER = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL'];
 
@@ -71,7 +56,13 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
     const CACHE_KEY = 'garment_erp_admin_quotes';
     const [quotes, setQuotes] = useState<QuoteRequest[]>(() => {
         const cached = sessionStorage.getItem(CACHE_KEY);
-        return cached ? JSON.parse(cached) : [];
+        if (!cached) return [];
+        try {
+            return JSON.parse(cached);
+        } catch (e) {
+            console.error('Failed to parse cached quotes:', e);
+            return [];
+        }
     });
     const [filterStatus, setFilterStatus] = useState('All');
     const [dateFilter, setDateFilter] = useState('All Time');
@@ -94,12 +85,27 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
     const [isDeclineModalOpen, setIsDeclineModalOpen] = useState(false);
     const [declineMessage, setDeclineMessage] = useState('');
     const [hiddenQuoteIds, setHiddenQuoteIds] = useState<string[]>(() => {
-        const saved = localStorage.getItem('admin_hidden_quotes');
-        return saved ? JSON.parse(saved) : [];
+        const saved = sessionStorage.getItem('admin_hidden_quotes');
+        if (!saved) return [];
+        try {
+            return JSON.parse(saved);
+        } catch (e) {
+            console.error('Failed to parse hidden quotes:', e);
+            return [];
+        }
     });
     const [showHidden, setShowHidden] = useState(false);
-    const [selectedQuoteIds, setSelectedQuoteIds] = useState<string[]>([]);
-    const [isSelectionMode, setIsSelectionMode] = useState(false);
+    const [selectedQuoteIds, setSelectedQuoteIds] = useState<string[]>(() => {
+        const saved = sessionStorage.getItem('admin_selected_quotes');
+        if (!saved) return [];
+        try {
+            return JSON.parse(saved);
+        } catch (e) {
+            console.error('Failed to parse selected quotes:', e);
+            return [];
+        }
+    });
+    const [isSelectionMode, setIsSelectionMode] = useState(() => selectedQuoteIds.length > 0);
     const [hoveredQuoteId, setHoveredQuoteId] = useState<string | null>(null);
     const abortControllerRef = useRef<AbortController | null>(null);
     const fileLinksAbortController = useRef<AbortController | null>(null);
@@ -107,6 +113,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
     
     // Pagination state
     const [currentPageIndex, setCurrentPageIndex] = useState(1);
+    const isFirstRender = useRef(true);
     const [itemsPerPage, setItemsPerPage] = useState(9);
     const [viewMode, setViewMode] = useState<'active' | 'trash'>('active');
     
@@ -120,6 +127,11 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
     const [expandedExecutionSteps, setExpandedExecutionSteps] = useState<number[]>([]);
     const [isExecutionPlanExpanded, setIsExecutionPlanExpanded] = useState(true);
     const [negotiatingItem, setNegotiatingItem] = useState<any | null>(null);
+    const [uploadingChats, setUploadingChats] = useState<Record<number, boolean>>({});
+    const cancellationRefs = useRef<Record<number, boolean>>({});
+    const [isBulkActionModalOpen, setIsBulkActionModalOpen] = useState(false);
+    const [bulkActionType, setBulkActionType] = useState<'hide' | 'unhide' | 'delete' | 'restore' | null>(null);
+    const { showToast } = useToast();
 
     const toggleExpand = (index: number) => {
         setExpandedItems(prev => 
@@ -129,15 +141,9 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
 
     useEffect(() => {
         if (selectedQuote) {
-             const plan = (selectedQuote as any).execution_plan || DEFAULT_EXECUTION_PLAN;
-             // Initialize all steps as expanded by default
-             setExpandedExecutionSteps(plan.map((_: any, i: number) => i));
+             setExpandedExecutionSteps([]);
         }
     }, [selectedQuote]);
-
-    const showToast = (message: string, type: 'success' | 'error' = 'success') => {
-        if (window.showToast) window.showToast(message, type);
-    };
 
     const fetchQuotes = useCallback(async () => {
         if (abortControllerRef.current) abortControllerRef.current.abort();
@@ -218,8 +224,16 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
     }, [fetchQuotes]);
 
     useEffect(() => {
+        sessionStorage.setItem('admin_selected_quotes', JSON.stringify(selectedQuoteIds));
+    }, [selectedQuoteIds]);
+
+    useEffect(() => {
+        if (isFirstRender.current) {
+            isFirstRender.current = false;
+            return;
+        }
         setSelectedQuoteIds([]);
-    }, [filterStatus, showHidden, dateFilter, selectedClientId, viewMode]);
+    }, [filterStatus, showHidden, dateFilter, selectedClientId, viewMode, searchTerm]);
 
     // Close client dropdown on outside click
     useEffect(() => {
@@ -477,42 +491,6 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
         }
     };
 
-    const getStatusGradientBorder = (status: string) => {
-        switch (status) {
-            case 'Pending': return 'from-amber-300 to-yellow-200';
-            case 'Responded': return 'from-blue-400 to-cyan-300';
-            case 'Accepted': return 'from-emerald-600 to-emerald-300';
-            case 'Declined': return 'from-red-500 to-pink-400';
-            case 'In Negotiation': return 'from-purple-500 to-indigo-300';
-            default: return 'from-gray-400 to-gray-200';
-        }
-    };
-
-    const getStatusHoverShadow = (status: string) => {
-        switch (status) {
-            case 'Pending': return 'hover:shadow-[0_8px_30px_rgba(245,158,11,0.15)]';
-            case 'Responded': return 'hover:shadow-[0_8px_30px_rgba(59,130,246,0.15)]';
-            case 'Accepted': return 'hover:shadow-[0_8px_30px_rgba(16,185,129,0.15)]';
-            case 'Declined': return 'hover:shadow-[0_8px_30px_rgba(239,68,68,0.15)]';
-            case 'In Negotiation': return 'hover:shadow-[0_8px_30px_rgba(168,85,247,0.15)]';
-            default: return 'hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)]';
-        }
-    };
-
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'Pending': return 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-100 dark:border-amber-800';
-            case 'Responded': return 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-100 dark:border-blue-800';
-            case 'Accepted': return 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800';
-            case 'Declined': return 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-100 dark:border-red-800';
-            case 'In Negotiation': return 'bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-100 dark:border-purple-800';
-            case 'Admin Accepted': return 'bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 border-teal-100 dark:border-teal-800';
-            case 'Client Accepted': return 'bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400 border-cyan-100 dark:border-cyan-800';
-            case 'Trashed': return 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700';
-            default: return 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-100 dark:border-gray-700';
-        }
-    };
-
     const getQuoteTimestamp = (quote: QuoteRequest) => {
         if (quote.status === 'Accepted' && quote.acceptedAt) return quote.acceptedAt;
         if (quote.status === 'In Negotiation' && quote.negotiation_details?.submittedAt) return quote.negotiation_details.submittedAt;
@@ -528,22 +506,23 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
         else if (quote.status === 'In Negotiation') label = 'Updated';
         else if (quote.status === 'Responded') label = 'Responded';
         else if (quote.status === 'Declined') label = 'Declined';
-        else if (quote.status === 'Admin Accepted') label = 'Approved by You';
-        else if (quote.status === 'Client Accepted') label = 'Approved by Client';
+        else if (quote.status === 'Admin Accepted') label = 'Accepted by You';
+        else if (quote.status === 'Client Accepted') label = 'Accepted by Client';
         else if (quote.status === 'Trashed') label = 'Deleted';
         return { label, date: formatFriendlyDate(date) };
     };
 
     const getPriority = (status: string) => {
         switch (status) {
-            case 'Pending': return 1;
-            case 'In Negotiation': return 2;
-            case 'Responded': return 3;
-            case 'Declined': return 4;
-            case 'Client Accepted': return 0; // High priority
-            case 'Admin Accepted': return 3;
-            case 'Trashed': return 6;
-            default: return 5;
+            case 'Client Accepted': return 0; // Highest priority - needs admin action
+            case 'Pending': return 1; // Needs response
+            case 'In Negotiation': return 2; // Active
+            case 'Admin Accepted': return 3; // Waiting for client
+            case 'Responded': return 4; // Waiting for client
+            case 'Accepted': return 5; // Done
+            case 'Declined': return 6; // Done
+            case 'Trashed': return 7;
+            default: return 8;
         }
     };
 
@@ -743,7 +722,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
             const newHidden = prev.includes(quoteId)
                 ? prev.filter(id => id !== quoteId)
                 : [...prev, quoteId];
-            localStorage.setItem('admin_hidden_quotes', JSON.stringify(newHidden));
+            sessionStorage.setItem('admin_hidden_quotes', JSON.stringify(newHidden));
             return newHidden;
         });
     };
@@ -765,22 +744,6 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
         } else {
             setSelectedQuoteIds(filteredQuotes.map(q => q.id));
         }
-    };
-
-    const handleBulkHide = () => {
-        const newHiddenIds = [...new Set([...hiddenQuoteIds, ...selectedQuoteIds])];
-        setHiddenQuoteIds(newHiddenIds);
-        localStorage.setItem('admin_hidden_quotes', JSON.stringify(newHiddenIds));
-        setSelectedQuoteIds([]);
-        showToast(`${selectedQuoteIds.length} quotes hidden.`);
-    };
-
-    const handleBulkUnhide = () => {
-        const newHiddenIds = hiddenQuoteIds.filter(id => !selectedQuoteIds.includes(id));
-        setHiddenQuoteIds(newHiddenIds);
-        localStorage.setItem('admin_hidden_quotes', JSON.stringify(newHiddenIds));
-        setSelectedQuoteIds([]);
-        showToast(`${selectedQuoteIds.length} quotes unhidden.`);
     };
 
     const handleSoftDelete = async (quoteId: string, e?: React.MouseEvent) => {
@@ -842,57 +805,88 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
             .eq('id', quoteId);
 
         if (error) {
-            showToast('Failed to delete quote: ' + error.message, 'error');
+            if (error.code === '42501') {
+                showToast('Permission denied. You do not have rights to delete this quote.', 'error');
+            } else {
+                showToast('Failed to delete quote: ' + error.message, 'error');
+            }
         } else if (count === 0) {
-            showToast('Delete failed. Please check RLS policies on Supabase.', 'error');
+            showToast('Quote could not be deleted. It may have been already deleted or permission denied.', 'error');
         } else {
             showToast('Quote permanently deleted.');
             setQuotes(prev => prev.filter(q => q.id !== quoteId));
         }
     };
 
-    const handleBulkRestore = async () => {
-        if (!confirm(`Are you sure you want to restore ${selectedQuoteIds.length} quotes?`)) return;
-
-        const updates = selectedQuoteIds.map(id => {
-            const quote = quotes.find(q => q.id === id);
-            if (!quote) return Promise.resolve();
-
-            let newStatus = (quote.negotiation_details as any)?.previousStatus;
-            if (!newStatus) {
-                newStatus = 'Pending';
-                if ((quote.negotiation_details?.history?.length ?? 0) > 0) newStatus = 'In Negotiation';
-                else if (quote.response_details) newStatus = 'Responded';
-            }
-            
-            const updatedNegotiationDetails = { ...quote.negotiation_details };
-            delete (updatedNegotiationDetails as any).previousStatus;
-            const finalNegotiationDetails = Object.keys(updatedNegotiationDetails).length > 0 ? updatedNegotiationDetails : undefined;
-
-            return quoteService.update(id, { status: newStatus, negotiation_details: finalNegotiationDetails });
-        });
-
-        await Promise.all(updates);
-        showToast(`${selectedQuoteIds.length} quotes restored.`);
-        fetchQuotes();
-        setSelectedQuoteIds([]);
+    const openBulkActionModal = (type: 'hide' | 'unhide' | 'delete' | 'restore') => {
+        setBulkActionType(type);
+        setIsBulkActionModalOpen(true);
     };
 
-    const handleBulkPermanentDelete = async () => {
-        if (!confirm(`Are you sure you want to permanently delete ${selectedQuoteIds.length} quotes? This cannot be undone.`)) return;
+    const performBulkAction = async () => {
+        if (!bulkActionType) return;
 
-        const { error, count } = await props.supabase
-            .from('quotes')
-            .delete({ count: 'exact' })
-            .in('id', selectedQuoteIds);
-
-        if (error) {
-            showToast('Failed to delete quotes: ' + error.message, 'error');
-        } else {
-            showToast(`${count} quotes permanently deleted.`);
-            setQuotes(prev => prev.filter(q => !selectedQuoteIds.includes(q.id)));
+        if (bulkActionType === 'hide') {
+            const newHiddenIds = [...new Set([...hiddenQuoteIds, ...selectedQuoteIds])];
+            setHiddenQuoteIds(newHiddenIds);
+            sessionStorage.setItem('admin_hidden_quotes', JSON.stringify(newHiddenIds));
+            showToast(`${selectedQuoteIds.length} quotes hidden.`);
             setSelectedQuoteIds([]);
+        } else if (bulkActionType === 'unhide') {
+            const newHiddenIds = hiddenQuoteIds.filter(id => !selectedQuoteIds.includes(id));
+            setHiddenQuoteIds(newHiddenIds);
+            sessionStorage.setItem('admin_hidden_quotes', JSON.stringify(newHiddenIds));
+            showToast(`${selectedQuoteIds.length} quotes unhidden.`);
+            setSelectedQuoteIds([]);
+        } else if (bulkActionType === 'restore') {
+            const results = await Promise.all(selectedQuoteIds.map(async (id) => {
+                const quote = quotes.find(q => q.id === id);
+                if (!quote) return { id, error: { message: 'Quote not found' } };
+
+                let newStatus = (quote.negotiation_details as any)?.previousStatus;
+                if (!newStatus) {
+                    newStatus = 'Pending';
+                    if ((quote.negotiation_details?.history?.length ?? 0) > 0) newStatus = 'In Negotiation';
+                    else if (quote.response_details) newStatus = 'Responded';
+                }
+                
+                const updatedNegotiationDetails = { ...quote.negotiation_details };
+                delete (updatedNegotiationDetails as any).previousStatus;
+                const finalNegotiationDetails = Object.keys(updatedNegotiationDetails).length > 0 ? updatedNegotiationDetails : undefined;
+
+                const { error } = await quoteService.update(id, { status: newStatus, negotiation_details: finalNegotiationDetails });
+                return { id, error };
+            }));
+
+            const failures = results.filter(r => r.error);
+            const successCount = results.length - failures.length;
+
+            if (failures.length > 0) {
+                console.error('Bulk restore failures:', failures);
+                showToast(`Restored ${successCount} quotes. Failed to restore ${failures.length} quotes.`, 'error');
+            } else {
+                showToast(`${successCount} quotes restored.`);
+            }
+
+            fetchQuotes();
+            setSelectedQuoteIds([]);
+        } else if (bulkActionType === 'delete') {
+            const { error, count } = await props.supabase
+                .from('quotes')
+                .delete({ count: 'exact' })
+                .in('id', selectedQuoteIds);
+
+            if (error) {
+                showToast('Failed to delete quotes: ' + error.message, 'error');
+            } else {
+                showToast(`${count} quotes permanently deleted.`);
+                setQuotes(prev => prev.filter(q => !selectedQuoteIds.includes(q.id)));
+                setSelectedQuoteIds([]);
+            }
         }
+
+        setIsBulkActionModalOpen(false);
+        setBulkActionType(null);
     };
 
     const PriceDifference: FC<{ target: string, quoted: string }> = ({ target, quoted }) => {
@@ -1051,6 +1045,9 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
         const chatState = chatStates[lineItemId] || { message: '', file: null };
         if (!chatState.message.trim() && !chatState.file) return;
 
+        cancellationRefs.current[lineItemId] = false;
+        setUploadingChats(prev => ({ ...prev, [lineItemId]: true }));
+
         let attachmentUrl = '';
         if (chatState.file) {
             try {
@@ -1060,14 +1057,25 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                     .from('quote-attachments')
                     .upload(fileName, chatState.file);
                 
+                if (cancellationRefs.current[lineItemId]) {
+                    if (data?.path) {
+                        await props.supabase.storage.from('quote-attachments').remove([data.path]);
+                    }
+                    return;
+                }
+
                 if (error) throw error;
                 if (data) attachmentUrl = data.path;
             } catch (error: any) {
                 console.error('Upload error:', error);
+                if (cancellationRefs.current[lineItemId]) return;
                 showToast('Failed to upload attachment', 'error');
+                setUploadingChats(prev => ({ ...prev, [lineItemId]: false }));
                 return;
             }
         }
+
+        if (cancellationRefs.current[lineItemId]) return;
 
         const newHistoryItem: NegotiationHistoryItem = {
             id: Date.now().toString(),
@@ -1089,6 +1097,13 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
             setSelectedQuote(prev => prev ? { ...prev, negotiation_details: { ...prev.negotiation_details, history: updatedHistory } } : null);
             setChatStates(prev => ({ ...prev, [lineItemId]: { message: '', file: null } }));
         }
+        setUploadingChats(prev => ({ ...prev, [lineItemId]: false }));
+    };
+
+    const handleCancelUpload = (lineItemId: number) => {
+        cancellationRefs.current[lineItemId] = true;
+        setUploadingChats(prev => ({ ...prev, [lineItemId]: false }));
+        showToast('Upload cancelled');
     };
 
     const handleSingleItemResponse = async (price: string, note: string) => {
@@ -1187,7 +1202,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
             confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 }, ticks: 400 });
         } else if (allAdminApproved) {
             newStatus = 'Admin Accepted';
-            toastMessage = 'All items approved. Quote marked as Admin Approved.';
+            toastMessage = 'All items approved. Quote marked as Admin Accepted.';
             confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 }, ticks: 400 });
         } else if (allClientApproved) {
             newStatus = 'Client Accepted';
@@ -1249,6 +1264,16 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
         );
     };
 
+    const toggleAllExecutionSteps = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        const plan = (selectedQuote as any).execution_plan || DEFAULT_EXECUTION_PLAN;
+        if (expandedExecutionSteps.length === plan.length) {
+            setExpandedExecutionSteps([]);
+        } else {
+            setExpandedExecutionSteps(plan.map((_: any, i: number) => i));
+        }
+    };
+
     if (selectedQuote) {
         return (
             <MainLayout {...props}>
@@ -1269,7 +1294,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                 <span className={`px-3 py-1 text-sm font-semibold rounded-full ${getStatusColor(selectedQuote.status)} flex items-center gap-1`}>
                                     {selectedQuote.status === 'Accepted' && <CheckCheck size={14} />}
                                     {(selectedQuote.status === 'Admin Accepted' || selectedQuote.status === 'Client Accepted') && <Check size={14} />}
-                                    {selectedQuote.status === 'Admin Accepted' ? 'Admin Approved' : selectedQuote.status === 'Client Accepted' ? 'Client Approved' : selectedQuote.status}
+                                    {selectedQuote.status === 'Admin Accepted' ? 'Admin Accepted' : selectedQuote.status === 'Client Accepted' ? 'Client Accepted' : selectedQuote.status}
                                 </span>
                             </div>
                             <div className="flex flex-wrap gap-4 text-sm text-gray-500 dark:text-gray-400">
@@ -1288,29 +1313,29 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                         <div className="flex-grow grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 w-full">
                             <div>
                                 <p className="text-xs text-blue-600 dark:text-blue-400 uppercase font-bold tracking-wider mb-1">Client Name</p>
-                                <p className="font-semibold text-gray-900 dark:text-white text-lg">{(selectedQuote as any).clientName}</p>
-                                <p className="text-sm text-gray-500 dark:text-gray-300 flex items-center gap-1"><Building size={12}/> {(selectedQuote as any).companyName}</p>
-                                <p className="text-xs text-gray-400 dark:text-gray-400 mt-1">{(selectedQuote as any).clientJobRole}</p>
+                                <p className="font-semibold text-gray-900 dark:text-white text-lg">{selectedQuote.clientName}</p>
+                                <p className="text-sm text-gray-500 dark:text-gray-300 flex items-center gap-1"><Building size={12}/> {selectedQuote.companyName}</p>
+                                <p className="text-xs text-gray-400 dark:text-gray-400 mt-1">{selectedQuote.clientJobRole}</p>
                             </div>
                             <div>
                                 <p className="text-xs text-blue-600 dark:text-blue-400 uppercase font-bold tracking-wider mb-1">Contact Info</p>
                                 <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 font-medium">
-                                    <Mail size={14} className="text-gray-400" /> {(selectedQuote as any).clientEmail}
+                                    <Mail size={14} className="text-gray-400" /> {selectedQuote.clientEmail}
                                 </div>
                                 <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 mt-1">
-                                    <Phone size={14} className="text-gray-400" /> {(selectedQuote as any).clientPhone}
+                                    <Phone size={14} className="text-gray-400" /> {selectedQuote.clientPhone}
                                 </div>
                             </div>
                             <div>
                                 <p className="text-xs text-blue-600 dark:text-blue-400 uppercase font-bold tracking-wider mb-1">Location</p>
                                 <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 font-medium">
-                                    <MapPin size={14} className="text-gray-400" /> {(selectedQuote as any).clientCountry}
+                                    <MapPin size={14} className="text-gray-400" /> {selectedQuote.clientCountry}
                                 </div>
                             </div>
                             <div>
                                 <p className="text-xs text-blue-600 dark:text-blue-400 uppercase font-bold tracking-wider mb-1">Business Profile</p>
-                                <p className="text-sm text-gray-700 dark:text-gray-200 font-medium">Rev: {(selectedQuote as any).clientRevenue}</p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Spec: {(selectedQuote as any).clientSpecialization}</p>
+                                <p className="text-sm text-gray-700 dark:text-gray-200 font-medium">Rev: {selectedQuote.clientRevenue}</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Spec: {selectedQuote.clientSpecialization}</p>
                             </div>
                         </div>
                     </div>
@@ -1376,9 +1401,9 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                 <button onClick={() => setIsResponseModalOpen(true)} className="px-4 py-2 bg-[#c20c0b] text-white font-semibold rounded-lg hover:bg-[#a50a09] transition shadow-md flex items-center gap-2">
                                     <MessageSquare size={18} /> Respond / Counter
                                 </button>
-                                <button onClick={() => handleUpdateStatus(selectedQuote.id, selectedQuote.status === 'Client Accepted' ? 'Accepted' : 'Admin Accepted')} className="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition shadow-md flex items-center gap-2">
+                                <button onClick={() => handleUpdateStatus(selectedQuote.id, selectedQuote.status === 'Client Accepted' ? 'Accepted' : 'Admin Accepted')} className="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition shadow-md flex items-center gap-2" title={selectedQuote.status === 'Client Accepted' ? 'Finalize Acceptance' : 'Accept Quote'}>
                                     {selectedQuote.status === 'Client Accepted' ? <CheckCheck size={18} /> : <Check size={18} />}
-                                    {selectedQuote.status === 'Client Accepted' ? 'Finalize Acceptance' : 'Approve Quote'}
+                                    {selectedQuote.status === 'Client Accepted' ? 'Finalize Acceptance' : 'Accept Quote'}
                                 </button>
                             </div>
                         )}
@@ -1463,7 +1488,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                                 {/* Qty */}
                                                 <div className="md:col-span-2 text-sm text-gray-700 dark:text-gray-200 md:text-center">
                                                     <span className="md:hidden font-medium text-gray-500 mr-2">Qty:</span>
-                                                    {item.qty} {item.quantityType === 'container' ? '' : 'units'}
+                                                    {item.quantityType === 'container' ? item.containerType : `${item.qty} units`}
                                                 </div>
 
                                                 {/* Target Price */}
@@ -1501,8 +1526,8 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                                             }`}
                                                             title={
                                                                 isClientApproved && isAdminApproved ? "Price agreed by both parties" :
-                                                                isAdminApproved ? "Approved by you. Waiting for Client." :
-                                                                isClientApproved ? "Client has approved. Click to accept." :
+                                                                isAdminApproved ? "Accepted by you. Waiting for Client." :
+                                                                isClientApproved ? "Client has accepted. Click to accept." :
                                                                 "Click to approve this price"
                                                             }
                                                         >
@@ -1554,7 +1579,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                                                 <p className="text-xs text-white uppercase font-bold tracking-wider">Quantity</p>
                                                             </div>
                                                             <div className="p-3 bg-white dark:bg-gray-800">
-                                                                <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.qty} {item.quantityType === 'container' ? '' : 'units'}</p>
+                                                                <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.quantityType === 'container' ? item.containerType : `${item.qty} units`}</p>
                                                             </div>
                                                         </div>
                                                         <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
@@ -1732,15 +1757,33 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                                                 placeholder="Type a message..."
                                                                 className="flex-1 bg-transparent border-none focus:ring-0 text-sm text-gray-800 dark:text-white resize-none max-h-24 py-2"
                                                                 rows={1}
-                                                                onKeyDown={(e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendChat(item.id); } }}
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                                                        e.preventDefault();
+                                                                        handleSendChat(item.id);
+                                                                    } else if (e.key === 'Escape') {
+                                                                        e.preventDefault();
+                                                                        if (uploadingChats[item.id]) handleCancelUpload(item.id);
+                                                                        else setChatStates(prev => ({ ...prev, [item.id]: { message: '', file: null } }));
+                                                                    }
+                                                                }}
                                                             />
                                                             <button
                                                                 onClick={() => handleSendChat(item.id)}
-                                                                disabled={!chatStates[item.id]?.message?.trim() && !chatStates[item.id]?.file}
+                                                                disabled={(!chatStates[item.id]?.message?.trim() && !chatStates[item.id]?.file) || uploadingChats[item.id]}
                                                                 className="p-2 bg-[#c20c0b] text-white rounded-lg hover:bg-[#a50a09] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                                             >
-                                                                <Send size={18} />
+                                                                {uploadingChats[item.id] ? <RefreshCw size={18} className="animate-spin" /> : <Send size={18} />}
                                                             </button>
+                                                            {uploadingChats[item.id] && (
+                                                                <button 
+                                                                    onClick={() => handleCancelUpload(item.id)}
+                                                                    className="p-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+                                                                    title="Cancel Upload"
+                                                                >
+                                                                    <X size={18} />
+                                                                </button>
+                                                            )}
                                                         </div>
                                                         {chatStates[item.id]?.file && (
                                                             <div className="mt-2 text-xs text-gray-500 flex items-center justify-between bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
@@ -1766,7 +1809,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                 <div className="hidden md:grid grid-cols-12 gap-4 w-full px-4 mt-2 border-t border-gray-200 dark:border-white/10 pt-4">
                                     <div className="col-span-4 text-right text-xs font-bold text-gray-500 dark:text-white uppercase tracking-wider self-center">Total Quantity</div>
                                     <div className="col-span-2 text-center">
-                                        <p className="text-sm font-bold text-gray-900 dark:text-white">{selectedQuote.order?.lineItems?.reduce((acc, item) => acc + (parseInt(item.qty) || 0), 0).toLocaleString()}</p>
+                                        <p className="text-sm font-bold text-gray-900 dark:text-white">{selectedQuote.order?.lineItems?.reduce((acc, item) => acc + (item.qty || 0), 0).toLocaleString()}</p>
                                     </div>
                                     <div className="col-span-6"></div>
                                 </div>
@@ -1774,7 +1817,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                 {/* Totals Footer (Mobile) */}
                                 <div className="md:hidden mt-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-white/10 flex justify-between items-center">
                                     <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Total Quantity</span>
-                                    <span className="text-sm font-bold text-gray-900 dark:text-white">{selectedQuote.order?.lineItems?.reduce((acc, item) => acc + (parseInt(item.qty) || 0), 0).toLocaleString()}</span>
+                                    <span className="text-sm font-bold text-gray-900 dark:text-white">{selectedQuote.order?.lineItems?.reduce((acc, item) => acc + (item.qty || 0), 0).toLocaleString()}</span>
                                 </div>
                             </div>
 
@@ -1789,12 +1832,20 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                     </h3>
                                     <div className="flex items-center gap-3">
                                         {isExecutionPlanExpanded && (
+                                            <>
+                                            <button 
+                                                onClick={toggleAllExecutionSteps}
+                                                className="text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors mr-2"
+                                            >
+                                                {expandedExecutionSteps.length === ((selectedQuote as any).execution_plan || DEFAULT_EXECUTION_PLAN).length ? 'Collapse All' : 'Expand All'}
+                                            </button>
                                             <button 
                                                 onClick={(e) => { e.stopPropagation(); setIsExecutionPlanModalOpen(true); }}
                                                 className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
                                             >
                                                 <Edit size={16} /> Edit Plan
                                             </button>
+                                            </>
                                         )}
                                         {isExecutionPlanExpanded ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
                                     </div>
@@ -1943,7 +1994,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                             <div key={item.id} className="flex items-center gap-4 bg-gray-50 dark:bg-gray-700/30 p-4 rounded-xl border border-gray-200 dark:border-white/10">
                                                 <div className="flex-1">
                                                     <p className="font-bold text-gray-800 dark:text-white">{item.category}</p>
-                                                    <p className="text-xs text-gray-500 dark:text-white">Qty: {item.qty} | Target: ${item.targetPrice}</p>
+                                                    <p className="text-xs text-gray-500 dark:text-white">Qty: {item.quantityType === 'container' ? item.containerType : item.qty} | Target: ${item.targetPrice}</p>
                                                 </div>
                                                 <div className="w-1/3">
                                                     <label className="block text-xs font-medium text-gray-500 dark:text-white mb-1">Your Price ($)</label>
@@ -2050,6 +2101,48 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                             onSubmit={handleSingleItemResponse}
                             onClose={() => setNegotiatingItem(null)}
                         />
+                    )}
+
+                    {/* Bulk Action Confirmation Modal */}
+                    {isBulkActionModalOpen && createPortal(
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4 animate-fade-in">
+                            <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-md border border-gray-200 dark:border-gray-700 p-6 flex flex-col max-h-[80vh]">
+                                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                                    {bulkActionType === 'hide' ? 'Hide Quotes' : 
+                                     bulkActionType === 'unhide' ? 'Unhide Quotes' : 
+                                     bulkActionType === 'restore' ? 'Restore Quotes' : 
+                                     'Delete Quotes'}
+                                </h3>
+                                <p className="text-gray-600 dark:text-gray-300 mb-4">
+                                    Are you sure you want to {bulkActionType} the following {selectedQuoteIds.length} quotes?
+                                </p>
+                                
+                                <div className="flex-1 overflow-y-auto border border-gray-100 dark:border-gray-800 rounded-lg mb-6 bg-gray-50 dark:bg-gray-800/50 p-2 custom-scrollbar">
+                                    {quotes.filter(q => selectedQuoteIds.includes(q.id)).map(quote => (
+                                        <div key={quote.id} className="flex justify-between items-center p-2 border-b border-gray-100 dark:border-gray-700 last:border-0 text-sm">
+                                            <span className="font-medium text-gray-800 dark:text-gray-200">#{quote.id.slice(0, 8)}</span>
+                                            <span className="text-gray-500 dark:text-gray-400 truncate max-w-[150px]">{quote.clientName}</span>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="flex justify-end gap-3">
+                                    <button 
+                                        onClick={() => setIsBulkActionModalOpen(false)}
+                                        className="px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button 
+                                        onClick={performBulkAction}
+                                        className={`px-4 py-2 text-white rounded-lg transition-colors ${bulkActionType === 'delete' ? 'bg-red-600 hover:bg-red-700' : 'bg-[#c20c0b] hover:bg-[#a50a09]'}`}
+                                    >
+                                        Confirm {bulkActionType === 'hide' ? 'Hide' : bulkActionType === 'unhide' ? 'Unhide' : bulkActionType === 'restore' ? 'Restore' : 'Delete'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>,
+                        document.body
                     )}
 
                     {/* Execution Plan Edit Modal */}
@@ -2212,20 +2305,20 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                             <span className="text-sm text-gray-500 dark:text-white mr-2">{selectedQuoteIds.length} selected</span>
                             {viewMode === 'trash' ? (
                                 <>
-                                    <button onClick={handleBulkRestore} className="flex items-center gap-1 px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-green-600 dark:text-green-400 text-sm font-medium rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
+                                    <button onClick={() => openBulkActionModal('restore')} className="flex items-center gap-1 px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-green-600 dark:text-green-400 text-sm font-medium rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
                                         <RotateCcw size={14} /> Restore Selected
                                     </button>
-                                    <button onClick={handleBulkPermanentDelete} className="flex items-center gap-1 px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-red-600 dark:text-red-400 text-sm font-medium rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
+                                    <button onClick={() => openBulkActionModal('delete')} className="flex items-center gap-1 px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-red-600 dark:text-red-400 text-sm font-medium rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
                                         <Trash2 size={14} /> Delete Selected
                                     </button>
                                 </>
                             ) : (
                                 showHidden ? (
-                                    <button onClick={handleBulkUnhide} className="flex items-center gap-1 px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-white text-sm font-medium rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
+                                    <button onClick={() => openBulkActionModal('unhide')} className="flex items-center gap-1 px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-white text-sm font-medium rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
                                         <Eye size={14} /> Unhide Selected
                                     </button>
                                 ) : (
-                                    <button onClick={handleBulkHide} className="flex items-center gap-1 px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-white text-sm font-medium rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
+                                    <button onClick={() => openBulkActionModal('hide')} className="flex items-center gap-1 px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-white text-sm font-medium rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
                                         <EyeOff size={14} /> Hide Selected
                                     </button>
                                 )
@@ -2269,7 +2362,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                  <span className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full border ${getStatusColor(quote.status)} flex items-center gap-1`}>
                                      {quote.status === 'Accepted' && <CheckCheck size={12} />}
                                      {(quote.status === 'Admin Accepted' || quote.status === 'Client Accepted') && <Check size={12} />}
-                                     {quote.status === 'Admin Accepted' ? 'Admin Approved' : quote.status === 'Client Accepted' ? 'Client Approved' : quote.status}
+                                     {quote.status === 'Admin Accepted' ? 'Admin Accepted' : quote.status === 'Client Accepted' ? 'Client Accepted' : quote.status}
                                 </span>
                             </div>
 
@@ -2303,11 +2396,11 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                             if (items.length === 0) return '0 units';
                                             if (items.length === 1) {
                                                 const item = items[0];
-                                                return `${item.qty} ${item.quantityType === 'container' ? '' : 'units'}`;
+                                                return item.quantityType === 'container' ? item.containerType : `${item.qty} units`;
                                             }
                                             const allUnits = items.every(i => !i.quantityType || i.quantityType === 'units');
                                             if (allUnits) {
-                                                const total = items.reduce((acc, i) => acc + (parseInt(i.qty) || 0), 0);
+                                                const total = items.reduce((acc, i) => acc + (i.qty || 0), 0);
                                                 return `${total} units`;
                                             }
                                             return 'Various';

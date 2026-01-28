@@ -1,9 +1,12 @@
-import React, { useState, FC } from 'react';
+import React, { useState, FC, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { MainLayout } from './MainLayout';
 import { QuoteRequest } from './types';
 import {
-    Plus, MapPin, Globe, Shirt, Package, Clock, ChevronRight, FileQuestion, RefreshCw, MessageSquare, Bell, Calendar, DollarSign, CheckCircle, Check, CheckCheck
+    Plus, MapPin, Globe, Shirt, Package, Clock, ChevronRight, FileQuestion, RefreshCw, MessageSquare, Bell, Calendar, DollarSign, CheckCircle, Check, CheckCheck, FileText, Trash2
 } from 'lucide-react';
+import { formatFriendlyDate, getStatusColor, getStatusGradientBorder, getStatusHoverShadow } from './utils';
+import { useToast } from './ToastContext';
 
 interface MyQuotesPageProps {
     quoteRequests: QuoteRequest[];
@@ -14,21 +17,61 @@ interface MyQuotesPageProps {
     initialFilterStatus?: string;
 }
 
-const formatFriendlyDate = (dateString: string) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    const now = new Date();
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    
-    const isToday = date.getDate() === now.getDate() && date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-    const isYesterday = date.getDate() === yesterday.getDate() && date.getMonth() === yesterday.getMonth() && date.getFullYear() === yesterday.getFullYear();
-    
-    const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-    
-    if (isToday) return `Today at ${timeStr}`;
-    if (isYesterday) return `Yesterday at ${timeStr}`;
-    return `${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at ${timeStr}`;
+const EmptyState: FC<{ filterStatus: string; onClearFilter: () => void; onRequestQuote: () => void; }> = ({ filterStatus, onClearFilter, onRequestQuote }) => {
+    let title = "No Quotes Found";
+    let message = `No quotes match the "${filterStatus}" filter.`;
+    let action: React.ReactNode = <button onClick={onClearFilter} className="mt-4 text-sm font-bold text-[#c20c0b] hover:underline">Show All Quotes</button>;
+
+    if (filterStatus !== 'All') {
+        switch (filterStatus) {
+            case 'Drafts':
+                title = "No Drafts";
+                message = "You don't have any saved drafts.";
+                break;
+            case 'Pending':
+                title = "No Pending Quotes";
+                message = "You have no quotes awaiting a response from factories.";
+                action = <button onClick={onRequestQuote} className="mt-4 bg-[#c20c0b] text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 hover:bg-[#a50a09] transition shadow-md"><Plus size={18} /> Request a New Quote</button>;
+                break;
+            case 'Responded':
+                title = "No New Responses";
+                message = "You haven't received any new quotes from factories yet. When you do, they'll appear here.";
+                break;
+            case 'In Negotiation':
+                title = "No Active Negotiations";
+                message = "You are not currently negotiating any quotes. Quotes you respond to will appear here.";
+                break;
+            case 'Accepted':
+                title = "No Accepted Quotes";
+                message = "You haven't accepted any quotes yet. Once accepted, they will appear here and move to the CRM.";
+                break;
+            case 'Declined':
+                title = "No Declined Quotes";
+                message = "You have not declined any quotes.";
+                break;
+            case 'Admin Accepted':
+                title = "No Admin Accepted Quotes";
+                message = "There are no quotes currently accepted by the admin waiting for your action.";
+                break;
+            case 'Client Accepted':
+                title = "No Quotes Awaiting Admin Acceptance";
+                message = "You have not accepted any quotes that are now waiting for admin finalization.";
+                break;
+        }
+    } else {
+        title = "You haven't requested any quotes yet.";
+        message = "Start by creating a new quote request to get offers from factories.";
+        action = <button onClick={onRequestQuote} className="mt-4 bg-[#c20c0b] text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 hover:bg-[#a50a09] transition shadow-md"><Plus size={18} /> Request a New Quote</button>;
+    }
+
+    return (
+        <div className="text-center py-16 bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-lg border border-gray-100 dark:border-white/10">
+            <FileQuestion className="mx-auto h-16 w-16 text-gray-300 dark:text-gray-600" />
+            <h3 className="mt-4 text-lg font-semibold text-gray-800 dark:text-white">{title}</h3>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-200 max-w-md mx-auto">{message}</p>
+            {action}
+        </div>
+    );
 };
 
 export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCurrentPage, layoutProps, isLoading, onRefresh, initialFilterStatus }) => {
@@ -36,46 +79,23 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
     const [dateFilter, setDateFilter] = useState('All Time');
     const [customStartDate, setCustomStartDate] = useState('');
     const [customEndDate, setCustomEndDate] = useState('');
+    const [isDateModalOpen, setIsDateModalOpen] = useState(false);
     const todayString = new Date().toISOString().split('T')[0];
+    const [draftQuotes, setDraftQuotes] = useState<QuoteRequest[]>([]);
+    const { showToast } = useToast();
 
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'Pending': return 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-100 dark:border-amber-800';
-            case 'Responded': return 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-100 dark:border-blue-800';
-            case 'Accepted': return 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800';
-            case 'Declined': return 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-100 dark:border-red-800';
-            case 'In Negotiation': return 'bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-100 dark:border-purple-800';
-            case 'Admin Accepted': return 'bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 border-teal-100 dark:border-teal-800';
-            case 'Client Accepted': return 'bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400 border-cyan-100 dark:border-cyan-800';
-            default: return 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-100 dark:border-gray-700';
+    // Load drafts from local storage
+    useEffect(() => {
+        const draftData = localStorage.getItem('garment_erp_saved_drafts');
+        if (draftData) {
+            try {
+                const parsedDrafts = JSON.parse(draftData);
+                setDraftQuotes(parsedDrafts);
+            } catch (e) {
+                console.error("Failed to parse draft", e);
+            }
         }
-    };
-
-    const getStatusGradientBorder = (status: string) => {
-        switch (status) {
-            case 'Pending': return 'from-amber-300 to-yellow-200';
-            case 'Responded': return 'from-blue-400 to-cyan-300';
-            case 'Accepted': return 'from-emerald-600 to-emerald-300';
-            case 'Declined': return 'from-red-500 to-pink-400';
-            case 'In Negotiation': return 'from-purple-500 to-indigo-300';
-            case 'Admin Accepted': return 'from-teal-500 to-teal-300';
-            case 'Client Accepted': return 'from-cyan-500 to-cyan-300';
-            default: return 'from-gray-400 to-gray-200';
-        }
-    };
-
-    const getStatusHoverShadow = (status: string) => {
-        switch (status) {
-            case 'Pending': return 'hover:shadow-[0_8px_30px_rgba(245,158,11,0.15)]';
-            case 'Responded': return 'hover:shadow-[0_8px_30px_rgba(59,130,246,0.15)]';
-            case 'Accepted': return 'hover:shadow-[0_8px_30px_rgba(16,185,129,0.15)]';
-            case 'Declined': return 'hover:shadow-[0_8px_30px_rgba(239,68,68,0.15)]';
-            case 'In Negotiation': return 'hover:shadow-[0_8px_30px_rgba(168,85,247,0.15)]';
-            case 'Admin Accepted': return 'hover:shadow-[0_8px_30px_rgba(20,184,166,0.15)]';
-            case 'Client Accepted': return 'hover:shadow-[0_8px_30px_rgba(6,182,212,0.15)]';
-            default: return 'hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)]';
-        }
-    };
+    }, []);
 
     const getQuoteTimestamp = (quote: QuoteRequest) => {
         if (quote.status === 'Accepted' && quote.acceptedAt) return quote.acceptedAt;
@@ -94,8 +114,8 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
         else if (quote.status === 'In Negotiation') label = 'Updated';
         else if (quote.status === 'Responded') label = 'Received';
         else if (quote.status === 'Declined') label = 'Declined';
-        else if (quote.status === 'Admin Accepted') label = 'Admin Approved';
-        else if (quote.status === 'Client Accepted') label = 'You Approved';
+        else if (quote.status === 'Admin Accepted') label = 'Admin Accepted';
+        else if (quote.status === 'Client Accepted') label = 'You Accepted';
         return { label, date: formatFriendlyDate(date) };
     };
 
@@ -159,22 +179,57 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
         const timestamp = getQuoteTimestamp(quote);
         const lastRead = localStorage.getItem(`quote_read_${quote.id}`);
         if (!lastRead) return true;
-        return new Date(timestamp).getTime() > new Date(lastRead).getTime();
+        return new Date(timestamp).toISOString() > new Date(lastRead).toISOString();
     };
 
     const handleCardClick = (quote: QuoteRequest) => {
+        if (quote.status === 'Draft') {
+            handleSetCurrentPage('orderForm');
+            return;
+        }
         const timestamp = getQuoteTimestamp(quote);
         localStorage.setItem(`quote_read_${quote.id}`, timestamp);
         handleSetCurrentPage('quoteDetail', quote);
     };
 
+    const handleRequestNewQuote = () => {
+        localStorage.removeItem('garment_erp_order_draft');
+        handleSetCurrentPage('orderForm');
+    };
+
+    const handleDeleteDraft = (e: React.MouseEvent, draftId: string) => {
+        e.stopPropagation();
+        if (confirm("Are you sure you want to delete this draft permanently?")) {
+            const newDrafts = draftQuotes.filter(d => d.id !== draftId);
+            setDraftQuotes(newDrafts);
+            localStorage.setItem('garment_erp_saved_drafts', JSON.stringify(newDrafts));
+            
+            // Also clear current working draft if it matches
+            const currentWork = localStorage.getItem('garment_erp_order_draft');
+            if (currentWork) {
+                const parsed = JSON.parse(currentWork);
+                if (parsed.draftId === draftId) {
+                    localStorage.removeItem('garment_erp_order_draft');
+                }
+            }
+            
+            showToast("Draft deleted successfully.", "success");
+        }
+    };
+
+    const handleResumeDraft = (quote: QuoteRequest) => {
+        localStorage.setItem('garment_erp_order_draft', JSON.stringify(quote.order));
+        handleSetCurrentPage('orderForm');
+    };
+
     const filteredQuotes = (quoteRequests || [])
-        .filter(quote => filterStatus === 'All' || quote.status === filterStatus)
         .filter(quote => quote.status !== 'Trashed')
+        .filter(quote => filterStatus === 'All' ? quote.status !== 'Draft' : quote.status === filterStatus)
+        .concat(filterStatus === 'Drafts' ? draftQuotes : [])
         .filter(checkDateFilter)
         .sort((a, b) => new Date(getQuoteTimestamp(b)).getTime() - new Date(getQuoteTimestamp(a)).getTime());
 
-    const filterOptions = ['All', 'Pending', 'Responded', 'In Negotiation', 'Accepted', 'Declined'];
+    const filterOptions = ['All', 'Drafts', 'Pending', 'Responded', 'In Negotiation', 'Accepted', 'Declined', 'Admin Accepted', 'Client Accepted'];
 
     return (
         <MainLayout {...layoutProps}>
@@ -187,7 +242,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                     </div>
                     <button onClick={onRefresh} className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-colors ${isLoading ? 'animate-spin' : ''}`} title="Refresh Quotes"><RefreshCw size={20}/></button>
                 </div>
-                <button onClick={() => handleSetCurrentPage('orderForm')} className="bg-[#c20c0b] text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 hover:bg-[#a50a09] transition shadow-md">
+                <button onClick={handleRequestNewQuote} className="bg-[#c20c0b] text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 hover:bg-[#a50a09] transition shadow-md">
                     <Plus size={18} />
                     <span>Request New Quote</span>
                 </button>
@@ -216,7 +271,13 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                         <Calendar size={16} className="text-gray-500 dark:text-gray-200" />
                         <select 
                             value={dateFilter} 
-                            onChange={(e) => setDateFilter(e.target.value)}
+                            onChange={(e) => {
+                                if (e.target.value === 'Custom Range') {
+                                    setIsDateModalOpen(true);
+                                } else {
+                                    setDateFilter(e.target.value);
+                                }
+                            }}
                             className="text-sm border-none bg-transparent font-medium text-gray-600 dark:text-gray-300 focus:ring-0 cursor-pointer outline-none"
                         >
                             <option>All Time</option>
@@ -227,23 +288,12 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                             <option>Custom Range</option>
                         </select>
                         {dateFilter === 'Custom Range' && (
-                            <div className="flex items-center gap-2 ml-2 animate-fade-in">
-                                <input 
-                                    type="date" 
-                                    value={customStartDate} 
-                                    onChange={(e) => setCustomStartDate(e.target.value)}
-                                    max={todayString}
-                                    className="text-xs border border-gray-300 dark:border-gray-600 rounded-md p-1 focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white" 
-                                />
-                                <span className="text-gray-400">-</span>
-                                <input 
-                                    type="date" 
-                                    value={customEndDate} 
-                                    onChange={(e) => setCustomEndDate(e.target.value)}
-                                    max={todayString}
-                                    className="text-xs border border-gray-300 dark:border-gray-600 rounded-md p-1 focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white" 
-                                />
-                            </div>
+                            <button 
+                                onClick={() => setIsDateModalOpen(true)}
+                                className="ml-2 text-xs bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded border border-gray-200 dark:border-gray-700 flex items-center gap-1 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors"
+                            >
+                                {customStartDate ? new Date(customStartDate).toLocaleDateString() : 'Start'} - {customEndDate ? new Date(customEndDate).toLocaleDateString() : 'End'}
+                            </button>
                         )}
                     </div>
                 </div>
@@ -261,7 +311,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                     {filteredQuotes.map((quote, index) => (
                         <div
                             key={quote.id} 
-                            onClick={() => handleCardClick(quote)}
+                            onClick={() => quote.status === 'Draft' ? handleResumeDraft(quote) : handleCardClick(quote)}
                             className={`bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl p-6 shadow-md ${getStatusHoverShadow(quote.status)} border border-gray-200 dark:border-white/10 transition-all duration-300 cursor-pointer group relative overflow-hidden flex flex-col hover:-translate-y-1`}
                             style={{ animationDelay: `${index * 50}ms` }}
                         >
@@ -274,11 +324,18 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                                 <span className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full border ${getStatusColor(quote.status)} flex items-center gap-1`}>
                                     {quote.status === 'Accepted' && <CheckCheck size={12} />}
                                     {(quote.status === 'Admin Accepted' || quote.status === 'Client Accepted') && <Check size={12} />}
-                                    {quote.status === 'Admin Accepted' ? 'Admin Approved' : quote.status === 'Client Accepted' ? 'You Approved' : quote.status}
+                                    {quote.status === 'Admin Accepted' ? 'Admin Accepted' : quote.status === 'Client Accepted' ? 'You Accepted' : quote.status}
                                 </span>
                             </div>
 
-                            {quote.factory && (
+                            {quote.status === 'Draft' ? (
+                                <div className="flex items-center gap-3 mb-5">
+                                    <div className="h-9 w-9 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center border border-gray-200 dark:border-gray-700 shadow-sm">
+                                        <FileText size={16} className="text-gray-500 dark:text-gray-400" />
+                                    </div>
+                                    <p className="font-bold text-gray-900 dark:text-white text-sm leading-tight">Draft Order</p>
+                                </div>
+                            ) : quote.factory && (
                                 <div className="flex items-center gap-3 mb-5">
                                     <img className="h-9 w-9 rounded-full object-cover border border-gray-100 dark:border-gray-700 shadow-sm" src={quote.factory.imageUrl} alt={quote.factory.name} />
                                     <div>
@@ -307,11 +364,11 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                                                 if (items.length === 0) return '0 units';
                                                 if (items.length === 1) {
                                                     const item = items[0];
-                                                    return `${item.qty} ${item.quantityType === 'container' ? '' : 'units'}`;
+                                                    return item.quantityType === 'container' ? item.containerType : `${item.qty} units`;
                                                 }
                                                 const allUnits = items.every(i => !i.quantityType || i.quantityType === 'units');
                                                 if (allUnits) {
-                                                    const total = items.reduce((acc, i) => acc + (parseInt(i.qty) || 0), 0);
+                                                    const total = items.reduce((acc, i) => acc + (i.qty || 0), 0);
                                                     return `${total} total units`;
                                                 }
                                                 return 'Multiple quantities';
@@ -352,6 +409,10 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                                     <div className="flex items-center text-xs text-amber-600 dark:text-amber-500 font-medium">
                                         <Clock size={14} className="mr-1.5" /> Awaiting response
                                     </div>
+                                ) : quote.status === 'Draft' ? (
+                                    <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 font-medium">
+                                        <FileText size={14} className="mr-1.5" /> Resume Editing
+                                    </div>
                                 ) : (quote.status === 'Responded' || isNewReply(quote)) && isUnread(quote) ? (
                                     <div className="flex items-center text-xs text-blue-600 dark:text-blue-400 font-medium">
                                         <MessageSquare size={14} className="mr-1.5" /> New response
@@ -362,7 +423,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                                     </div>
                                 ) : quote.status === 'Client Accepted' ? (
                                     <div className="flex items-center text-xs text-cyan-600 dark:text-cyan-400 font-medium">
-                                        <Check size={14} className="mr-1.5" /> You Approved
+                                        <Check size={14} className="mr-1.5" /> You Accepted
                                     </div>
                                 ) : quote.status === 'Admin Accepted' ? (
                                     <div className="flex items-center text-xs text-teal-600 dark:text-teal-400 font-medium">
@@ -370,6 +431,12 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                                     </div>
                                 ) : (
                                     <div className="text-xs text-gray-400 dark:text-gray-200 font-medium">View Details</div>
+                                )}
+                                
+                                {quote.status === 'Draft' && (
+                                    <button onClick={(e) => handleDeleteDraft(e, quote.id)} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors ml-auto mr-2" title="Delete Draft">
+                                        <Trash2 size={16} />
+                                    </button>
                                 )}
                                 
                                 <div className="h-8 w-8 rounded-full bg-gray-50 dark:bg-gray-800 group-hover:bg-[#c20c0b] flex items-center justify-center text-gray-400 dark:text-gray-200 group-hover:text-white transition-all duration-300">
@@ -380,14 +447,50 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                     ))}
                 </div>
             ) : (
-                <div className="text-center py-16 bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-lg border border-gray-100 dark:border-white/10">
-                    <FileQuestion className="mx-auto h-16 w-16 text-gray-300 dark:text-gray-600" />
-                    <h3 className="mt-4 text-lg font-semibold text-gray-800 dark:text-white">No Quotes Found</h3>
-                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-200">No quotes match the "{filterStatus}" filter.</p>
-                    <button onClick={() => setFilterStatus('All')} className="mt-4 text-sm font-bold text-[#c20c0b] hover:underline">
-                        Show All Quotes
-                    </button>
-                </div>
+                <EmptyState
+                    filterStatus={filterStatus}
+                    onClearFilter={() => setFilterStatus('All')}
+                    onRequestQuote={handleRequestNewQuote}
+                />
+            )}
+
+            {/* Date Range Modal */}
+            {isDateModalOpen && createPortal(
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 animate-fade-in">
+                    <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-sm border border-gray-200 dark:border-gray-700 p-6">
+                        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Select Date Range</h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start Date</label>
+                                <input 
+                                    type="date" 
+                                    value={customStartDate} 
+                                    onChange={(e) => setCustomStartDate(e.target.value)}
+                                    max={todayString}
+                                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">End Date</label>
+                                <input 
+                                    type="date" 
+                                    value={customEndDate} 
+                                    onChange={(e) => setCustomEndDate(e.target.value)}
+                                    max={todayString}
+                                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                                />
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-3 mt-6">
+                            <button onClick={() => setIsDateModalOpen(false)} className="px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">Cancel</button>
+                            <button onClick={() => {
+                                setDateFilter('Custom Range');
+                                setIsDateModalOpen(false);
+                            }} className="px-4 py-2 bg-[#c20c0b] text-white rounded-lg hover:bg-[#a50a09] transition-colors">Apply</button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
             )}
         </MainLayout>
     );

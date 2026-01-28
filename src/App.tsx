@@ -19,7 +19,6 @@ import {
 // Import TypeScript interfaces/types for data structures used in the app
 import { UserProfile, OrderFormData, Factory, QuoteRequest, CrmOrder, ToastState, MachineSlot } from './types';
 // Import custom components for specific pages and UI elements
-import { Toast } from '../src/Toast';
 import { MainLayout } from '../src/MainLayout';
 import { LoginPage } from '../src/LoginPage';
 import { SourcingPage } from '../src/SourcingPage';
@@ -41,48 +40,14 @@ import { MyQuotesPage } from './MyQuotesPage';
 import { QuoteDetailPage } from './QuoteDetailPage';
 import { FactoryDetailPage } from './FactoryDetailPage';
 import { theme } from './theme';
-
-// --- Type Definitions ---
-
-// Extend the global Window interface to include a custom showToast function
-declare global {
-    interface Window {
-        showToast: (message: string, type?: 'success' | 'error') => void;
-    }
-}
-
-// --- Helper Functions ---
-
-// Function to copy text to the system clipboard
-const copyToClipboard = (text: string, successMessage: string = 'Copied to clipboard!') => {
-    // Create a temporary textarea element to hold the text
-    const textArea = document.createElement("textarea");
-    textArea.value = text;
-    // Hide the textarea from view
-    textArea.style.position = "fixed";
-    textArea.style.opacity = "0";
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
-    try {
-        // Execute the copy command
-        document.execCommand('copy');
-        // Show success message
-        if (window.showToast) window.showToast(successMessage);
-        else alert(successMessage);
-    } catch (err) {
-        // Handle errors
-        console.error('Failed to copy: ', err);
-        if (window.showToast) window.showToast('Failed to copy text.', 'error');
-        else alert('Failed to copy text.');
-    }
-    // Clean up by removing the textarea
-    document.body.removeChild(textArea);
-};
+import { ToastProvider, useToast } from './ToastContext';
 
 // --- Main App Component ---
 // This is the root component of the application
-const App: FC = () => {
+const AppContent: FC = () => {
+    // Access showToast from context
+    const { showToast } = useToast();
+
     // --- State Management ---
     
     // State to track which page is currently displayed (default is 'login')
@@ -101,8 +66,6 @@ const App: FC = () => {
     const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
     // State to manage if the sidebar is collapsed or expanded
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
-    // State to manage toast notifications (visibility, message, type)
-    const [toast, setToast] = useState<ToastState>({ show: false, message: '', type: 'success' });
     // State used to force re-render of components by changing the key
     const [pageKey, setPageKey] = useState<number>(0);
     // State to check if the current user is an admin
@@ -124,6 +87,33 @@ const App: FC = () => {
         localStorage.setItem('garment_erp_dark_mode', String(darkMode));
     }, [darkMode]);
 
+    // --- Helper Functions ---
+
+    // Function to copy text to the system clipboard
+    const copyToClipboard = (text: string, successMessage: string = 'Copied to clipboard!') => {
+        // Create a temporary textarea element to hold the text
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        // Hide the textarea from view
+        textArea.style.position = "fixed";
+        textArea.style.opacity = "0";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+            // Execute the copy command
+            document.execCommand('copy');
+            // Show success message
+            showToast(successMessage);
+        } catch (err) {
+            // Handle errors
+            console.error('Failed to copy: ', err);
+            showToast('Failed to copy text.', 'error');
+        }
+        // Clean up by removing the textarea
+        document.body.removeChild(textArea);
+    };
+
     // --- App Logic & Data States ---
     
     // State to store data entered in the Order Form
@@ -134,7 +124,8 @@ const App: FC = () => {
             fabricQuality: '100% Cotton',
             weightGSM: '180',
             styleOption: 'Crew Neck, Short Sleeve',
-            qty: '5000',
+            qty: 5000,
+            containerType: '',
             targetPrice: '4.50',
             packagingReqs: 'Individually folded and poly-bagged',
             labelingReqs: 'Custom neck labels',
@@ -218,13 +209,6 @@ const App: FC = () => {
     // Function to toggle the sidebar menu visibility
     const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
     
-    // Function to display a toast notification
-    const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
-        setToast({ show: true, message, type });
-        // Hide toast after 3 seconds
-        setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3000);
-    }, []);
-    
     // Function to set global loading state
     const setGlobalLoading = useCallback((isLoading: boolean) => {
         setLoadingCount(prev => isLoading ? prev + 1 : Math.max(0, prev - 1));
@@ -261,9 +245,6 @@ const App: FC = () => {
             localStorage.setItem('garment_erp_last_page', page);
         }
     };
-
-    // Effect to expose showToast to the global window object
-    useEffect(() => { window.showToast = showToast; }, []);
 
     // --- Supabase Auth Listener ---
     useEffect(() => {
@@ -397,15 +378,12 @@ const App: FC = () => {
                 setIsQuotesLoading(true);
             }
             
-            let attempts = 0;
-            while (attempts < 3) {
             try {
                 if (signal.aborted) return;
-                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 15000));
-                const { data, error } = await Promise.race([quoteService.getQuotesByUser(user.id), timeoutPromise]) as any;
-                
-                if (error) throw error; 
-                
+                const { data, error } = await quoteService.getQuotesByUser(user.id);
+
+                if (error) throw error;
+
                 if (data && !signal.aborted) {
                     console.log('[App.tsx] Raw quotes from DB:', data.map((q: any) => ({ id: q.id, files: q.files })));
                     const transformedQuotes: QuoteRequest[] = data.map((q: any) => ({
@@ -424,16 +402,10 @@ const App: FC = () => {
                     setQuoteRequests(transformedQuotes);
                     sessionStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify(transformedQuotes));
                 }
-                break; // Success
             } catch (error: any) {
                 if (error.name === 'AbortError' || signal.aborted) return;
-                attempts++;
-                if (attempts >= 3) {
-                    console.error("Error fetching quotes:", error);
-                    showToast("Failed to load quotes: " + error.message, "error");
-                }
-                await new Promise(r => setTimeout(r, 1000 * attempts));
-            }
+                console.error("Error fetching quotes:", error);
+                showToast("Failed to load quotes: " + error.message, "error");
             }
             
             if (!signal.aborted) setIsQuotesLoading(false);
@@ -692,40 +664,33 @@ const App: FC = () => {
                 files: uploadedFilePaths
             };
 
-            // Add timeout to create request to prevent hanging
-            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), 20000));
-            const { error } = await Promise.race([
-                quoteService.create(payload),
-                timeoutPromise
-            ]) as any;
+            // Create the quote record
+            const { data: createdQuote, error } = await quoteService.create(payload);
 
             if (error) throw error;
+            if (!createdQuote) throw new Error('No data returned from create');
+
+            // Immediately add the new quote to state so it shows up right away
+            const newQuote: QuoteRequest = {
+                id: createdQuote.id,
+                factory: createdQuote.factory_data,
+                order: createdQuote.order_details,
+                status: createdQuote.status,
+                submittedAt: createdQuote.created_at,
+                userId: createdQuote.user_id,
+                files: createdQuote.files || [],
+                response_details: createdQuote.response_details,
+                negotiation_details: createdQuote.negotiation_details
+            };
+
+            // Add to existing quotes and update state immediately
+            setQuoteRequests(prevQuotes => {
+                const updatedQuotes = [newQuote, ...prevQuotes];
+                sessionStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify(updatedQuotes));
+                return updatedQuotes;
+            });
 
             showToast('Quote request submitted successfully!');
-            // Refresh quotes from Supabase to update the UI
-            const { data, error: fetchError } = await quoteService.getQuotesByUser(user.id);
-            if (fetchError) {
-                console.error('Error fetching quotes:', fetchError);
-                showToast('Quote submitted but failed to refresh list.', 'error');
-            } else if (data) {
-                console.log('[App.tsx] After submit - Raw quotes from DB:', data.map((q: any) => ({ id: q.id, files: q.files })));
-                const transformedQuotes: QuoteRequest[] = data.map((q: any) => ({
-                    id: q.id,
-                    factory: q.factory_data,
-                    order: q.order_details,
-                    status: q.status,
-                    submittedAt: q.created_at,
-                    acceptedAt: q.accepted_at || q.response_details?.acceptedAt,
-                    userId: q.user_id,
-                    files: q.files || [],
-                    response_details: q.response_details,
-                    negotiation_details: q.negotiation_details
-                }));
-                console.log('[App.tsx] After submit - Transformed quotes files:', transformedQuotes.map(q => ({ id: q.id, files: q.files })));
-                setQuoteRequests(transformedQuotes);
-                // Update sessionStorage cache to include the new quote with files
-                sessionStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify(transformedQuotes));
-            }
             handleSetCurrentPage('myQuotes');
         } catch (error: any) {
             console.error('Submit quote error:', error);
@@ -869,7 +834,7 @@ const App: FC = () => {
     // Function to fetch market trends using AI
     const getMarketTrends = async () => { setIsLoadingTrends(true); const date = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }); const prompt = `As a fashion industry analyst, provide a brief summary of key market trends in global garment manufacturing for ${date}. Focus on sustainability, technology, and consumer behavior. Format as a bulleted list.`; try { setMarketTrends(await callGeminiAPI(prompt)); } catch (error) { setMarketTrends('Error fetching market trends: ' + (error as Error).message); showToast('Error fetching market trends.', 'error'); } finally { setIsLoadingTrends(false); } };
     // Function to get negotiation tips using AI
-    const getNegotiationTips = async () => { if (!selectedFactory) return; setIsLoadingNegotiation(true); const prompt = `As a sourcing expert, provide key negotiation points and cultural tips for an upcoming discussion with ${selectedFactory.name} in ${selectedFactory.location} regarding an order of ${orderFormData.lineItems.length} line items (Total Qty: ${orderFormData.lineItems.reduce((acc, item) => acc + (parseInt(item.qty) || 0), 0)}). Focus on pricing strategies, payment terms, and quality assurance questions. Format as a bulleted list with bold headings.`; try { setNegotiationTips(await callGeminiAPI(prompt)); } catch(error) { setNegotiationTips('Error fetching negotiation tips: ' + (error as Error).message); showToast('Error fetching negotiation tips.', 'error'); } finally { setIsLoadingNegotiation(false); } };
+    const getNegotiationTips = async () => { if (!selectedFactory) return; setIsLoadingNegotiation(true); const prompt = `As a sourcing expert, provide key negotiation points and cultural tips for an upcoming discussion with ${selectedFactory.name} in ${selectedFactory.location} regarding an order of ${orderFormData.lineItems.length} line items (Total Qty: ${orderFormData.lineItems.reduce((acc, item) => acc + (item.qty || 0), 0)}). Focus on pricing strategies, payment terms, and quality assurance questions. Format as a bulleted list with bold headings.`; try { setNegotiationTips(await callGeminiAPI(prompt)); } catch(error) { setNegotiationTips('Error fetching negotiation tips: ' + (error as Error).message); showToast('Error fetching negotiation tips.', 'error'); } finally { setIsLoadingNegotiation(false); } };
 
     // Props to be passed to the MainLayout component
     const layoutProps = {
@@ -1498,7 +1463,7 @@ const App: FC = () => {
                                         {orderFormData.lineItems.map((item, idx) => (
                                             <div key={idx} className="md:col-span-2 mb-2">
                                                 <p className="font-semibold">Item {idx + 1}: {item.category}</p>
-                                                <p>Qty: {item.qty}, Fabric: {item.fabricQuality}, {item.weightGSM} GSM</p>
+                                                <p>Qty: {item.quantityType === 'container' ? item.containerType : item.qty}, Fabric: {item.fabricQuality}, {item.weightGSM} GSM</p>
                                                 <p>Style: {item.styleOption}</p>
                                             </div>
                                         ))}
@@ -1688,13 +1653,19 @@ const App: FC = () => {
                     background: #6b7280;
                 }
             `}</style>
-            {/* Toast notification component */}
-            <Toast {...toast} />
             {/* Render the current page content */}
             {renderPage()}
             {/* Render AI Chat Support for non-admin users */}
             {user && userProfile && !isAdmin && <AIChatSupport />}
         </div>
+    );
+};
+
+const App: FC = () => {
+    return (
+        <ToastProvider>
+            <AppContent />
+        </ToastProvider>
     );
 };
 

@@ -11,6 +11,8 @@ import {
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import confetti from 'canvas-confetti';
+import { formatFriendlyDate, getStatusColor, getStatusGradient } from './utils';
+import { useToast } from './ToastContext';
 
 interface QuoteDetailPageProps {
     selectedQuote: QuoteRequest | null;
@@ -19,23 +21,6 @@ interface QuoteDetailPageProps {
     createCrmOrder: (quote: QuoteRequest) => void;
     layoutProps: any;
 }
-
-const formatFriendlyDate = (dateString: string) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    const now = new Date();
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    
-    const isToday = date.getDate() === now.getDate() && date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-    const isYesterday = date.getDate() === yesterday.getDate() && date.getMonth() === yesterday.getMonth() && date.getFullYear() === yesterday.getFullYear();
-    
-    const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-    
-    if (isToday) return `Today at ${timeStr}`;
-    if (isYesterday) return `Yesterday at ${timeStr}`;
-    return `${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at ${timeStr}`;
-};
 
 const SIZE_ORDER = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL'];
 
@@ -82,8 +67,11 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
     const [fileLinks, setFileLinks] = useState<{ name: string; url: string }[]>([]);
     const [expandedItems, setExpandedItems] = useState<number[]>([]);
     const [chatStates, setChatStates] = useState<Record<number, { message: string; file: File | null }>>({});
+    const [uploadingChats, setUploadingChats] = useState<Record<number, boolean>>({});
+    const cancellationRefs = useRef<Record<number, boolean>>({});
     const [expandedExecutionSteps, setExpandedExecutionSteps] = useState<number[]>([]);
     const [isExecutionPlanExpanded, setIsExecutionPlanExpanded] = useState(true);
+    const { showToast } = useToast();
 
     const toggleExpand = (index: number) => {
         setExpandedItems(prev => 
@@ -135,9 +123,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
 
     useEffect(() => {
         if (quote) {
-             const plan = (quote as any).execution_plan || DEFAULT_EXECUTION_PLAN;
-             // Initialize all steps as expanded by default
-             setExpandedExecutionSteps(plan.map((_: any, i: number) => i));
+             setExpandedExecutionSteps([]);
         }
     }, [quote]);
 
@@ -254,17 +240,28 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
     };
 
     if (!quote) {
-        handleSetCurrentPage('myQuotes');
-        return null;
+        return (
+            <MainLayout {...layoutProps}>
+                <div className="flex flex-col items-center justify-center min-h-[50vh] text-center p-8">
+                    <div className="bg-red-100 dark:bg-red-900/20 p-4 rounded-full mb-4">
+                        <AlertCircle size={48} className="text-red-500 dark:text-red-400" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">Quote Not Found</h2>
+                    <p className="text-gray-600 dark:text-gray-300 mb-6">The quote details could not be loaded. It may have been deleted or you don't have permission to view it.</p>
+                    <button 
+                        onClick={() => handleSetCurrentPage('myQuotes')}
+                        className="px-6 py-2 bg-[#c20c0b] text-white font-semibold rounded-lg hover:bg-[#a50a09] transition shadow-md"
+                    >
+                        Back to My Quotes
+                    </button>
+                </div>
+            </MainLayout>
+        );
     }
 
     console.log('[QuoteDetailPage] Rendering with quote.files:', quote.files);
 
     const { factory, order, status, submittedAt, id, response_details } = quote;
-
-    const showToast = (message: string, type: 'success' | 'error' = 'success') => {
-        if (window.showToast) window.showToast(message, type);
-    };
 
     const handleDownloadPdf = async () => {
         const input = pdfContentRef.current;
@@ -605,32 +602,6 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         );
     };
 
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'Pending': return 'bg-amber-50 text-amber-700 border-amber-200';
-            case 'Responded': return 'bg-blue-50 text-blue-700 border-blue-200';
-            case 'Accepted': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-            case 'Declined': return 'bg-red-50 text-red-700 border-red-200';
-            case 'In Negotiation': return 'bg-purple-50 text-purple-700 border-purple-200';
-            case 'Admin Accepted': return 'bg-teal-50 text-teal-700 border-teal-200';
-            case 'Client Accepted': return 'bg-cyan-50 text-cyan-700 border-cyan-200';
-            default: return 'bg-gray-50 text-gray-700 border-gray-200';
-        }
-    };
-
-    const getStatusGradient = (status: string) => {
-        switch (status) {
-            case 'Pending': return 'from-amber-400 to-yellow-300';
-            case 'Responded': return 'from-blue-500 to-cyan-400';
-            case 'Accepted': return 'from-emerald-500 to-green-400';
-            case 'Declined': return 'from-red-500 to-pink-500';
-            case 'In Negotiation': return 'from-purple-500 to-indigo-400';
-            case 'Admin Accepted': return 'from-teal-500 to-teal-400';
-            case 'Client Accepted': return 'from-cyan-500 to-cyan-400';
-            default: return 'from-gray-400 to-gray-300';
-        }
-    };
-
     const getLineItemHistory = (lineItemId: number) => {
         if (!quote?.negotiation_details?.history) return [];
         return quote.negotiation_details.history
@@ -666,6 +637,9 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         const chatState = chatStates[lineItemId] || { message: '', file: null };
         if (!chatState.message.trim() && !chatState.file) return;
 
+        cancellationRefs.current[lineItemId] = false;
+        setUploadingChats(prev => ({ ...prev, [lineItemId]: true }));
+
         let attachmentUrl = '';
         if (chatState.file) {
             try {
@@ -675,14 +649,25 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                     .from('quote-attachments')
                     .upload(fileName, chatState.file);
                 
+                if (cancellationRefs.current[lineItemId]) {
+                    if (data?.path) {
+                        await layoutProps.supabase.storage.from('quote-attachments').remove([data.path]);
+                    }
+                    return;
+                }
+
                 if (error) throw error;
                 if (data) attachmentUrl = data.path;
             } catch (error: any) {
                 console.error('Upload error:', error);
+                if (cancellationRefs.current[lineItemId]) return;
                 showToast('Failed to upload attachment', 'error');
+                setUploadingChats(prev => ({ ...prev, [lineItemId]: false }));
                 return;
             }
         }
+
+        if (cancellationRefs.current[lineItemId]) return;
 
         const newHistoryItem: NegotiationHistoryItem = {
             id: Date.now().toString(),
@@ -704,6 +689,13 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
             setQuote(prev => prev ? { ...prev, negotiation_details: { ...prev.negotiation_details, history: updatedHistory } } : null);
             setChatStates(prev => ({ ...prev, [lineItemId]: { message: '', file: null } }));
         }
+        setUploadingChats(prev => ({ ...prev, [lineItemId]: false }));
+    };
+
+    const handleCancelUpload = (lineItemId: number) => {
+        cancellationRefs.current[lineItemId] = true;
+        setUploadingChats(prev => ({ ...prev, [lineItemId]: false }));
+        showToast('Upload cancelled');
     };
 
     const getStepIcon = (index: number, title: string) => {
@@ -726,6 +718,15 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
 
     const executionPlan: ExecutionStep[] = (quote as any).execution_plan || DEFAULT_EXECUTION_PLAN;
     const showExecutionPlan = (status !== 'Pending' && status !== 'Trashed') || layoutProps.isAdmin;
+
+    const toggleAllExecutionSteps = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (expandedExecutionSteps.length === executionPlan.length) {
+            setExpandedExecutionSteps([]);
+        } else {
+            setExpandedExecutionSteps(executionPlan.map((_, i) => i));
+        }
+    };
 
     return (
         <MainLayout {...layoutProps}>
@@ -1064,15 +1065,33 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                             placeholder="Type a message..." 
                                                             className="flex-1 bg-transparent border-none focus:ring-0 text-sm text-gray-800 dark:text-white resize-none max-h-24 py-2"
                                                             rows={1}
-                                                            onKeyDown={(e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendChat(item.id); } }}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter' && !e.shiftKey) {
+                                                                    e.preventDefault();
+                                                                    handleSendChat(item.id);
+                                                                } else if (e.key === 'Escape') {
+                                                                    e.preventDefault();
+                                                                    if (uploadingChats[item.id]) handleCancelUpload(item.id);
+                                                                    else setChatStates(prev => ({ ...prev, [item.id]: { message: '', file: null } }));
+                                                                }
+                                                            }}
                                                         />
                                                         <button 
                                                             onClick={() => handleSendChat(item.id)}
-                                                            disabled={!chatStates[item.id]?.message?.trim() && !chatStates[item.id]?.file}
+                                                            disabled={(!chatStates[item.id]?.message?.trim() && !chatStates[item.id]?.file) || uploadingChats[item.id]}
                                                             className="p-2 bg-[#c20c0b] text-white rounded-lg hover:bg-[#a50a09] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                                         >
-                                                            <Send size={18} />
+                                                            {uploadingChats[item.id] ? <RefreshCw size={18} className="animate-spin" /> : <Send size={18} />}
                                                         </button>
+                                                        {uploadingChats[item.id] && (
+                                                            <button 
+                                                                onClick={() => handleCancelUpload(item.id)}
+                                                                className="p-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+                                                                title="Cancel Upload"
+                                                            >
+                                                                <X size={18} />
+                                                            </button>
+                                                        )}
                                                     </div>
                                                     {chatStates[item.id]?.file && (
                                                         <div className="mt-2 text-xs text-gray-500 flex items-center justify-between bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
@@ -1103,7 +1122,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                             {(() => {
                                 const totalTargetCost = order.lineItems.reduce((acc, item) => {
                                     if (item.quantityType === 'units' && item.qty && item.targetPrice) {
-                                        const qty = parseFloat(item.qty);
+                                        const qty = item.qty;
                                         const price = parseFloat(item.targetPrice);
                                         if (!isNaN(qty) && !isNaN(price)) {
                                             return acc + (qty * price);
@@ -1117,7 +1136,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                         <div className="hidden md:grid grid-cols-12 gap-4 w-full px-4 mt-2 border-t border-gray-200 dark:border-white/10 pt-4">
                                             <div className="col-span-4 text-right text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider self-center">Totals</div>
                                             <div className="col-span-2 text-center">
-                                                <p className="text-sm font-bold text-gray-900 dark:text-white">{quote.order?.lineItems?.reduce((acc, item) => acc + (parseInt(item.qty) || 0), 0).toLocaleString()}</p>
+                                                <p className="text-sm font-bold text-gray-900 dark:text-white">{quote.order?.lineItems?.reduce((acc, item) => acc + (item.qty || 0), 0).toLocaleString()}</p>
                                             </div>
                                             <div className="col-span-2 text-right">
                                                 {totalTargetCost > 0 && (
@@ -1132,7 +1151,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                         {/* Mobile */}
                                         <div className="md:hidden mt-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-white/10 flex justify-between items-center">
                                             <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Total Quantity</span>
-                                            <span className="text-sm font-bold text-gray-900 dark:text-white">{quote.order?.lineItems?.reduce((acc, item) => acc + (parseInt(item.qty) || 0), 0).toLocaleString()}</span>
+                                            <span className="text-sm font-bold text-gray-900 dark:text-white">{quote.order?.lineItems?.reduce((acc, item) => acc + (item.qty || 0), 0).toLocaleString()}</span>
                                         </div>
                                         {totalTargetCost > 0 && (
                                             <div className="md:hidden mt-2 bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-white/10 flex justify-between items-center">
@@ -1157,11 +1176,27 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                     </h3>
                                     <div className="flex items-center gap-3">
                                     {layoutProps.isAdmin && isExecutionPlanExpanded && (
+                                        <>
+                                        <button 
+                                            onClick={toggleAllExecutionSteps}
+                                            className="text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors mr-2"
+                                        >
+                                            {expandedExecutionSteps.length === executionPlan.length ? 'Collapse All' : 'Expand All'}
+                                        </button>
                                         <button 
                                             onClick={() => setIsExecutionPlanModalOpen(true)}
                                             className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
                                         >
                                             <Edit size={16} /> Edit Plan
+                                        </button>
+                                        </>
+                                    )}
+                                    {!layoutProps.isAdmin && isExecutionPlanExpanded && (
+                                        <button 
+                                            onClick={toggleAllExecutionSteps}
+                                            className="text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors mr-2"
+                                        >
+                                            {expandedExecutionSteps.length === executionPlan.length ? 'Collapse All' : 'Expand All'}
                                         </button>
                                     )}
                                     {isExecutionPlanExpanded ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}

@@ -1,14 +1,17 @@
 // Import necessary React tools: FC (Functional Component type), ReactNode (for rendering children), useRef (for accessing DOM elements), and useState (for managing data).
 import React, { FC, ReactNode, useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import confetti from 'canvas-confetti';
 // Import specific icons from the 'lucide-react' library to use in the form UI.
 import {
-    Shirt, Package, Award, Weight, Palette, DollarSign, Map as MapIcon, Box, Tag, ChevronLeft, Ruler, Scissors, Image as ImageIcon, FileText, Upload, AlertCircle, Globe, Anchor, Plus, Trash2, Copy, X, ChevronRight
+    Shirt, Package, Award, Weight, Palette, DollarSign, Map as MapIcon, Box, Tag, ChevronLeft, Ruler, Scissors, Image as ImageIcon, FileText, Upload, AlertCircle, Globe, Anchor, Plus, Trash2, Copy, X, ChevronRight, Check, ArrowRight, SkipForward, Save
 } from 'lucide-react';
 // Import the main layout wrapper which provides the sidebar and header structure.
 import { MainLayout } from '../src/MainLayout';
 // Import the TypeScript definition for the order form data structure.
 import { OrderFormData, QuoteRequest } from '../src/types';
+import { formatFriendlyDate } from './utils';
+import { useToast } from './ToastContext';
 
 // Define the properties (props) that this component expects to receive from its parent (App.tsx).
 interface OrderFormPageProps {
@@ -250,6 +253,7 @@ const FileDropZone: FC<{
     previews?: string[];
 }> = ({ label, accept, multiple, onFilesSelected, icon, selectedFiles, previews }) => {
     const [isDragging, setIsDragging] = useState(false);
+    const { showToast } = useToast();
 
     const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
@@ -265,8 +269,8 @@ const FileDropZone: FC<{
             }
         });
 
-        if (invalidFiles.length > 0 && window.showToast) {
-            window.showToast(`File(s) too large (max 50MB): ${invalidFiles.join(', ')}`, 'error');
+        if (invalidFiles.length > 0) {
+            showToast(`File(s) too large (max 50MB): ${invalidFiles.join(', ')}`, 'error');
         }
         return validFiles;
     };
@@ -387,7 +391,7 @@ const FileDropZone: FC<{
 const QuoteSelectionCard: FC<{ quote: QuoteRequest, onSelect: () => void }> = ({ quote, onSelect }) => {
     // Calculate total quantity for units
     const totalUnits = quote.order?.lineItems?.reduce((sum, item) => {
-        return item.quantityType === 'units' ? sum + (parseInt(item.qty) || 0) : sum;
+        return item.quantityType === 'units' ? sum + (item.qty || 0) : sum;
     }, 0) || 0;
     
     // Get unique categories
@@ -408,7 +412,7 @@ const QuoteSelectionCard: FC<{ quote: QuoteRequest, onSelect: () => void }> = ({
                         </span>
                     </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Created on {new Date(quote.submittedAt).toLocaleDateString()}
+                        Created on {formatFriendlyDate(quote.submittedAt)}
                     </p>
                 </div>
                 <div className="text-right">
@@ -463,31 +467,54 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
     const [orderType, setOrderType] = useState<'new' | 'existing'>('new');
     const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
     const [errors, setErrors] = useState<Record<string, string>>({});
+    const [currentStep, setCurrentStep] = useState(1);
+    const { showToast } = useToast();
+    const DRAFT_KEY = 'garment_erp_order_draft';
+    const SAVED_DRAFTS_KEY = 'garment_erp_saved_drafts';
 
     // --- State Management ---
     // Initialize the form state with default values so the fields aren't empty when the user arrives.
-    const [formState, setFormState] = useState<OrderFormData>({
-        lineItems: [{
-            id: generateId(),
-            category: 'T-shirt',
-            qty: '',
-            fabricQuality: '',
-            weightGSM: '',
-            targetPrice: '',
-            packagingReqs: '',
-            labelingReqs: '',
-            styleOption: '',
-            sizeRange: [],
-            customSize: '',
-            sizeRatio: {},
-            sleeveOption: '',
-            trimsAndAccessories: '',
-            specialInstructions: '',
-            quantityType: 'units'
-        }],
-        shippingCountry: '',
-        shippingPort: ''
+    const [formState, setFormState] = useState<OrderFormData>(() => {
+        const savedDraft = localStorage.getItem(DRAFT_KEY);
+        if (savedDraft) {
+            try {
+                return JSON.parse(savedDraft);
+            } catch (e) {
+                console.error("Failed to parse draft", e);
+            }
+        }
+        return {
+            lineItems: [{
+                id: generateId(),
+                category: 'T-shirt',
+                qty: 0,
+                containerType: '',
+                fabricQuality: '',
+                weightGSM: '',
+                targetPrice: '',
+                packagingReqs: '',
+                labelingReqs: '',
+                styleOption: '',
+                sizeRange: [],
+                customSize: '',
+                sizeRatio: {},
+                sleeveOption: '',
+                trimsAndAccessories: '',
+                specialInstructions: '',
+                quantityType: 'units'
+            }],
+            shippingCountry: '',
+            shippingPort: ''
+        };
     });
+
+    // Auto-save draft every 30 seconds
+    useEffect(() => {
+        const autoSaveTimer = setInterval(() => {
+            localStorage.setItem(DRAFT_KEY, JSON.stringify(formState));
+        }, 30000);
+        return () => clearInterval(autoSaveTimer);
+    }, [formState]);
 
     const [activeItemIndex, setActiveItemIndex] = useState(0);
 
@@ -499,7 +526,6 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
     const [isLoadingPorts, setIsLoadingPorts] = useState(false);
     const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
-    const tabsContainerRef = useRef<HTMLDivElement>(null);
 
     const containerOptions = ["20ft FCL", "40ft FCL", "20ft HC FCL", "40ft HC FCL"];
 
@@ -551,7 +577,11 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
             if (errors[`lineItems[${activeItemIndex}].${name}`]) {
                 setErrors(prev => ({ ...prev, [`lineItems[${activeItemIndex}].${name}`]: '' }));
             }
-            newItems[activeItemIndex] = { ...newItems[activeItemIndex], [name]: value };
+            if (name === 'qty') {
+                newItems[activeItemIndex] = { ...newItems[activeItemIndex], [name]: value === '' ? 0 : parseFloat(value) };
+            } else {
+                newItems[activeItemIndex] = { ...newItems[activeItemIndex], [name]: value };
+            }
             return { ...prev, lineItems: newItems };
         }); 
     };
@@ -564,7 +594,8 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
             lineItems: [{
                 id: generateId(),
                 category: 'T-shirt',
-                qty: '',
+                qty: 0,
+                containerType: '',
                 fabricQuality: '',
                 weightGSM: '',
                 targetPrice: '',
@@ -587,6 +618,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
         setDocFiles([]);
         setSamplePreviews([]);
         setActiveItemIndex(0);
+        setCurrentStep(1);
     };
 
     const handleSizeCheckbox = (size: string) => {
@@ -610,8 +642,8 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
             setFormState({
                 lineItems: [{
                     id: generateId(),
-                    category: 'T-shirt',
-                    qty: '', fabricQuality: '', weightGSM: '', targetPrice: '', packagingReqs: '', labelingReqs: '', styleOption: '',
+                    category: 'T-shirt', qty: 0, containerType: '',
+                    fabricQuality: '', weightGSM: '', targetPrice: '', packagingReqs: '', labelingReqs: '', styleOption: '',
                     sizeRange: [], customSize: '', sizeRatio: {}, sleeveOption: '', trimsAndAccessories: '', specialInstructions: '', quantityType: 'units'
                 }],
                 shippingCountry: quote.order.shippingCountry,
@@ -622,6 +654,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
             setDocFiles([]);
             setSamplePreviews([]);
             setActiveItemIndex(0);
+            setCurrentStep(1);
         }
     };
 
@@ -647,7 +680,8 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
             lineItems: [...prev.lineItems, {
                 id: generateId(),
                 category: 'T-shirt',
-                qty: '',
+                qty: 0,
+                containerType: '',
                 fabricQuality: '',
                 weightGSM: '',
                 targetPrice: '',
@@ -665,15 +699,6 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
         }));
         setActiveItemIndex(formState.lineItems.length);
     };
-
-    useEffect(() => {
-        if (tabsContainerRef.current) {
-            const activeTab = tabsContainerRef.current.children[activeItemIndex] as HTMLElement;
-            if (activeTab) {
-                activeTab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-            }
-        }
-    }, [activeItemIndex]);
 
 
     const handleRemoveItem = (index: number) => {
@@ -700,10 +725,8 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
         setActiveItemIndex(index + 1);
     };
 
-    // Function called when the user clicks the "Submit" button.
-    const onFormSubmit = (e: React.FormEvent) => { 
-        // Prevent the default browser behavior (which would reload the page).
-        e.preventDefault(); 
+    // Validation helper
+    const validateStep = (step: number) => {
 
         const newErrors: Record<string, string> = {};
         let firstErrorId: string | null = null;
@@ -717,43 +740,166 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
             { key: 'packagingReqs', label: 'Packaging Option' },
         ];
 
-        formState.lineItems.forEach((item, index) => {
-            lineItemRequiredFields.forEach(field => {
-                const val = (item as any)[field.key];
-                if (!val || (typeof val === 'string' && val.trim() === '')) {
-                    const key = `lineItems[${index}].${field.key}`;
-                    newErrors[key] = `${field.label} is required`;
+        if (step === 1) {
+            // Validate Basic Details
+            formState.lineItems.forEach((item, index) => {
+                ['category', 'qty', 'weightGSM', 'fabricQuality'].forEach(key => {
+                    const val = (item as any)[key];
+                    if (key === 'qty') {
+                        if (item.quantityType === 'units' && (val === 0 || !val)) {
+                            newErrors[`lineItems[${index}].qty`] = 'Quantity is required';
+                            if (!firstErrorId) firstErrorId = `lineItems[${index}].qty`;
+                        }
+                    } else if (!val || (typeof val === 'string' && val.trim() === '')) {
+                        newErrors[`lineItems[${index}].${key}`] = 'This field is required';
+                        if (!firstErrorId) firstErrorId = `lineItems[${index}].${key}`;
+                    }
+                });
+            });
+        }
+
+        if (step === 2) {
+            // Validate Specs
+            formState.lineItems.forEach((item, index) => {
+                if (item.sizeRange.length === 0) {
+                    const key = `lineItems[${index}].sizeRange`;
+                    newErrors[key] = 'Size Range is required';
                     if (!firstErrorId) firstErrorId = key;
                 }
+                if (!item.packagingReqs) {
+                     const key = `lineItems[${index}].packagingReqs`;
+                     newErrors[key] = 'Packaging is required';
+                     if (!firstErrorId) firstErrorId = key;
+                }
             });
-
-            if (item.sizeRange.length === 0) {
-                const key = `lineItems[${index}].sizeRange`;
-                newErrors[key] = 'Size Range is required';
-                if (!firstErrorId) firstErrorId = key;
-            }
-        });
-
-        // --- Main Form Validation ---
-        if (!formState.shippingCountry || formState.shippingCountry.trim() === '') {
-             newErrors['shippingCountry'] = 'Destination Country is required';
-             if (!firstErrorId) firstErrorId = 'shippingCountry';
         }
-        if (!formState.shippingPort || formState.shippingPort.trim() === '') {
-             newErrors['shippingPort'] = 'Destination Port is required';
-             if (!firstErrorId) firstErrorId = 'shippingPort';
-        } else {
-            const isKnownCountry = COUNTRIES.includes(formState.shippingCountry);
-            if (isKnownCountry && !availablePorts.includes(formState.shippingPort)) {
-                newErrors['shippingPort'] = 'Invalid port for selected country';
+
+        if (step === 4) {
+            // Validate Logistics
+            if (!formState.shippingCountry || formState.shippingCountry.trim() === '') {
+                newErrors['shippingCountry'] = 'Destination Country is required';
+                if (!firstErrorId) firstErrorId = 'shippingCountry';
+            }
+            if (!formState.shippingPort || formState.shippingPort.trim() === '') {
+                newErrors['shippingPort'] = 'Destination Port is required';
                 if (!firstErrorId) firstErrorId = 'shippingPort';
+            } else {
+                const isKnownCountry = COUNTRIES.includes(formState.shippingCountry);
+                if (isKnownCountry && !availablePorts.includes(formState.shippingPort)) {
+                    newErrors['shippingPort'] = 'Invalid port for selected country';
+                    if (!firstErrorId) firstErrorId = 'shippingPort';
+                }
             }
         }
 
         setErrors(newErrors);
+        return { isValid: Object.keys(newErrors).length === 0, firstErrorId };
+    };
 
+    const handleNext = () => {
+        const { isValid, firstErrorId } = validateStep(currentStep);
+        if (isValid) {
+            setCurrentStep(prev => Math.min(prev + 1, 5));
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+            showToast('Please fix the errors before proceeding.', 'error');
+            if (firstErrorId) {
+                const match = firstErrorId.match(/lineItems\[(\d+)\]/);
+                if (match) setActiveItemIndex(parseInt(match[1]));
+            }
+        }
+    };
+
+    const handleBack = () => {
+        setCurrentStep(prev => Math.max(prev - 1, 1));
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const handleSaveDraft = () => {
+        const draftsJson = localStorage.getItem(SAVED_DRAFTS_KEY);
+        let drafts: any[] = draftsJson ? JSON.parse(draftsJson) : [];
+        
+        const timestamp = new Date().toISOString();
+        let newDraftId = formState.draftId;
+
+        if (newDraftId) {
+            // Update existing
+            const index = drafts.findIndex(d => d.id === newDraftId);
+            if (index !== -1) {
+                drafts[index] = { ...drafts[index], order: formState, submittedAt: timestamp };
+            } else {
+                // ID exists in form but not in storage (weird), treat as new
+                drafts.push({ id: newDraftId, order: formState, status: 'Draft', submittedAt: timestamp });
+            }
+        } else {
+            // Create new
+            newDraftId = `draft-${Date.now()}`;
+            drafts.push({
+                id: newDraftId,
+                order: { ...formState, draftId: newDraftId },
+                status: 'Draft',
+                submittedAt: timestamp,
+                factory: null, // Drafts might not have a factory selected yet
+                userId: 'self'
+            });
+        }
+
+        setFormState(prev => ({ ...prev, draftId: newDraftId }));
+        localStorage.setItem(SAVED_DRAFTS_KEY, JSON.stringify(drafts));
+        // Also update current working copy
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...formState, draftId: newDraftId }));
+        
+        showToast('Draft saved successfully!', 'success');
+    };
+
+    // Function called when the form is submitted via Enter key or other form submission
+    const onFormSubmit = (e: React.FormEvent) => {
+        // Prevent the default browser behavior (which would reload the page).
+        e.preventDefault();
+
+        // Only advance to next step if not on summary page
+        // Do NOT auto-submit when at summary - require explicit button click
+        if (currentStep < 5) {
+            handleNext();
+        }
+    };
+
+    // Function called when the user clicks the "Submit" button on the summary page
+    const onSubmitButtonClick = () => {
+        // Final validation of all steps
+        let allValid = true;
+        let errorStep = 0;
+
+        // Check steps in order
+        for (let i = 1; i <= 4; i++) {
+            const { isValid } = validateStep(i);
+            if (!isValid) {
+                allValid = false;
+                errorStep = i;
+                break;
+            }
+        }
+
+        if (!allValid) {
+            setCurrentStep(errorStep);
+            showToast(`Please fix errors in step ${errorStep}.`, 'error');
+            return;
+        }
+
+        // Submit the form
+        handleConfirmSubmit();
+    };
+
+    /* 
+    // Legacy validation logic removed in favor of step-based validation
+    const onFormSubmitLegacy = (e: React.FormEvent) => { 
+        e.preventDefault(); 
+        const newErrors: Record<string, string> = {};
+        let firstErrorId: string | null = null;
+        // ... (legacy validation code) ...
+        setErrors(newErrors);
         if (Object.keys(newErrors).length > 0) {
-            if (window.showToast) window.showToast('Please fix the errors in the form.', 'error');
+            showToast('Please fix the errors in the form.', 'error');
             if (firstErrorId) {
                 // If error is in a line item, switch to that tab
                 const match = firstErrorId.match(/lineItems\[(\d+)\]/);
@@ -771,10 +917,8 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
             }
             return;
         }
-
-        // Open summary modal for both new and existing RFQs
         setIsSummaryModalOpen(true);
-    };
+    }; */
 
     const handleConfirmSubmit = () => {
         if (orderType === 'existing' && selectedQuoteId) {
@@ -782,7 +926,9 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
         } else {
             handleSubmitOrderForm(formState, [...sampleFiles, ...docFiles]);
         }
-        setIsSummaryModalOpen(false);
+        localStorage.removeItem(DRAFT_KEY);
+        // Celebration!
+        confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
     };
 
     const handleResetForm = () => {
@@ -794,7 +940,8 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
             lineItems: [{
                 id: generateId(),
                 category: 'T-shirt',
-                qty: '',
+                qty: 0,
+                containerType: '',
                 fabricQuality: '',
                 weightGSM: '',
                 targetPrice: '',
@@ -818,8 +965,10 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
         setDocFiles([]);
         setAvailablePorts([]);
         setActiveItemIndex(0);
+        setCurrentStep(1);
+        localStorage.removeItem(DRAFT_KEY);
         setIsResetModalOpen(false);
-        if (window.showToast) window.showToast('Form reset successfully.');
+        showToast('Form reset successfully.');
     };
 
     const sizeOptions = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'];
@@ -828,7 +977,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
 
     const totalEstimatedCost = formState.lineItems.reduce((sum, item) => {
         if (item.quantityType === 'units' && item.qty && item.targetPrice) {
-            const qty = parseFloat(item.qty);
+            const qty = item.qty;
             const price = parseFloat(item.targetPrice);
             if (!isNaN(qty) && !isNaN(price)) {
                 return sum + (qty * price);
@@ -842,10 +991,18 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
     const setQuantityType = (type: 'units' | 'container') => {
         setFormState(prev => {
             const newItems = [...prev.lineItems];
-            newItems[activeItemIndex] = { ...newItems[activeItemIndex], quantityType: type, qty: '' };
+            newItems[activeItemIndex] = { ...newItems[activeItemIndex], quantityType: type, qty: 0, containerType: '' };
             return { ...prev, lineItems: newItems };
         });
     };
+
+    const steps = [
+        { id: 1, title: 'Basic Details' },
+        { id: 2, title: 'Specifications' },
+        { id: 3, title: 'Attachments' },
+        { id: 4, title: 'Logistics' },
+        { id: 5, title: 'Summary' }
+    ];
 
     // --- Main Render ---
     return (
@@ -856,10 +1013,16 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                 <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md p-6 sm:p-8 rounded-xl shadow-lg border border-gray-200 dark:border-white/10">
                     
                     {/* Header Section: Title and Back Button */}
-                    <div className="flex justify-between items-start mb-6">
+                    <div className="flex justify-between items-start mb-2">
                         <div>
-                            <h2 className="text-3xl font-bold text-gray-800 dark:text-white mb-2">Garment Sourcing Requirements</h2>
-                            <p className="text-gray-500 dark:text-gray-200">Fill out your order details to find matching factories.</p>
+                            <h2 className="text-3xl font-bold text-gray-800 dark:text-white mb-2">
+                                {orderType === 'existing' ? 'Add to Existing RFQ' : 'Garment Sourcing Requirements'}
+                            </h2>
+                            <p className="text-gray-500 dark:text-gray-200">
+                                {orderType === 'existing' 
+                                    ? 'Select an active quote to add more products.' 
+                                    : 'Fill out your order details to find matching factories.'}
+                            </p>
                         </div>
                         {/* Button to navigate back to the main sourcing page */}
                         <button onClick={() => handleSetCurrentPage('sourcing')} className="text-sm text-[#c20c0b] font-semibold flex items-center hover:underline whitespace-nowrap">
@@ -868,15 +1031,24 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                         </button>
                     </div>
 
-                    <div className="flex p-1 bg-gray-100 dark:bg-gray-700 rounded-xl mb-8">
-                        <button type="button" onClick={() => handleOrderTypeChange('new')} className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-2 ${orderType === 'new' ? 'bg-white dark:bg-gray-800 shadow-sm text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
-                            <Plus size={16} />
-                            Create New RFQ
-                        </button>
-                        <button type="button" onClick={() => handleOrderTypeChange('existing')} className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-2 ${orderType === 'existing' ? 'bg-white dark:bg-gray-800 shadow-sm text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
-                            <Package className="h-5 w-5" />
-                            Add to Existing RFQ
-                        </button>
+                    <div className="mb-8">
+                        {orderType === 'new' ? (
+                            <button 
+                                onClick={() => handleOrderTypeChange('existing')}
+                                className="text-sm text-gray-500 dark:text-gray-400 hover:text-[#c20c0b] dark:hover:text-[#c20c0b] flex items-center gap-2 transition-colors px-1"
+                            >
+                                <Package size={16} />
+                                <span>Adding to an existing request? Click here.</span>
+                            </button>
+                        ) : (
+                            <button 
+                                onClick={() => handleOrderTypeChange('new')}
+                                className="text-sm text-gray-500 dark:text-gray-400 hover:text-[#c20c0b] dark:hover:text-[#c20c0b] flex items-center gap-2 transition-colors px-1"
+                            >
+                                <Plus size={16} />
+                                <span>Want to create a new request instead?</span>
+                            </button>
+                        )}
                     </div>
 
                     {orderType === 'existing' && selectedQuoteId === null && (
@@ -895,69 +1067,117 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                     )}
 
                     {/* The Form Element */}
-                    {(orderType === 'new' || selectedQuoteId !== null) && (
-                        <form onSubmit={onFormSubmit} className="space-y-8 animate-fade-in">
+                    {(orderType === 'new' || selectedQuoteId !== null) && ( 
+                        <div className="animate-fade-in">
                         
-                        {/* Line Item Tabs */}
-                        <div className="relative mb-6 group">
-                            <div 
-                                ref={tabsContainerRef}
-                                className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory"
-                            >
-                            {formState.lineItems.map((item, index) => (
-                                <div key={item.id} className="flex items-center snap-start flex-shrink-0">
-                                    <button
-                                        type="button"
-                                        onClick={() => setActiveItemIndex(index)}
-                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
-                                            activeItemIndex === index
-                                                ? 'bg-[#c20c0b] text-white shadow-md'
-                                                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700'
-                                        }`}
-                                    >
-                                        Product {index + 1}
-                                    </button>
-                                    {activeItemIndex === index && (
-                                        <div className="flex items-center ml-1">
-                                            <button
-                                                type="button"
-                                                onClick={(e) => { e.stopPropagation(); handleDuplicateItem(index); }}
-                                                className="p-2 text-blue-500 hover:bg-blue-50 rounded-full transition-colors"
-                                                title="Duplicate Product"
-                                            >
-                                                <Copy size={16} />
-                                            </button>
-                                            {formState.lineItems.length > 1 && (
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => { e.stopPropagation(); handleRemoveItem(index); }}
-                                                    className="p-2 text-red-500 hover:bg-red-50 rounded-full transition-colors"
-                                                    title="Remove Product"
-                                                >
-                                                    <Trash2 size={16} />
-                                                </button>
-                                            )}
+                        {/* Stepper */}
+                        <div className="mb-12 px-2">
+                            <div className="flex items-center justify-between relative">
+                                {/* Background Track */}
+                                <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-full h-1 bg-gray-200 dark:bg-gray-700 -z-10 rounded-full"></div>
+                                
+                                {/* Animated Progress Bar */}
+                                <div 
+                                    className="absolute left-0 top-1/2 transform -translate-y-1/2 h-1 bg-[#c20c0b] -z-10 rounded-full transition-all duration-500 ease-in-out"
+                                    style={{ width: `${((currentStep - 1) / (steps.length - 1)) * 100}%` }}
+                                ></div>
+
+                                {steps.map((step) => (
+                                    <div key={step.id} className="flex flex-col items-center relative">
+                                        <div 
+                                            className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-500 border-2 z-10 ${
+                                                currentStep > step.id 
+                                                    ? 'bg-[#c20c0b] border-[#c20c0b] text-white' 
+                                                    : currentStep === step.id
+                                                        ? 'bg-white dark:bg-gray-900 border-[#c20c0b] text-[#c20c0b] scale-110 shadow-[0_0_0_4px_rgba(194,12,11,0.15)] dark:shadow-[0_0_0_4px_rgba(194,12,11,0.3)]'
+                                                        : 'bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500'
+                                            }`}
+                                        >
+                                            {currentStep > step.id ? <Check size={20} className="animate-fade-in" /> : step.id}
                                         </div>
-                                    )}
-                                </div>
-                            ))}
-                            <button
-                                type="button"
-                                onClick={handleAddItem}
-                                className="px-4 py-2 rounded-lg text-sm font-medium bg-red-50 dark:bg-red-900/20 text-[#c20c0b] dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 border border-red-200 dark:border-red-800 border-dashed flex items-center gap-2 transition-colors whitespace-nowrap"
-                            >
-                                <Plus size={16} /> Add Product
-                            </button>
-                            </div>
-                            {/* Scroll Hint Gradient */}
-                            <div className="absolute right-0 top-0 bottom-2 w-8 bg-gradient-to-l from-white dark:from-gray-900 to-transparent pointer-events-none md:hidden"></div>
-                            <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 md:hidden pointer-events-none text-gray-400 opacity-50">
-                                <ChevronRight size={16} />
+                                        <span className={`absolute top-12 text-xs font-bold whitespace-nowrap transition-all duration-300 ${
+                                            currentStep >= step.id ? 'text-gray-800 dark:text-white' : 'text-gray-400 dark:text-gray-500'
+                                        }`}>
+                                            {step.title}
+                                        </span>
+                                    </div>
+                                ))}
                             </div>
                         </div>
 
+                        <form onSubmit={onFormSubmit} className="space-y-8">
+                        
+                        {/* Line Item Tabs */}
+                        {/* Product Navigation (Numbered List) */}
+                        {currentStep <= 3 && (
+                            <div className="mb-8">
+                                <div className="flex items-center justify-between mb-3">
+                                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Products ({formState.lineItems.length})</label>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    {formState.lineItems.map((item, index) => (
+                                        <button
+                                            key={item.id}
+                                            type="button"
+                                            onClick={() => setActiveItemIndex(index)}
+                                            className={`
+                                                flex items-center justify-center w-10 h-10 rounded-full text-sm font-bold transition-all
+                                                ${activeItemIndex === index 
+                                                    ? 'bg-[#c20c0b] text-white shadow-md scale-110 ring-2 ring-offset-2 ring-[#c20c0b] dark:ring-offset-gray-900' 
+                                                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:border-[#c20c0b] hover:text-[#c20c0b]'}
+                                            `}
+                                            title={`Product ${index + 1}: ${item.category}`}
+                                        >
+                                            {index + 1}
+                                        </button>
+                                    ))}
+                                    <button
+                                        type="button"
+                                        onClick={handleAddItem}
+                                        className="flex items-center justify-center w-10 h-10 rounded-full bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-dashed border-gray-300 dark:border-gray-600 hover:border-[#c20c0b] hover:text-[#c20c0b] hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+                                        title="Add Product"
+                                    >
+                                        <Plus size={18} />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Active Product Header & Actions */}
+                        {currentStep <= 3 && (
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-200 dark:border-gray-700 mb-6 animate-fade-in">
+                                <div>
+                                    <h3 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                                        Product {activeItemIndex + 1}
+                                        <span className="px-2 py-0.5 rounded-full bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-xs font-normal text-gray-500 dark:text-gray-300">
+                                            {activeItem.category}
+                                        </span>
+                                    </h3>
+                                </div>
+                                <div className="flex items-center gap-2 mt-3 sm:mt-0">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleDuplicateItem(activeItemIndex)}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                                    >
+                                        <Copy size={14} /> Duplicate
+                                    </button>
+                                    {formState.lineItems.length > 1 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => handleRemoveItem(activeItemIndex)}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                                        >
+                                            <Trash2 size={14} /> Remove
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
                         {/* Section 1: Basic Details */}
-                        <fieldset className="border-t pt-6">
+                        {currentStep === 1 && (
+                        <div className="animate-fade-in">
                             <legend className="text-lg font-semibold text-gray-700 dark:text-white mb-4">Basic Details</legend>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {/* Product Category Dropdown */}
@@ -978,11 +1198,11 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                     </div>
                                     {activeItem.quantityType === 'units' ? (
                                         <FormField label="Order Quantity (Units)" icon={<Package className="h-5 w-5 text-gray-400" />} required error={errors[`lineItems[${activeItemIndex}].qty`]}>
-                                            <input id={`lineItems[${activeItemIndex}].qty`} type="number" min="0" name="qty" value={activeItem.qty} onChange={handleFormChange} placeholder="e.g., 5000" className={getInputClass(errors[`lineItems[${activeItemIndex}].qty`])} />
+                                            <input id={`lineItems[${activeItemIndex}].qty`} type="number" min="0" name="qty" value={activeItem.qty || ''} onChange={handleFormChange} placeholder="e.g., 5000" className={getInputClass(errors[`lineItems[${activeItemIndex}].qty`])} />
                                         </FormField>
                                     ) : (
                                         <FormField label="Container Load" icon={<Package className="h-5 w-5 text-gray-400" />} required error={errors[`lineItems[${activeItemIndex}].qty`]}>
-                                            <select id={`lineItems[${activeItemIndex}].qty`} name="qty" value={activeItem.qty} onChange={handleFormChange} className={`${getInputClass(errors[`lineItems[${activeItemIndex}].qty`])} appearance-none`}>
+                                            <select id={`lineItems[${activeItemIndex}].qty`} name="containerType" value={activeItem.containerType || ''} onChange={handleFormChange} className={`${getInputClass(errors[`lineItems[${activeItemIndex}].qty`])} appearance-none`}>
                                                 <option value="">Select Container Type</option>
                                                 {containerOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                                             </select>
@@ -998,10 +1218,12 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                     <input id={`lineItems[${activeItemIndex}].fabricQuality`} type="text" name="fabricQuality" value={activeItem.fabricQuality} onChange={handleFormChange} placeholder="e.g., 100% Organic Cotton" className={getInputClass(errors[`lineItems[${activeItemIndex}].fabricQuality`])} />
                                 </FormField>
                             </div>
-                        </fieldset>
+                        </div>
+                        )}
 
                         {/* Section 2: Specifications */}
-                        <fieldset className="border-t pt-6">
+                        {currentStep === 2 && (
+                        <div className="animate-fade-in">
                             <legend className="text-lg font-semibold text-gray-700 dark:text-white mb-4">Specifications</legend>
                             <div className="space-y-6">
                                 {/* 1. Size Range */}
@@ -1093,9 +1315,15 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                 <FormField label="Trims & Accessories" icon={<Scissors className="h-5 w-5 text-gray-400" />} error={errors[`lineItems[${activeItemIndex}].trimsAndAccessories`]}>
                                     <input id={`lineItems[${activeItemIndex}].trimsAndAccessories`} type="text" name="trimsAndAccessories" value={activeItem.trimsAndAccessories} onChange={handleFormChange} placeholder="e.g., YKK Zippers, Metal Buttons" className={getInputClass(errors[`lineItems[${activeItemIndex}].trimsAndAccessories`])} />
                                 </FormField>
+                            </div>
+                        </div>
+                        )}
 
+                        {/* Section 3: Attachments */}
+                        {currentStep === 3 && (
+                        <div className="animate-fade-in">
                                 {/* 6. Sample Photo Upload */}
-                                <div>
+                                <div className="mb-6">
                                     <FileDropZone
                                         label="Sample Photo Upload"
                                         accept="image/*"
@@ -1108,7 +1336,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                 </div>
 
                                 {/* 7. Document Upload */}
-                                <div>
+                                <div className="mb-6">
                                     <FileDropZone
                                         label="Document Upload (Tech Pack, Size Chart)"
                                         accept=".pdf,.doc,.docx,.xls,.xlsx"
@@ -1120,21 +1348,24 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                 </div>
 
                                 {/* 8. Special Instructions */}
-                                <div className="md:col-span-2">
+                                <div className="md:col-span-2 mb-6">
                                     <FormField label="Special Instructions" icon={<AlertCircle className="h-5 w-5 text-gray-400" />} error={errors[`lineItems[${activeItemIndex}].specialInstructions`]}>
                                         <textarea id={`lineItems[${activeItemIndex}].specialInstructions`} name="specialInstructions" value={activeItem.specialInstructions} onChange={handleFormChange} rows={3} placeholder="Any other specific requirements..." className={getInputClass(errors[`lineItems[${activeItemIndex}].specialInstructions`])}></textarea>
                                     </FormField>
                                 </div>
 
                                 {/* 9. Target Price */}
-                                <FormField label="Target Price per Unit (USD)" icon={<DollarSign className="h-5 w-5 text-gray-400" />} error={errors[`lineItems[${activeItemIndex}].targetPrice`]}>
-                                    <input id={`lineItems[${activeItemIndex}].targetPrice`} type="number" min="0" step="0.01" name="targetPrice" value={activeItem.targetPrice} onChange={handleFormChange} placeholder="e.g., 4.50" className={getInputClass(errors[`lineItems[${activeItemIndex}].targetPrice`])} />
-                                </FormField>
-                            </div>
-                        </fieldset>
+                                <div className="mb-6">
+                                    <FormField label="Target Price per Unit (USD)" icon={<DollarSign className="h-5 w-5 text-gray-400" />} error={errors[`lineItems[${activeItemIndex}].targetPrice`]}>
+                                        <input id={`lineItems[${activeItemIndex}].targetPrice`} type="number" min="0" step="0.01" name="targetPrice" value={activeItem.targetPrice} onChange={handleFormChange} placeholder="e.g., 4.50" className={getInputClass(errors[`lineItems[${activeItemIndex}].targetPrice`])} />
+                                    </FormField>
+                                </div>
+                        </div>
+                        )}
 
                         {/* Section 3: Logistics & Commercials */}
-                        <fieldset className="border-t pt-6">
+                        {currentStep === 4 && (
+                        <div className="animate-fade-in">
                             <legend className="text-lg font-semibold text-gray-700 dark:text-white mb-4">Logistics & Commercials</legend>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {/* Destination Country */}
@@ -1157,31 +1388,14 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                     </datalist>
                                 </FormField>
                             </div>
-                        </fieldset>
-                        
-                        {/* Submit Button */}
-                        <div className="pt-6 border-t flex flex-col md:flex-row justify-end gap-4"> 
-                            <button type="button" onClick={handleResetForm} className="w-full md:w-auto px-6 py-3 text-gray-700 dark:text-white font-semibold bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition">
-                                Reset Form
-                            </button>
-                            <button type="submit" className="w-full md:w-auto px-8 py-3 text-white rounded-lg font-semibold bg-[#c20c0b] hover:bg-[#a50a09] transition shadow-md">
-                                {orderType === 'new' ? 'Submit Quote Request' : 'Add Products to RFQ'}
-                            </button> 
                         </div>
-                    </form>
-                    )}
-                </div>
+                        )}
 
-                {/* Summary Modal */}
-                {isSummaryModalOpen && (
-                    createPortal(<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 animate-fade-in">
-                        <div className="bg-white/90 backdrop-blur-xl dark:bg-gray-900/95 dark:backdrop-blur-xl rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto flex flex-col border border-gray-200 dark:border-gray-700">
-                            <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center sticky top-0 bg-white dark:bg-gray-900 z-10">
-                                <h2 className="text-2xl font-bold text-gray-800 dark:text-white">{orderType === 'existing' ? 'Review Addition to RFQ' : 'Review Your Order'}</h2>
-                                <button onClick={() => setIsSummaryModalOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors"><X size={24} /></button>
-                            </div>
-                            
-                            <div className="p-6 space-y-8 flex-grow overflow-y-auto">
+                        {/* Section 5: Summary */}
+                        {currentStep === 5 && (
+                            <div className="animate-fade-in space-y-8">
+                                <h3 className="text-2xl font-bold text-gray-800 dark:text-white mb-6">Order Summary</h3>
+                                
                                 {/* Logistics Section */}
                                 <div className="bg-gray-50 dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700">
                                     <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-3 flex items-center"><Globe size={20} className="mr-2 text-[#c20c0b]"/> Destination</h3>
@@ -1206,32 +1420,23 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                         <div className="space-y-2">
                                             {formState.lineItems.map((item, idx) => {
                                                 if (!item.targetPrice) return null;
-                                                
                                                 if (item.quantityType === 'units') {
                                                     if (!item.qty) return null;
-                                                    const qty = parseFloat(item.qty);
+                                                    const qty = item.qty;
                                                     const price = parseFloat(item.targetPrice);
                                                     if (isNaN(qty) || isNaN(price)) return null;
                                                     const itemTotal = qty * price;
                                                     return (
                                                         <div key={item.id} className="flex justify-between text-sm">
-                                                            <span className="text-gray-600 dark:text-gray-300">
-                                                                {idx + 1}. {item.category} ({qty.toLocaleString()} x ${price.toFixed(2)})
-                                                            </span>
-                                                            <span className="font-medium text-gray-900 dark:text-white">
-                                                                ${itemTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                            </span>
+                                                            <span className="text-gray-600 dark:text-gray-300">{idx + 1}. {item.category} ({qty.toLocaleString()} x ${price.toFixed(2)})</span>
+                                                            <span className="font-medium text-gray-900 dark:text-white">${itemTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                                         </div>
                                                     );
                                                 } else {
                                                     return (
                                                         <div key={item.id} className="flex justify-between text-sm">
-                                                            <span className="text-gray-600 dark:text-gray-300">
-                                                                {idx + 1}. {item.category} ({item.qty} @ ${item.targetPrice}/unit)
-                                                            </span>
-                                                            <span className="font-medium text-gray-500 dark:text-gray-400 italic">
-                                                                N/A (Container)
-                                                            </span>
+                                                            <span className="text-gray-600 dark:text-gray-300">{idx + 1}. {item.category} ({item.containerType} @ ${item.targetPrice}/unit)</span>
+                                                            <span className="font-medium text-gray-500 dark:text-gray-400 italic">N/A (Container)</span>
                                                         </div>
                                                     );
                                                 }
@@ -1255,9 +1460,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                             <div key={item.id} className="border border-gray-200 dark:border-gray-700 rounded-xl p-5 hover:shadow-sm transition-shadow">
                                                 <div className="flex justify-between items-start mb-3">
                                                     <h4 className="font-bold text-[#c20c0b] text-lg">Product {idx + 1}: {item.category}</h4>
-                                                    <span className="bg-red-100 text-[#a50a09] text-xs font-bold px-2 py-1 rounded-full">
-                                                        {item.qty} {item.quantityType === 'container' ? '' : 'Units'}
-                                                    </span>
+                                                    <span className="bg-red-100 text-[#a50a09] text-xs font-bold px-2 py-1 rounded-full">{item.quantityType === 'container' ? item.containerType : `${item.qty} Units`}</span>
                                                 </div>
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-y-3 gap-x-6 text-sm">
                                                     <div><span className="text-gray-500 dark:text-gray-200">Fabric:</span> <span className="font-medium text-gray-900 dark:text-white">{item.fabricQuality}</span></div>
@@ -1272,34 +1475,43 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                         ))}
                                     </div>
                                 </div>
-
-                                {/* Files Section */}
-                                {(sampleFiles.length > 0 || docFiles.length > 0) && (
-                                    <div className="bg-blue-50 dark:bg-blue-900/20 p-5 rounded-xl border border-blue-100 dark:border-blue-800">
-                                        <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-3 flex items-center"><FileText size={20} className="mr-2 text-blue-600 dark:text-blue-400"/> Attachments</h3>
-                                        <ul className="space-y-2">
-                                            {[...sampleFiles, ...docFiles].map((f, i) => (
-                                                <li key={i} className="flex items-center text-sm text-gray-700 dark:text-white bg-white dark:bg-gray-800 p-2 rounded border border-blue-100 dark:border-blue-700">
-                                                    <span className="bg-blue-100 text-blue-600 p-1 rounded mr-2 text-xs font-bold">{i < sampleFiles.length ? 'IMG' : 'DOC'}</span>
-                                                    {f.name}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </div>
+                            </div>
+                        )}
+                        
+                        {/* Navigation Buttons */}
+                        <div className="pt-6 border-t flex flex-col md:flex-row justify-between gap-4 mt-8"> 
+                            <div>
+                                {currentStep === 1 && (
+                                    <button type="button" onClick={handleResetForm} className="px-6 py-3 text-gray-500 dark:text-gray-400 font-medium hover:text-red-600 transition">Reset Form</button>
+                                )}
+                                {currentStep > 1 && (
+                                    <button type="button" onClick={handleBack} className="px-6 py-3 text-gray-700 dark:text-white font-semibold bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition">Back</button>
                                 )}
                             </div>
-
-                            <div className="p-6 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-4 bg-gray-50 dark:bg-gray-800 rounded-b-xl">
-                                <button onClick={() => setIsSummaryModalOpen(false)} className="px-6 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-white font-semibold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                                    Edit Order
+                            <div className="flex gap-4">
+                                <button type="button" onClick={handleSaveDraft} className="px-4 py-3 text-gray-600 dark:text-gray-300 font-medium hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition flex items-center gap-2">
+                                    <Save size={18} /> <span className="hidden sm:inline">Save Draft</span>
                                 </button>
-                                <button onClick={handleConfirmSubmit} className="px-8 py-3 bg-[#c20c0b] text-white font-bold rounded-xl hover:bg-[#a50a09] shadow-md transition-transform transform hover:scale-105">
-                                    {orderType === 'existing' ? 'Confirm & Add to RFQ' : 'Confirm & Submit'}
-                                </button>
+                                {currentStep === 3 && (
+                                    <button type="button" onClick={handleNext} className="px-6 py-3 text-gray-500 dark:text-gray-400 font-medium hover:text-[#c20c0b] transition flex items-center gap-2">
+                                        Skip <SkipForward size={16} />
+                                    </button>
+                                )}
+                                {currentStep < 5 ? (
+                                    <button type="button" onClick={handleNext} className="px-8 py-3 text-white rounded-lg font-semibold bg-[#c20c0b] hover:bg-[#a50a09] transition shadow-md flex items-center gap-2">
+                                        Next Step <ArrowRight size={18} />
+                                    </button>
+                                ) : (
+                                    <button type="button" onClick={onSubmitButtonClick} className="px-8 py-3 text-white rounded-lg font-bold bg-green-600 hover:bg-green-700 transition shadow-md transform hover:scale-105 flex items-center gap-2">
+                                        <Check size={18} /> {orderType === 'new' ? 'Submit Quote Request' : 'Add Products to RFQ'}
+                                    </button>
+                                )}
                             </div>
                         </div>
-                    </div>, document.body)
-                )}
+                    </form>
+                    </div>
+                    )}
+                </div>
 
                 {/* Reset Confirmation Modal */}
                 {isResetModalOpen && (
