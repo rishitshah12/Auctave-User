@@ -52,6 +52,98 @@ const STEP_COLORS = [
     { bg: 'bg-rose-100 dark:bg-rose-900/20', border: 'border-rose-500', text: 'text-rose-600 dark:text-rose-400', subtleBorder: 'border-rose-200 dark:border-rose-800' },
 ];
 
+const runCelebration = () => {
+    const count = 200;
+    const defaults = {
+        origin: { y: 0.6 }
+    };
+
+    function fire(particleRatio: number, opts: any) {
+        confetti({
+            ...defaults,
+            ...opts,
+            particleCount: Math.floor(count * particleRatio)
+        });
+    }
+
+    fire(0.25, {
+        spread: 26,
+        startVelocity: 55,
+    });
+    fire(0.2, {
+        spread: 60,
+    });
+    fire(0.35, {
+        spread: 100,
+        decay: 0.91,
+        scalar: 0.8
+    });
+    fire(0.1, {
+        spread: 120,
+        startVelocity: 25,
+        decay: 0.92,
+        scalar: 1.2
+    });
+    fire(0.1, {
+        spread: 120,
+        startVelocity: 45,
+    });
+};
+
+const StatusTimeline: FC<{ status: string }> = ({ status }) => {
+    const steps = [
+        { label: 'Pending', key: 'Pending' },
+        { label: 'Responded', key: 'Responded' },
+        { label: 'Negotiating', key: 'In Negotiation' },
+        { label: 'Accepted', key: 'Accepted' }
+    ];
+
+    const getStepIndex = (s: string) => {
+        if (s === 'Pending') return 0;
+        if (s === 'Responded') return 1;
+        if (s === 'In Negotiation') return 2;
+        if (['Accepted', 'Admin Accepted', 'Client Accepted'].includes(s)) return 3;
+        return -1;
+    };
+
+    const activeIndex = getStepIndex(status);
+    if (activeIndex === -1) return null;
+
+    const getActiveColor = (s: string) => {
+         if (s === 'Pending') return { bg: 'bg-amber-500', border: 'border-amber-500', text: 'text-amber-600 dark:text-amber-400', shadow: 'shadow-[0_0_0_4px_rgba(245,158,11,0.2)]' };
+         if (s === 'Responded') return { bg: 'bg-blue-500', border: 'border-blue-500', text: 'text-blue-600 dark:text-blue-400', shadow: 'shadow-[0_0_0_4px_rgba(59,130,246,0.2)]' };
+         if (s === 'In Negotiation') return { bg: 'bg-purple-500', border: 'border-purple-500', text: 'text-purple-600 dark:text-purple-400', shadow: 'shadow-[0_0_0_4px_rgba(168,85,247,0.2)]' };
+         if (['Accepted', 'Admin Accepted', 'Client Accepted'].includes(s)) return { bg: 'bg-green-500', border: 'border-green-500', text: 'text-green-600 dark:text-green-400', shadow: 'shadow-[0_0_0_4px_rgba(34,197,94,0.2)]' };
+         return { bg: 'bg-gray-500', border: 'border-gray-500', text: 'text-gray-600 dark:text-gray-400', shadow: 'shadow-[0_0_0_4px_rgba(107,114,128,0.2)]' };
+    };
+
+    const activeColor = getActiveColor(status);
+
+    return (
+        <div className="w-full py-6 px-2 sm:px-8 mb-6">
+            <div className="relative flex items-center justify-between">
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-gray-100 dark:bg-gray-700 rounded-full -z-10" />
+                <div 
+                    className={`absolute left-0 top-1/2 -translate-y-1/2 h-1 rounded-full -z-10 transition-all duration-1000 ease-out ${activeColor.bg}`}
+                    style={{ width: `${(activeIndex / (steps.length - 1)) * 100}%` }}
+                />
+                {steps.map((step, index) => {
+                    const isActive = index <= activeIndex;
+                    const isCurrent = index === activeIndex;
+                    return (
+                        <div key={step.label} className="flex flex-col items-center relative">
+                            <div className={`w-4 h-4 rounded-full border-2 transition-all duration-500 z-10 flex items-center justify-center ${isActive ? `bg-white dark:bg-gray-900 ${activeColor.border} scale-125 ${activeColor.shadow}` : 'bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600'}`}>
+                                {isActive && <div className={`w-2 h-2 rounded-full ${activeColor.bg} ${isCurrent ? 'animate-pulse' : ''}`} />}
+                            </div>
+                            <span className={`absolute top-6 text-[10px] uppercase tracking-wider font-bold transition-all duration-500 ${isActive ? `${activeColor.text} translate-y-0 opacity-100` : 'text-gray-400 dark:text-gray-500 translate-y-1 opacity-70'}`}>{step.label}</span>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+};
+
 export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
     const CACHE_KEY = 'garment_erp_admin_quotes';
     const [quotes, setQuotes] = useState<QuoteRequest[]>(() => {
@@ -125,7 +217,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
     const [historyModalData, setHistoryModalData] = useState<any | null>(null);
     const [isExecutionPlanModalOpen, setIsExecutionPlanModalOpen] = useState(false);
     const [expandedExecutionSteps, setExpandedExecutionSteps] = useState<number[]>([]);
-    const [isExecutionPlanExpanded, setIsExecutionPlanExpanded] = useState(true);
+    const [isExecutionPlanExpanded, setIsExecutionPlanExpanded] = useState(false);
     const [negotiatingItem, setNegotiatingItem] = useState<any | null>(null);
     const [uploadingChats, setUploadingChats] = useState<Record<number, boolean>>({});
     const cancellationRefs = useRef<Record<number, boolean>>({});
@@ -479,7 +571,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
             }
 
             if (newStatus === 'Accepted' || newStatus === 'Admin Accepted') {
-                confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 }, ticks: 400 });
+                runCelebration();
             }
 
             if (newStatus === 'Accepted') {
@@ -1199,11 +1291,11 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
         if (allAdminApproved && allClientApproved) {
             newStatus = 'Accepted';
             toastMessage = 'All items approved by both parties. Quote Accepted!';
-            confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 }, ticks: 400 });
+            runCelebration();
         } else if (allAdminApproved) {
             newStatus = 'Admin Accepted';
             toastMessage = 'All items approved. Quote marked as Admin Accepted.';
-            confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 }, ticks: 400 });
+            runCelebration();
         } else if (allClientApproved) {
             newStatus = 'Client Accepted';
         } else {
@@ -1302,6 +1394,8 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                             </div>
                         </div>
                     </div>
+
+                    <StatusTimeline status={selectedQuote.status} />
 
                     {/* User Details Card */}
                     <div className="mb-8 bg-blue-50 dark:bg-blue-900/20 p-6 rounded-xl border border-blue-100 dark:border-blue-800 flex flex-col sm:flex-row gap-6 items-start sm:items-center">
@@ -1428,14 +1522,27 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                     const isExpanded = expandedItems.includes(idx);
                                     const itemResponse = selectedQuote.response_details?.lineItemResponses?.find(r => r.lineItemId === item.id);
                                     const history = getLineItemHistory(item.id);
-                                    const isAccepted = selectedQuote.status === 'Accepted';
+                                    const isAccepted = selectedQuote.status === 'Accepted' || selectedQuote.status === 'Admin Accepted' || selectedQuote.status === 'Client Accepted';
                                     const isClientApproved = selectedQuote.negotiation_details?.clientApprovedLineItems?.includes(item.id);
                                     const isAdminApproved = selectedQuote.negotiation_details?.adminApprovedLineItems?.includes(item.id);
 
+                                    const getAgreedPrice = () => {
+                                        const factoryPrice = itemResponse?.price;
+                                        const clientPrice = item.targetPrice;
+                                        if (!factoryPrice) return clientPrice;
+                                        
+                                        const fullHistory = selectedQuote.negotiation_details?.history || [];
+                                        for (let i = fullHistory.length - 1; i >= 0; i--) {
+                                            const h = fullHistory[i];
+                                            if ((h.action === 'offer' || h.action === 'counter') && h.lineItemPrices?.some(p => p.lineItemId === item.id)) {
+                                                return h.sender === 'client' ? clientPrice : factoryPrice;
+                                            }
+                                        }
+                                        return factoryPrice;
+                                    };
+
+                                    const agreedPrice = getAgreedPrice();
                                     const showAgreedPrice = isAccepted;
-                                    const agreedPrice = (isAccepted && selectedQuote.response_details?.acceptedAt && itemResponse?.price)
-                                        ? itemResponse.price
-                                        : item.targetPrice;
 
                                     // Group history into rows (Client Counter -> Factory Response)
                                     const groupedHistory: { client?: { price: string; timestamp: string }; factory?: { price: string; timestamp: string } }[] = (() => {
@@ -1821,6 +1928,55 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                 </div>
                             </div>
 
+                            {/* Attachments Section */}
+                            <div className="bg-white/60 dark:bg-gray-800/40 p-6 rounded-xl border border-gray-200 dark:border-white/10 shadow-sm">
+                                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center">
+                                    <FileText size={20} className="mr-2 text-[#c20c0b]" /> Attachments
+                                </h3>
+                                {isLoadingFiles ? (
+                                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                                        <RefreshCw size={24} className="animate-spin mx-auto mb-2" />
+                                        <p className="text-sm">Loading attachments...</p>
+                                    </div>
+                                ) : fileLinks.length > 0 ? (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        {fileLinks.map((file, i) => {
+                                            const isImage = file.name.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+                                            return (
+                                            <div key={i} className="flex items-center gap-3 p-4 rounded-xl bg-white dark:bg-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-white/10 transition-all group cursor-pointer" onClick={() => isImage ? openLightbox(file.url) : window.open(file.url, '_blank')}>
+                                                <div className="p-2.5 bg-gray-100 dark:bg-gray-800 rounded-lg text-[#c20c0b] shadow-sm overflow-hidden">
+                                                    {isImage ? (
+                                                        <img src={file.url} alt={file.name} className="w-6 h-6 object-cover" />
+                                                    ) : (
+                                                        <FileText size={20} />
+                                                    )}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{file.name}</p>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400 group-hover:text-[#c20c0b] transition-colors flex items-center gap-1">
+                                                        {isImage ? <><Eye size={12}/> Preview</> : 'Click to download'}
+                                                    </p>
+                                                </div>
+                                                <a href={file.url} target="_blank" rel="noopener noreferrer" className="p-2 text-gray-400 dark:text-gray-500 hover:text-[#c20c0b] transition-colors" title="Download" onClick={(e) => e.stopPropagation()}>
+                                                    <Download size={18} />
+                                                </a>
+                                            </div>
+                                        )})}
+                                    </div>
+                                ) : selectedQuote.files && selectedQuote.files.length > 0 ? (
+                                    <div className="text-center py-8 text-red-500 dark:text-red-400 italic bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800">
+                                        <p className="mb-2">Failed to load attachments.</p>
+                                        <button onClick={fetchSignedUrls} className="text-sm font-bold underline hover:text-red-700 dark:hover:text-red-300 flex items-center justify-center gap-1 mx-auto">
+                                            <RefreshCw size={14} /> Retry
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-8 text-gray-500 dark:text-gray-400 italic bg-gray-50 dark:bg-gray-700/30 rounded-xl border border-dashed border-gray-200 dark:border-white/10">
+                                        No attachments found for this quote.
+                                    </div>
+                                )}
+                            </div>
+
                             {/* Execution Plan Section */}
                             <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden p-6 sm:p-8">
                                 <div 
@@ -1892,55 +2048,6 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                         })}
                                     </div>
                                 </div>
-                                )}
-                            </div>
-
-                            {/* Attachments Section */}
-                            <div className="bg-white/60 dark:bg-gray-800/40 p-6 rounded-xl border border-gray-200 dark:border-white/10 shadow-sm">
-                                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center">
-                                    <FileText size={20} className="mr-2 text-[#c20c0b]" /> Attachments
-                                </h3>
-                                {isLoadingFiles ? (
-                                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                                        <RefreshCw size={24} className="animate-spin mx-auto mb-2" />
-                                        <p className="text-sm">Loading attachments...</p>
-                                    </div>
-                                ) : fileLinks.length > 0 ? (
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        {fileLinks.map((file, i) => {
-                                            const isImage = file.name.match(/\.(jpg|jpeg|png|gif|webp)$/i);
-                                            return (
-                                            <div key={i} className="flex items-center gap-3 p-4 rounded-xl bg-white dark:bg-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-white/10 transition-all group cursor-pointer" onClick={() => isImage ? openLightbox(file.url) : window.open(file.url, '_blank')}>
-                                                <div className="p-2.5 bg-gray-100 dark:bg-gray-800 rounded-lg text-[#c20c0b] shadow-sm overflow-hidden">
-                                                    {isImage ? (
-                                                        <img src={file.url} alt={file.name} className="w-6 h-6 object-cover" />
-                                                    ) : (
-                                                        <FileText size={20} />
-                                                    )}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{file.name}</p>
-                                                    <p className="text-xs text-gray-500 dark:text-gray-400 group-hover:text-[#c20c0b] transition-colors flex items-center gap-1">
-                                                        {isImage ? <><Eye size={12}/> Preview</> : 'Click to download'}
-                                                    </p>
-                                                </div>
-                                                <a href={file.url} target="_blank" rel="noopener noreferrer" className="p-2 text-gray-400 dark:text-gray-500 hover:text-[#c20c0b] transition-colors" title="Download" onClick={(e) => e.stopPropagation()}>
-                                                    <Download size={18} />
-                                                </a>
-                                            </div>
-                                        )})}
-                                    </div>
-                                ) : selectedQuote.files && selectedQuote.files.length > 0 ? (
-                                    <div className="text-center py-8 text-red-500 dark:text-red-400 italic bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800">
-                                        <p className="mb-2">Failed to load attachments.</p>
-                                        <button onClick={fetchSignedUrls} className="text-sm font-bold underline hover:text-red-700 dark:hover:text-red-300 flex items-center justify-center gap-1 mx-auto">
-                                            <RefreshCw size={14} /> Retry
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <div className="text-center py-8 text-gray-500 dark:text-gray-400 italic bg-gray-50 dark:bg-gray-700/30 rounded-xl border border-dashed border-gray-200 dark:border-white/10">
-                                        No attachments found for this quote.
-                                    </div>
                                 )}
                             </div>
                         </div>

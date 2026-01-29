@@ -1,4 +1,4 @@
-import React, { useState, FC, useRef, useEffect, ReactNode, useCallback } from 'react';
+import React, { useState, FC, useRef, useEffect, ReactNode, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { MainLayout } from './MainLayout';
 import { QuoteRequest, NegotiationHistoryItem } from './types';
@@ -6,8 +6,23 @@ import { quoteService } from './quote.service';
 import {
     ChevronLeft, ChevronRight, MapPin, Calendar, Package, Shirt, DollarSign, Clock, ArrowRight,
     FileText, MessageSquare, CheckCircle, AlertCircle, X, Globe, Download, ChevronDown, ChevronUp, History, Printer, Check, CheckCheck, Eye, RefreshCw, Image as ImageIcon, Edit, Scale, Paperclip, Send, Circle,
-    Layers, Scissors, Factory, ShieldCheck, Truck, LifeBuoy, ClipboardList, Plus, Trash2, GripVertical
+    Layers, Scissors, Factory, ShieldCheck, Truck, LifeBuoy, ClipboardList, Plus, Trash2, GripVertical,
+    Sparkles, Info, ListOrdered, Phone, Building, CreditCard
 } from 'lucide-react';
+
+// Tab type for the main content area - Zomato-style progressive disclosure
+type TabType = 'overview' | 'products' | 'timeline' | 'files';
+import {
+    BarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    Legend,
+    ResponsiveContainer,
+    Cell
+} from 'recharts';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import confetti from 'canvas-confetti';
@@ -49,6 +64,98 @@ const STEP_COLORS = [
     { bg: 'bg-rose-100 dark:bg-rose-900/20', border: 'border-rose-500', text: 'text-rose-600 dark:text-rose-400', subtleBorder: 'border-rose-200 dark:border-rose-800' },
 ];
 
+const runCelebration = () => {
+    const count = 200;
+    const defaults = {
+        origin: { y: 0.6 }
+    };
+
+    function fire(particleRatio: number, opts: any) {
+        confetti({
+            ...defaults,
+            ...opts,
+            particleCount: Math.floor(count * particleRatio)
+        });
+    }
+
+    fire(0.25, {
+        spread: 26,
+        startVelocity: 55,
+    });
+    fire(0.2, {
+        spread: 60,
+    });
+    fire(0.35, {
+        spread: 100,
+        decay: 0.91,
+        scalar: 0.8
+    });
+    fire(0.1, {
+        spread: 120,
+        startVelocity: 25,
+        decay: 0.92,
+        scalar: 1.2
+    });
+    fire(0.1, {
+        spread: 120,
+        startVelocity: 45,
+    });
+};
+
+const StatusTimeline: FC<{ status: string }> = ({ status }) => {
+    const steps = [
+        { label: 'Pending', key: 'Pending' },
+        { label: 'Responded', key: 'Responded' },
+        { label: 'Negotiating', key: 'In Negotiation' },
+        { label: 'Accepted', key: 'Accepted' }
+    ];
+
+    const getStepIndex = (s: string) => {
+        if (s === 'Pending') return 0;
+        if (s === 'Responded') return 1;
+        if (s === 'In Negotiation') return 2;
+        if (['Accepted', 'Admin Accepted', 'Client Accepted'].includes(s)) return 3;
+        return -1;
+    };
+
+    const activeIndex = getStepIndex(status);
+    if (activeIndex === -1) return null;
+
+    const getActiveColor = (s: string) => {
+         if (s === 'Pending') return { bg: 'bg-amber-500', border: 'border-amber-500', text: 'text-amber-600 dark:text-amber-400', shadow: 'shadow-[0_0_0_4px_rgba(245,158,11,0.2)]' };
+         if (s === 'Responded') return { bg: 'bg-blue-500', border: 'border-blue-500', text: 'text-blue-600 dark:text-blue-400', shadow: 'shadow-[0_0_0_4px_rgba(59,130,246,0.2)]' };
+         if (s === 'In Negotiation') return { bg: 'bg-purple-500', border: 'border-purple-500', text: 'text-purple-600 dark:text-purple-400', shadow: 'shadow-[0_0_0_4px_rgba(168,85,247,0.2)]' };
+         if (['Accepted', 'Admin Accepted', 'Client Accepted'].includes(s)) return { bg: 'bg-green-500', border: 'border-green-500', text: 'text-green-600 dark:text-green-400', shadow: 'shadow-[0_0_0_4px_rgba(34,197,94,0.2)]' };
+         return { bg: 'bg-gray-500', border: 'border-gray-500', text: 'text-gray-600 dark:text-gray-400', shadow: 'shadow-[0_0_0_4px_rgba(107,114,128,0.2)]' };
+    };
+
+    const activeColor = getActiveColor(status);
+
+    return (
+        <div className="w-full py-6 px-2 sm:px-8 mb-6">
+            <div className="relative flex items-center justify-between">
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-gray-100 dark:bg-gray-700 rounded-full -z-10" />
+                <div 
+                    className={`absolute left-0 top-1/2 -translate-y-1/2 h-1 rounded-full -z-10 transition-all duration-1000 ease-out ${activeColor.bg}`}
+                    style={{ width: `${(activeIndex / (steps.length - 1)) * 100}%` }}
+                />
+                {steps.map((step, index) => {
+                    const isActive = index <= activeIndex;
+                    const isCurrent = index === activeIndex;
+                    return (
+                        <div key={step.label} className="flex flex-col items-center relative">
+                            <div className={`w-4 h-4 rounded-full border-2 transition-all duration-500 z-10 flex items-center justify-center ${isActive ? `bg-white dark:bg-gray-900 ${activeColor.border} scale-125 ${activeColor.shadow}` : 'bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600'}`}>
+                                {isActive && <div className={`w-2 h-2 rounded-full ${activeColor.bg} ${isCurrent ? 'animate-pulse' : ''}`} />}
+                            </div>
+                            <span className={`absolute top-6 text-[10px] uppercase tracking-wider font-bold transition-all duration-500 ${isActive ? `${activeColor.text} translate-y-0 opacity-100` : 'text-gray-400 dark:text-gray-500 translate-y-1 opacity-70'}`}>{step.label}</span>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+};
+
 export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
     selectedQuote: initialQuote,
     handleSetCurrentPage,
@@ -70,8 +177,16 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
     const [uploadingChats, setUploadingChats] = useState<Record<number, boolean>>({});
     const cancellationRefs = useRef<Record<number, boolean>>({});
     const [expandedExecutionSteps, setExpandedExecutionSteps] = useState<number[]>([]);
-    const [isExecutionPlanExpanded, setIsExecutionPlanExpanded] = useState(true);
+    const [isExecutionPlanExpanded, setIsExecutionPlanExpanded] = useState(false);
+    const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
     const { showToast } = useToast();
+
+    // New Zomato-style UI states
+    const [activeTab, setActiveTab] = useState<TabType>('overview');
+    const [isChatPanelOpen, setIsChatPanelOpen] = useState(false);
+    const [activeChatItemId, setActiveChatItemId] = useState<number | null>(null);
+    const chatPanelRef = useRef<HTMLDivElement>(null);
+    const chatMessagesEndRef = useRef<HTMLDivElement>(null);
 
     const toggleExpand = (index: number) => {
         setExpandedItems(prev => 
@@ -424,11 +539,11 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         if (allClientApproved && allAdminApproved) {
             newStatus = 'Accepted';
             toastMessage = 'All items approved by both parties. Quote Accepted!';
-            confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 }, ticks: 400 });
+            runCelebration();
         } else if (allClientApproved) {
             newStatus = 'Client Accepted';
             toastMessage = 'All items approved. Quote marked as Client Approved.';
-            confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 }, ticks: 400 });
+            runCelebration();
         } else if (allAdminApproved) {
             newStatus = 'Admin Accepted';
         } else {
@@ -498,12 +613,12 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         });
         
         if (newStatus === 'Accepted') {
-            confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 }, ticks: 400 });
+            runCelebration();
             createCrmOrder(updatedQuote);
             showToast('Quote Accepted! A new order has been created in the CRM portal.');
             handleSetCurrentPage('crm');
         } else {
-            confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 }, ticks: 400 });
+            runCelebration();
             showToast('Quote approved. Waiting for admin confirmation.');
         }
     };
@@ -617,7 +732,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         if (quote.negotiation_details?.history && quote.negotiation_details.history.length > 0) {
             return quote.negotiation_details.history;
         }
-        
+
         const history: any[] = [];
         // If we have response details but no history array, treat it as the first history item
         if (quote.response_details && (quote.status === 'Responded' || quote.status === 'Accepted' || quote.status === 'Declined' || quote.status === 'In Negotiation' || quote.status === 'Admin Accepted' || quote.status === 'Client Accepted')) {
@@ -632,6 +747,51 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         }
         return history;
     }, [quote]);
+
+    // Compute total unread messages for floating chat badge
+    const totalChatMessages = useMemo(() => {
+        if (!quote?.negotiation_details?.history) return 0;
+        return quote.negotiation_details.history.filter(h => h.relatedLineItemId || h.action === 'info').length;
+    }, [quote]);
+
+    // Get all conversations grouped by product
+    const productConversations = useMemo(() => {
+        if (!quote?.order?.lineItems) return [];
+        return quote.order.lineItems.map(item => ({
+            item,
+            messages: getLineItemHistory(item.id),
+            hasUnread: getLineItemHistory(item.id).some(h => h.sender === 'factory')
+        }));
+    }, [quote]);
+
+    // Auto-scroll chat to bottom when messages change
+    useEffect(() => {
+        if (chatMessagesEndRef.current && isChatPanelOpen) {
+            chatMessagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [quote?.negotiation_details?.history, isChatPanelOpen, activeChatItemId]);
+
+    // Close chat panel when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (chatPanelRef.current && !chatPanelRef.current.contains(event.target as Node)) {
+                // Check if click is on the floating button
+                const floatingBtn = document.getElementById('floating-chat-btn');
+                if (floatingBtn && floatingBtn.contains(event.target as Node)) return;
+                setIsChatPanelOpen(false);
+            }
+        };
+        if (isChatPanelOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [isChatPanelOpen]);
+
+    // Open chat panel to specific product
+    const openChatForProduct = (itemId: number) => {
+        setActiveChatItemId(itemId);
+        setIsChatPanelOpen(true);
+    };
 
     const handleSendChat = async (lineItemId: number) => {
         const chatState = chatStates[lineItemId] || { message: '', file: null };
@@ -728,124 +888,295 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         }
     };
 
+    // Tab configuration
+    const tabs: { id: TabType; label: string; icon: ReactNode; badge?: number }[] = [
+        { id: 'overview', label: 'Overview', icon: <Info size={18} /> },
+        { id: 'products', label: 'Products', icon: <Package size={18} />, badge: order.lineItems.length },
+        { id: 'timeline', label: 'Timeline', icon: <History size={18} />, badge: negotiationHistory.length },
+        { id: 'files', label: 'Files', icon: <FileText size={18} />, badge: fileLinks.length || quote?.files?.length || 0 },
+    ];
+
     return (
         <MainLayout {...layoutProps}>
-            <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                {/* Navigation & Header */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-                    <button onClick={() => handleSetCurrentPage('myQuotes')} className="group flex items-center text-gray-500 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white transition-colors">
-                        <div className="p-2 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 group-hover:border-gray-300 dark:group-hover:border-gray-600 mr-3 shadow-sm transition-all">
-                            <ChevronLeft size={18} />
-                        </div>
-                        <span className="font-medium">Back to Quotes</span>
+            <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-8">
+                {/* Compact Header - Zomato Style */}
+                <div className="mb-6">
+                    {/* Back button row */}
+                    <button onClick={() => handleSetCurrentPage('myQuotes')} className="group flex items-center text-gray-500 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors mb-4">
+                        <ChevronLeft size={20} className="mr-1" />
+                        <span className="text-sm font-medium">Back to Quotes</span>
                     </button>
-                    <div className="flex gap-3">
-                        <button onClick={handleDownloadPdf} className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-white font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-all shadow-sm">
-                            <Printer size={18} />
-                            <span className="hidden sm:inline">Download PDF</span>
-                        </button>
-                        {(status === 'Responded' || status === 'In Negotiation' || status === 'Admin Accepted') && (
-                            <button onClick={() => setIsNegotiationModalOpen(true)} className="px-5 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-white font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-all shadow-sm">
-                                Negotiate
-                            </button>
-                        )}
-                        {(status === 'Responded' || status === 'In Negotiation') && (
-                            <button onClick={handleAcceptQuote} className="px-5 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-all shadow-md flex items-center gap-2">
-                                <Check size={18} /> Approve Quote
-                            </button>
-                        )}
-                        {status === 'Admin Accepted' && (
-                            <button onClick={handleAcceptQuote} className="px-5 py-2 bg-[#c20c0b] text-white font-medium rounded-lg hover:bg-[#a50a09] transition-all shadow-md flex items-center gap-2">
-                                <CheckCheck size={18} /> Finalize Acceptance
-                            </button>
-                        )}
-                    </div>
-                </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Main Content Column */}
-                    <div className="lg:col-span-2 space-y-6">
-                        
-                        {/* Quote Header Card */}
-                        <div ref={quoteDetailsRef} className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-white/10 relative overflow-hidden">
-                            <div className={`absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r ${getStatusGradient(status)}`}></div>
-                            <div className="flex justify-between items-start mb-4">
-                                <div>
-                                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">Quote #{id.slice(0, 8)}</h1>
-                                    <p className="text-gray-500 dark:text-gray-200 text-sm flex items-center">
-                                        <Calendar size={14} className="mr-1.5"/> Submitted on {formatFriendlyDate(submittedAt)}
-                                    </p>
-                                </div>
-                                <span className={`px-3 py-1 text-xs font-bold uppercase tracking-wide rounded-full border ${getStatusColor(status)} flex items-center gap-1`}>
-                                    {status === 'Accepted' && <CheckCheck size={14} />}
-                                    {(status === 'Admin Accepted' || status === 'Client Accepted') && <Check size={14} />}
-                                    {status === 'Admin Accepted' ? 'Admin Approved' : status === 'Client Accepted' ? 'Client Approved' : status}
-                                </span>
-                            </div>
-                            
-                            {/* Factory Response Summary (if available) */}
-                            {(status === 'Responded' || status === 'In Negotiation' || status === 'Accepted' || status === 'Admin Accepted' || status === 'Client Accepted') && response_details && (
-                                <div className="mt-6 p-5 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-200 dark:border-white/10 shadow-sm">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                                            <MessageSquare size={18} className="text-[#c20c0b]" />
-                                            Factory Offer
-                                        </h3>
-                                        {response_details.respondedAt && (
-                                            <span className="text-xs text-gray-500 dark:text-gray-200">Received {formatFriendlyDate(response_details.respondedAt)}</span>
-                                        )}
+                    {/* Main Header Card - Compact */}
+                    <div ref={quoteDetailsRef} className="bg-white dark:bg-gray-900/60 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                        <div className={`h-1.5 bg-gradient-to-r ${getStatusGradient(status)}`}></div>
+                        <div className="p-5">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <div className="flex items-center gap-4">
+                                    <div className="hidden sm:flex w-14 h-14 rounded-xl bg-gradient-to-br from-[#c20c0b] to-pink-600 items-center justify-center text-white shadow-lg">
+                                        <Package size={24} />
                                     </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                                        <div>
-                                            <p className="text-xs text-gray-500 dark:text-gray-200 uppercase font-medium mb-1">Total Price</p>
-                                            <p className="text-2xl font-bold text-gray-900 dark:text-white">${response_details.price}</p>
+                                    <div>
+                                        <div className="flex items-center gap-3 mb-1">
+                                            <h1 className="text-xl font-bold text-gray-900 dark:text-white">Quote #{id.slice(0, 8)}</h1>
+                                            <span className={`px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide rounded-full border ${getStatusColor(status)} flex items-center gap-1`}>
+                                                {status === 'Accepted' && <CheckCheck size={12} />}
+                                                {(status === 'Admin Accepted' || status === 'Client Accepted') && <Check size={12} />}
+                                                {status === 'Admin Accepted' ? 'Admin Approved' : status === 'Client Accepted' ? 'Client Approved' : status}
+                                            </span>
+                                        </div>
+                                        <p className="text-gray-500 dark:text-gray-400 text-sm flex items-center gap-3">
+                                            <span className="flex items-center"><Calendar size={14} className="mr-1"/> {formatFriendlyDate(submittedAt)}</span>
+                                            <span className="flex items-center"><Package size={14} className="mr-1"/> {order.lineItems.length} items</span>
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Quick Actions - Desktop only */}
+                                <div className="hidden md:flex items-center gap-2">
+                                    <button onClick={handleDownloadPdf} className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all" title="Download PDF">
+                                        <Download size={20} />
+                                    </button>
+                                    <button onClick={() => setIsHistoryModalOpen(true)} className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all" title="View History">
+                                        <History size={20} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Factory Response Summary - Compact */}
+                            {(status === 'Responded' || status === 'In Negotiation' || status === 'Accepted' || status === 'Admin Accepted' || status === 'Client Accepted') && response_details && (
+                                <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800 flex flex-wrap items-center gap-6">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                                            <DollarSign size={20} className="text-green-600 dark:text-green-400" />
                                         </div>
                                         <div>
-                                            <p className="text-xs text-gray-500 dark:text-gray-200 uppercase font-medium mb-1">Lead Time</p>
-                                            <p className="text-lg font-semibold text-gray-900 dark:text-white">{response_details.leadTime}</p>
+                                            <p className="text-[10px] text-gray-500 dark:text-gray-400 uppercase font-medium">Quoted Price</p>
+                                            <p className="text-lg font-bold text-gray-900 dark:text-white">${response_details.price}</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                                            <Clock size={20} className="text-blue-600 dark:text-blue-400" />
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] text-gray-500 dark:text-gray-400 uppercase font-medium">Lead Time</p>
+                                            <p className="text-lg font-bold text-gray-900 dark:text-white">{response_details.leadTime}</p>
                                         </div>
                                     </div>
                                     {response_details.notes && (
-                                        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
-                                            <p className="text-sm text-gray-600 dark:text-gray-200 italic">"{response_details.notes}"</p>
+                                        <div className="flex-1 min-w-[200px]">
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 italic truncate">"{response_details.notes}"</p>
                                         </div>
                                     )}
                                 </div>
                             )}
                         </div>
+                    </div>
+                </div>
 
-                        {/* Product Details (List) */}
-                        <div className="space-y-3">
-                            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Product Specifications</h3>
-                            <div className="hidden md:grid grid-cols-12 gap-4 w-full text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider px-4 mb-2">
-                                <div className="col-span-4 text-left">Product</div>
-                                <div className="col-span-2 text-center">Qty</div>
-                                <div className="col-span-2 text-right">Target</div>
-                                <div className="col-span-2 text-right">Quoted</div>
-                                <div className="col-span-2"></div>
+                {/* Zomato-style Tabs */}
+                <div className="sticky top-0 z-30 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 bg-gray-50/95 dark:bg-gray-950/95 backdrop-blur-md py-3 mb-6 border-b border-gray-200 dark:border-gray-800">
+                    <div className="max-w-6xl mx-auto flex items-center gap-1 overflow-x-auto scrollbar-hide">
+                        {tabs.map(tab => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id)}
+                                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
+                                    activeTab === tab.id
+                                        ? 'bg-[#c20c0b] text-white shadow-md'
+                                        : 'text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800 hover:shadow-sm'
+                                }`}
+                            >
+                                {tab.icon}
+                                <span>{tab.label}</span>
+                                {tab.badge !== undefined && tab.badge > 0 && (
+                                    <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                                        activeTab === tab.id
+                                            ? 'bg-white/20 text-white'
+                                            : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                                    }`}>{tab.badge}</span>
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Tab Content */}
+                <div className="space-y-6">
+                    {/* OVERVIEW TAB */}
+                    {activeTab === 'overview' && (
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
+                            {/* Status Timeline */}
+                            <div className="lg:col-span-2 bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-white/10">
+                                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                                    <Sparkles size={20} className="text-[#c20c0b]" /> Order Progress
+                                </h3>
+                                <StatusTimeline status={status} />
+
+                                {/* Quick Summary */}
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
+                                    <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 text-center">
+                                        <p className="text-2xl font-bold text-gray-900 dark:text-white">{order.lineItems.length}</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Products</p>
+                                    </div>
+                                    <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 text-center">
+                                        <p className="text-2xl font-bold text-gray-900 dark:text-white">{order.lineItems.reduce((acc, item) => acc + (item.qty || 0), 0).toLocaleString()}</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Total Qty</p>
+                                    </div>
+                                    <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 text-center">
+                                        <p className="text-2xl font-bold text-[#c20c0b] dark:text-red-400">${response_details?.price || '—'}</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Quoted</p>
+                                    </div>
+                                    <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 text-center">
+                                        <p className="text-2xl font-bold text-gray-900 dark:text-white">{response_details?.leadTime || '—'}</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Lead Time</p>
+                                    </div>
+                                </div>
+
+                                {/* Product Preview */}
+                                <div className="mt-6">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <h4 className="font-semibold text-gray-800 dark:text-white">Products</h4>
+                                        <button onClick={() => setActiveTab('products')} className="text-sm text-[#c20c0b] font-medium hover:underline">View All →</button>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {order.lineItems.slice(0, 3).map((item, idx) => {
+                                            const itemResponse = response_details?.lineItemResponses?.find(r => r.lineItemId === item.id);
+                                            return (
+                                                <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 rounded-lg bg-[#c20c0b]/10 flex items-center justify-center text-[#c20c0b] font-bold text-sm">{idx + 1}</div>
+                                                        <div>
+                                                            <p className="font-medium text-gray-900 dark:text-white text-sm">{item.category}</p>
+                                                            <p className="text-xs text-gray-500 dark:text-gray-400">{item.qty} units • {item.fabricQuality}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="text-sm font-bold text-gray-900 dark:text-white">${itemResponse?.price || item.targetPrice}</p>
+                                                        {itemResponse?.price && <p className="text-[10px] text-gray-400">Target: ${item.targetPrice}</p>}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                        {order.lineItems.length > 3 && (
+                                            <button onClick={() => setActiveTab('products')} className="w-full py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-[#c20c0b] transition-colors">
+                                                +{order.lineItems.length - 3} more products
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
-                            
-                            {order.lineItems.map((item, index) => {
-                                const isExpanded = expandedItems.includes(index);
-                                const itemResponse = response_details?.lineItemResponses?.find(r => r.lineItemId === item.id);
-                                const history = getLineItemHistory(item.id);
 
-                                const isClientApproved = quote.negotiation_details?.clientApprovedLineItems?.includes(item.id);
-                                const isAdminApproved = quote.negotiation_details?.adminApprovedLineItems?.includes(item.id);
+                            {/* Sidebar */}
+                            <div className="space-y-6">
+                                {/* Factory Card */}
+                                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                                    <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-5 py-3">
+                                        <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2"><Building size={16} /> Factory</h3>
+                                    </div>
+                                    <div className="p-5">
+                                        {factory ? (
+                                            <div className="flex items-start gap-3">
+                                                <img src={factory.imageUrl} alt={factory.name} className="w-12 h-12 rounded-lg object-cover border border-gray-100 dark:border-white/10" />
+                                                <div>
+                                                    <h4 className="font-bold text-gray-900 dark:text-white">{factory.name}</h4>
+                                                    <p className="text-sm text-gray-500 dark:text-gray-300 flex items-center mt-0.5">
+                                                        <MapPin size={12} className="mr-1" /> {factory.location}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <p className="text-sm text-gray-500 dark:text-gray-300 italic">Open Request</p>
+                                        )}
+                                    </div>
+                                </div>
 
-                                const isAccepted = status === 'Accepted';
-                                const showAgreedPrice = isAccepted;
-                                const agreedPrice = (isAccepted && response_details?.acceptedAt && itemResponse?.price)
-                                    ? itemResponse.price
-                                    : item.targetPrice;
+                                {/* Logistics Card */}
+                                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                                    <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-5 py-3">
+                                        <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2"><Truck size={16} /> Logistics</h3>
+                                    </div>
+                                    <div className="p-5 space-y-3">
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-gray-500 dark:text-gray-300">Country</span>
+                                            <span className="font-medium text-gray-900 dark:text-white">{order.shippingCountry}</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-gray-500 dark:text-gray-300">Port</span>
+                                            <span className="font-medium text-gray-900 dark:text-white">{order.shippingPort}</span>
+                                        </div>
+                                    </div>
+                                </div>
 
-                                return (
-                                    <div key={index} className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-sm border border-gray-200 dark:border-white/10 overflow-hidden transition-all duration-200">
-                                        <div 
-                                            onClick={() => toggleExpand(index)}
-                                            className={`p-4 grid grid-cols-1 md:grid-cols-12 gap-4 items-center cursor-pointer transition-colors ${isExpanded ? 'bg-gray-50 dark:bg-gray-800/50' : 'hover:bg-gray-50 dark:hover:bg-white/10'}`}
-                                        >
-                                            {/* Product Info */}
+                                {/* Help Card */}
+                                <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-5 text-white shadow-lg">
+                                    <h3 className="font-bold mb-2 flex items-center gap-2"><Phone size={16} /> Need Help?</h3>
+                                    <p className="text-sm text-gray-300 mb-3">Our team can assist with negotiations.</p>
+                                    <button className="w-full py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium transition-colors border border-white/10">
+                                        Contact Support
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* PRODUCTS TAB */}
+                    {activeTab === 'products' && (
+                        <div className="animate-fade-in">
+                            <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                                <div className="p-5 border-b border-gray-100 dark:border-gray-800">
+                                    <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                        <Package size={20} className="text-[#c20c0b]" /> Product Specifications
+                                    </h3>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Click on any product to view details or chat with factory</p>
+                                </div>
+
+                                {/* Product Header - Desktop */}
+                                <div className="hidden md:grid grid-cols-12 gap-4 w-full text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider px-5 py-3 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800">
+                                    <div className="col-span-4 text-left">Product</div>
+                                    <div className="col-span-2 text-center">Qty</div>
+                                    <div className="col-span-2 text-right">Target</div>
+                                    <div className="col-span-2 text-right">Quoted</div>
+                                    <div className="col-span-2 text-right">Actions</div>
+                                </div>
+
+                                <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                                    {order.lineItems.map((item, index) => {
+                                        const isExpanded = expandedItems.includes(index);
+                                        const itemResponse = response_details?.lineItemResponses?.find(r => r.lineItemId === item.id);
+                                        const history = getLineItemHistory(item.id);
+
+                                        const isClientApproved = quote.negotiation_details?.clientApprovedLineItems?.includes(item.id);
+                                        const isAdminApproved = quote.negotiation_details?.adminApprovedLineItems?.includes(item.id);
+
+                                        const isAccepted = status === 'Accepted' || status === 'Admin Accepted' || status === 'Client Accepted';
+
+                                        const getAgreedPrice = () => {
+                                            const factoryPrice = itemResponse?.price;
+                                            const clientPrice = item.targetPrice;
+                                            if (!factoryPrice) return clientPrice;
+
+                                            const fullHistory = quote.negotiation_details?.history || [];
+                                            for (let i = fullHistory.length - 1; i >= 0; i--) {
+                                                const h = fullHistory[i];
+                                                if ((h.action === 'offer' || h.action === 'counter') && h.lineItemPrices?.some(p => p.lineItemId === item.id)) {
+                                                    return h.sender === 'client' ? clientPrice : factoryPrice;
+                                                }
+                                            }
+                                            return factoryPrice;
+                                        };
+
+                                        const agreedPrice = getAgreedPrice();
+                                        const showAgreedPrice = isAccepted;
+
+                                        return (
+                                            <div key={index} className="transition-all duration-200">
+                                                <div
+                                                    onClick={() => toggleExpand(index)}
+                                                    className={`p-4 grid grid-cols-1 md:grid-cols-12 gap-4 items-center cursor-pointer transition-colors ${isExpanded ? 'bg-[#c20c0b]/5 dark:bg-[#c20c0b]/10' : 'hover:bg-gray-50 dark:hover:bg-white/5'}`}
+                                                >
+                                                    {/* Product Info */}
                                             <div className="md:col-span-4 flex items-center gap-3">
                                                 <div className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 font-bold text-xs w-7 h-7 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 shrink-0">
                                                     {index + 1}
@@ -1115,314 +1446,420 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                             </div>
                                         )}
                                     </div>
-                                );
-                            })}
+                                        );
+                                    })}
+                                </div>
 
-                            {/* Totals Footer */}
-                            {(() => {
-                                const totalTargetCost = order.lineItems.reduce((acc, item) => {
-                                    if (item.quantityType === 'units' && item.qty && item.targetPrice) {
-                                        const qty = item.qty;
-                                        const price = parseFloat(item.targetPrice);
-                                        if (!isNaN(qty) && !isNaN(price)) {
-                                            return acc + (qty * price);
-                                        }
-                                    }
-                                    return acc;
-                                }, 0);
-                                return (
-                                    <>
-                                        {/* Desktop */}
-                                        <div className="hidden md:grid grid-cols-12 gap-4 w-full px-4 mt-2 border-t border-gray-200 dark:border-white/10 pt-4">
-                                            <div className="col-span-4 text-right text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider self-center">Totals</div>
-                                            <div className="col-span-2 text-center">
-                                                <p className="text-sm font-bold text-gray-900 dark:text-white">{quote.order?.lineItems?.reduce((acc, item) => acc + (item.qty || 0), 0).toLocaleString()}</p>
+                                {/* Totals Footer */}
+                                <div className="p-5 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
+                                    <div className="flex flex-wrap items-center justify-between gap-4">
+                                        <div className="flex items-center gap-6">
+                                            <div>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase font-medium">Total Items</p>
+                                                <p className="text-lg font-bold text-gray-900 dark:text-white">{order.lineItems.length}</p>
                                             </div>
-                                            <div className="col-span-2 text-right">
-                                                {totalTargetCost > 0 && (
-                                                    <p className="text-sm font-bold text-gray-900 dark:text-white" title="Total Estimated Target Cost">
-                                                        ${totalTargetCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                    </p>
-                                                )}
+                                            <div>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase font-medium">Total Quantity</p>
+                                                <p className="text-lg font-bold text-gray-900 dark:text-white">{order.lineItems.reduce((acc, item) => acc + (item.qty || 0), 0).toLocaleString()}</p>
                                             </div>
-                                            <div className="col-span-4"></div>
                                         </div>
-
-                                        {/* Mobile */}
-                                        <div className="md:hidden mt-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-white/10 flex justify-between items-center">
-                                            <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Total Quantity</span>
-                                            <span className="text-sm font-bold text-gray-900 dark:text-white">{quote.order?.lineItems?.reduce((acc, item) => acc + (item.qty || 0), 0).toLocaleString()}</span>
-                                        </div>
-                                        {totalTargetCost > 0 && (
-                                            <div className="md:hidden mt-2 bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-white/10 flex justify-between items-center">
-                                                <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Est. Target Cost</span>
-                                                <span className="text-sm font-bold text-gray-900 dark:text-white">${totalTargetCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                        {response_details?.price && (
+                                            <div className="text-right">
+                                                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase font-medium">Total Quoted</p>
+                                                <p className="text-2xl font-bold text-[#c20c0b] dark:text-red-400">${response_details.price}</p>
                                             </div>
                                         )}
-                                    </>
-                                );
-                            })()}
-                        </div>
-
-                        {/* Execution Plan Section */}
-                        {showExecutionPlan && (
-                            <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden p-6 sm:p-8">
-                                <div 
-                                    className="flex justify-between items-center mb-8 cursor-pointer"
-                                    onClick={() => setIsExecutionPlanExpanded(!isExecutionPlanExpanded)}
-                                >
-                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
-                                        <ClipboardList size={24} className="mr-3 text-[#c20c0b]" /> Execution Plan
-                                    </h3>
-                                    <div className="flex items-center gap-3">
-                                    {layoutProps.isAdmin && isExecutionPlanExpanded && (
-                                        <>
-                                        <button 
-                                            onClick={toggleAllExecutionSteps}
-                                            className="text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors mr-2"
-                                        >
-                                            {expandedExecutionSteps.length === executionPlan.length ? 'Collapse All' : 'Expand All'}
-                                        </button>
-                                        <button 
-                                            onClick={() => setIsExecutionPlanModalOpen(true)}
-                                            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
-                                        >
-                                            <Edit size={16} /> Edit Plan
-                                        </button>
-                                        </>
-                                    )}
-                                    {!layoutProps.isAdmin && isExecutionPlanExpanded && (
-                                        <button 
-                                            onClick={toggleAllExecutionSteps}
-                                            className="text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors mr-2"
-                                        >
-                                            {expandedExecutionSteps.length === executionPlan.length ? 'Collapse All' : 'Expand All'}
-                                        </button>
-                                    )}
-                                    {isExecutionPlanExpanded ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+                    )}
 
-                                {isExecutionPlanExpanded && (
-                                <div className="relative animate-fade-in">
-                                    {/* Connecting Line */}
-                                    <div className="absolute left-6 top-4 bottom-4 w-0.5 bg-gray-200 dark:bg-gray-700"></div>
+                    {/* TIMELINE TAB */}
+                    {activeTab === 'timeline' && (
+                        <div className="animate-fade-in">
+                            <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                                <div className="p-5 border-b border-gray-100 dark:border-gray-800">
+                                    <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                        <History size={20} className="text-[#c20c0b]" /> Negotiation Timeline
+                                    </h3>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Complete history of quotes, offers, and discussions</p>
+                                </div>
 
-                                    <div className="space-y-8">
-                                        {executionPlan.map((step, index) => {
-                                            const color = STEP_COLORS[index % STEP_COLORS.length];
-                                            const isExpanded = expandedExecutionSteps.includes(index);
-                                            return (
-                                                <div 
-                                                    key={index} 
-                                                    className="relative flex items-start group animate-fade-in"
-                                                    style={{ animationDelay: `${index * 150}ms`, animationFillMode: 'both' }}
-                                                >
-                                                    {/* Step Number/Icon */}
-                                                    <div 
-                                                        className={`relative z-10 flex items-center justify-center w-12 h-12 rounded-full bg-white dark:bg-gray-800 border-2 shadow-sm shrink-0 group-hover:scale-110 transition-transform duration-300 cursor-pointer ${color.border} ${color.text} ${color.bg}`}
-                                                        onClick={() => toggleExecutionStep(index)}
-                                                    >
-                                                        {getStepIcon(index, step.title)}
-                                                    </div>
-                                                    
-                                                    {/* Content */}
-                                                    <div 
-                                                        className={`ml-6 flex-1 cursor-pointer rounded-xl border p-4 transition-all ${isExpanded ? 'bg-white dark:bg-gray-800 shadow-sm' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50 border-transparent'} ${isExpanded ? color.subtleBorder : ''}`} 
-                                                        onClick={() => toggleExecutionStep(index)}
-                                                    >
-                                                        <div className="flex items-center justify-between">
-                                                            <h4 className={`text-lg font-bold ${isExpanded ? color.text : 'text-gray-900 dark:text-white'} mb-1`}>{step.title}</h4>
-                                                            {isExpanded ? <ChevronUp size={16} className={color.text} /> : <ChevronDown size={16} className="text-gray-400" />}
+                                <div className="p-6">
+                                    {negotiationHistory.length === 0 ? (
+                                        <div className="text-center py-12">
+                                            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                                                <History size={32} className="text-gray-400" />
+                                            </div>
+                                            <p className="text-gray-500 dark:text-gray-400">No negotiation history yet.</p>
+                                            <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Activity will appear here once the factory responds.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="relative">
+                                            <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200 dark:bg-gray-700"></div>
+                                            <div className="space-y-6">
+                                                {negotiationHistory.map((entry, idx) => (
+                                                    <div key={idx} className="relative flex gap-4">
+                                                        <div className={`relative z-10 w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                                                            entry.sender === 'client'
+                                                                ? 'bg-[#c20c0b] text-white'
+                                                                : 'bg-blue-500 text-white'
+                                                        }`}>
+                                                            {entry.sender === 'client' ? <Send size={14} /> : <MessageSquare size={14} />}
                                                         </div>
-                                                        {isExpanded && (
-                                                            <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed animate-fade-in mt-2">{step.description}</p>
+                                                        <div className="flex-1 pb-6">
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <span className="font-semibold text-gray-900 dark:text-white text-sm">
+                                                                    {entry.sender === 'client' ? 'You' : 'Factory'}
+                                                                </span>
+                                                                <span className="text-xs text-gray-400">
+                                                                    {formatFriendlyDate(entry.timestamp)}
+                                                                </span>
+                                                            </div>
+                                                            {entry.price && (
+                                                                <div className="inline-block px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-bold rounded-lg text-sm mb-2">
+                                                                    ${entry.price}
+                                                                </div>
+                                                            )}
+                                                            {entry.message && (
+                                                                <p className="text-gray-600 dark:text-gray-300 text-sm">{entry.message}</p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Execution Plan in Timeline Tab */}
+                                {showExecutionPlan && (
+                                    <div className="border-t border-gray-100 dark:border-gray-800">
+                                        <div
+                                            className="p-5 flex justify-between items-center cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                                            onClick={() => setIsExecutionPlanExpanded(!isExecutionPlanExpanded)}
+                                        >
+                                            <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                <ClipboardList size={20} className="text-[#c20c0b]" /> Execution Plan
+                                            </h3>
+                                            {isExecutionPlanExpanded ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
+                                        </div>
+
+                                        {isExecutionPlanExpanded && (
+                                            <div className="p-6 pt-0 animate-fade-in">
+                                                <div className="space-y-4">
+                                                    {executionPlan.map((step, index) => {
+                                                        const color = STEP_COLORS[index % STEP_COLORS.length];
+                                                        return (
+                                                            <div key={index} className="flex items-start gap-3">
+                                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${color.bg} ${color.text}`}>
+                                                                    {getStepIcon(index, step.title)}
+                                                                </div>
+                                                                <div>
+                                                                    <h4 className="font-semibold text-gray-900 dark:text-white text-sm">{step.title}</h4>
+                                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{step.description}</p>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* FILES TAB */}
+                    {activeTab === 'files' && (
+                        <div className="animate-fade-in">
+                            <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                                <div className="p-5 border-b border-gray-100 dark:border-gray-800">
+                                    <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                        <FileText size={20} className="text-[#c20c0b]" /> Attachments
+                                    </h3>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Sample images, tech packs, and documents</p>
+                                </div>
+
+                                <div className="p-6">
+                                    {isLoadingFiles ? (
+                                        <div className="flex justify-center py-12">
+                                            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#c20c0b]"></div>
+                                        </div>
+                                    ) : fileLinks.length > 0 ? (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            {fileLinks.map((file, i) => {
+                                                const isImage = file.name.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+                                                const hasUrl = !!file.url;
+                                                const errorMsg = (file as any).error;
+                                                return (
+                                                    <div
+                                                        key={i}
+                                                        className={`relative rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 transition-all group ${hasUrl ? 'hover:shadow-lg cursor-pointer' : 'opacity-70'}`}
+                                                        onClick={() => hasUrl && (isImage ? openLightbox(file.url) : window.open(file.url, '_blank'))}
+                                                    >
+                                                        {isImage && hasUrl ? (
+                                                            <div className="aspect-square bg-gray-100 dark:bg-gray-800">
+                                                                <img src={file.url} alt={file.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                                                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                                                                    <Eye size={24} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="aspect-square bg-gray-50 dark:bg-gray-800 flex flex-col items-center justify-center p-4">
+                                                                <FileText size={40} className="text-gray-400 mb-2" />
+                                                                <p className="text-xs text-gray-500 dark:text-gray-400 text-center truncate w-full">{file.name.split('.').pop()?.toUpperCase()}</p>
+                                                            </div>
+                                                        )}
+                                                        <div className="p-3 bg-white dark:bg-gray-900">
+                                                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{file.name}</p>
+                                                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                                {hasUrl ? 'Click to view' : <span className="text-red-500">{errorMsg || 'Failed to load'}</span>}
+                                                            </p>
+                                                        </div>
+                                                        {hasUrl && (
+                                                            <a
+                                                                href={file.url}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="absolute top-2 right-2 p-2 bg-white/90 dark:bg-gray-800/90 rounded-lg text-gray-600 dark:text-gray-300 hover:text-[#c20c0b] transition-colors opacity-0 group-hover:opacity-100"
+                                                                title="Download"
+                                                                onClick={(e) => e.stopPropagation()}
+                                                            >
+                                                                <Download size={16} />
+                                                            </a>
                                                         )}
                                                     </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Attachments Section */}
-                        <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden p-6">
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center">
-                                <FileText size={20} className="mr-2 text-[#c20c0b]" /> Attachments
-                            </h3>
-                            {isLoadingFiles ? (
-                                <div className="flex justify-center py-8">
-                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#c20c0b]"></div>
-                                </div>
-                            ) : fileLinks.length > 0 ? (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    {fileLinks.map((file, i) => {
-                                        const isImage = file.name.match(/\.(jpg|jpeg|png|gif|webp)$/i);
-                                        const hasUrl = !!file.url;
-                                        const errorMsg = (file as any).error;
-                                        return (
-                                        <div key={i} className={`flex items-center gap-3 p-4 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 transition-all group ${hasUrl ? 'hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer' : 'opacity-70'}`} onClick={() => hasUrl && (isImage ? openLightbox(file.url) : window.open(file.url, '_blank'))}>
-                                            <div className="p-2.5 bg-white dark:bg-gray-700 rounded-lg text-[#c20c0b] shadow-sm">
-                                                {isImage ? (
-                                                    hasUrl ? <img src={file.url} alt={file.name} className="w-6 h-6 object-cover" /> : <ImageIcon size={20} />
-                                                ) : (
-                                                    <FileText size={20} />
-                                                )}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{file.name}</p>
-                                                <p className="text-xs text-gray-500 dark:text-gray-400 group-hover:text-[#c20c0b] transition-colors flex items-center gap-1">
-                                                    {hasUrl ? (isImage ? <><Eye size={12}/> Preview</> : 'Click to download') : <span className="text-red-500">{errorMsg || 'Failed to load'}</span>}
-                                                </p>
-                                            </div>
-                                            {hasUrl && (
-                                                <a href={file.url} target="_blank" rel="noopener noreferrer" className="p-2 text-gray-400 dark:text-gray-500 hover:text-[#c20c0b] transition-colors" title="Download" onClick={(e) => e.stopPropagation()}>
-                                                    <Download size={18} />
-                                                </a>
-                                            )}
+                                                );
+                                            })}
                                         </div>
-                                    )})}
-                                </div>
-                            ) : quote?.files && quote.files.length > 0 ? (
-                                <div className="text-center py-8 text-red-500 dark:text-red-400 italic bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800">
-                                    <p className="mb-2">Failed to load attachments.</p>
-                                    <button onClick={fetchSignedUrls} className="text-sm font-bold underline hover:text-red-700 dark:hover:text-red-300 flex items-center justify-center gap-1 mx-auto">
-                                        <RefreshCw size={14} /> Retry
-                                    </button>
-                                </div>
-                            ) : (
-                                <div className="text-center py-8 text-gray-500 dark:text-gray-400 italic bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-dashed border-gray-200 dark:border-gray-700">
-                                    No attachments found for this quote.
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Sidebar Column */}
-                    <div className="space-y-6">
-                        {/* Factory Card */}
-                        <div className="rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
-                            <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-6 py-4">
-                                <h3 className="text-sm font-bold text-white uppercase tracking-wider">Factory Details</h3>
-                            </div>
-                            <div className="p-6 bg-white dark:bg-gray-800">
-                                {factory ? (
-                                    <div className="flex items-start gap-4">
-                                        <img src={factory.imageUrl} alt={factory.name} className="w-16 h-16 rounded-lg object-cover border border-gray-100 dark:border-white/10" />
-                                        <div>
-                                            <h4 className="font-bold text-gray-900 dark:text-white text-lg">{factory.name}</h4>
-                                            <p className="text-sm text-gray-500 dark:text-gray-200 flex items-center mt-1">
-                                                <MapPin size={14} className="mr-1" /> {factory.location}
-                                            </p>
-                                            <button className="text-xs font-bold text-[#c20c0b] mt-3 hover:text-[#a50a09] underline underline-offset-2">View Profile</button>
+                                    ) : quote?.files && quote.files.length > 0 ? (
+                                        <div className="text-center py-12">
+                                            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                                                <AlertCircle size={32} className="text-red-500" />
+                                            </div>
+                                            <p className="text-red-500 dark:text-red-400 mb-2">Failed to load attachments</p>
+                                            <button onClick={fetchSignedUrls} className="text-sm font-medium text-[#c20c0b] hover:underline flex items-center gap-1 mx-auto">
+                                                <RefreshCw size={14} /> Retry
+                                            </button>
                                         </div>
-                                    </div>
-                                ) : (
-                                    <p className="text-sm text-gray-500 dark:text-gray-200 italic">Open Request (No specific factory)</p>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Logistics Card */}
-                        <div className="rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
-                            <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-6 py-4">
-                                <h3 className="text-sm font-bold text-white uppercase tracking-wider">Logistics</h3>
-                            </div>
-                            <div className="p-6 bg-white dark:bg-gray-800 space-y-3">
-                                <div className="flex justify-between text-sm">
-                                    <span className="text-gray-500 dark:text-gray-200">Destination</span>
-                                    <span className="font-bold text-gray-900 dark:text-white">{order.shippingCountry}</span>
-                                </div>
-                                <div className="flex justify-between text-sm">
-                                    <span className="text-gray-500 dark:text-gray-200">Port</span>
-                                    <span className="font-bold text-gray-900 dark:text-white">{order.shippingPort}</span>
+                                    ) : (
+                                        <div className="text-center py-12">
+                                            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                                                <FileText size={32} className="text-gray-400" />
+                                            </div>
+                                            <p className="text-gray-500 dark:text-gray-400">No attachments found</p>
+                                            <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Files uploaded with this quote will appear here.</p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
-
-                        {/* Help Card */}
-                         <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 text-white shadow-lg">
-                            <h3 className="font-bold mb-2 flex items-center gap-2">
-                                <AlertCircle size={18} /> Need Assistance?
-                            </h3>
-                            <p className="text-sm text-gray-300 mb-4">Our sourcing experts can help you with negotiations.</p>
-                            <button className="w-full py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium transition-colors border border-white/10">
-                                Contact Support
-                            </button>
-                        </div>
-                    </div>
+                    )}
                 </div>
 
-                {/* Negotiation Timeline */}
-                <div className="mt-8 bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl p-8 shadow-lg border border-gray-200 dark:border-white/10">
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-8 flex items-center">
-                        <History size={24} className="mr-3 text-[#c20c0b]" /> Negotiation History
-                    </h3>
-                    <div className="relative pl-4 sm:pl-6 space-y-8 before:absolute before:left-[23px] before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-100 dark:before:bg-white/10">
-                        
-                        {/* 1. Submission */}
-                        <div className="relative pl-10">
-                            <div className="absolute left-0 top-1.5 w-3 h-3 rounded-full bg-gray-300 dark:bg-gray-600 border-2 border-white dark:border-gray-800 ring-4 ring-gray-50 dark:ring-white/10 z-10"></div>
-                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-baseline mb-1">
-                                <span className="font-bold text-gray-900 dark:text-white">Quote Request Submitted</span>
-                                <span className="text-xs text-gray-400 dark:text-gray-200 font-medium">{formatFriendlyDate(submittedAt)}</span>
-                            </div>
-                            <p className="text-sm text-gray-500 dark:text-gray-200">Initial request sent to {factory?.name || 'factories'}.</p>
-                        </div>
+                {/* Floating Chat Button - Positioned above Auctave Brain chat */}
+                <button
+                    id="floating-chat-btn"
+                    onClick={() => setIsChatPanelOpen(!isChatPanelOpen)}
+                    className="fixed bottom-36 md:bottom-28 right-6 z-[60] w-14 h-14 rounded-full bg-[#c20c0b] text-white shadow-lg hover:shadow-xl hover:scale-105 transition-all flex items-center justify-center"
+                >
+                    <MessageSquare size={24} />
+                    {totalChatMessages > 0 && (
+                        <span className="absolute -top-1 -right-1 w-5 h-5 bg-blue-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                            {totalChatMessages > 9 ? '9+' : totalChatMessages}
+                        </span>
+                    )}
+                </button>
 
-                        {/* 2. History Items */}
-                        {negotiationHistory.map((item: any, index: number) => (
-                            <div key={index} className="relative pl-10">
-                                <div className={`absolute left-0 top-1.5 w-3 h-3 rounded-full border-2 border-white dark:border-gray-800 ring-4 z-10 ${
-                                    item.sender === 'client' ? 'bg-blue-500 ring-blue-50 dark:ring-blue-900/30' : 'bg-[#c20c0b] ring-red-50 dark:ring-red-900/30'
-                                }`}></div>
-                                
-                                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-5 border border-gray-100 dark:border-white/10 hover:border-gray-200 dark:hover:border-white/20 transition-colors">
-                                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-baseline mb-3">
-                                        <div className="flex items-center gap-2">
-                                            <span className={`text-sm font-bold ${item.sender === 'client' ? 'text-blue-700 dark:text-blue-400' : 'text-[#c20c0b] dark:text-red-400'}`}>
-                                                {item.sender === 'client' ? 'You' : factory?.name || 'Factory'}
-                                            </span>
-                                            <span className="text-xs px-2 py-0.5 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-white/10 text-gray-500 dark:text-gray-200 font-medium uppercase tracking-wide">
-                                                {item.action}
-                                            </span>
-                                        </div>
-                                        <span className="text-xs text-gray-400 dark:text-gray-200 font-medium">{formatFriendlyDate(item.timestamp)}</span>
-                                    </div>
-                                    
-                                    {item.price && (
-                                        <div className="mb-3 flex items-baseline gap-2">
-                                            <span className="text-sm text-gray-500 dark:text-gray-200">Price:</span>
-                                            <span className="text-lg font-bold text-gray-900 dark:text-white">${item.price}</span>
-                                        </div>
-                                    )}
-                                    
-                                    {item.message && (
-                                        <div className="text-sm text-gray-600 dark:text-gray-200 leading-relaxed whitespace-pre-wrap">
-                                            {item.message}
-                                        </div>
-                                    )}
+                {/* Slide-out Chat Panel */}
+                {isChatPanelOpen && createPortal(
+                    <div className="fixed inset-0 z-[70]">
+                        <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setIsChatPanelOpen(false)} />
+                        <div
+                            ref={chatPanelRef}
+                            className="absolute right-0 top-0 h-full w-full max-w-md bg-white dark:bg-gray-900 shadow-2xl flex flex-col animate-slide-in-right"
+                        >
+                            {/* Chat Panel Header */}
+                            <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between bg-gradient-to-r from-[#c20c0b] to-pink-600 text-white">
+                                <h3 className="font-bold flex items-center gap-2">
+                                    <MessageSquare size={20} /> Product Discussions
+                                </h3>
+                                <button onClick={() => setIsChatPanelOpen(false)} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            {/* Product List / Chat View */}
+                            {activeChatItemId === null ? (
+                                <div className="flex-1 overflow-y-auto">
+                                    <p className="p-4 text-sm text-gray-500 dark:text-gray-400">Select a product to view or start a discussion.</p>
+                                    {order.lineItems.map((item, idx) => {
+                                        const history = getLineItemHistory(item.id);
+                                        const lastMessage = history[history.length - 1];
+                                        return (
+                                            <button
+                                                key={idx}
+                                                onClick={() => setActiveChatItemId(item.id)}
+                                                className="w-full p-4 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border-b border-gray-100 dark:border-gray-800 text-left"
+                                            >
+                                                <div className="w-10 h-10 rounded-lg bg-[#c20c0b]/10 flex items-center justify-center text-[#c20c0b] font-bold shrink-0">
+                                                    {idx + 1}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-medium text-gray-900 dark:text-white text-sm">{item.category}</p>
+                                                    {lastMessage ? (
+                                                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                                            {lastMessage.sender === 'client' ? 'You: ' : 'Factory: '}
+                                                            {lastMessage.message || `$${lastMessage.price}`}
+                                                        </p>
+                                                    ) : (
+                                                        <p className="text-xs text-gray-400 dark:text-gray-500">No messages yet</p>
+                                                    )}
+                                                </div>
+                                                {history.length > 0 && (
+                                                    <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-xs rounded-full">
+                                                        {history.length}
+                                                    </span>
+                                                )}
+                                                <ChevronRight size={16} className="text-gray-400" />
+                                            </button>
+                                        );
+                                    })}
                                 </div>
-                            </div>
-                        ))}
+                            ) : (
+                                <>
+                                    {/* Chat View for Selected Product */}
+                                    {(() => {
+                                        const item = order.lineItems.find(i => i.id === activeChatItemId);
+                                        if (!item) return null;
+                                        const history = getLineItemHistory(item.id);
+                                        const itemIndex = order.lineItems.findIndex(i => i.id === activeChatItemId);
+                                        return (
+                                            <>
+                                                {/* Product Header */}
+                                                <div className="p-3 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 flex items-center gap-3">
+                                                    <button onClick={() => setActiveChatItemId(null)} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors">
+                                                        <ChevronLeft size={20} className="text-gray-600 dark:text-gray-300" />
+                                                    </button>
+                                                    <div className="w-8 h-8 rounded-lg bg-[#c20c0b]/10 flex items-center justify-center text-[#c20c0b] font-bold text-sm">
+                                                        {itemIndex + 1}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="font-medium text-gray-900 dark:text-white text-sm">{item.category}</p>
+                                                        <p className="text-xs text-gray-500 dark:text-gray-400">{item.qty} units • ${item.targetPrice}/unit</p>
+                                                    </div>
+                                                </div>
 
-                        {/* 3. Current Status */}
-                        <div className="relative pl-10">
-                            <div className={`absolute left-0 top-1.5 w-3 h-3 rounded-full border-2 border-white dark:border-gray-800 ring-4 z-10 ${
-                                status === 'Accepted' || status === 'Admin Accepted' || status === 'Client Accepted' ? 'bg-emerald-500 ring-emerald-50 dark:ring-emerald-900/30' : 
-                                status === 'Declined' ? 'bg-red-500 ring-red-50 dark:ring-red-900/30' : 'bg-amber-500 ring-amber-50 dark:ring-amber-900/30'
-                            }`}></div>
-                            <div>
-                                <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border ${getStatusColor(status)} gap-1`}>
-                                    {status === 'Accepted' && <CheckCheck size={12} />}
-                                    {(status === 'Admin Accepted' || status === 'Client Accepted') && <Check size={12} />}
-                                    Current Status: {status === 'Admin Accepted' ? 'Admin Approved' : status === 'Client Accepted' ? 'Client Approved' : status}
-                                </span>
-                            </div>
+                                                {/* Messages */}
+                                                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                                                    {history.length === 0 ? (
+                                                        <div className="text-center py-8 text-gray-400 text-sm">
+                                                            <MessageSquare size={32} className="mx-auto mb-2 opacity-50" />
+                                                            <p>No messages yet.</p>
+                                                            <p className="text-xs mt-1">Start a discussion about this product.</p>
+                                                        </div>
+                                                    ) : (
+                                                        history.map((h, i) => (
+                                                            <div key={i} className={`flex ${h.sender === 'client' ? 'justify-end' : 'justify-start'}`}>
+                                                                <div className={`max-w-[80%] rounded-2xl p-3 shadow-sm ${
+                                                                    h.sender === 'client'
+                                                                        ? 'bg-[#c20c0b] text-white rounded-tr-none'
+                                                                        : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-white rounded-tl-none'
+                                                                }`}>
+                                                                    <div className="flex justify-between items-center gap-4 mb-1">
+                                                                        <span className={`text-[10px] font-bold uppercase ${h.sender === 'client' ? 'text-red-200' : 'text-gray-500 dark:text-gray-400'}`}>
+                                                                            {h.sender === 'client' ? 'You' : 'Factory'}
+                                                                        </span>
+                                                                        <span className={`text-[10px] ${h.sender === 'client' ? 'text-red-200' : 'text-gray-400'}`}>
+                                                                            {new Date(h.timestamp).toLocaleDateString()}
+                                                                        </span>
+                                                                    </div>
+                                                                    {h.price && <div className="font-bold text-lg mb-1">${h.price}</div>}
+                                                                    {h.message && <p className="text-sm opacity-90 whitespace-pre-wrap">{h.message}</p>}
+                                                                </div>
+                                                            </div>
+                                                        ))
+                                                    )}
+                                                    <div ref={chatMessagesEndRef} />
+                                                </div>
+
+                                                {/* Input */}
+                                                <div className="p-3 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+                                                    <div className="flex items-end gap-2">
+                                                        <button
+                                                            className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors relative"
+                                                            onClick={() => document.getElementById(`chat-file-${item.id}`)?.click()}
+                                                        >
+                                                            <Paperclip size={20} />
+                                                            {chatStates[item.id]?.file && <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>}
+                                                        </button>
+                                                        <input type="file" id={`chat-file-${item.id}`} className="hidden" onChange={(e) => e.target.files && setChatStates(prev => ({ ...prev, [item.id]: { ...prev[item.id], file: e.target.files![0] } }))} />
+
+                                                        <textarea
+                                                            value={chatStates[item.id]?.message || ''}
+                                                            onChange={(e) => setChatStates(prev => ({ ...prev, [item.id]: { ...prev[item.id], message: e.target.value } }))}
+                                                            placeholder="Type a message..."
+                                                            className="flex-1 p-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800 text-sm text-gray-800 dark:text-white resize-none max-h-24 focus:outline-none focus:ring-2 focus:ring-[#c20c0b]"
+                                                            rows={1}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter' && !e.shiftKey) {
+                                                                    e.preventDefault();
+                                                                    handleSendChat(item.id);
+                                                                }
+                                                            }}
+                                                        />
+                                                        <button
+                                                            onClick={() => handleSendChat(item.id)}
+                                                            disabled={(!chatStates[item.id]?.message?.trim() && !chatStates[item.id]?.file) || uploadingChats[item.id]}
+                                                            className="p-2 bg-[#c20c0b] text-white rounded-lg hover:bg-[#a50a09] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                                        >
+                                                            {uploadingChats[item.id] ? <RefreshCw size={20} className="animate-spin" /> : <Send size={20} />}
+                                                        </button>
+                                                    </div>
+                                                    {chatStates[item.id]?.file && (
+                                                        <div className="mt-2 text-xs text-gray-500 flex items-center justify-between bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
+                                                            <span className="truncate max-w-[200px]">{chatStates[item.id].file?.name}</span>
+                                                            <button onClick={() => setChatStates(prev => ({ ...prev, [item.id]: { ...prev[item.id], file: null } }))} className="text-red-500 hover:text-red-700"><X size={12}/></button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </>
+                                        );
+                                    })()}
+                                </>
+                            )}
                         </div>
+                    </div>,
+                    document.body
+                )}
+
+                {/* Mobile Sticky Action Bar */}
+                <div className="fixed bottom-0 left-0 right-0 md:hidden z-30 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-3 flex items-center gap-3 shadow-lg">
+                    <button onClick={handleDownloadPdf} className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white border border-gray-200 dark:border-gray-700 rounded-lg">
+                        <Download size={20} />
+                    </button>
+                    <button onClick={() => setIsHistoryModalOpen(true)} className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white border border-gray-200 dark:border-gray-700 rounded-lg">
+                        <History size={20} />
+                    </button>
+                    <div className="flex-1 flex gap-2 justify-end">
+                        {(status === 'Responded' || status === 'In Negotiation' || status === 'Admin Accepted') && (
+                            <button onClick={() => setIsNegotiationModalOpen(true)} className="px-4 py-2 text-gray-700 dark:text-white font-medium border border-gray-200 dark:border-gray-700 rounded-lg">
+                                Negotiate
+                            </button>
+                        )}
+                        {(status === 'Responded' || status === 'In Negotiation') && (
+                            <button onClick={handleAcceptQuote} className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg flex items-center gap-1">
+                                <Check size={16} /> Accept
+                            </button>
+                        )}
+                        {status === 'Admin Accepted' && (
+                            <button onClick={handleAcceptQuote} className="px-4 py-2 bg-[#c20c0b] text-white font-medium rounded-lg flex items-center gap-1">
+                                <CheckCheck size={16} /> Finalize
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
@@ -1580,6 +2017,18 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                     onClose={() => setIsExecutionPlanModalOpen(false)}
                 />
             )}
+
+            {/* Negotiation History Modal */}
+            {isHistoryModalOpen && (
+                <NegotiationHistoryModal
+                    history={negotiationHistory}
+                    submittedAt={submittedAt}
+                    factoryName={factory?.name}
+                    status={status}
+                    lineItems={quote.order.lineItems}
+                    onClose={() => setIsHistoryModalOpen(false)}
+                />
+            )}
         </MainLayout>
     );
 };
@@ -1664,6 +2113,154 @@ const NegotiationModal: FC<{ onSubmit: (counterPrice: string, details: string, l
                         <button type="submit" className="px-5 py-2.5 bg-[#c20c0b] text-white font-semibold rounded-xl hover:bg-[#a50a09] transition-colors shadow-md">Submit Offer</button>
                     </div>
                 </form>
+            </div>
+        </div>
+    , document.body);
+};
+
+const NegotiationHistoryModal: FC<{ 
+    history: any[], 
+    submittedAt: string, 
+    factoryName?: string, 
+    status: string,
+    lineItems?: any[],
+    onClose: () => void 
+}> = ({ history, submittedAt, factoryName, status, lineItems = [], onClose }) => {
+    const [expandedPrices, setExpandedPrices] = useState<Record<number, boolean>>({});
+
+    const togglePriceExpand = (index: number) => {
+        setExpandedPrices(prev => ({ ...prev, [index]: !prev[index] }));
+    };
+
+    return createPortal(
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[90] p-4 animate-fade-in" onClick={onClose}>
+            <div className="bg-white dark:bg-gray-900/95 dark:backdrop-blur-xl w-full max-w-2xl h-[85vh] rounded-2xl shadow-2xl border border-gray-200 dark:border-white/10 flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+                {/* Header */}
+                <div className="p-6 border-b border-gray-100 dark:border-white/10 flex justify-between items-center bg-white/50 dark:bg-gray-900/50 backdrop-blur-md">
+                    <div>
+                        <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                            <History size={24} className="text-[#c20c0b]" /> Negotiation History
+                        </h2>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Track conversation and price updates.</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors text-gray-500 dark:text-gray-400">
+                        <X size={24} />
+                    </button>
+                </div>
+                
+                {/* Body */}
+                <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar bg-gray-50/50 dark:bg-black/20">
+                    {/* 1. Submission (System Event) */}
+                    <div className="flex flex-col items-center">
+                        <div className="bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-300 text-xs font-bold px-3 py-1 rounded-full mb-2 shadow-sm">
+                            {formatFriendlyDate(submittedAt)}
+                        </div>
+                        <div className="text-center text-sm text-gray-500 dark:text-gray-400">
+                            Quote Request Submitted to {factoryName || 'Factory'}
+                        </div>
+                    </div>
+
+                    {/* 2. History Items */}
+                    {history.map((item, index) => {
+                        const isClient = item.sender === 'client';
+                        const hasLineItemPrices = item.lineItemPrices && item.lineItemPrices.length > 0;
+                        const isExpanded = expandedPrices[index];
+                        const visiblePrices = hasLineItemPrices ? (isExpanded ? item.lineItemPrices : item.lineItemPrices.slice(0, 3)) : [];
+                        const hiddenCount = hasLineItemPrices ? item.lineItemPrices.length - visiblePrices.length : 0;
+
+                        return (
+                            <div key={index} className={`flex ${isClient ? 'justify-end' : 'justify-start'}`}>
+                                <div className={`max-w-[90%] sm:max-w-[80%] rounded-2xl p-5 shadow-sm border ${
+                                    isClient 
+                                        ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-800 rounded-tr-none' 
+                                        : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 rounded-tl-none'
+                                }`}>
+                                    <div className="flex justify-between items-center gap-4 mb-3">
+                                        <span className={`text-xs font-bold uppercase tracking-wider ${isClient ? 'text-blue-700 dark:text-blue-400' : 'text-[#c20c0b] dark:text-red-400'}`}>
+                                            {isClient ? 'You' : factoryName || 'Factory'}
+                                        </span>
+                                        <span className="text-xs text-gray-400 dark:text-gray-500">
+                                            {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                    </div>
+                                    
+                                    {item.price && !hasLineItemPrices && (
+                                        <div className="mb-3 pb-3 border-b border-gray-200/50 dark:border-white/10">
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase font-semibold mb-1">Offered Price</p>
+                                            <p className="text-2xl font-bold text-gray-900 dark:text-white">${item.price}</p>
+                                        </div>
+                                    )}
+
+                                    {hasLineItemPrices && (
+                                        <div className="mb-4 bg-white/60 dark:bg-black/20 rounded-xl p-3 border border-gray-100 dark:border-white/5">
+                                            <p className="text-xs font-bold uppercase tracking-wider opacity-70 mb-2 flex items-center gap-1 text-gray-600 dark:text-gray-300">
+                                                <DollarSign size={12} /> Price Updates
+                                            </p>
+                                            <div className="space-y-2">
+                                                {visiblePrices.map((u: any, i: number) => {
+                                                    const product = lineItems.find(li => li.id === u.lineItemId);
+                                                    return (
+                                                        <div key={i} className="flex justify-between items-center text-sm">
+                                                            <div className="flex items-center gap-2 overflow-hidden">
+                                                                <span className="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-[10px] font-bold px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-600 shrink-0">
+                                                                    {lineItems.findIndex(li => li.id === u.lineItemId) + 1}
+                                                                </span>
+                                                                <span className="truncate text-gray-800 dark:text-gray-200">{product?.category || 'Item'}</span>
+                                                            </div>
+                                                            <span className="font-bold font-mono text-gray-900 dark:text-white">${u.price}</span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                            {item.lineItemPrices.length > 3 && (
+                                                <button 
+                                                    onClick={() => togglePriceExpand(index)}
+                                                    className="text-xs font-medium text-blue-600 dark:text-blue-400 mt-3 hover:underline flex items-center gap-1 w-full justify-center"
+                                                >
+                                                    {isExpanded ? <>Show Less <ChevronUp size={12} /></> : <>Show {hiddenCount} more items <ChevronDown size={12} /></>}
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+                                    
+                                    {item.message && (
+                                        <div className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed whitespace-pre-wrap">
+                                            {item.message}
+                                        </div>
+                                    )}
+
+                                    {item.attachments && item.attachments.length > 0 && (
+                                        <div className="mt-3 pt-3 border-t border-gray-200/50 dark:border-white/10">
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-1"><Paperclip size={12}/> Attachments</p>
+                                            <div className="flex flex-wrap gap-2">
+                                                {item.attachments.map((att: string, i: number) => (
+                                                    <div key={i} className="text-xs bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-2 py-1 rounded flex items-center gap-1 text-gray-600 dark:text-gray-300">
+                                                        <FileText size={12} /> File {i + 1}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    
+                                    <div className="mt-2 text-right">
+                                        <span className="text-[10px] text-gray-400 dark:text-gray-500">
+                                            {new Date(item.timestamp).toLocaleDateString()}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+
+                    {/* 3. Current Status (System Event) */}
+                    <div className="flex flex-col items-center pt-4 pb-4">
+                        <div className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide border ${getStatusColor(status)} flex items-center gap-2 shadow-sm`}>
+                            {status === 'Accepted' && <CheckCheck size={12} />}
+                            {(status === 'Admin Accepted' || status === 'Client Accepted') && <Check size={12} />}
+                            Current Status: {status === 'Admin Accepted' ? 'Admin Approved' : status === 'Client Accepted' ? 'Client Approved' : status}
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     , document.body);
@@ -1769,14 +2366,99 @@ const EditExecutionPlanModal: FC<{ initialPlan: ExecutionStep[]; onSave: (plan: 
     , document.body);
 };
 
-const PriceHistoryModal: FC<{ 
-    data: { item: any, history: any[], itemResponse: any, response_details: any, isAccepted: boolean, agreedPrice: string }; 
-    onClose: () => void 
+// Price History Chart Component with Conditional Formatting
+interface PriceChartData {
+    date: string;
+    target: number;
+    quoted: number;
+}
+
+const PriceHistoryChart: FC<{ data: PriceChartData[] }> = ({ data }) => {
+    if (data.length === 0) return null;
+
+    return (
+        <div className="w-full h-72 mb-6 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+            <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-gray-600 dark:text-gray-300">
+                    Price History: Target vs Quoted
+                </h4>
+                <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+                    <span className="flex items-center gap-1">
+                        <span className="w-3 h-3 rounded-sm bg-[#22c55e]"></span>
+                        Within target
+                    </span>
+                    <span className="flex items-center gap-1">
+                        <span className="w-3 h-3 rounded-sm bg-[#ff8042]"></span>
+                        Above target
+                    </span>
+                </div>
+            </div>
+            <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                    data={data}
+                    margin={{ top: 10, right: 20, left: 10, bottom: 5 }}
+                >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                    <XAxis
+                        dataKey="date"
+                        tick={{ fill: '#6b7280', fontSize: 11 }}
+                        axisLine={{ stroke: '#d1d5db' }}
+                        tickLine={{ stroke: '#d1d5db' }}
+                    />
+                    <YAxis
+                        tick={{ fill: '#6b7280', fontSize: 11 }}
+                        axisLine={{ stroke: '#d1d5db' }}
+                        tickLine={{ stroke: '#d1d5db' }}
+                        tickFormatter={(value) => `$${value}`}
+                    />
+                    <Tooltip
+                        cursor={{ fill: 'rgba(0,0,0,0.05)' }}
+                        contentStyle={{
+                            borderRadius: '8px',
+                            border: 'none',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                            backgroundColor: 'white',
+                            fontSize: '12px'
+                        }}
+                        formatter={(value: number) => [`$${value.toFixed(2)}`, '']}
+                    />
+                    <Legend
+                        wrapperStyle={{ paddingTop: '10px', fontSize: '12px' }}
+                    />
+                    <Bar
+                        dataKey="target"
+                        fill="#3b82f6"
+                        name="Target Price"
+                        radius={[4, 4, 0, 0]}
+                        maxBarSize={40}
+                    />
+                    <Bar
+                        dataKey="quoted"
+                        name="Quoted Price"
+                        radius={[4, 4, 0, 0]}
+                        maxBarSize={40}
+                    >
+                        {data.map((entry, index) => (
+                            <Cell
+                                key={`cell-${index}`}
+                                fill={entry.quoted > entry.target ? '#ff8042' : '#22c55e'}
+                            />
+                        ))}
+                    </Bar>
+                </BarChart>
+            </ResponsiveContainer>
+        </div>
+    );
+};
+
+const PriceHistoryModal: FC<{
+    data: { item: any, history: any[], itemResponse: any, response_details: any, isAccepted: boolean, agreedPrice: string };
+    onClose: () => void
 }> = ({ data, onClose }) => {
     const { item, history, itemResponse, response_details, isAccepted, agreedPrice } = data;
-    
+
     // Group history into rows (Client Counter -> Factory Response)
-    const groupedHistory = React.useMemo(() => {
+    const groupedHistory = useMemo(() => {
         const rows: { client?: any, factory?: any }[] = [];
         let currentRow: { client?: any, factory?: any } = {};
 
@@ -1802,19 +2484,66 @@ const PriceHistoryModal: FC<{
         return rows.reverse(); // Show newest first
     }, [history]);
 
+    // Transform history data for the chart
+    const chartData = useMemo((): PriceChartData[] => {
+        const dataPoints: PriceChartData[] = [];
+
+        // Add initial quote if available
+        if (itemResponse?.price && response_details?.respondedAt) {
+            dataPoints.push({
+                date: new Date(response_details.respondedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                target: parseFloat(item.targetPrice) || 0,
+                quoted: parseFloat(itemResponse.price) || 0
+            });
+        }
+
+        // Process history chronologically (oldest first for chart)
+        const chronologicalHistory = [...history].sort((a, b) =>
+            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        );
+
+        chronologicalHistory.forEach(h => {
+            const dateStr = new Date(h.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            if (h.sender === 'client') {
+                // Client counter - update target
+                const lastPoint = dataPoints[dataPoints.length - 1];
+                dataPoints.push({
+                    date: dateStr,
+                    target: parseFloat(h.price) || 0,
+                    quoted: lastPoint?.quoted || 0
+                });
+            } else {
+                // Factory response - update quoted
+                const lastPoint = dataPoints[dataPoints.length - 1];
+                dataPoints.push({
+                    date: dateStr,
+                    target: lastPoint?.target || parseFloat(item.targetPrice) || 0,
+                    quoted: parseFloat(h.price) || 0
+                });
+            }
+        });
+
+        return dataPoints;
+    }, [history, itemResponse, response_details, item.targetPrice]);
+
     const acceptedHistoryRowIndex = isAccepted && agreedPrice 
         ? groupedHistory.findIndex(row => row.factory?.price === agreedPrice) 
         : -1;
 
     return createPortal(
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[80] p-4 animate-fade-in">
-            <div className="bg-white dark:bg-gray-900/95 dark:backdrop-blur-xl p-6 rounded-2xl shadow-2xl w-full max-w-2xl border border-gray-200 dark:border-white/10 relative">
-                <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"><X size={24} /></button>
+            <div className="bg-white dark:bg-gray-900/95 dark:backdrop-blur-xl p-6 rounded-2xl shadow-2xl w-full max-w-3xl border border-gray-200 dark:border-white/10 relative max-h-[90vh] overflow-y-auto">
+                <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors z-10"><X size={24} /></button>
                 <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-1 flex items-center gap-2">
                     <History size={20} className="text-blue-600"/> Price History
                 </h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">{item.category}</p>
-                
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{item.category}</p>
+
+                {/* Visual Price History Chart with conditional formatting */}
+                {chartData.length > 0 && (
+                    <PriceHistoryChart data={chartData} />
+                )}
+
                 <div className="overflow-hidden rounded-lg border border-gray-100 dark:border-gray-700">
                     <table className="min-w-full divide-y divide-gray-100 dark:divide-gray-700">
                         <thead className="bg-gray-50 dark:bg-gray-700/50">
