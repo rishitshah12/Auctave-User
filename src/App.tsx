@@ -630,9 +630,18 @@ const AppContent: FC = () => {
     // --- Quote Request Functions ---
     
     // Function to submit a quote request to Supabase
-    const submitQuoteRequest = async (quoteData: { factory?: { id: string; name: string; location: string; imageUrl: string }, order: OrderFormData, files?: File[] }) => {
+    // Returns true on success, false on failure
+    const submitQuoteRequest = async (quoteData: { factory?: { id: string; name: string; location: string; imageUrl: string }, order: OrderFormData, files?: File[] }): Promise<boolean> => {
         showToast('Submitting quote request...', 'success');
         try {
+            // Check if session is valid before submitting
+            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+            if (sessionError || !session) {
+                showToast('Your session has expired. Please log in again.', 'error');
+                handleSignOut(true);
+                return false;
+            }
+
             const uploadedFilePaths: string[] = [];
 
             // 1. Upload Files to Supabase Storage
@@ -641,7 +650,7 @@ const AppContent: FC = () => {
                     try {
                         // Create a unique file path: userId/timestamp_filename
                         const filePath = `${user.id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
-                        
+
                         const { data, error } = await supabase.storage
                             .from('quote-attachments')
                             .upload(filePath, file);
@@ -691,16 +700,27 @@ const AppContent: FC = () => {
             });
 
             showToast('Quote request submitted successfully!');
-            handleSetCurrentPage('myQuotes');
+            // Navigation is handled by OrderFormPage after showing success animation
+            return true;
         } catch (error: any) {
             console.error('Submit quote error:', error);
             showToast('Failed to submit quote: ' + (error.message || 'Unknown error'), 'error');
+            return false;
         }
     };
 
-    const addToQuoteRequest = async (quoteId: string, newOrderDetails: OrderFormData, files: File[]) => {
+    // Returns true on success, false on failure
+    const addToQuoteRequest = async (quoteId: string, newOrderDetails: OrderFormData, files: File[]): Promise<boolean> => {
         showToast('Adding to quote request...', 'success');
         try {
+            // Check if session is valid before submitting
+            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+            if (sessionError || !session) {
+                showToast('Your session has expired. Please log in again.', 'error');
+                handleSignOut(true);
+                return false;
+            }
+
             setGlobalLoading(true);
             const { data: existingQuote, error: fetchError } = await quoteService.getQuoteById(quoteId);
             if (fetchError) throw fetchError;
@@ -745,23 +765,12 @@ const AppContent: FC = () => {
 
             showToast('Successfully added to quote request!');
             await fetchUserQuotes();
-            
-            const transformedQuote: QuoteRequest = {
-                id: existingQuote.id,
-                factory: existingQuote.factory_data,
-                order: updatedOrderDetails,
-                status: newStatus as any,
-                submittedAt: existingQuote.created_at,
-                acceptedAt: existingQuote.accepted_at || existingQuote.response_details?.acceptedAt,
-                userId: existingQuote.user_id,
-                files: combinedFiles,
-                response_details: existingQuote.response_details,
-                negotiation_details: existingQuote.negotiation_details
-            };
-            handleSetCurrentPage('quoteDetail', transformedQuote);
+            // Navigation is handled by OrderFormPage after showing success animation
+            return true;
         } catch (error: any) {
             console.error('Add to quote error:', error);
             showToast('Failed to add to quote: ' + (error.message || 'Unknown error'), 'error');
+            return false;
         } finally {
             setGlobalLoading(false);
         }
@@ -805,11 +814,12 @@ const AppContent: FC = () => {
     const [allFactories, setAllFactories] = useState<Factory[]>([]);
 
     // Function to handle order form submission
-    const handleSubmitOrderForm = (submittedData: OrderFormData, files: File[]) => {
+    // Returns true on success, false on failure
+    const handleSubmitOrderForm = async (submittedData: OrderFormData, files: File[]): Promise<boolean> => {
         setOrderFormData(submittedData);
         setUploadedFiles(files);
-        
-        submitQuoteRequest({
+
+        return await submitQuoteRequest({
             order: submittedData,
             files: files // Pass actual File objects, not just names
         });

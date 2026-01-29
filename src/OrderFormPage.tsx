@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import confetti from 'canvas-confetti';
 // Import specific icons from the 'lucide-react' library to use in the form UI.
 import {
-    Shirt, Package, Award, Weight, Palette, DollarSign, Map as MapIcon, Box, Tag, ChevronLeft, Ruler, Scissors, Image as ImageIcon, FileText, Upload, AlertCircle, Globe, Anchor, Plus, Trash2, Copy, X, ChevronRight, Check, ArrowRight, SkipForward, Save
+    Shirt, Package, Award, Weight, Palette, DollarSign, Map as MapIcon, Box, Tag, ChevronLeft, Ruler, Scissors, Image as ImageIcon, FileText, Upload, AlertCircle, Globe, Anchor, Plus, Trash2, Copy, X, ChevronRight, Check, ArrowRight, SkipForward, Save, ChevronDown, Eye
 } from 'lucide-react';
 // Import the main layout wrapper which provides the sidebar and header structure.
 import { MainLayout } from '../src/MainLayout';
@@ -29,8 +29,9 @@ interface OrderFormPageProps {
     
     // --- Page Specific Props ---
     // Function provided by App.tsx to handle the actual submission logic (saving to DB, etc.).
-    handleSubmitOrderForm: (formData: OrderFormData, files: File[]) => void;
-    handleAddToQuoteRequest: (quoteId: string, formData: OrderFormData, files: File[]) => void;
+    // Returns a Promise that resolves to true on success, false on failure.
+    handleSubmitOrderForm: (formData: OrderFormData, files: File[]) => Promise<boolean>;
+    handleAddToQuoteRequest: (quoteId: string, formData: OrderFormData, files: File[]) => Promise<boolean>;
     quoteRequests: QuoteRequest[];
 }
 
@@ -251,8 +252,10 @@ const FileDropZone: FC<{
     icon: ReactNode;
     selectedFiles: File[];
     previews?: string[];
-}> = ({ label, accept, multiple, onFilesSelected, icon, selectedFiles, previews }) => {
+    onFileRemoved?: (index: number) => void;
+}> = ({ label, accept, multiple, onFilesSelected, icon, selectedFiles, previews, onFileRemoved }) => {
     const [isDragging, setIsDragging] = useState(false);
+    const [previewModal, setPreviewModal] = useState<{ src: string; name: string } | null>(null);
     const { showToast } = useToast();
 
     const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
@@ -308,6 +311,31 @@ const FileDropZone: FC<{
         }
     };
 
+    const handleRemoveFile = (index: number) => {
+        if (onFileRemoved) {
+            onFileRemoved(index);
+        } else {
+            // Fallback: remove file from array and call onFilesSelected
+            const newFiles = selectedFiles.filter((_, i) => i !== index);
+            onFilesSelected(newFiles);
+        }
+    };
+
+    const handlePreviewFile = (file: File, previewSrc?: string) => {
+        if (previewSrc) {
+            // Image file with preview
+            setPreviewModal({ src: previewSrc, name: file.name });
+        } else if (file.type.startsWith('image/')) {
+            // Image file without preview URL - create one
+            const url = URL.createObjectURL(file);
+            setPreviewModal({ src: url, name: file.name });
+        } else {
+            // Non-image file - open in new tab
+            const url = URL.createObjectURL(file);
+            window.open(url, '_blank');
+        }
+    };
+
     const inputId = `file-upload-${label.replace(/\s+/g, '-').toLowerCase()}`;
 
     return (
@@ -318,8 +346,8 @@ const FileDropZone: FC<{
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 className={`border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center text-center transition-colors ${
-                    isDragging 
-                        ? 'border-[#c20c0b] bg-red-50 dark:bg-red-900/10' 
+                    isDragging
+                        ? 'border-[#c20c0b] bg-red-50 dark:bg-red-900/10'
                         : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
                 }`}
             >
@@ -332,56 +360,126 @@ const FileDropZone: FC<{
                 <p className="text-xs text-gray-500 dark:text-gray-200 mb-4">
                     {accept.replace(/\./g, '').toUpperCase().split(',').join(', ')} (Max 50MB)
                 </p>
-                <input 
-                    type="file" 
-                    accept={accept} 
-                    multiple={multiple} 
-                    onChange={handleFileChange} 
-                    className="hidden" 
+                <input
+                    type="file"
+                    accept={accept}
+                    multiple={multiple}
+                    onChange={handleFileChange}
+                    className="hidden"
                     id={inputId}
                 />
-                <label 
+                <label
                     htmlFor={inputId}
                     className="cursor-pointer px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors shadow-sm"
                 >
                     Select Files
                 </label>
             </div>
-            
+
             {/* File List / Previews */}
             {selectedFiles.length > 0 && (
                 <div className="mt-3 space-y-2 animate-fade-in">
                     <div className="flex justify-between items-center">
                         <p className="text-xs font-medium text-gray-500 dark:text-gray-200">{selectedFiles.length} file(s) selected</p>
-                        <button 
-                            type="button" 
+                        <button
+                            type="button"
                             onClick={() => onFilesSelected([])}
                             className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1"
                         >
-                            <Trash2 size={12} /> Clear
+                            <Trash2 size={12} /> Clear All
                         </button>
                     </div>
-                    
+
                     {previews && previews.length > 0 ? (
                         <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                             {previews.map((src, idx) => (
                                 <div key={idx} className="relative w-16 h-16 flex-shrink-0 rounded-md overflow-hidden border border-gray-200 dark:border-gray-700 group">
                                     <img src={src} alt="Preview" className="w-full h-full object-cover" />
+                                    {/* Hover overlay with preview/delete buttons */}
+                                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => handlePreviewFile(selectedFiles[idx], src)}
+                                            className="p-1 bg-white/90 rounded-full hover:bg-white transition-colors"
+                                            title="Preview"
+                                        >
+                                            <Eye size={12} className="text-gray-700" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleRemoveFile(idx)}
+                                            className="p-1 bg-white/90 rounded-full hover:bg-white transition-colors"
+                                            title="Delete"
+                                        >
+                                            <Trash2 size={12} className="text-red-500" />
+                                        </button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
                     ) : (
                         <ul className="space-y-1 max-h-32 overflow-y-auto pr-1 custom-scrollbar">
                             {selectedFiles.map((file, idx) => (
-                                <li key={idx} className="text-xs text-gray-600 dark:text-gray-200 flex items-center bg-gray-50 dark:bg-gray-800 p-1.5 rounded border border-gray-100 dark:border-gray-700">
+                                <li key={idx} className="text-xs text-gray-600 dark:text-gray-200 flex items-center bg-gray-50 dark:bg-gray-800 p-1.5 rounded border border-gray-100 dark:border-gray-700 group">
                                     <FileText size={12} className="mr-2 text-gray-400 flex-shrink-0" />
                                     <span className="truncate flex-1">{file.name}</span>
                                     <span className="ml-2 text-gray-400 text-[10px]">({(file.size / 1024).toFixed(0)} KB)</span>
+                                    {/* Preview and delete buttons */}
+                                    <div className="ml-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button
+                                            type="button"
+                                            onClick={() => handlePreviewFile(file)}
+                                            className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                                            title="Preview"
+                                        >
+                                            <Eye size={12} className="text-gray-500 dark:text-gray-400" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleRemoveFile(idx)}
+                                            className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors"
+                                            title="Delete"
+                                        >
+                                            <Trash2 size={12} className="text-red-500" />
+                                        </button>
+                                    </div>
                                 </li>
                             ))}
                         </ul>
                     )}
                 </div>
+            )}
+
+            {/* Image Preview Modal */}
+            {previewModal && createPortal(
+                <div
+                    className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70"
+                    onClick={() => setPreviewModal(null)}
+                >
+                    <div
+                        className="relative max-w-4xl max-h-[90vh] bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-2xl"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-700">
+                            <span className="text-sm font-medium text-gray-700 dark:text-white truncate max-w-md">{previewModal.name}</span>
+                            <button
+                                type="button"
+                                onClick={() => setPreviewModal(null)}
+                                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+                            >
+                                <X size={20} className="text-gray-500 dark:text-gray-400" />
+                            </button>
+                        </div>
+                        <div className="p-4">
+                            <img
+                                src={previewModal.src}
+                                alt={previewModal.name}
+                                className="max-w-full max-h-[70vh] object-contain mx-auto"
+                            />
+                        </div>
+                    </div>
+                </div>,
+                document.body
             )}
         </div>
     );
@@ -521,11 +619,15 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
     // State to hold the list of files uploaded by the user.
     const [sampleFiles, setSampleFiles] = useState<File[]>([]);
     const [samplePreviews, setSamplePreviews] = useState<string[]>([]);
+    // Ref to track preview URLs for cleanup on unmount only
+    const samplePreviewsRef = useRef<string[]>([]);
     const [docFiles, setDocFiles] = useState<File[]>([]);
     const [availablePorts, setAvailablePorts] = useState<string[]>([]);
     const [isLoadingPorts, setIsLoadingPorts] = useState(false);
     const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
 
     const containerOptions = ["20ft FCL", "40ft FCL", "20ft HC FCL", "40ft HC FCL"];
 
@@ -659,19 +761,46 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
     };
 
     const onSampleFilesSelected = (files: File[]) => {
+        // Revoke old preview URLs before creating new ones
+        samplePreviewsRef.current.forEach(url => URL.revokeObjectURL(url));
+
         setSampleFiles(files);
-        
-        // Create previews
+
+        // Create new previews
         const newPreviews = files.map(file => URL.createObjectURL(file));
         setSamplePreviews(newPreviews);
+        samplePreviewsRef.current = newPreviews;
     };
-    
+
+    const onSampleFileRemoved = (index: number) => {
+        // Revoke the URL for the removed preview
+        const urlToRevoke = samplePreviewsRef.current[index];
+        if (urlToRevoke) {
+            URL.revokeObjectURL(urlToRevoke);
+        }
+
+        // Update state and ref
+        setSampleFiles(prev => prev.filter((_, i) => i !== index));
+        setSamplePreviews(prev => {
+            const newPreviews = prev.filter((_, i) => i !== index);
+            samplePreviewsRef.current = newPreviews;
+            return newPreviews;
+        });
+    };
+
+    // Clean up preview URLs only on unmount
     useEffect(() => {
-        return () => samplePreviews.forEach(url => URL.revokeObjectURL(url));
-    }, [samplePreviews]);
+        return () => {
+            samplePreviewsRef.current.forEach(url => URL.revokeObjectURL(url));
+        };
+    }, []);
 
     const onDocFilesSelected = (files: File[]) => {
         setDocFiles(files);
+    };
+
+    const onDocFileRemoved = (index: number) => {
+        setDocFiles(prev => prev.filter((_, i) => i !== index));
     };
 
     const handleAddItem = () => {
@@ -920,15 +1049,44 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
         setIsSummaryModalOpen(true);
     }; */
 
-    const handleConfirmSubmit = () => {
-        if (orderType === 'existing' && selectedQuoteId) {
-            handleAddToQuoteRequest(selectedQuoteId, formState, [...sampleFiles, ...docFiles]);
-        } else {
-            handleSubmitOrderForm(formState, [...sampleFiles, ...docFiles]);
-        }
+    const handleConfirmSubmit = async () => {
+        // Prevent duplicate submissions
+        if (isSubmitting) return;
+
+        setIsSubmitting(true);
+
+        // Clear draft immediately
         localStorage.removeItem(DRAFT_KEY);
-        // Celebration!
-        confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+
+        // Submit the form and wait for result
+        let success = false;
+        try {
+            if (orderType === 'existing' && selectedQuoteId) {
+                success = await handleAddToQuoteRequest(selectedQuoteId, formState, [...sampleFiles, ...docFiles]);
+            } else {
+                success = await handleSubmitOrderForm(formState, [...sampleFiles, ...docFiles]);
+            }
+
+            if (success) {
+                // Show success animation only after successful submission
+                setShowSuccessAnimation(true);
+
+                // Trigger confetti
+                confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+
+                // Navigate to quotes page after animation completes
+                setTimeout(() => {
+                    handleSetCurrentPage('myQuotes');
+                }, 2500);
+            } else {
+                // Reset submitting state on failure so user can try again
+                setIsSubmitting(false);
+            }
+        } catch (error) {
+            console.error('Submit error:', error);
+            // Reset submitting state on error so user can try again
+            setIsSubmitting(false);
+        }
     };
 
     const handleResetForm = () => {
@@ -1178,45 +1336,94 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                         {/* Section 1: Basic Details */}
                         {currentStep === 1 && (
                         <div className="animate-fade-in">
-                            <legend className="text-lg font-semibold text-gray-700 dark:text-white mb-4">Basic Details</legend>
+                            <legend className="text-lg font-semibold text-gray-700 dark:text-white mb-6">Basic Details</legend>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {/* Product Category Dropdown */}
-                                <FormField label="Product Category" icon={<Shirt className="h-5 w-5 text-gray-400" />} required error={errors[`lineItems[${activeItemIndex}].category`]}>
-                                    <select id={`lineItems[${activeItemIndex}].category`} name="category" value={activeItem.category} onChange={handleFormChange} className={`${getInputClass(errors[`lineItems[${activeItemIndex}].category`])} appearance-none`}>
-                                        <option>T-shirt</option> <option>Polo Shirt</option> <option>Hoodies</option> <option>Jeans</option> <option>Jackets</option> <option>Shirts</option> <option>Casual Shirts</option> <option>Trousers</option>
-                                    </select>
-                                </FormField>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">Quantity Type <span className="text-red-500">*</span></label>
-                                    <div className="flex p-1 bg-gray-100 dark:bg-gray-700 rounded-lg mb-2">
-                                        <button type="button" onClick={() => setQuantityType('units')} className={`flex-1 py-1 text-xs font-medium rounded-md transition-all ${activeItem.quantityType === 'units' ? 'bg-white dark:bg-gray-600 shadow-sm text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}>
-                                            By Units
-                                        </button>
-                                        <button type="button" onClick={() => setQuantityType('container')} className={`flex-1 py-1 text-xs font-medium rounded-md transition-all ${activeItem.quantityType === 'container' ? 'bg-white dark:bg-gray-600 shadow-sm text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-200'}`}>
-                                            By Container
-                                        </button>
-                                    </div>
-                                    {activeItem.quantityType === 'units' ? (
-                                        <FormField label="Order Quantity (Units)" icon={<Package className="h-5 w-5 text-gray-400" />} required error={errors[`lineItems[${activeItemIndex}].qty`]}>
-                                            <input id={`lineItems[${activeItemIndex}].qty`} type="number" min="0" name="qty" value={activeItem.qty || ''} onChange={handleFormChange} placeholder="e.g., 5000" className={getInputClass(errors[`lineItems[${activeItemIndex}].qty`])} />
-                                        </FormField>
-                                    ) : (
-                                        <FormField label="Container Load" icon={<Package className="h-5 w-5 text-gray-400" />} required error={errors[`lineItems[${activeItemIndex}].qty`]}>
-                                            <select id={`lineItems[${activeItemIndex}].qty`} name="containerType" value={activeItem.containerType || ''} onChange={handleFormChange} className={`${getInputClass(errors[`lineItems[${activeItemIndex}].qty`])} appearance-none`}>
-                                                <option value="">Select Container Type</option>
-                                                {containerOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                <div className="md:col-span-2">
+                                    <FormField label="Product Category" icon={<Shirt className="h-5 w-5 text-gray-400" />} required error={errors[`lineItems[${activeItemIndex}].category`]}>
+                                        <div className="relative">
+                                            <select id={`lineItems[${activeItemIndex}].category`} name="category" value={activeItem.category} onChange={handleFormChange} className={`${getInputClass(errors[`lineItems[${activeItemIndex}].category`])} appearance-none`}>
+                                                <option>T-shirt</option> <option>Polo Shirt</option> <option>Hoodies</option> <option>Jeans</option> <option>Jackets</option> <option>Shirts</option> <option>Casual Shirts</option> <option>Trousers</option>
                                             </select>
-                                        </FormField>
-                                    )}
+                                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-gray-400">
+                                                <ChevronDown size={16} />
+                                            </div>
+                                        </div>
+                                    </FormField>
                                 </div>
-                                {/* Fabric Weight Input */}
-                                <FormField label="Fabric Weight (GSM)" icon={<Weight className="h-5 w-5 text-gray-400" />} required error={errors[`lineItems[${activeItemIndex}].weightGSM`]}>
-                                    <input id={`lineItems[${activeItemIndex}].weightGSM`} type="number" min="0" name="weightGSM" value={activeItem.weightGSM} onChange={handleFormChange} placeholder="e.g., 180" className={getInputClass(errors[`lineItems[${activeItemIndex}].weightGSM`])} />
-                                </FormField>
+
                                 {/* Fabric Quality Input */}
                                 <FormField label="Fabric Quality/Composition" icon={<Award className="h-5 w-5 text-gray-400" />} required error={errors[`lineItems[${activeItemIndex}].fabricQuality`]}>
                                     <input id={`lineItems[${activeItemIndex}].fabricQuality`} type="text" name="fabricQuality" value={activeItem.fabricQuality} onChange={handleFormChange} placeholder="e.g., 100% Organic Cotton" className={getInputClass(errors[`lineItems[${activeItemIndex}].fabricQuality`])} />
                                 </FormField>
+
+                                {/* Fabric Weight Input */}
+                                <FormField label="Fabric Weight (GSM)" icon={<Weight className="h-5 w-5 text-gray-400" />} required error={errors[`lineItems[${activeItemIndex}].weightGSM`]}>
+                                    <input id={`lineItems[${activeItemIndex}].weightGSM`} type="number" min="0" name="weightGSM" value={activeItem.weightGSM} onChange={handleFormChange} placeholder="e.g., 180" className={getInputClass(errors[`lineItems[${activeItemIndex}].weightGSM`])} />
+                                </FormField>
+
+                                {/* Quantity Section - Redesigned */}
+                                <div className="md:col-span-2 bg-gray-50 dark:bg-gray-800/50 p-5 rounded-xl border border-gray-200 dark:border-gray-700 mt-2">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3">
+                                        <label className="block text-sm font-bold text-gray-700 dark:text-white">
+                                            Quantity <span className="text-red-500">*</span>
+                                        </label>
+                                        <div className="flex p-1 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 shadow-sm">
+                                            <button 
+                                                type="button" 
+                                                onClick={() => setQuantityType('units')} 
+                                                className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${activeItem.quantityType === 'units' ? 'bg-[#c20c0b] text-white shadow-sm' : 'text-gray-500 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'}`}
+                                            >
+                                                By Units
+                                            </button>
+                                            <button 
+                                                type="button" 
+                                                onClick={() => setQuantityType('container')} 
+                                                className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${activeItem.quantityType === 'container' ? 'bg-[#c20c0b] text-white shadow-sm' : 'text-gray-500 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'}`}
+                                            >
+                                                By Container
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    {activeItem.quantityType === 'units' ? (
+                                        <div className="relative">
+                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                                                <Package className="h-5 w-5" />
+                                            </div>
+                                            <input 
+                                                id={`lineItems[${activeItemIndex}].qty`} 
+                                                type="number" 
+                                                min="0" 
+                                                name="qty" 
+                                                value={activeItem.qty || ''} 
+                                                onChange={handleFormChange} 
+                                                placeholder="e.g., 5000" 
+                                                className={getInputClass(errors[`lineItems[${activeItemIndex}].qty`])} 
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div className="relative">
+                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                                                <Package className="h-5 w-5" />
+                                            </div>
+                                            <select 
+                                                id={`lineItems[${activeItemIndex}].qty`} 
+                                                name="containerType" 
+                                                value={activeItem.containerType || ''} 
+                                                onChange={handleFormChange} 
+                                                className={`${getInputClass(errors[`lineItems[${activeItemIndex}].qty`])} appearance-none`}
+                                            >
+                                                <option value="">Select Container Type</option>
+                                                {containerOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                            </select>
+                                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-gray-400">
+                                                <ChevronDown size={16} />
+                                            </div>
+                                        </div>
+                                    )}
+                                    {errors[`lineItems[${activeItemIndex}].qty`] && <p className="mt-1 text-xs text-red-600 dark:text-red-400 animate-fade-in">{errors[`lineItems[${activeItemIndex}].qty`]}</p>}
+                                </div>
                             </div>
                         </div>
                         )}
@@ -1329,6 +1536,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                         accept="image/*"
                                         multiple
                                         onFilesSelected={onSampleFilesSelected}
+                                        onFileRemoved={onSampleFileRemoved}
                                         icon={<ImageIcon className="h-8 w-8" />}
                                         selectedFiles={sampleFiles}
                                         previews={samplePreviews}
@@ -1342,6 +1550,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                         accept=".pdf,.doc,.docx,.xls,.xlsx"
                                         multiple
                                         onFilesSelected={onDocFilesSelected}
+                                        onFileRemoved={onDocFileRemoved}
                                         icon={<FileText className="h-8 w-8" />}
                                         selectedFiles={docFiles}
                                     />
@@ -1502,8 +1711,26 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                         Next Step <ArrowRight size={18} />
                                     </button>
                                 ) : (
-                                    <button type="button" onClick={onSubmitButtonClick} className="px-8 py-3 text-white rounded-lg font-bold bg-green-600 hover:bg-green-700 transition shadow-md transform hover:scale-105 flex items-center gap-2">
-                                        <Check size={18} /> {orderType === 'new' ? 'Submit Quote Request' : 'Add Products to RFQ'}
+                                    <button
+                                        type="button"
+                                        onClick={onSubmitButtonClick}
+                                        disabled={isSubmitting}
+                                        className={`px-8 py-3 text-white rounded-lg font-bold transition shadow-md flex items-center gap-2 ${
+                                            isSubmitting
+                                                ? 'bg-gray-400 cursor-not-allowed'
+                                                : 'bg-green-600 hover:bg-green-700 transform hover:scale-105'
+                                        }`}
+                                    >
+                                        {isSubmitting ? (
+                                            <>
+                                                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                                Submitting...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Check size={18} /> {orderType === 'new' ? 'Submit Quote Request' : 'Add Products to RFQ'}
+                                            </>
+                                        )}
                                     </button>
                                 )}
                             </div>
@@ -1535,6 +1762,108 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                             </div>
                         </div>
                     </div>, document.body)
+                )}
+
+                {/* Success Animation Overlay */}
+                {showSuccessAnimation && createPortal(
+                    <div className="fixed inset-0 bg-gradient-to-br from-green-500/95 to-emerald-600/95 flex items-center justify-center z-[100] animate-fade-in">
+                        <div className="text-center text-white px-8">
+                            {/* Animated Checkmark Circle */}
+                            <div className="relative mx-auto w-32 h-32 mb-8">
+                                <svg className="w-32 h-32" viewBox="0 0 100 100">
+                                    {/* Background circle */}
+                                    <circle
+                                        cx="50"
+                                        cy="50"
+                                        r="45"
+                                        fill="none"
+                                        stroke="rgba(255,255,255,0.3)"
+                                        strokeWidth="6"
+                                    />
+                                    {/* Animated circle */}
+                                    <circle
+                                        cx="50"
+                                        cy="50"
+                                        r="45"
+                                        fill="none"
+                                        stroke="white"
+                                        strokeWidth="6"
+                                        strokeLinecap="round"
+                                        strokeDasharray="283"
+                                        strokeDashoffset="283"
+                                        style={{
+                                            animation: 'drawCircle 0.6s ease-out forwards'
+                                        }}
+                                    />
+                                    {/* Checkmark */}
+                                    <path
+                                        d="M30 50 L45 65 L70 35"
+                                        fill="none"
+                                        stroke="white"
+                                        strokeWidth="6"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeDasharray="60"
+                                        strokeDashoffset="60"
+                                        style={{
+                                            animation: 'drawCheck 0.4s ease-out 0.5s forwards'
+                                        }}
+                                    />
+                                </svg>
+                            </div>
+
+                            {/* Success Message */}
+                            <h2
+                                className="text-4xl font-bold mb-4 opacity-0"
+                                style={{ animation: 'fadeInUp 0.5s ease-out 0.7s forwards' }}
+                            >
+                                Quote Sent!
+                            </h2>
+                            <p
+                                className="text-xl text-white/90 mb-2 opacity-0"
+                                style={{ animation: 'fadeInUp 0.5s ease-out 0.9s forwards' }}
+                            >
+                                Your quote request has been submitted successfully.
+                            </p>
+                            <p
+                                className="text-white/70 opacity-0"
+                                style={{ animation: 'fadeInUp 0.5s ease-out 1.1s forwards' }}
+                            >
+                                Redirecting to your quotes...
+                            </p>
+
+                            {/* Loading dots */}
+                            <div
+                                className="flex justify-center gap-2 mt-6 opacity-0"
+                                style={{ animation: 'fadeInUp 0.5s ease-out 1.3s forwards' }}
+                            >
+                                <div className="w-3 h-3 bg-white/80 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                                <div className="w-3 h-3 bg-white/80 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                                <div className="w-3 h-3 bg-white/80 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                            </div>
+                        </div>
+
+                        {/* CSS Animations */}
+                        <style>{`
+                            @keyframes drawCircle {
+                                to { stroke-dashoffset: 0; }
+                            }
+                            @keyframes drawCheck {
+                                to { stroke-dashoffset: 0; }
+                            }
+                            @keyframes fadeInUp {
+                                from {
+                                    opacity: 0;
+                                    transform: translateY(20px);
+                                }
+                                to {
+                                    opacity: 1;
+                                    transform: translateY(0);
+                                }
+                            }
+                        `}</style>
+                    </div>,
+                    document.body
                 )}
             </div>
         </MainLayout>
