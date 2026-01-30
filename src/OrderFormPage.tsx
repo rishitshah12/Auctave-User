@@ -37,6 +37,62 @@ interface OrderFormPageProps {
 
 const generateId = () => Date.now() + Math.random();
 
+// Category icons mapping for product cards
+const CATEGORY_ICONS: Record<string, string> = {
+    'T-Shirt': '👕',
+    'Polo Shirt': '👔',
+    'Hoodie': '🧥',
+    'Sweatshirt': '🧥',
+    'Jacket': '🧥',
+    'Pants': '👖',
+    'Shorts': '🩳',
+    'Dress': '👗',
+    'Skirt': '👗',
+    'Tank Top': '🎽',
+    'Sweater': '🧶',
+    'Coat': '🧥',
+    'default': '👚',
+};
+
+// Product accent colors for visual distinction
+const PRODUCT_COLORS = [
+    { bg: 'bg-red-500', light: 'bg-red-50 dark:bg-red-900/20', border: 'border-red-500', text: 'text-red-600 dark:text-red-400' },
+    { bg: 'bg-blue-500', light: 'bg-blue-50 dark:bg-blue-900/20', border: 'border-blue-500', text: 'text-blue-600 dark:text-blue-400' },
+    { bg: 'bg-emerald-500', light: 'bg-emerald-50 dark:bg-emerald-900/20', border: 'border-emerald-500', text: 'text-emerald-600 dark:text-emerald-400' },
+    { bg: 'bg-purple-500', light: 'bg-purple-50 dark:bg-purple-900/20', border: 'border-purple-500', text: 'text-purple-600 dark:text-purple-400' },
+    { bg: 'bg-amber-500', light: 'bg-amber-50 dark:bg-amber-900/20', border: 'border-amber-500', text: 'text-amber-600 dark:text-amber-400' },
+    { bg: 'bg-cyan-500', light: 'bg-cyan-50 dark:bg-cyan-900/20', border: 'border-cyan-500', text: 'text-cyan-600 dark:text-cyan-400' },
+    { bg: 'bg-pink-500', light: 'bg-pink-50 dark:bg-pink-900/20', border: 'border-pink-500', text: 'text-pink-600 dark:text-pink-400' },
+    { bg: 'bg-indigo-500', light: 'bg-indigo-50 dark:bg-indigo-900/20', border: 'border-indigo-500', text: 'text-indigo-600 dark:text-indigo-400' },
+];
+
+// Calculate product completion percentage
+const calculateProductCompletion = (item: any): { percentage: number; filledFields: number; totalFields: number } => {
+    const requiredFields = [
+        { key: 'category', check: (v: any) => v && v !== '' },
+        { key: 'fabricQuality', check: (v: any) => v && v !== '' },
+        { key: 'weightGSM', check: (v: any) => v && Number(v) > 0 },
+        { key: 'qty', check: (v: any) => v && v > 0 },
+        { key: 'sizeRange', check: (v: any) => v && v.length > 0 },
+        { key: 'packagingReqs', check: (v: any) => v && v !== '' },
+    ];
+
+    let filled = 0;
+    requiredFields.forEach(field => {
+        if (field.check(item[field.key])) filled++;
+    });
+
+    return {
+        percentage: Math.round((filled / requiredFields.length) * 100),
+        filledFields: filled,
+        totalFields: requiredFields.length
+    };
+};
+
+const getCategoryIcon = (category: string): string => {
+    return CATEGORY_ICONS[category] || CATEGORY_ICONS['default'];
+};
+
 const COUNTRIES = [
     "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Cabo Verde", "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo (Congo-Brazzaville)", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czechia (Czech Republic)", "Democratic Republic of the Congo", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Eswatini (fmr. 'Swaziland')", "Ethiopia", "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Holy See", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar (formerly Burma)", "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Korea", "North Macedonia", "Norway", "Oman", "Pakistan", "Palau", "Palestine State", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Korea", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria", "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States of America", "Uruguay", "Uzbekistan", "Vanuatu", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"
 ];
@@ -565,7 +621,8 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
     const [orderType, setOrderType] = useState<'new' | 'existing'>('new');
     const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
     const [errors, setErrors] = useState<Record<string, string>>({});
-    const [currentStep, setCurrentStep] = useState(1);
+    // Track step per product - each product maintains its own step position
+    const [productSteps, setProductSteps] = useState<Record<number, number>>({ 0: 1 });
     const { showToast } = useToast();
     const DRAFT_KEY = 'garment_erp_order_draft';
     const SAVED_DRAFTS_KEY = 'garment_erp_saved_drafts';
@@ -615,6 +672,17 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
     }, [formState]);
 
     const [activeItemIndex, setActiveItemIndex] = useState(0);
+
+    // Computed current step based on active product
+    const currentStep = productSteps[activeItemIndex] || 1;
+
+    // Helper to update step for current product only
+    const setCurrentStep = (step: number | ((prev: number) => number)) => {
+        setProductSteps(prev => ({
+            ...prev,
+            [activeItemIndex]: typeof step === 'function' ? step(prev[activeItemIndex] || 1) : step
+        }));
+    };
 
     // State to hold the list of files uploaded by the user.
     const [sampleFiles, setSampleFiles] = useState<File[]>([]);
@@ -804,6 +872,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
     };
 
     const handleAddItem = () => {
+        const newIndex = formState.lineItems.length;
         setFormState(prev => ({
             ...prev,
             lineItems: [...prev.lineItems, {
@@ -826,7 +895,9 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                 quantityType: 'units'
             }]
         }));
-        setActiveItemIndex(formState.lineItems.length);
+        // Initialize new product at Step 1 and switch to it
+        setProductSteps(prev => ({ ...prev, [newIndex]: 1 }));
+        setActiveItemIndex(newIndex);
     };
 
 
@@ -1265,71 +1336,242 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
 
                         <form onSubmit={onFormSubmit} className="space-y-8">
                         
-                        {/* Line Item Tabs */}
-                        {/* Product Navigation (Numbered List) */}
+                        {/* Product Cards - Zomato Style with Progress */}
                         {currentStep <= 3 && (
-                            <div className="mb-8">
-                                <div className="flex items-center justify-between mb-3">
-                                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Products ({formState.lineItems.length})</label>
-                                </div>
-                                <div className="flex flex-wrap items-center gap-2">
-                                    {formState.lineItems.map((item, index) => (
-                                        <button
-                                            key={item.id}
-                                            type="button"
-                                            onClick={() => setActiveItemIndex(index)}
-                                            className={`
-                                                flex items-center justify-center w-10 h-10 rounded-full text-sm font-bold transition-all
-                                                ${activeItemIndex === index 
-                                                    ? 'bg-[#c20c0b] text-white shadow-md scale-110 ring-2 ring-offset-2 ring-[#c20c0b] dark:ring-offset-gray-900' 
-                                                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:border-[#c20c0b] hover:text-[#c20c0b]'}
-                                            `}
-                                            title={`Product ${index + 1}: ${item.category}`}
-                                        >
-                                            {index + 1}
-                                        </button>
-                                    ))}
+                            <div className="mb-6">
+                                {/* Section Header */}
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="flex items-center gap-2">
+                                        <Package size={18} className="text-[#c20c0b]" />
+                                        <span className="text-sm font-bold text-gray-800 dark:text-white">Products</span>
+                                        <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-xs font-medium rounded-full">
+                                            {formState.lineItems.length}
+                                        </span>
+                                    </div>
                                     <button
                                         type="button"
                                         onClick={handleAddItem}
-                                        className="flex items-center justify-center w-10 h-10 rounded-full bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-dashed border-gray-300 dark:border-gray-600 hover:border-[#c20c0b] hover:text-[#c20c0b] hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
-                                        title="Add Product"
+                                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#c20c0b] bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors border border-red-200 dark:border-red-800"
                                     >
-                                        <Plus size={18} />
+                                        <Plus size={14} /> Add Product
                                     </button>
+                                </div>
+
+                                {/* Product Cards - Horizontal Scroll on Mobile */}
+                                <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap">
+                                    {formState.lineItems.map((item, index) => {
+                                        const completion = calculateProductCompletion(item);
+                                        const isActive = activeItemIndex === index;
+                                        const color = PRODUCT_COLORS[index % PRODUCT_COLORS.length];
+                                        const icon = getCategoryIcon(item.category);
+
+                                        return (
+                                            <button
+                                                key={item.id}
+                                                type="button"
+                                                onClick={() => setActiveItemIndex(index)}
+                                                className={`
+                                                    relative flex-shrink-0 w-[140px] sm:w-[160px] p-3 rounded-xl border-2 transition-all text-left
+                                                    ${isActive
+                                                        ? `${color.light} ${color.border} shadow-lg scale-[1.02]`
+                                                        : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md'}
+                                                `}
+                                            >
+                                                {/* Active Indicator */}
+                                                {isActive && (
+                                                    <div className={`absolute -top-1 -right-1 w-5 h-5 ${color.bg} rounded-full flex items-center justify-center shadow-md`}>
+                                                        <Check size={12} className="text-white" />
+                                                    </div>
+                                                )}
+
+                                                {/* Completion Badge */}
+                                                {!isActive && completion.percentage === 100 && (
+                                                    <div className="absolute -top-1 -right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center shadow-md">
+                                                        <Check size={12} className="text-white" />
+                                                    </div>
+                                                )}
+                                                {!isActive && completion.percentage < 100 && completion.percentage > 0 && (
+                                                    <div className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center shadow-md">
+                                                        <span className="text-[8px] font-bold text-white">{completion.percentage}%</span>
+                                                    </div>
+                                                )}
+
+                                                {/* Card Content */}
+                                                <div className="flex items-start gap-2 mb-2">
+                                                    <span className="text-2xl">{icon}</span>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className={`text-xs font-bold uppercase tracking-wide ${isActive ? color.text : 'text-gray-500 dark:text-gray-400'}`}>
+                                                            Product {index + 1}
+                                                        </p>
+                                                        <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                                                            {item.category || 'Select...'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                {/* Quick Stats */}
+                                                <div className="space-y-1 text-xs text-gray-500 dark:text-gray-400">
+                                                    <div className="flex justify-between">
+                                                        <span>Qty:</span>
+                                                        <span className="font-medium text-gray-700 dark:text-gray-300">
+                                                            {item.qty ? item.qty.toLocaleString() : '—'}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex justify-between">
+                                                        <span>GSM:</span>
+                                                        <span className="font-medium text-gray-700 dark:text-gray-300">
+                                                            {item.weightGSM || '—'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Progress Bar */}
+                                                <div className="mt-2 h-1 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                    <div
+                                                        className={`h-full transition-all duration-500 ${completion.percentage === 100 ? 'bg-green-500' : isActive ? color.bg : 'bg-gray-400'}`}
+                                                        style={{ width: `${completion.percentage}%` }}
+                                                    />
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}
 
-                        {/* Active Product Header & Actions */}
+                        {/* Sticky Product Banner - Shows Current Product Context */}
                         {currentStep <= 3 && (
-                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-200 dark:border-gray-700 mb-6 animate-fade-in">
-                                <div>
-                                    <h3 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                                        Product {activeItemIndex + 1}
-                                        <span className="px-2 py-0.5 rounded-full bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-xs font-normal text-gray-500 dark:text-gray-300">
-                                            {activeItem.category}
-                                        </span>
-                                    </h3>
-                                </div>
-                                <div className="flex items-center gap-2 mt-3 sm:mt-0">
-                                    <button
-                                        type="button"
-                                        onClick={() => handleDuplicateItem(activeItemIndex)}
-                                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
-                                    >
-                                        <Copy size={14} /> Duplicate
-                                    </button>
-                                    {formState.lineItems.length > 1 && (
-                                        <button
-                                            type="button"
-                                            onClick={() => handleRemoveItem(activeItemIndex)}
-                                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-                                        >
-                                            <Trash2 size={14} /> Remove
-                                        </button>
-                                    )}
-                                </div>
+                            <div className="sticky top-0 z-30 -mx-6 px-6 sm:-mx-8 sm:px-8 py-4 mb-8 bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl border-y border-gray-200/50 dark:border-gray-700/50 shadow-sm transition-all duration-300">
+                                {(() => {
+                                    const completion = calculateProductCompletion(activeItem);
+                                    const color = PRODUCT_COLORS[activeItemIndex % PRODUCT_COLORS.length];
+                                    const icon = getCategoryIcon(activeItem.category);
+
+                                    return (
+                                        <div className="max-w-5xl mx-auto">
+                                            <div className="flex items-center justify-between gap-3 sm:gap-6">
+                                                
+                                                {/* Left: Product Identity */}
+                                                <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
+                                                    {/* Badge */}
+                                                    <div className={`flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 ${color.bg} rounded-2xl flex items-center justify-center text-white font-bold shadow-lg transform transition-transform hover:scale-105`}>
+                                                        <span className="text-lg sm:text-xl">{activeItemIndex + 1}</span>
+                                                    </div>
+
+                                                    {/* Info */}
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex items-center gap-2 mb-0.5">
+                                                            <span className="text-lg sm:text-xl">{icon}</span>
+                                                            <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white truncate leading-tight">
+                                                                {activeItem.category || 'New Item'}
+                                                            </h3>
+                                                        </div>
+                                                        
+                                                        {/* Desktop Specs */}
+                                                        <div className="hidden sm:flex items-center gap-3 text-xs font-medium text-gray-500 dark:text-gray-400">
+                                                            {activeItem.qty > 0 && (
+                                                                <span className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-md">
+                                                                    <Package size={12} /> {activeItem.qty.toLocaleString()} {activeItem.quantityType === 'container' ? 'cntr' : 'units'}
+                                                                </span>
+                                                            )}
+                                                            {Number(activeItem.weightGSM) > 0 && (
+                                                                <span className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-md">
+                                                                    <Weight size={12} /> {activeItem.weightGSM} GSM
+                                                                </span>
+                                                            )}
+                                                            {activeItem.fabricQuality && (
+                                                                <span className="truncate max-w-[150px] bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-md" title={activeItem.fabricQuality}>
+                                                                    {activeItem.fabricQuality}
+                                                                </span>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Mobile Progress */}
+                                                        <div className="sm:hidden flex items-center gap-2 w-full max-w-[140px]">
+                                                            <div className="flex-1 h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                                                                <div 
+                                                                    className={`h-full rounded-full transition-all duration-500 ${completion.percentage === 100 ? 'bg-green-500' : color.bg}`} 
+                                                                    style={{ width: `${completion.percentage}%` }}
+                                                                />
+                                                            </div>
+                                                            <span className="text-[10px] font-bold text-gray-400">{completion.percentage}%</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Right: Controls */}
+                                                <div className="flex items-center gap-2 sm:gap-3">
+                                                    
+                                                    {/* Navigation Group */}
+                                                    <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-xl p-1 border border-gray-200 dark:border-gray-700">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setActiveItemIndex(Math.max(0, activeItemIndex - 1))}
+                                                            disabled={activeItemIndex === 0}
+                                                            className="p-1.5 sm:p-2 rounded-lg text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-white dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm disabled:shadow-none"
+                                                        >
+                                                            <ChevronLeft size={18} />
+                                                        </button>
+                                                        <span className="px-2 text-xs font-bold text-gray-600 dark:text-gray-300 min-w-[3rem] text-center">
+                                                            {activeItemIndex + 1} / {formState.lineItems.length}
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setActiveItemIndex(Math.min(formState.lineItems.length - 1, activeItemIndex + 1))}
+                                                            disabled={activeItemIndex === formState.lineItems.length - 1}
+                                                            className="p-1.5 sm:p-2 rounded-lg text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-white dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm disabled:shadow-none"
+                                                        >
+                                                            <ChevronRight size={18} />
+                                                        </button>
+                                                    </div>
+
+                                                    {/* Actions Group (Desktop) */}
+                                                    <div className="hidden sm:flex items-center gap-2 pl-3 border-l border-gray-200 dark:border-gray-700">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleDuplicateItem(activeItemIndex)}
+                                                            className="p-2.5 text-blue-600 bg-blue-50 hover:bg-blue-100 dark:text-blue-400 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 rounded-xl transition-colors"
+                                                            title="Duplicate"
+                                                        >
+                                                            <Copy size={18} />
+                                                        </button>
+                                                        {formState.lineItems.length > 1 && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleRemoveItem(activeItemIndex)}
+                                                                className="p-2.5 text-red-600 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:bg-red-900/20 dark:hover:bg-red-900/40 rounded-xl transition-colors"
+                                                                title="Remove"
+                                                            >
+                                                                <Trash2 size={18} />
+                                                            </button>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Mobile Actions Menu (Simplified) */}
+                                                    <div className="sm:hidden">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleDuplicateItem(activeItemIndex)}
+                                                            className="p-2 text-blue-600 bg-blue-50 rounded-lg mr-1"
+                                                        >
+                                                            <Copy size={16} />
+                                                        </button>
+                                                        {formState.lineItems.length > 1 && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleRemoveItem(activeItemIndex)}
+                                                                className="p-2 text-red-600 bg-red-50 rounded-lg"
+                                                            >
+                                                                <Trash2 size={16} />
+                                                            </button>
+                                                        )}
+                                                    </div>
+
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         )}
 
