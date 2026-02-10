@@ -4,11 +4,11 @@ import { MainLayout } from './MainLayout';
 import { quoteService } from './quote.service';
 import { crmService } from './crm.service';
 import { QuoteRequest, NegotiationHistoryItem } from './types';
-import { MapPin, Shirt, Package, Clock, ChevronRight, ChevronLeft, FileQuestion, MessageSquare, CheckCircle, XCircle, X, Download, RefreshCw, User, Building, Calendar, FileText, Eye, EyeOff, CheckSquare, ArrowUp, ArrowDown, ChevronDown, ChevronUp, History, DollarSign, Search, Mail, Phone, Check, CheckCheck, Trash2, RotateCcw, Image as ImageIcon, Scale, Paperclip, Send, Circle, Layers, Scissors, Factory, ShieldCheck, Truck, LifeBuoy, ClipboardList, Plus, Edit, GripVertical } from 'lucide-react';
+import { MapPin, Shirt, Package, Clock, ChevronRight, ChevronLeft, FileQuestion, MessageSquare, CheckCircle, XCircle, X, Download, RefreshCw, User, Building, Calendar, FileText, Eye, EyeOff, CheckSquare, ArrowUp, ArrowDown, ChevronDown, ChevronUp, History, DollarSign, Search, Mail, Phone, Check, CheckCheck, Trash2, RotateCcw, Image as ImageIcon, Scale, Paperclip, Send, Circle, Layers, Scissors, Factory, ShieldCheck, Truck, LifeBuoy, ClipboardList, Plus, Edit, GripVertical, Info, Sparkles, Globe } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import confetti from 'canvas-confetti';
-import { formatFriendlyDate, getStatusColor, getStatusGradientBorder, getStatusHoverShadow } from './utils';
+import { formatFriendlyDate, getStatusColor, getStatusGradient, getStatusGradientBorder, getStatusHoverShadow } from './utils';
 import { useToast } from './ToastContext';
 
 interface AdminRFQPageProps {
@@ -26,6 +26,9 @@ interface AdminRFQPageProps {
 }
 
 const SIZE_ORDER = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL'];
+
+// Tab type for quote detail view
+type AdminQuoteTabType = 'overview' | 'products' | 'timeline' | 'files';
 
 interface ExecutionStep {
     title: string;
@@ -219,6 +222,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
     const [expandedExecutionSteps, setExpandedExecutionSteps] = useState<number[]>([]);
     const [isExecutionPlanExpanded, setIsExecutionPlanExpanded] = useState(false);
     const [negotiatingItem, setNegotiatingItem] = useState<any | null>(null);
+    const [activeQuoteTab, setActiveQuoteTab] = useState<AdminQuoteTabType>('overview');
     const [uploadingChats, setUploadingChats] = useState<Record<number, boolean>>({});
     const cancellationRefs = useRef<Record<number, boolean>>({});
     const [isBulkActionModalOpen, setIsBulkActionModalOpen] = useState(false);
@@ -1366,159 +1370,297 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
         }
     };
 
+    // Tabs configuration for quote detail view
+    const quoteTabs: { id: AdminQuoteTabType; label: string; icon: React.ReactNode; badge?: number }[] = [
+        { id: 'overview', label: 'Overview', icon: <Info size={18} /> },
+        { id: 'products', label: 'Products', icon: <Package size={18} />, badge: selectedQuote?.order?.lineItems?.length || 0 },
+        { id: 'timeline', label: 'Timeline', icon: <History size={18} />, badge: displayHistory.length },
+        { id: 'files', label: 'Files', icon: <FileText size={18} />, badge: fileLinks.length || selectedQuote?.files?.length || 0 },
+    ];
+
     if (selectedQuote) {
         return (
             <MainLayout {...props}>
-                <div className="flex justify-between items-center mb-4">
-                    <button onClick={() => setSelectedQuote(null)} className="text-[#c20c0b] font-semibold flex items-center hover:underline">
-                        <ChevronLeft className="h-5 w-5 mr-1" /> Back to RFQ List
-                    </button>
-                    <button onClick={handleDownloadPdf} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition shadow-sm" title="Download as PDF">
-                        <Download size={16} /> Download PDF
-                    </button>
-                </div>
-                <div ref={quoteDetailsRef} className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-lg p-8 border border-gray-200 dark:border-white/10">
-                    {/* Header Section */}
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 pb-6 border-b border-gray-100 dark:border-white/10 gap-4">
-                        <div>
-                            <div className="flex items-center gap-3 mb-2">
-                                <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Quote #{selectedQuote.id.slice(0, 8)}</h2>
-                                <span className={`px-3 py-1 text-sm font-semibold rounded-full ${getStatusColor(selectedQuote.status)} flex items-center gap-1`}>
-                                    {selectedQuote.status === 'Accepted' && <CheckCheck size={14} />}
-                                    {(selectedQuote.status === 'Admin Accepted' || selectedQuote.status === 'Client Accepted') && <Check size={14} />}
-                                    {selectedQuote.status === 'Admin Accepted' ? 'Admin Accepted' : selectedQuote.status === 'Client Accepted' ? 'Client Accepted' : selectedQuote.status}
-                                </span>
-                            </div>
-                            <div className="flex flex-wrap gap-4 text-sm text-gray-500 dark:text-gray-400">
-                                <div className="flex items-center gap-1"><Calendar size={16}/> {formatFriendlyDate(selectedQuote.submittedAt)}</div>
-                            </div>
-                        </div>
-                    </div>
+                <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-8">
+                    {/* Compact Header - Zomato Style */}
+                    <div className="mb-6">
+                        {/* Back button row */}
+                        <button onClick={() => { setSelectedQuote(null); setActiveQuoteTab('overview'); }} className="group flex items-center text-gray-500 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors mb-4">
+                            <ChevronLeft size={20} className="mr-1" />
+                            <span className="text-sm font-medium">Back to RFQ List</span>
+                        </button>
 
-                    <StatusTimeline status={selectedQuote.status} />
-
-                    {/* User Details Card */}
-                    <div className="mb-8 bg-blue-50 dark:bg-blue-900/20 p-6 rounded-xl border border-blue-100 dark:border-blue-800 flex flex-col sm:flex-row gap-6 items-start sm:items-center">
-                        <div className="flex-shrink-0">
-                            <div className="w-16 h-16 rounded-full bg-blue-200 dark:bg-blue-800 flex items-center justify-center text-blue-700 dark:text-blue-200 text-2xl font-bold shadow-sm border-2 border-white dark:border-blue-700">
-                                {(selectedQuote as any).clientName?.charAt(0) || 'U'}
-                            </div>
-                        </div>
-                        <div className="flex-grow grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 w-full">
-                            <div>
-                                <p className="text-xs text-blue-600 dark:text-blue-400 uppercase font-bold tracking-wider mb-1">Client Name</p>
-                                <p className="font-semibold text-gray-900 dark:text-white text-lg">{selectedQuote.clientName}</p>
-                                <p className="text-sm text-gray-500 dark:text-gray-300 flex items-center gap-1"><Building size={12}/> {selectedQuote.companyName}</p>
-                                <p className="text-xs text-gray-400 dark:text-gray-400 mt-1">{selectedQuote.clientJobRole}</p>
-                            </div>
-                            <div>
-                                <p className="text-xs text-blue-600 dark:text-blue-400 uppercase font-bold tracking-wider mb-1">Contact Info</p>
-                                <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 font-medium">
-                                    <Mail size={14} className="text-gray-400" /> {selectedQuote.clientEmail}
-                                </div>
-                                <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 mt-1">
-                                    <Phone size={14} className="text-gray-400" /> {selectedQuote.clientPhone}
-                                </div>
-                            </div>
-                            <div>
-                                <p className="text-xs text-blue-600 dark:text-blue-400 uppercase font-bold tracking-wider mb-1">Location</p>
-                                <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 font-medium">
-                                    <MapPin size={14} className="text-gray-400" /> {selectedQuote.clientCountry}
-                                </div>
-                            </div>
-                            <div>
-                                <p className="text-xs text-blue-600 dark:text-blue-400 uppercase font-bold tracking-wider mb-1">Business Profile</p>
-                                <p className="text-sm text-gray-700 dark:text-gray-200 font-medium">Rev: {selectedQuote.clientRevenue}</p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Spec: {selectedQuote.clientSpecialization}</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Negotiation / Counter Offer Section - Displayed Above Details */}
-                    <div className="mb-8 border rounded-xl p-6 bg-gray-50/50 dark:bg-gray-800/50 border-gray-200 dark:border-white/10">
-                        <h3 className="text-lg font-bold flex items-center gap-2 text-gray-700 dark:text-white mb-6">
-                            <History size={20} /> Negotiation Timeline
-                        </h3>
-                        
-                        <div className="relative">
-                            {/* Horizontal Line */}
-                            <div className="absolute top-5 left-0 w-full h-0.5 bg-gray-200 dark:bg-gray-700" />
-
-                            <div className="flex gap-6 overflow-x-auto pb-6 pt-2 px-2">
-                                {/* Initial Request Node */}
-                                <div className="flex-shrink-0 w-64 relative pt-8">
-                                     <div className="absolute top-4 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-gray-300 dark:bg-gray-600 border-2 border-white dark:border-gray-800 z-10" />
-                                     <div className="bg-white dark:bg-gray-900/60 p-4 rounded-xl border border-gray-200 dark:border-white/10 shadow-sm h-full flex flex-col">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Request</span>
-                                            <span className="text-xs text-gray-400 dark:text-gray-500">{formatFriendlyDate(selectedQuote.submittedAt)}</span>
+                        {/* Main Header Card - Compact */}
+                        <div ref={quoteDetailsRef} className="bg-white dark:bg-gray-900/60 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                            <div className={`h-1.5 bg-gradient-to-r ${getStatusGradient(selectedQuote.status)}`}></div>
+                            <div className="p-5">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                    <div className="flex items-center gap-4">
+                                        <div className="hidden sm:flex w-14 h-14 rounded-xl bg-gradient-to-br from-[#c20c0b] to-pink-600 items-center justify-center text-white shadow-lg">
+                                            <Package size={24} />
                                         </div>
-                                        <p className="text-sm text-gray-700 dark:text-white font-medium">Initial Quote Request</p>
-                                     </div>
-                                </div>
-
-                                {displayHistory.map((item, idx) => (
-                                    <div key={idx} className="flex-shrink-0 w-72 relative pt-8">
-                                        <div className={`absolute top-4 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full border-2 border-white dark:border-gray-800 z-10 ${item.sender === 'factory' ? 'bg-[#c20c0b]' : 'bg-blue-500'}`} />
-                                        <div className={`p-4 rounded-xl border shadow-sm h-full flex flex-col ${item.sender === 'factory' ? 'bg-white dark:bg-gray-900/60 border-red-100 dark:border-red-900/30' : 'bg-white dark:bg-gray-900/60 border-blue-100 dark:border-blue-900/30'}`}>
-                                            <div className="flex justify-between items-center mb-2">
-                                                <span className={`text-xs font-bold uppercase ${item.sender === 'factory' ? 'text-[#c20c0b]' : 'text-blue-600'}`}>
-                                                    {item.sender === 'factory' ? 'You' : 'Client'}
-                                                </span>
-                                                <span className="text-xs text-gray-400 dark:text-gray-500">
-                                                    {formatFriendlyDate(item.timestamp)}
+                                        <div>
+                                            <div className="flex items-center gap-3 mb-1">
+                                                <h1 className="text-xl font-bold text-gray-900 dark:text-white">Quote #{selectedQuote.id.slice(0, 8)}</h1>
+                                                <span className={`px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide rounded-full border ${getStatusColor(selectedQuote.status)} flex items-center gap-1`}>
+                                                    {selectedQuote.status === 'Accepted' && <CheckCheck size={12} />}
+                                                    {(selectedQuote.status === 'Admin Accepted' || selectedQuote.status === 'Client Accepted') && <Check size={12} />}
+                                                    {selectedQuote.status === 'Admin Accepted' ? 'Admin Approved' : selectedQuote.status === 'Client Accepted' ? 'Client Approved' : selectedQuote.status}
                                                 </span>
                                             </div>
-                                            {item.price && (
-                                                <div className="mb-2">
-                                                    <span className="text-lg font-bold text-gray-900 dark:text-white">${item.price}</span>
-                                                    <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">/ unit</span>
-                                                </div>
-                                            )}
-                                            <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap flex-grow">
-                                                {item.message}
+                                            <p className="text-gray-500 dark:text-gray-400 text-sm flex items-center gap-3">
+                                                <span className="flex items-center"><Calendar size={14} className="mr-1"/> {formatFriendlyDate(selectedQuote.submittedAt)}</span>
+                                                <span className="flex items-center"><Package size={14} className="mr-1"/> {selectedQuote.order?.lineItems?.length || 0} items</span>
                                             </p>
-                                            {item.action === 'accept' && <div className="mt-3 pt-2 border-t border-gray-100 dark:border-white/10 text-xs font-bold text-green-600 flex items-center gap-1"><CheckCircle size={12}/> Accepted</div>}
-                                            {item.action === 'decline' && <div className="mt-3 pt-2 border-t border-gray-100 dark:border-white/10 text-xs font-bold text-red-600 flex items-center gap-1"><X size={12}/> Declined</div>}
                                         </div>
                                     </div>
-                                ))}
+
+                                    {/* Quick Actions - Desktop only */}
+                                    <div className="hidden md:flex items-center gap-2">
+                                        <button onClick={handleDownloadPdf} className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all" title="Download PDF">
+                                            <Download size={20} />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Factory Response Summary - Compact */}
+                                {(selectedQuote.status === 'Responded' || selectedQuote.status === 'In Negotiation' || selectedQuote.status === 'Accepted' || selectedQuote.status === 'Admin Accepted' || selectedQuote.status === 'Client Accepted') && selectedQuote.response_details && (
+                                    <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800 flex flex-wrap items-center gap-6">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                                                <DollarSign size={20} className="text-green-600 dark:text-green-400" />
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] text-gray-500 dark:text-gray-400 uppercase font-medium">Quoted Price</p>
+                                                <p className="text-lg font-bold text-gray-900 dark:text-white">${selectedQuote.response_details.price}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                                                <Clock size={20} className="text-blue-600 dark:text-blue-400" />
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] text-gray-500 dark:text-gray-400 uppercase font-medium">Lead Time</p>
+                                                <p className="text-lg font-bold text-gray-900 dark:text-white">{selectedQuote.response_details.leadTime}</p>
+                                            </div>
+                                        </div>
+                                        {selectedQuote.response_details.notes && (
+                                            <div className="flex-1 min-w-[200px]">
+                                                <p className="text-xs text-gray-500 dark:text-gray-400 italic truncate">"{selectedQuote.response_details.notes}"</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         </div>
-                        
-                        {/* Admin Actions */}
-                        {selectedQuote.status !== 'Accepted' && selectedQuote.status !== 'Declined' && (
-                            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-white/10">
-                                <button onClick={() => setIsDeclineModalOpen(true)} className="px-4 py-2 bg-white border border-red-200 text-red-600 font-semibold rounded-lg hover:bg-red-50 transition shadow-sm flex items-center gap-2">
-                                    <XCircle size={18} /> Decline
-                                </button>
-                                <button onClick={() => setIsResponseModalOpen(true)} className="px-4 py-2 bg-[#c20c0b] text-white font-semibold rounded-lg hover:bg-[#a50a09] transition shadow-md flex items-center gap-2">
-                                    <MessageSquare size={18} /> Respond / Counter
-                                </button>
-                                <button onClick={() => handleUpdateStatus(selectedQuote.id, selectedQuote.status === 'Client Accepted' ? 'Accepted' : 'Admin Accepted')} className="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition shadow-md flex items-center gap-2" title={selectedQuote.status === 'Client Accepted' ? 'Finalize Acceptance' : 'Accept Quote'}>
-                                    {selectedQuote.status === 'Client Accepted' ? <CheckCheck size={18} /> : <Check size={18} />}
-                                    {selectedQuote.status === 'Client Accepted' ? 'Finalize Acceptance' : 'Accept Quote'}
-                                </button>
-                            </div>
-                        )}
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-                        {/* Left Column: Order Details */}
-                        <div className="lg:col-span-2 space-y-8">
-                            <div className="space-y-3">
-                                <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center mb-4">
-                                    <Package size={20} className="mr-2 text-[#c20c0b]" /> Product Specifications
-                                </h3>
-                                <div className="hidden md:grid grid-cols-12 gap-4 w-full text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider px-4 mb-2">
-                                    <div className="col-span-4 text-left">Product</div>
-                                    <div className="col-span-2 text-center">Qty</div>
-                                    <div className="col-span-2 text-right">Target</div>
-                                    <div className="col-span-2 text-right">Quoted</div>
-                                    <div className="col-span-2"></div>
+                    {/* Zomato-style Tabs */}
+                    <div className="sticky top-0 z-30 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 bg-gray-50/95 dark:bg-gray-950/95 backdrop-blur-md py-3 mb-6 border-b border-gray-200 dark:border-gray-800">
+                        <div className="max-w-6xl mx-auto flex items-center gap-1 overflow-x-auto scrollbar-hide">
+                            {quoteTabs.map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveQuoteTab(tab.id)}
+                                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
+                                        activeQuoteTab === tab.id
+                                            ? 'bg-[#c20c0b] text-white shadow-md'
+                                            : 'text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800 hover:shadow-sm'
+                                    }`}
+                                >
+                                    {tab.icon}
+                                    <span>{tab.label}</span>
+                                    {tab.badge !== undefined && tab.badge > 0 && (
+                                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                                            activeQuoteTab === tab.id
+                                                ? 'bg-white/20 text-white'
+                                                : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                                        }`}>{tab.badge}</span>
+                                    )}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Tab Content */}
+                    <div className="space-y-6">
+                        {/* OVERVIEW TAB */}
+                        {activeQuoteTab === 'overview' && (
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
+                                {/* Status Timeline */}
+                                <div className="lg:col-span-2 bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-white/10">
+                                    <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                                        <Sparkles size={20} className="text-[#c20c0b]" /> Order Progress
+                                    </h3>
+                                    <StatusTimeline status={selectedQuote.status} />
+
+                                    {/* Quick Summary */}
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
+                                        <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 text-center">
+                                            <p className="text-2xl font-bold text-gray-900 dark:text-white">{selectedQuote.order?.lineItems?.length || 0}</p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Products</p>
+                                        </div>
+                                        <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 text-center">
+                                            <p className="text-2xl font-bold text-gray-900 dark:text-white">{selectedQuote.order?.lineItems?.reduce((acc: number, item: any) => acc + (item.qty || 0), 0).toLocaleString()}</p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Total Qty</p>
+                                        </div>
+                                        <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 text-center">
+                                            <p className="text-2xl font-bold text-[#c20c0b] dark:text-red-400">${selectedQuote.response_details?.price || '—'}</p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Quoted</p>
+                                        </div>
+                                        <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 text-center">
+                                            <p className="text-2xl font-bold text-gray-900 dark:text-white">{selectedQuote.response_details?.leadTime || '—'}</p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Lead Time</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Product Preview */}
+                                    <div className="mt-6">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <h4 className="font-semibold text-gray-800 dark:text-white">Products</h4>
+                                            <button onClick={() => setActiveQuoteTab('products')} className="text-sm text-[#c20c0b] font-medium hover:underline">View All →</button>
+                                        </div>
+                                        <div className="space-y-2">
+                                            {selectedQuote.order?.lineItems?.slice(0, 3).map((item: any, idx: number) => {
+                                                const itemResponse = selectedQuote.response_details?.lineItemResponses?.find((r: any) => r.lineItemId === item.id);
+                                                return (
+                                                    <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-8 h-8 rounded-lg bg-[#c20c0b]/10 flex items-center justify-center text-[#c20c0b] font-bold text-sm">{idx + 1}</div>
+                                                            <div>
+                                                                <p className="font-medium text-gray-900 dark:text-white text-sm">{item.category}</p>
+                                                                <p className="text-xs text-gray-500 dark:text-gray-400">{item.qty} units • {item.fabricQuality}</p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <p className="text-sm font-bold text-gray-900 dark:text-white">${itemResponse?.price || item.targetPrice}</p>
+                                                            {itemResponse?.price && <p className="text-[10px] text-gray-400">Target: ${item.targetPrice}</p>}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                            {selectedQuote.order?.lineItems?.length > 3 && (
+                                                <button onClick={() => setActiveQuoteTab('products')} className="w-full py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-[#c20c0b] transition-colors">
+                                                    +{selectedQuote.order.lineItems.length - 3} more products
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Admin Actions */}
+                                    {selectedQuote.status !== 'Accepted' && selectedQuote.status !== 'Declined' && (
+                                        <div className="flex flex-wrap justify-end gap-3 mt-6 pt-4 border-t border-gray-100 dark:border-white/10">
+                                            <button onClick={() => setIsDeclineModalOpen(true)} className="px-4 py-2 bg-white border border-red-200 text-red-600 font-semibold rounded-lg hover:bg-red-50 transition shadow-sm flex items-center gap-2">
+                                                <XCircle size={18} /> Decline
+                                            </button>
+                                            <button onClick={() => setIsResponseModalOpen(true)} className="px-4 py-2 bg-[#c20c0b] text-white font-semibold rounded-lg hover:bg-[#a50a09] transition shadow-md flex items-center gap-2">
+                                                <MessageSquare size={18} /> Respond
+                                            </button>
+                                            <button onClick={() => handleUpdateStatus(selectedQuote.id, selectedQuote.status === 'Client Accepted' ? 'Accepted' : 'Admin Accepted')} className="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition shadow-md flex items-center gap-2">
+                                                {selectedQuote.status === 'Client Accepted' ? <CheckCheck size={18} /> : <Check size={18} />}
+                                                {selectedQuote.status === 'Client Accepted' ? 'Finalize' : 'Accept'}
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
-                                
-                                {selectedQuote.order?.lineItems?.map((item, idx) => {
+
+                                {/* Sidebar */}
+                                <div className="space-y-6">
+                                    {/* Client Card */}
+                                    <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                                        <div className="bg-gradient-to-r from-blue-600 to-blue-500 px-5 py-3">
+                                            <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2"><User size={16} /> Client</h3>
+                                        </div>
+                                        <div className="p-5">
+                                            <div className="flex items-start gap-3 mb-4">
+                                                <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-lg">
+                                                    {selectedQuote.clientName?.charAt(0) || 'U'}
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-bold text-gray-900 dark:text-white">{selectedQuote.clientName}</h4>
+                                                    <p className="text-sm text-gray-500 dark:text-gray-300 flex items-center">
+                                                        <Building size={12} className="mr-1" /> {selectedQuote.companyName}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className="space-y-2 text-sm">
+                                                <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
+                                                    <Mail size={14} className="text-gray-400" /> {selectedQuote.clientEmail}
+                                                </div>
+                                                <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
+                                                    <Phone size={14} className="text-gray-400" /> {selectedQuote.clientPhone}
+                                                </div>
+                                                <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
+                                                    <MapPin size={14} className="text-gray-400" /> {selectedQuote.clientCountry}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Factory Card */}
+                                    <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                                        <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-5 py-3">
+                                            <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2"><Building size={16} /> Factory</h3>
+                                        </div>
+                                        <div className="p-5">
+                                            {selectedQuote.factory ? (
+                                                <div className="flex items-start gap-3">
+                                                    <img src={selectedQuote.factory.imageUrl} alt={selectedQuote.factory.name} className="w-12 h-12 rounded-lg object-cover border border-gray-100 dark:border-white/10" />
+                                                    <div>
+                                                        <h4 className="font-bold text-gray-900 dark:text-white">{selectedQuote.factory.name}</h4>
+                                                        <p className="text-sm text-gray-500 dark:text-gray-300 flex items-center mt-0.5">
+                                                            <MapPin size={12} className="mr-1" /> {selectedQuote.factory.location}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <p className="text-sm text-gray-500 dark:text-gray-300 italic">Open Request</p>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Logistics Card */}
+                                    <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                                        <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-5 py-3">
+                                            <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2"><Truck size={16} /> Logistics</h3>
+                                        </div>
+                                        <div className="p-5 space-y-3">
+                                            <div className="flex justify-between text-sm">
+                                                <span className="text-gray-500 dark:text-gray-300">Country</span>
+                                                <span className="font-medium text-gray-900 dark:text-white">{selectedQuote.order?.shippingCountry || 'N/A'}</span>
+                                            </div>
+                                            <div className="flex justify-between text-sm">
+                                                <span className="text-gray-500 dark:text-gray-300">Port</span>
+                                                <span className="font-medium text-gray-900 dark:text-white">{selectedQuote.order?.shippingPort || 'N/A'}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* PRODUCTS TAB */}
+                        {activeQuoteTab === 'products' && (
+                            <div className="animate-fade-in">
+                                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                                    <div className="p-5 border-b border-gray-100 dark:border-gray-800">
+                                        <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                            <Package size={20} className="text-[#c20c0b]" /> Product Specifications
+                                        </h3>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Click on any product to view details or set pricing</p>
+                                    </div>
+
+                                    {/* Product Header - Desktop */}
+                                    <div className="hidden md:grid grid-cols-12 gap-4 w-full text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider px-5 py-3 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800">
+                                        <div className="col-span-4 text-left">Product</div>
+                                        <div className="col-span-2 text-center">Qty</div>
+                                        <div className="col-span-2 text-right">Target</div>
+                                        <div className="col-span-2 text-right">Quoted</div>
+                                        <div className="col-span-2 text-right">Actions</div>
+                                    </div>
+
+                                    <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                                        {selectedQuote.order?.lineItems?.map((item: any, idx: number) => {
                                     const isExpanded = expandedItems.includes(idx);
                                     const itemResponse = selectedQuote.response_details?.lineItemResponses?.find(r => r.lineItemId === item.id);
                                     const history = getLineItemHistory(item.id);
@@ -1709,13 +1851,13 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                                                     .map(([size, ratio]) => (
                                                                     <div key={size} className="flex flex-col items-center justify-center bg-white dark:bg-gray-700 border border-gray-200 dark:border-white/10 rounded-md min-w-[3rem] py-1.5">
                                                                         <span className="text-xs font-bold text-gray-800 dark:text-white">{size}</span>
-                                                                        <span className="text-[10px] text-gray-500 dark:text-gray-200 font-medium">{ratio}</span>
+                                                                        <span className="text-[10px] text-gray-500 dark:text-gray-200 font-medium">{String(ratio)}</span>
                                                                     </div>
                                                                 ))}
                                                             </div>
                                                         ) : (
                                                             <div className="flex flex-wrap gap-2">
-                                                                {item.sizeRange.map(size => (
+                                                                {item.sizeRange.map((size: string) => (
                                                                     <span key={size} className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs font-medium rounded-full">{size}</span>
                                                                 ))}
                                                                 {item.customSize && <span className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-medium rounded-full">{item.customSize}</span>}
@@ -1926,165 +2068,225 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                 {/* Totals Footer (Mobile) */}
                                 <div className="md:hidden mt-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-white/10 flex justify-between items-center">
                                     <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Total Quantity</span>
-                                    <span className="text-sm font-bold text-gray-900 dark:text-white">{selectedQuote.order?.lineItems?.reduce((acc, item) => acc + (item.qty || 0), 0).toLocaleString()}</span>
+                                    <span className="text-sm font-bold text-gray-900 dark:text-white">{selectedQuote.order?.lineItems?.reduce((acc: number, item: any) => acc + (item.qty || 0), 0).toLocaleString()}</span>
+                                </div>
+                                    </div>
                                 </div>
                             </div>
+                        )}
 
-                            {/* Attachments Section */}
-                            <div className="bg-white/60 dark:bg-gray-800/40 p-6 rounded-xl border border-gray-200 dark:border-white/10 shadow-sm">
-                                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center">
-                                    <FileText size={20} className="mr-2 text-[#c20c0b]" /> Attachments
-                                </h3>
-                                {isLoadingFiles ? (
-                                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                                        <RefreshCw size={24} className="animate-spin mx-auto mb-2" />
-                                        <p className="text-sm">Loading attachments...</p>
+                        {/* TIMELINE TAB */}
+                        {activeQuoteTab === 'timeline' && (
+                            <div className="animate-fade-in space-y-6">
+                                {/* Negotiation Timeline Card */}
+                                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                                    <div className="p-5 border-b border-gray-100 dark:border-gray-800">
+                                        <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                            <History size={20} className="text-[#c20c0b]" /> Negotiation Timeline
+                                        </h3>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Track the quote negotiation progress</p>
                                     </div>
-                                ) : fileLinks.length > 0 ? (
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        {fileLinks.map((file, i) => {
-                                            const isImage = file.name.match(/\.(jpg|jpeg|png|gif|webp)$/i);
-                                            return (
-                                            <div key={i} className="flex items-center gap-3 p-4 rounded-xl bg-white dark:bg-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-white/10 transition-all group cursor-pointer" onClick={() => isImage ? openLightbox(file.url) : window.open(file.url, '_blank')}>
-                                                <div className="p-2.5 bg-gray-100 dark:bg-gray-800 rounded-lg text-[#c20c0b] shadow-sm overflow-hidden">
-                                                    {isImage ? (
-                                                        <img src={file.url} alt={file.name} className="w-6 h-6 object-cover" />
-                                                    ) : (
-                                                        <FileText size={20} />
-                                                    )}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{file.name}</p>
-                                                    <p className="text-xs text-gray-500 dark:text-gray-400 group-hover:text-[#c20c0b] transition-colors flex items-center gap-1">
-                                                        {isImage ? <><Eye size={12}/> Preview</> : 'Click to download'}
-                                                    </p>
-                                                </div>
-                                                <a href={file.url} target="_blank" rel="noopener noreferrer" className="p-2 text-gray-400 dark:text-gray-500 hover:text-[#c20c0b] transition-colors" title="Download" onClick={(e) => e.stopPropagation()}>
-                                                    <Download size={18} />
-                                                </a>
-                                            </div>
-                                        )})}
-                                    </div>
-                                ) : selectedQuote.files && selectedQuote.files.length > 0 ? (
-                                    <div className="text-center py-8 text-red-500 dark:text-red-400 italic bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800">
-                                        <p className="mb-2">Failed to load attachments.</p>
-                                        <button onClick={fetchSignedUrls} className="text-sm font-bold underline hover:text-red-700 dark:hover:text-red-300 flex items-center justify-center gap-1 mx-auto">
-                                            <RefreshCw size={14} /> Retry
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <div className="text-center py-8 text-gray-500 dark:text-gray-400 italic bg-gray-50 dark:bg-gray-700/30 rounded-xl border border-dashed border-gray-200 dark:border-white/10">
-                                        No attachments found for this quote.
-                                    </div>
-                                )}
-                            </div>
+                                    <div className="p-6">
+                                        <div className="relative">
+                                            {/* Horizontal Line */}
+                                            <div className="absolute top-5 left-0 w-full h-0.5 bg-gray-200 dark:bg-gray-700" />
 
-                            {/* Execution Plan Section */}
-                            <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden p-6 sm:p-8">
-                                <div 
-                                    className="flex justify-between items-center mb-8 cursor-pointer"
-                                    onClick={() => setIsExecutionPlanExpanded(!isExecutionPlanExpanded)}
-                                >
-                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
-                                        <ClipboardList size={24} className="mr-3 text-[#c20c0b]" /> Execution Plan
-                                    </h3>
-                                    <div className="flex items-center gap-3">
-                                        {isExecutionPlanExpanded && (
-                                            <>
-                                            <button 
-                                                onClick={toggleAllExecutionSteps}
-                                                className="text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors mr-2"
-                                            >
-                                                {expandedExecutionSteps.length === ((selectedQuote as any).execution_plan || DEFAULT_EXECUTION_PLAN).length ? 'Collapse All' : 'Expand All'}
-                                            </button>
-                                            <button 
-                                                onClick={(e) => { e.stopPropagation(); setIsExecutionPlanModalOpen(true); }}
-                                                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
-                                            >
-                                                <Edit size={16} /> Edit Plan
-                                            </button>
-                                            </>
-                                        )}
-                                        {isExecutionPlanExpanded ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
-                                    </div>
-                                </div>
-
-                                {isExecutionPlanExpanded && (
-                                <div className="relative animate-fade-in">
-                                    {/* Connecting Line */}
-                                    <div className="absolute left-6 top-4 bottom-4 w-0.5 bg-gray-200 dark:bg-gray-700"></div>
-
-                                    <div className="space-y-8">
-                                        {((selectedQuote as any).execution_plan || DEFAULT_EXECUTION_PLAN).map((step: ExecutionStep, index: number) => {
-                                            const color = STEP_COLORS[index % STEP_COLORS.length];
-                                            const isExpanded = expandedExecutionSteps.includes(index);
-                                            return (
-                                                <div 
-                                                    key={index} 
-                                                    className="relative flex items-start group animate-fade-in"
-                                                    style={{ animationDelay: `${index * 150}ms`, animationFillMode: 'both' }}
-                                                >
-                                                    {/* Step Number/Icon */}
-                                                    <div 
-                                                        className={`relative z-10 flex items-center justify-center w-12 h-12 rounded-full bg-white dark:bg-gray-800 border-2 shadow-sm shrink-0 group-hover:scale-110 transition-transform duration-300 cursor-pointer ${color.border} ${color.text} ${color.bg}`}
-                                                        onClick={() => toggleExecutionStep(index)}
-                                                    >
-                                                        {getStepIcon(index, step.title)}
-                                                    </div>
-                                                    
-                                                    {/* Content */}
-                                                    <div 
-                                                        className={`ml-6 flex-1 cursor-pointer rounded-xl border p-4 transition-all ${isExpanded ? 'bg-white dark:bg-gray-800 shadow-sm' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50 border-transparent'} ${isExpanded ? color.subtleBorder : ''}`} 
-                                                        onClick={() => toggleExecutionStep(index)}
-                                                    >
-                                                        <div className="flex items-center justify-between">
-                                                            <h4 className={`text-lg font-bold ${isExpanded ? color.text : 'text-gray-900 dark:text-white'} mb-1`}>{step.title}</h4>
-                                                            {isExpanded ? <ChevronUp size={16} className={color.text} /> : <ChevronDown size={16} className="text-gray-400" />}
+                                            <div className="flex gap-6 overflow-x-auto pb-6 pt-2 px-2">
+                                                {/* Initial Request Node */}
+                                                <div className="flex-shrink-0 w-64 relative pt-8">
+                                                    <div className="absolute top-4 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-gray-300 dark:bg-gray-600 border-2 border-white dark:border-gray-800 z-10" />
+                                                    <div className="bg-white dark:bg-gray-900/60 p-4 rounded-xl border border-gray-200 dark:border-white/10 shadow-sm h-full flex flex-col">
+                                                        <div className="flex justify-between items-center mb-2">
+                                                            <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Request</span>
+                                                            <span className="text-xs text-gray-400 dark:text-gray-500">{formatFriendlyDate(selectedQuote.submittedAt)}</span>
                                                         </div>
-                                                        {isExpanded && (
-                                                            <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed animate-fade-in mt-2">{step.description}</p>
-                                                        )}
+                                                        <p className="text-sm text-gray-700 dark:text-white font-medium">Initial Quote Request</p>
                                                     </div>
                                                 </div>
-                                            );
-                                        })}
+
+                                                {displayHistory.map((item, idx) => (
+                                                    <div key={idx} className="flex-shrink-0 w-72 relative pt-8">
+                                                        <div className={`absolute top-4 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full border-2 border-white dark:border-gray-800 z-10 ${item.sender === 'factory' ? 'bg-[#c20c0b]' : 'bg-blue-500'}`} />
+                                                        <div className={`p-4 rounded-xl border shadow-sm h-full flex flex-col ${item.sender === 'factory' ? 'bg-white dark:bg-gray-900/60 border-red-100 dark:border-red-900/30' : 'bg-white dark:bg-gray-900/60 border-blue-100 dark:border-blue-900/30'}`}>
+                                                            <div className="flex justify-between items-center mb-2">
+                                                                <span className={`text-xs font-bold uppercase ${item.sender === 'factory' ? 'text-[#c20c0b]' : 'text-blue-600'}`}>
+                                                                    {item.sender === 'factory' ? 'You' : 'Client'}
+                                                                </span>
+                                                                <span className="text-xs text-gray-400 dark:text-gray-500">
+                                                                    {formatFriendlyDate(item.timestamp)}
+                                                                </span>
+                                                            </div>
+                                                            {item.price && (
+                                                                <div className="mb-2">
+                                                                    <span className="text-lg font-bold text-gray-900 dark:text-white">${item.price}</span>
+                                                                    <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">/ unit</span>
+                                                                </div>
+                                                            )}
+                                                            <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap flex-grow">
+                                                                {item.message}
+                                                            </p>
+                                                            {item.action === 'accept' && <div className="mt-3 pt-2 border-t border-gray-100 dark:border-white/10 text-xs font-bold text-green-600 flex items-center gap-1"><CheckCircle size={12}/> Accepted</div>}
+                                                            {item.action === 'decline' && <div className="mt-3 pt-2 border-t border-gray-100 dark:border-white/10 text-xs font-bold text-red-600 flex items-center gap-1"><X size={12}/> Declined</div>}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Admin Actions */}
+                                        {selectedQuote.status !== 'Accepted' && selectedQuote.status !== 'Declined' && (
+                                            <div className="flex flex-wrap justify-end gap-3 pt-4 border-t border-gray-200 dark:border-white/10">
+                                                <button onClick={() => setIsDeclineModalOpen(true)} className="px-4 py-2 bg-white border border-red-200 text-red-600 font-semibold rounded-lg hover:bg-red-50 transition shadow-sm flex items-center gap-2">
+                                                    <XCircle size={18} /> Decline
+                                                </button>
+                                                <button onClick={() => setIsResponseModalOpen(true)} className="px-4 py-2 bg-[#c20c0b] text-white font-semibold rounded-lg hover:bg-[#a50a09] transition shadow-md flex items-center gap-2">
+                                                    <MessageSquare size={18} /> Respond
+                                                </button>
+                                                <button onClick={() => handleUpdateStatus(selectedQuote.id, selectedQuote.status === 'Client Accepted' ? 'Accepted' : 'Admin Accepted')} className="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition shadow-md flex items-center gap-2">
+                                                    {selectedQuote.status === 'Client Accepted' ? <CheckCheck size={18} /> : <Check size={18} />}
+                                                    {selectedQuote.status === 'Client Accepted' ? 'Finalize' : 'Accept'}
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
-                                )}
-                            </div>
-                        </div>
 
-                        {/* Right Column: Logistics & Factory */}
-                        <div className="space-y-6">
-                            <div className="bg-white/60 dark:bg-gray-800/40 p-6 rounded-xl border border-gray-200 dark:border-white/10 shadow-sm">
-                                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center"><Building size={20} className="mr-2 text-[#c20c0b]"/> Target Factory</h3>
-                                {selectedQuote.factory?.name ? (
-                                    <div className="flex items-center gap-4">
-                                        <img src={selectedQuote.factory.imageUrl} alt={selectedQuote.factory.name} className="w-16 h-16 rounded-lg object-cover border border-gray-100 dark:border-gray-600"/>
-                                        <div>
-                                            <p className="font-bold text-gray-900 dark:text-white">{selectedQuote.factory.name}</p>
-                                            <p className="text-sm text-gray-500 dark:text-white flex items-center mt-1"><MapPin size={12} className="mr-1"/> {selectedQuote.factory.location}</p>
+                                {/* Execution Plan Section */}
+                                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden p-6 sm:p-8">
+                                    <div
+                                        className="flex justify-between items-center mb-8 cursor-pointer"
+                                        onClick={() => setIsExecutionPlanExpanded(!isExecutionPlanExpanded)}
+                                    >
+                                        <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
+                                            <ClipboardList size={24} className="mr-3 text-[#c20c0b]" /> Execution Plan
+                                        </h3>
+                                        <div className="flex items-center gap-3">
+                                            {isExecutionPlanExpanded && (
+                                                <>
+                                                <button
+                                                    onClick={toggleAllExecutionSteps}
+                                                    className="text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors mr-2"
+                                                >
+                                                    {expandedExecutionSteps.length === ((selectedQuote as any).execution_plan || DEFAULT_EXECUTION_PLAN).length ? 'Collapse All' : 'Expand All'}
+                                                </button>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); setIsExecutionPlanModalOpen(true); }}
+                                                    className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                                                >
+                                                    <Edit size={16} /> Edit Plan
+                                                </button>
+                                                </>
+                                            )}
+                                            {isExecutionPlanExpanded ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
                                         </div>
                                     </div>
-                                ) : (
-                                    <div className="text-gray-500 dark:text-white italic bg-gray-50 dark:bg-gray-700/30 p-4 rounded-lg text-center">General Inquiry (No specific factory selected)</div>
-                                )}
-                            </div>
-                            
-                            <div className="bg-white/60 dark:bg-gray-800/40 p-6 rounded-xl border border-gray-200 dark:border-white/10 shadow-sm">
-                                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center"><MapPin size={20} className="mr-2 text-[#c20c0b]"/> Logistics</h3>
-                                <div className="space-y-4">
-                                    <div className="flex justify-between border-b border-gray-100 dark:border-white/10 pb-2">
-                                        <span className="text-sm text-gray-500 dark:text-white">Destination Country</span>
-                                        <span className="text-sm font-semibold text-gray-900 dark:text-white">{selectedQuote.order?.shippingCountry || 'N/A'}</span>
+
+                                    {isExecutionPlanExpanded && (
+                                    <div className="relative animate-fade-in">
+                                        {/* Connecting Line */}
+                                        <div className="absolute left-6 top-4 bottom-4 w-0.5 bg-gray-200 dark:bg-gray-700"></div>
+
+                                        <div className="space-y-8">
+                                            {((selectedQuote as any).execution_plan || DEFAULT_EXECUTION_PLAN).map((step: ExecutionStep, index: number) => {
+                                                const color = STEP_COLORS[index % STEP_COLORS.length];
+                                                const isStepExpanded = expandedExecutionSteps.includes(index);
+                                                return (
+                                                    <div
+                                                        key={index}
+                                                        className="relative flex items-start group animate-fade-in"
+                                                        style={{ animationDelay: `${index * 150}ms`, animationFillMode: 'both' }}
+                                                    >
+                                                        {/* Step Number/Icon */}
+                                                        <div
+                                                            className={`relative z-10 flex items-center justify-center w-12 h-12 rounded-full bg-white dark:bg-gray-800 border-2 shadow-sm shrink-0 group-hover:scale-110 transition-transform duration-300 cursor-pointer ${color.border} ${color.text} ${color.bg}`}
+                                                            onClick={() => toggleExecutionStep(index)}
+                                                        >
+                                                            {getStepIcon(index, step.title)}
+                                                        </div>
+
+                                                        {/* Content */}
+                                                        <div
+                                                            className={`ml-6 flex-1 cursor-pointer rounded-xl border p-4 transition-all ${isStepExpanded ? 'bg-white dark:bg-gray-800 shadow-sm' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50 border-transparent'} ${isStepExpanded ? color.subtleBorder : ''}`}
+                                                            onClick={() => toggleExecutionStep(index)}
+                                                        >
+                                                            <div className="flex items-center justify-between">
+                                                                <h4 className={`text-lg font-bold ${isStepExpanded ? color.text : 'text-gray-900 dark:text-white'} mb-1`}>{step.title}</h4>
+                                                                {isStepExpanded ? <ChevronUp size={16} className={color.text} /> : <ChevronDown size={16} className="text-gray-400" />}
+                                                            </div>
+                                                            {isStepExpanded && (
+                                                                <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed animate-fade-in mt-2">{step.description}</p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
-                                    <div className="flex justify-between border-b border-gray-100 dark:border-white/10 pb-2">
-                                        <span className="text-sm text-gray-500 dark:text-white">Destination Port</span>
-                                        <span className="text-sm font-semibold text-gray-900 dark:text-white">{selectedQuote.order?.shippingPort || 'N/A'}</span>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* FILES TAB */}
+                        {activeQuoteTab === 'files' && (
+                            <div className="animate-fade-in">
+                                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                                    <div className="p-5 border-b border-gray-100 dark:border-gray-800">
+                                        <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                            <FileText size={20} className="text-[#c20c0b]" /> Attachments
+                                        </h3>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Sample images, tech packs, and documents</p>
+                                    </div>
+                                    <div className="p-6">
+                                        {isLoadingFiles ? (
+                                            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                                                <RefreshCw size={24} className="animate-spin mx-auto mb-2" />
+                                                <p className="text-sm">Loading attachments...</p>
+                                            </div>
+                                        ) : fileLinks.length > 0 ? (
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                {fileLinks.map((file, i) => {
+                                                    const isImage = file.name.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+                                                    return (
+                                                    <div key={i} className="group relative rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden hover:shadow-lg transition-all cursor-pointer" onClick={() => isImage ? openLightbox(file.url) : window.open(file.url, '_blank')}>
+                                                        {isImage ? (
+                                                            <div className="aspect-video bg-gray-100 dark:bg-gray-800">
+                                                                <img src={file.url} alt={file.name} className="w-full h-full object-cover" />
+                                                            </div>
+                                                        ) : (
+                                                            <div className="aspect-video bg-gray-50 dark:bg-gray-800 flex items-center justify-center">
+                                                                <FileText size={48} className="text-gray-300 dark:text-gray-600" />
+                                                            </div>
+                                                        )}
+                                                        <div className="p-3 bg-white dark:bg-gray-900">
+                                                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{file.name}</p>
+                                                            <p className="text-xs text-gray-500 dark:text-gray-400 group-hover:text-[#c20c0b] transition-colors">
+                                                                {isImage ? 'Click to preview' : 'Click to download'}
+                                                            </p>
+                                                        </div>
+                                                        <a href={file.url} target="_blank" rel="noopener noreferrer" className="absolute top-2 right-2 p-2 bg-white/80 dark:bg-gray-800/80 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity text-gray-600 hover:text-[#c20c0b]" title="Download" onClick={(e) => e.stopPropagation()}>
+                                                            <Download size={16} />
+                                                        </a>
+                                                    </div>
+                                                )})}
+                                            </div>
+                                        ) : selectedQuote.files && selectedQuote.files.length > 0 ? (
+                                            <div className="text-center py-8 text-red-500 dark:text-red-400 italic bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800">
+                                                <p className="mb-2">Failed to load attachments.</p>
+                                                <button onClick={fetchSignedUrls} className="text-sm font-bold underline hover:text-red-700 dark:hover:text-red-300 flex items-center justify-center gap-1 mx-auto">
+                                                    <RefreshCw size={14} /> Retry
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="text-center py-12 text-gray-500 dark:text-gray-400 italic bg-gray-50 dark:bg-gray-700/30 rounded-xl border border-dashed border-gray-200 dark:border-white/10">
+                                                <FileText size={48} className="mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+                                                <p>No attachments found for this quote.</p>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        )}
                     </div>
 
                     {isResponseModalOpen && (
