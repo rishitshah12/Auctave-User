@@ -561,6 +561,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
 
     const [orderType, setOrderType] = useState<'new' | 'existing'>('new');
     const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
+    const [showLandingPage, setShowLandingPage] = useState(true);
     const [errors, setErrors] = useState<Record<string, string>>({});
     // Track step per product - each product maintains its own step position
     const [productSteps, setProductSteps] = useState<Record<number, number>>({ 0: 1 });
@@ -702,6 +703,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
 
     const handleOrderTypeChange = (type: 'new' | 'existing') => {
         setOrderType(type);
+        setShowLandingPage(false);
         setSelectedQuoteId(null);
         // Reset form to default state
         setFormState({
@@ -1290,24 +1292,177 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
         // Wrap the page content in the MainLayout to ensure consistent navigation and styling.
         <MainLayout {...props}>
             <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                {/* Header Section: Title and Back Button */}
-                <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div>
-                        <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 dark:text-white mb-2">
-                                {orderType === 'existing' ? 'Expand Request' : 'Create Your Order'}
-                        </h2>
-                        <p className="text-gray-500 dark:text-gray-400 font-medium">
-                                {orderType === 'existing'
-                                    ? 'Add items to an existing quote.'
-                                    : 'Tell us what you need, we\'ll find the factory.'}
-                        </p>
+
+                {/* Landing Page - Shown First */}
+                {showLandingPage ? (
+                    <div className="animate-fade-in">
+                        {/* Back Button */}
+                        <div className="mb-8">
+                            <button onClick={() => handleSetCurrentPage('sourcing')} className="group flex items-center px-4 py-2 text-sm font-bold text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 rounded-full shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md hover:text-[#c20c0b] dark:hover:text-[#c20c0b] transition-all">
+                                <ChevronLeft className="h-4 w-4 mr-1 group-hover:-translate-x-1 transition-transform" />
+                                Back
+                            </button>
+                        </div>
+
+                        {/* Quirky Header with Gradient */}
+                        <div className="text-center mb-16">
+                            <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 rounded-full mb-6">
+                                <Sparkles className="w-4 h-4 text-orange-500" />
+                                <span className="text-sm font-semibold text-gray-600 dark:text-gray-300">Let's build something amazing</span>
+                            </div>
+                            <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-gray-900 dark:text-white mb-4 leading-tight">
+                                Ready to source your{' '}
+                                <span className="bg-gradient-to-r from-[#c20c0b] via-orange-500 to-amber-500 bg-clip-text text-transparent">
+                                    next big thing
+                                </span>
+                                ?
+                            </h1>
+                            <p className="text-lg md:text-xl text-gray-500 dark:text-gray-400 max-w-2xl mx-auto">
+                                Whether you're starting fresh or expanding your collection, we've got you covered.
+                            </p>
+                        </div>
+
+                        {/* Interactive Cards */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+                            {/* New Quote Card */}
+                            <button
+                                onClick={() => handleOrderTypeChange('new')}
+                                className="group relative overflow-hidden bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-3xl p-8 text-left transition-all duration-500 hover:border-[#c20c0b] hover:shadow-2xl hover:shadow-red-500/10 hover:-translate-y-2"
+                            >
+                                {/* Background Gradient on Hover */}
+                                <div className="absolute inset-0 bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-900/10 dark:to-orange-900/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+
+                                {/* Icon */}
+                                <div className="relative mb-6">
+                                    <div className="w-16 h-16 bg-gradient-to-br from-[#c20c0b] to-orange-500 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">
+                                        <Sparkles className="w-8 h-8 text-white" />
+                                    </div>
+                                    <div className="absolute -top-1 -right-1 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 delay-100">
+                                        <Plus className="w-4 h-4 text-white" />
+                                    </div>
+                                </div>
+
+                                {/* Content */}
+                                <div className="relative">
+                                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2 group-hover:text-[#c20c0b] transition-colors">
+                                        New Quote
+                                    </h3>
+                                    <p className="text-gray-500 dark:text-gray-400 mb-6">
+                                        Start a fresh RFQ from scratch. Define your products, specs, and shipping requirements.
+                                    </p>
+
+                                    {/* Features */}
+                                    <div className="space-y-2 mb-6">
+                                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                                            <Check className="w-4 h-4 text-green-500" />
+                                            <span>Multiple product types</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                                            <Check className="w-4 h-4 text-green-500" />
+                                            <span>Custom specifications</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                                            <Check className="w-4 h-4 text-green-500" />
+                                            <span>Global shipping options</span>
+                                        </div>
+                                    </div>
+
+                                    {/* CTA */}
+                                    <div className="flex items-center gap-2 text-[#c20c0b] font-bold group-hover:gap-4 transition-all">
+                                        <span>Get Started</span>
+                                        <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                    </div>
+                                </div>
+                            </button>
+
+                            {/* Add to Existing Card */}
+                            <button
+                                onClick={() => handleOrderTypeChange('existing')}
+                                className="group relative overflow-hidden bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-3xl p-8 text-left transition-all duration-500 hover:border-[#c20c0b] hover:shadow-2xl hover:shadow-red-500/10 hover:-translate-y-2"
+                            >
+                                {/* Background Gradient on Hover */}
+                                <div className="absolute inset-0 bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-900/10 dark:to-blue-900/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+
+                                {/* Icon */}
+                                <div className="relative mb-6">
+                                    <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-blue-500 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 group-hover:-rotate-3 transition-all duration-500">
+                                        <Box className="w-8 h-8 text-white" />
+                                    </div>
+                                    <div className="absolute -top-1 -right-1 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 delay-100">
+                                        <Plus className="w-4 h-4 text-white" />
+                                    </div>
+                                </div>
+
+                                {/* Content */}
+                                <div className="relative">
+                                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2 group-hover:text-purple-600 transition-colors">
+                                        Add to Existing
+                                    </h3>
+                                    <p className="text-gray-500 dark:text-gray-400 mb-6">
+                                        Expand an existing quote with new products. Same shipping, new possibilities.
+                                    </p>
+
+                                    {/* Features */}
+                                    <div className="space-y-2 mb-6">
+                                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                                            <Check className="w-4 h-4 text-green-500" />
+                                            <span>Existing shipping details</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                                            <Check className="w-4 h-4 text-green-500" />
+                                            <span>Quick product additions</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                                            <Check className="w-4 h-4 text-green-500" />
+                                            <span>Consolidated quotes</span>
+                                        </div>
+                                    </div>
+
+                                    {/* CTA */}
+                                    <div className="flex items-center gap-2 text-purple-600 font-bold group-hover:gap-4 transition-all">
+                                        <span>Select Quote</span>
+                                        <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                    </div>
+                                </div>
+
+                                {/* Badge showing number of existing quotes */}
+                                {quoteRequests.filter(q => q.status !== 'Trashed').length > 0 && (
+                                    <div className="absolute top-4 right-4 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 text-xs font-bold px-2.5 py-1 rounded-full">
+                                        {quoteRequests.filter(q => q.status !== 'Trashed').length} quotes
+                                    </div>
+                                )}
+                            </button>
+                        </div>
+
+                        {/* Fun floating elements */}
+                        <div className="relative max-w-4xl mx-auto mt-12 text-center">
+                            <div className="inline-flex items-center gap-3 px-6 py-3 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-200 dark:border-gray-700">
+                                <Zap className="w-5 h-5 text-amber-500" />
+                                <span className="text-sm text-gray-600 dark:text-gray-300">
+                                    <span className="font-semibold text-gray-900 dark:text-white">Pro tip:</span> Save time by duplicating products with similar specs
+                                </span>
+                            </div>
+                        </div>
                     </div>
-                    {/* Button to navigate back to the main sourcing page */}
-                    <button onClick={() => handleSetCurrentPage('sourcing')} className="group flex items-center px-4 py-2 text-sm font-bold text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 rounded-full shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md hover:text-[#c20c0b] dark:hover:text-[#c20c0b] transition-all">
-                        <ChevronLeft className="h-4 w-4 mr-1 group-hover:-translate-x-1 transition-transform" />
-                        Back
-                    </button>
-                </div>
+                ) : (
+                    <>
+                        {/* Form Page - Header Section */}
+                        <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                            <div>
+                                <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 dark:text-white mb-2">
+                                        {orderType === 'existing' ? 'Expand Request' : 'Create Your Order'}
+                                </h2>
+                                <p className="text-gray-500 dark:text-gray-400 font-medium">
+                                        {orderType === 'existing'
+                                            ? 'Add items to an existing quote.'
+                                            : 'Tell us what you need, we\'ll find the factory.'}
+                                </p>
+                            </div>
+                            <button onClick={() => setShowLandingPage(true)} className="group flex items-center px-4 py-2 text-sm font-bold text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 rounded-full shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md hover:text-[#c20c0b] dark:hover:text-[#c20c0b] transition-all">
+                                <ChevronLeft className="h-4 w-4 mr-1 group-hover:-translate-x-1 transition-transform" />
+                                Back
+                            </button>
+                        </div>
 
                 <div className="space-y-8">
                     <div className="flex gap-4 p-1 bg-white dark:bg-gray-800 rounded-xl w-fit border border-gray-200 dark:border-gray-700">
@@ -2184,6 +2339,8 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                         `}</style>
                     </div>,
                     document.body
+                )}
+                    </>
                 )}
             </div>
         </MainLayout>
