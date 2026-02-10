@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import confetti from 'canvas-confetti';
 // Import specific icons from the 'lucide-react' library to use in the form UI.
 import {
-    Shirt, Package, Award, Weight, Palette, DollarSign, Map as MapIcon, Box, Tag, ChevronLeft, Ruler, Scissors, Image as ImageIcon, FileText, Upload, AlertCircle, Globe, Anchor, Plus, Trash2, Copy, X, ChevronRight, Check, ArrowRight, SkipForward, Save, ChevronDown, Eye
+    Shirt, Package, Award, Weight, Palette, DollarSign, Map as MapIcon, Box, Tag, ChevronLeft, Ruler, Scissors, Image as ImageIcon, FileText, Upload, AlertCircle, Globe, Anchor, Plus, Trash2, Copy, X, ChevronRight, Check, ArrowRight, SkipForward, Save, ChevronDown, Eye, Sparkles, Zap, Wand2, Edit
 } from 'lucide-react';
 // Import the main layout wrapper which provides the sidebar and header structure.
 import { MainLayout } from '../src/MainLayout';
@@ -54,16 +54,54 @@ const CATEGORY_ICONS: Record<string, string> = {
     'default': '👚',
 };
 
+const CATEGORY_OPTIONS = [
+    { id: 'T-shirt', label: 'T-Shirt', image: 'https://cpimg.tistatic.com/10767006/b/4/Plain-Cotton-Yellow-T-Shirt..jpg' },
+    { id: 'Polo Shirt', label: 'Polo Shirt', image: 'https://warriorworld.in/cdn/shop/files/P3017-Black.jpg?v=1755498342' },
+    { id: 'Hoodies', label: 'Hoodies', image: 'https://images.unsplash.com/photo-1556821840-3a63f95609a7?auto=format&fit=crop&w=400&q=80' },
+    { id: 'Jeans', label: 'Jeans', image: 'https://www.ruff.in/cdn/shop/files/JK-12124-DENIMX_1_-min_e4ed2a01-c1f9-4685-b52b-1eb881ec1b8e.jpg?v=1739363803&width=1090://images.unsplash.com/photo--08f086302542?auto=format&fit=crop&w=400&q=80' },
+    { id: 'Jackets', label: 'Jackets', image: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?auto=format&fit=crop&w=400&q=80' },
+    { id: 'Shirts', label: 'Formal Shirts', image: 'https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?auto=format&fit=crop&w=400&q=80' },
+    { id: 'Casual Shirts', label: 'Casual Shirts', image: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=400&q=80' },
+    { id: 'Trousers', label: 'Trousers', image: 'https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?auto=format&fit=crop&w=400&q=80' },
+];
+
+const FABRIC_SUGGESTIONS = [
+    "100% Cotton", "100% Organic Cotton", "Polyester", "Cotton/Poly Blend", "French Terry", "Denim", "Linen", "Bamboo"
+];
+
+const SLEEVE_OPTIONS = [
+    { id: 'Short Sleeve', label: 'Short Sleeve', image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=300&q=80' },
+    { id: 'Long Sleeve', label: 'Long Sleeve', image: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS2HAKU0Xms7S4pHBtG3X3ZNRql79EVDOW3zw&ssl=1' },
+    { id: 'Sleeveless', label: 'Sleeveless', image: 'https://thebanyantee.com/cdn/shop/files/custom-vest-black.png?v=1720260429&width=1445' },
+    { id: 'Raglan', label: 'Raglan', image: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRomomQv6-ImLcyJM4sto1ljljo9wFPGyyIKg&s' },
+];
+
+const PRINT_OPTIONS = [
+    { id: 'Screen Print', label: 'Screen Print', image: 'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?auto=format&fit=crop&w=300&q=80' },
+    { id: 'Digital Print', label: 'Digital Print', image: 'https://images.unsplash.com/photo-1564584217132-2271feaeb3c5?auto=format&fit=crop&w=300&q=80' },
+    { id: 'Embroidery', label: 'Embroidery', image: 'https://qikink.com/_next/image?url=%2Fimages%2Fcustom-embroidery%2Fcustom-embroidery.png&w=3840&q=75' },
+    { id: 'Heat Transfer', label: 'Heat Transfer', image: 'https://images.unsplash.com/photo-1562157873-818bc0726f68?auto=format&fit=crop&w=300&q=80' },
+    { id: 'None', label: 'Solid / None', image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=300&q=80' },
+];
+
+const PACKAGING_OPTIONS = [
+    { id: 'Individual Polybag', label: 'Polybag', image: 'https://5.imimg.com/data5/GG/PB/MY-45570512/t-shirts-packing-bags-500x500.jpg' },
+    { id: 'Bulk Packed', label: 'Carton', image: 'https://www.packingsupply.in/web/templates/images/products/1523101691-Rectangle-corrugated-boxes-cartons.jpg' },
+    { id: 'Custom Box', label: 'Custom Box', image: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTsCWSiMP9EOL7LGe0qa605OaPsyDGIxMAodg&s' },
+    { id: 'Hang Tag & Folded', label: 'Compressed', image: 'https://i.pinimg.com/736x/30/5d/84/305d84045ba88b0f5ee27c204696accd.jpg' },
+    { id: 'Eco-friendly Packaging', label: 'Eco-Friendly', image: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQhu7csV4WhSkWpYNLizVqx0M6MlOieScyPCA&s' },
+];
+
 // Product accent colors for visual distinction
 const PRODUCT_COLORS = [
-    { bg: 'bg-red-500', light: 'bg-red-50 dark:bg-red-900/20', border: 'border-red-500', text: 'text-red-600 dark:text-red-400' },
-    { bg: 'bg-blue-500', light: 'bg-blue-50 dark:bg-blue-900/20', border: 'border-blue-500', text: 'text-blue-600 dark:text-blue-400' },
-    { bg: 'bg-emerald-500', light: 'bg-emerald-50 dark:bg-emerald-900/20', border: 'border-emerald-500', text: 'text-emerald-600 dark:text-emerald-400' },
-    { bg: 'bg-purple-500', light: 'bg-purple-50 dark:bg-purple-900/20', border: 'border-purple-500', text: 'text-purple-600 dark:text-purple-400' },
-    { bg: 'bg-amber-500', light: 'bg-amber-50 dark:bg-amber-900/20', border: 'border-amber-500', text: 'text-amber-600 dark:text-amber-400' },
-    { bg: 'bg-cyan-500', light: 'bg-cyan-50 dark:bg-cyan-900/20', border: 'border-cyan-500', text: 'text-cyan-600 dark:text-cyan-400' },
-    { bg: 'bg-pink-500', light: 'bg-pink-50 dark:bg-pink-900/20', border: 'border-pink-500', text: 'text-pink-600 dark:text-pink-400' },
-    { bg: 'bg-indigo-500', light: 'bg-indigo-50 dark:bg-indigo-900/20', border: 'border-indigo-500', text: 'text-indigo-600 dark:text-indigo-400' },
+    { bg: 'bg-red-500', light: 'bg-red-50 dark:bg-red-900/20', border: 'border-red-500', text: 'text-red-600 dark:text-red-400', ring: 'ring-red-500' },
+    { bg: 'bg-blue-500', light: 'bg-blue-50 dark:bg-blue-900/20', border: 'border-blue-500', text: 'text-blue-600 dark:text-blue-400', ring: 'ring-blue-500' },
+    { bg: 'bg-emerald-500', light: 'bg-emerald-50 dark:bg-emerald-900/20', border: 'border-emerald-500', text: 'text-emerald-600 dark:text-emerald-400', ring: 'ring-emerald-500' },
+    { bg: 'bg-purple-500', light: 'bg-purple-50 dark:bg-purple-900/20', border: 'border-purple-500', text: 'text-purple-600 dark:text-purple-400', ring: 'ring-purple-500' },
+    { bg: 'bg-amber-500', light: 'bg-amber-50 dark:bg-amber-900/20', border: 'border-amber-500', text: 'text-amber-600 dark:text-amber-400', ring: 'ring-amber-500' },
+    { bg: 'bg-cyan-500', light: 'bg-cyan-50 dark:bg-cyan-900/20', border: 'border-cyan-500', text: 'text-cyan-600 dark:text-cyan-400', ring: 'ring-cyan-500' },
+    { bg: 'bg-pink-500', light: 'bg-pink-50 dark:bg-pink-900/20', border: 'border-pink-500', text: 'text-pink-600 dark:text-pink-400', ring: 'ring-pink-500' },
+    { bg: 'bg-indigo-500', light: 'bg-indigo-50 dark:bg-indigo-900/20', border: 'border-indigo-500', text: 'text-indigo-600 dark:text-indigo-400', ring: 'ring-indigo-500' },
 ];
 
 // Calculate product completion percentage
@@ -395,25 +433,25 @@ const FileDropZone: FC<{
     const inputId = `file-upload-${label.replace(/\s+/g, '-').toLowerCase()}`;
 
     return (
-        <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">{label}</label>
+        <div className="space-y-3">
+            <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">{label}</label>
             <div
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
-                className={`border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center text-center transition-colors ${
+                className={`border-2 border-dashed rounded-2xl p-8 flex flex-col items-center justify-center text-center transition-all duration-300 cursor-pointer group relative ${
                     isDragging
-                        ? 'border-[#c20c0b] bg-red-50 dark:bg-red-900/10'
-                        : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                        ? 'border-[#c20c0b] bg-red-50 dark:bg-red-900/20 scale-[1.02]'
+                        : 'border-gray-300 dark:border-gray-600 hover:border-[#c20c0b] hover:bg-gray-50 dark:hover:bg-gray-800/50'
                 }`}
             >
-                <div className="mb-3 p-3 bg-gray-100 dark:bg-gray-700 rounded-full text-gray-500 dark:text-gray-400">
+                <div className={`mb-4 p-4 rounded-full transition-colors ${isDragging ? 'bg-white text-[#c20c0b]' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 group-hover:text-[#c20c0b] group-hover:bg-white'}`}>
                     {icon}
                 </div>
-                <p className="text-sm text-gray-600 dark:text-gray-200 mb-1">
-                    <span className="font-semibold text-[#c20c0b]">Click to upload</span> or drag and drop
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                    <span className="text-[#c20c0b] underline decoration-dotted">Click to upload</span> or drag and drop
                 </p>
-                <p className="text-xs text-gray-500 dark:text-gray-200 mb-4">
+                <p className="text-xs text-gray-400 mt-1">
                     {accept.replace(/\./g, '').toUpperCase().split(',').join(', ')} (Max 50MB)
                 </p>
                 <input
@@ -424,115 +462,41 @@ const FileDropZone: FC<{
                     className="hidden"
                     id={inputId}
                 />
-                <label
-                    htmlFor={inputId}
-                    className="cursor-pointer px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors shadow-sm"
-                >
-                    Select Files
-                </label>
+                <label htmlFor={inputId} className="absolute inset-0 cursor-pointer" />
             </div>
 
-            {/* File List / Previews */}
+            {/* File Grid / Previews */}
             {selectedFiles.length > 0 && (
-                <div className="mt-3 space-y-2 animate-fade-in">
-                    <div className="flex justify-between items-center">
-                        <p className="text-xs font-medium text-gray-500 dark:text-gray-200">{selectedFiles.length} file(s) selected</p>
-                        <button
-                            type="button"
-                            onClick={() => onFilesSelected([])}
-                            className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1"
-                        >
-                            <Trash2 size={12} /> Clear All
-                        </button>
-                    </div>
-
-                    {previews && previews.length > 0 ? (
-                        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                            {previews.map((src, idx) => (
-                                <div key={idx} className="relative w-16 h-16 flex-shrink-0 rounded-md overflow-hidden border border-gray-200 dark:border-gray-700 group">
-                                    <img src={src} alt="Preview" className="w-full h-full object-cover" />
-                                    {/* Hover overlay with preview/delete buttons */}
-                                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
-                                        <button
-                                            type="button"
-                                            onClick={() => handlePreviewFile(selectedFiles[idx], src)}
-                                            className="p-1 bg-white/90 rounded-full hover:bg-white transition-colors"
-                                            title="Preview"
-                                        >
-                                            <Eye size={12} className="text-gray-700" />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => handleRemoveFile(idx)}
-                                            className="p-1 bg-white/90 rounded-full hover:bg-white transition-colors"
-                                            title="Delete"
-                                        >
-                                            <Trash2 size={12} className="text-red-500" />
-                                        </button>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mt-4">
+                    {selectedFiles.map((file, idx) => (
+                        <div key={idx} className="relative group rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all">
+                            {previews && previews[idx] ? (
+                                <div className="aspect-square relative">
+                                    <img src={previews[idx]} alt="Preview" className="w-full h-full object-cover" />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                        <button type="button" onClick={() => handlePreviewFile(file, previews[idx])} className="p-1.5 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/40"><Eye size={16}/></button>
+                                        <button type="button" onClick={() => handleRemoveFile(idx)} className="p-1.5 bg-red-500/80 backdrop-blur-md rounded-full text-white hover:bg-red-600"><Trash2 size={16}/></button>
                                     </div>
                                 </div>
-                            ))}
+                            ) : (
+                                <div className="p-3 flex items-center gap-2">
+                                    <FileText size={20} className="text-gray-400" />
+                                    <span className="text-xs truncate flex-1">{file.name}</span>
+                                    <button type="button" onClick={() => handleRemoveFile(idx)} className="text-red-500 hover:text-red-700"><X size={14}/></button>
+                                </div>
+                            )}
                         </div>
-                    ) : (
-                        <ul className="space-y-1 max-h-32 overflow-y-auto pr-1 custom-scrollbar">
-                            {selectedFiles.map((file, idx) => (
-                                <li key={idx} className="text-xs text-gray-600 dark:text-gray-200 flex items-center bg-gray-50 dark:bg-gray-800 p-1.5 rounded border border-gray-100 dark:border-gray-700 group">
-                                    <FileText size={12} className="mr-2 text-gray-400 flex-shrink-0" />
-                                    <span className="truncate flex-1">{file.name}</span>
-                                    <span className="ml-2 text-gray-400 text-[10px]">({(file.size / 1024).toFixed(0)} KB)</span>
-                                    {/* Preview and delete buttons */}
-                                    <div className="ml-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button
-                                            type="button"
-                                            onClick={() => handlePreviewFile(file)}
-                                            className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
-                                            title="Preview"
-                                        >
-                                            <Eye size={12} className="text-gray-500 dark:text-gray-400" />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => handleRemoveFile(idx)}
-                                            className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors"
-                                            title="Delete"
-                                        >
-                                            <Trash2 size={12} className="text-red-500" />
-                                        </button>
-                                    </div>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
+                    ))}
                 </div>
             )}
 
             {/* Image Preview Modal */}
             {previewModal && createPortal(
-                <div
-                    className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70"
-                    onClick={() => setPreviewModal(null)}
-                >
-                    <div
-                        className="relative max-w-4xl max-h-[90vh] bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-2xl"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-700">
-                            <span className="text-sm font-medium text-gray-700 dark:text-white truncate max-w-md">{previewModal.name}</span>
-                            <button
-                                type="button"
-                                onClick={() => setPreviewModal(null)}
-                                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
-                            >
-                                <X size={20} className="text-gray-500 dark:text-gray-400" />
-                            </button>
-                        </div>
-                        <div className="p-4">
-                            <img
-                                src={previewModal.src}
-                                alt={previewModal.name}
-                                className="max-w-full max-h-[70vh] object-contain mx-auto"
-                            />
-                        </div>
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => setPreviewModal(null)}>
+                    <div className="relative max-w-4xl max-h-[90vh] bg-white dark:bg-gray-900 rounded-2xl overflow-hidden shadow-2xl animate-fade-in" onClick={e => e.stopPropagation()}>
+                        <button type="button" onClick={() => setPreviewModal(null)} className="absolute top-4 right-4 p-2 bg-black/50 text-white rounded-full hover:bg-black/70 z-10"><X size={20}/></button>
+                        <img src={previewModal.src} alt={previewModal.name} className="max-w-full max-h-[85vh] object-contain" />
+                        <div className="p-4 bg-white dark:bg-gray-900 text-center font-medium text-gray-800 dark:text-white">{previewModal.name}</div>
                     </div>
                 </div>,
                 document.body
@@ -543,47 +507,24 @@ const FileDropZone: FC<{
 
 // --- Quote Selection Card Component ---
 const QuoteSelectionCard: FC<{ quote: QuoteRequest, onSelect: () => void }> = ({ quote, onSelect }) => {
-    // Calculate total quantity for units
-    const totalUnits = quote.order?.lineItems?.reduce((sum, item) => {
-        return item.quantityType === 'units' ? sum + (item.qty || 0) : sum;
-    }, 0) || 0;
-    
-    // Get unique categories
+    const totalUnits = quote.order?.lineItems?.reduce((sum, item) => item.quantityType === 'units' ? sum + (item.qty || 0) : sum, 0) || 0;
     const categories = Array.from(new Set(quote.order?.lineItems?.map(i => i.category) || [])).join(', ');
 
     return (
-        <div onClick={onSelect} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-all group">
-            <div className="flex justify-between items-start mb-3">
-                <div>
-                    <div className="flex items-center gap-2">
-                        <p className="font-bold text-gray-800 dark:text-white">RFQ #{quote.id.slice(0, 8)}</p>
-                        <span className={`px-2 py-0.5 text-[10px] font-semibold rounded-full border ${
-                            quote.status === 'Accepted' ? 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800' : 
-                            quote.status === 'Pending' ? 'bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800' : 
-                            'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600'
-                        }`}>
-                            {quote.status}
-                        </span>
-                    </div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Created on {formatFriendlyDate(quote.submittedAt)}
-                    </p>
-                </div>
-                <div className="text-right">
-                     <p className="text-sm font-medium text-gray-900 dark:text-white">{quote.factory?.name || 'General Inquiry'}</p>
-                     <p className="text-xs text-gray-500 dark:text-gray-400">{quote.order?.shippingCountry || 'N/A'}</p>
-                </div>
+        <div onClick={onSelect} className="relative overflow-hidden border border-gray-200 dark:border-gray-700 rounded-2xl p-5 cursor-pointer hover:border-[#c20c0b] dark:hover:border-[#c20c0b] transition-all group bg-white dark:bg-gray-800/50 hover:shadow-lg">
+            <div className="absolute top-0 right-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="bg-[#c20c0b] text-white p-1.5 rounded-full shadow-lg"><Check size={16} /></div>
             </div>
-            
-            <div className="bg-gray-50 dark:bg-gray-800/50 rounded p-3 text-sm text-gray-600 dark:text-gray-300 border border-gray-100 dark:border-gray-700">
-                <div className="flex justify-between mb-1">
-                    <span className="text-gray-500 dark:text-gray-400 text-xs uppercase font-semibold">Products</span>
-                    <span className="font-medium truncate max-w-[200px] text-right">{categories || 'No products'}</span>
+            <div className="flex justify-between items-start mb-2">
+                <div>
+                    <p className="font-bold text-gray-800 dark:text-white text-lg">#{quote.id.slice(0, 8)}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{formatFriendlyDate(quote.submittedAt)}</p>
                 </div>
-                <div className="flex justify-between">
-                    <span className="text-gray-500 dark:text-gray-400 text-xs uppercase font-semibold">Volume</span>
-                    <span className="font-medium">{quote.order?.lineItems?.length || 0} Line Items {totalUnits > 0 ? `(${totalUnits.toLocaleString()} units)` : ''}</span>
-                </div>
+                <span className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">{quote.status}</span>
+            </div>
+            <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex justify-between text-sm">
+                <span className="text-gray-600 dark:text-gray-300 font-medium">{categories || 'Various'}</span>
+                <span className="text-gray-500 dark:text-gray-400">{totalUnits > 0 ? `${totalUnits.toLocaleString()} units` : 'Container'}</span>
             </div>
         </div>
     );
@@ -596,20 +537,20 @@ const QuoteSelectionCard: FC<{ quote: QuoteRequest, onSelect: () => void }> = ({
 // --- Helper Component ---
 // A small reusable component to render a form field with a label and an icon.
 const FormField: FC<{ icon: ReactNode; label: string; children: ReactNode; required?: boolean; error?: string }> = ({ icon, label, children, required, error }) => (
-    <div>
+    <div className="group">
         {/* Render the label text above the input */}
-        <label className={`block text-sm font-medium mb-1 ${error ? 'text-red-600 dark:text-red-400' : 'text-gray-700 dark:text-white'}`}>
+        <label className={`block text-xs font-bold uppercase tracking-wider mb-2 transition-colors ${error ? 'text-red-500' : 'text-gray-500 dark:text-gray-400 group-hover:text-[#c20c0b]'}`}>
             {label} {required && <span className="text-red-500">*</span>}
         </label>
         <div className="relative">
             {/* Position the icon inside the input area on the left side */}
-            <div className={`absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none ${error ? 'text-red-500' : ''}`}>
+            <div className={`absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none transition-colors ${error ? 'text-red-500' : 'text-gray-400 group-hover:text-[#c20c0b]'}`}>
                 {icon}
             </div>
             {/* Render the actual input element (passed as children) */}
             {children}
         </div>
-        {error && <p className="mt-1 text-xs text-red-600 dark:text-red-400 animate-fade-in">{error}</p>}
+        {error && <p className="mt-1 text-xs text-red-500 font-medium animate-pulse">{error}</p>}
     </div>
 );
 
@@ -654,6 +595,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                 customSize: '',
                 sizeRatio: {},
                 sleeveOption: '',
+                printOption: '',
                 trimsAndAccessories: '',
                 specialInstructions: '',
                 quantityType: 'units'
@@ -694,6 +636,8 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
     const [isLoadingPorts, setIsLoadingPorts] = useState(false);
     const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [itemToDeleteIndex, setItemToDeleteIndex] = useState<number | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
 
@@ -715,7 +659,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
     // Create a reference to the hidden file input element so we can reset it if needed.
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const getInputClass = (error?: string) => `w-full pl-10 p-3 border rounded-md focus:outline-none focus:ring-2 transition-colors ${error ? 'border-red-500 focus:ring-red-500 bg-red-50 dark:bg-red-900/10 text-gray-900 dark:text-white' : 'border-gray-300 dark:border-gray-600 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white'}`;
+    const getInputClass = (error?: string) => `w-full pl-10 p-3.5 bg-white dark:bg-gray-800 border rounded-xl focus:outline-none focus:ring-2 focus:bg-white dark:focus:bg-gray-900 transition-all duration-200 ${error ? 'border-red-500 focus:ring-red-500' : 'border-gray-200 dark:border-gray-700 focus:ring-[#c20c0b] focus:border-transparent'} text-gray-900 dark:text-white`;
 
     // --- Event Handlers ---
 
@@ -776,6 +720,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                 customSize: '',
                 sizeRatio: {},
                 sleeveOption: '',
+                printOption: '',
                 trimsAndAccessories: '',
                 specialInstructions: '',
                 quantityType: 'units'
@@ -813,7 +758,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                 lineItems: [{
                     id: generateId(),
                     category: 'T-shirt', qty: 0, containerType: '',
-                    fabricQuality: '', weightGSM: '', targetPrice: '', packagingReqs: '', labelingReqs: '', styleOption: '',
+                    fabricQuality: '', weightGSM: '', targetPrice: '', packagingReqs: '', labelingReqs: '', styleOption: '', printOption: '',
                     sizeRange: [], customSize: '', sizeRatio: {}, sleeveOption: '', trimsAndAccessories: '', specialInstructions: '', quantityType: 'units'
                 }],
                 shippingCountry: quote.order.shippingCountry,
@@ -829,15 +774,16 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
     };
 
     const onSampleFilesSelected = (files: File[]) => {
-        // Revoke old preview URLs before creating new ones
-        samplePreviewsRef.current.forEach(url => URL.revokeObjectURL(url));
+        // Append new files to existing ones
+        setSampleFiles(prev => [...prev, ...files]);
 
-        setSampleFiles(files);
-
-        // Create new previews
+        // Create previews for new files and append to existing previews
         const newPreviews = files.map(file => URL.createObjectURL(file));
-        setSamplePreviews(newPreviews);
-        samplePreviewsRef.current = newPreviews;
+        setSamplePreviews(prev => {
+            const combined = [...prev, ...newPreviews];
+            samplePreviewsRef.current = combined;
+            return combined;
+        });
     };
 
     const onSampleFileRemoved = (index: number) => {
@@ -864,65 +810,12 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
     }, []);
 
     const onDocFilesSelected = (files: File[]) => {
-        setDocFiles(files);
+        // Append new files to existing ones
+        setDocFiles(prev => [...prev, ...files]);
     };
 
     const onDocFileRemoved = (index: number) => {
         setDocFiles(prev => prev.filter((_, i) => i !== index));
-    };
-
-    const handleAddItem = () => {
-        const newIndex = formState.lineItems.length;
-        setFormState(prev => ({
-            ...prev,
-            lineItems: [...prev.lineItems, {
-                id: generateId(),
-                category: 'T-shirt',
-                qty: 0,
-                containerType: '',
-                fabricQuality: '',
-                weightGSM: '',
-                targetPrice: '',
-                packagingReqs: '',
-                labelingReqs: '',
-                styleOption: '',
-                sizeRange: [],
-                customSize: '',
-                sizeRatio: {},
-                sleeveOption: '',
-                trimsAndAccessories: '',
-                specialInstructions: '',
-                quantityType: 'units'
-            }]
-        }));
-        // Initialize new product at Step 1 and switch to it
-        setProductSteps(prev => ({ ...prev, [newIndex]: 1 }));
-        setActiveItemIndex(newIndex);
-    };
-
-
-    const handleRemoveItem = (index: number) => {
-        if (formState.lineItems.length <= 1) return;
-        setFormState(prev => ({
-            ...prev,
-            lineItems: prev.lineItems.filter((_, i) => i !== index)
-        }));
-        if (activeItemIndex >= index && activeItemIndex > 0) setActiveItemIndex(activeItemIndex - 1);
-    };
-
-    const handleDuplicateItem = (index: number) => {
-        const itemToDuplicate = formState.lineItems[index];
-        const newItem = {
-            ...JSON.parse(JSON.stringify(itemToDuplicate)), // Deep copy to avoid reference issues
-            id: generateId(),
-        };
-
-        setFormState(prev => {
-            const newItems = [...prev.lineItems];
-            newItems.splice(index + 1, 0, newItem);
-            return { ...prev, lineItems: newItems };
-        });
-        setActiveItemIndex(index + 1);
     };
 
     // Validation helper
@@ -994,6 +887,137 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
 
         setErrors(newErrors);
         return { isValid: Object.keys(newErrors).length === 0, firstErrorId };
+    };
+
+    const handleAddItem = () => {
+        if (currentStep < 3) {
+            showToast("Please complete previous product details (Basics, Specs, Files) before adding a new item.", "error");
+            return;
+        }
+        if (currentStep === 3) {
+            const { isValid } = validateStep(3);
+            if (!isValid) {
+                showToast("Please complete the Files section before adding a new item.", "error");
+                return;
+            }
+        }
+        const newIndex = formState.lineItems.length;
+        setFormState(prev => ({
+            ...prev,
+            lineItems: [...prev.lineItems, {
+                id: generateId(),
+                category: 'T-shirt',
+                qty: 0,
+                containerType: '',
+                fabricQuality: '',
+                weightGSM: '',
+                targetPrice: '',
+                packagingReqs: '',
+                labelingReqs: '',
+                styleOption: '',
+                sizeRange: [],
+                customSize: '',
+                sizeRatio: {},
+                sleeveOption: '',
+                printOption: '',
+                trimsAndAccessories: '',
+                specialInstructions: '',
+                quantityType: 'units'
+            }]
+        }));
+        // Initialize new product at Step 1 and switch to it
+        setProductSteps(prev => ({ ...prev, [newIndex]: 1 }));
+        setActiveItemIndex(newIndex);
+    };
+
+    const handleAddSuggestedItem = (category: string) => {
+        if (currentStep < 3) {
+            showToast("Please complete previous product details (Basics, Specs, Files) before adding a new item.", "error");
+            return;
+        }
+        
+        const newIndex = formState.lineItems.length;
+        setFormState(prev => ({
+            ...prev,
+            lineItems: [...prev.lineItems, {
+                id: generateId(),
+                category: category,
+                qty: 0,
+                containerType: '',
+                fabricQuality: '',
+                weightGSM: '',
+                targetPrice: '',
+                packagingReqs: '',
+                labelingReqs: '',
+                styleOption: '',
+                sizeRange: [],
+                customSize: '',
+                sizeRatio: {},
+                sleeveOption: '',
+                printOption: '',
+                trimsAndAccessories: '',
+                specialInstructions: '',
+                quantityType: 'units'
+            }]
+        }));
+        setProductSteps(prev => ({ ...prev, [newIndex]: 1 }));
+        setActiveItemIndex(newIndex);
+        showToast(`${category} added to order!`, 'success');
+    };
+
+
+    const handleRemoveItem = (index: number) => {
+        if (formState.lineItems.length <= 1) return;
+        setFormState(prev => ({
+            ...prev,
+            lineItems: prev.lineItems.filter((_, i) => i !== index)
+        }));
+        if (activeItemIndex >= index && activeItemIndex > 0) setActiveItemIndex(activeItemIndex - 1);
+    };
+
+    const handleDuplicateItem = (index: number) => {
+        if (currentStep < 3) {
+            showToast("Please complete previous product details (Basics, Specs, Files) before duplicating.", "error");
+            return;
+        }
+        if (currentStep === 3) {
+            const { isValid } = validateStep(3);
+            if (!isValid) {
+                showToast("Please complete the Files section before duplicating.", "error");
+                return;
+            }
+        }
+        const itemToDuplicate = formState.lineItems[index];
+        const newItem = {
+            ...JSON.parse(JSON.stringify(itemToDuplicate)), // Deep copy to avoid reference issues
+            id: generateId(),
+        };
+
+        setFormState(prev => {
+            const newItems = [...prev.lineItems];
+            newItems.splice(index + 1, 0, newItem);
+            return { ...prev, lineItems: newItems };
+        });
+        setActiveItemIndex(index + 1);
+    };
+
+    const handleEditItem = (index: number) => {
+        setActiveItemIndex(index);
+        setProductSteps(prev => ({
+            ...prev,
+            [index]: 1
+        }));
+    };
+
+    const handleChipSelect = (field: string, value: string) => {
+        setFormState(prev => {
+            const newItems = [...prev.lineItems];
+            newItems[activeItemIndex] = { ...newItems[activeItemIndex], [field]: value };
+            if (errors[`lineItems[${activeItemIndex}].${field}`]) {
+                setErrors(prevErr => ({ ...prevErr, [`lineItems[${activeItemIndex}].${field}`]: '' }));
+            }
+            return { ...prev, lineItems: newItems };
+        });
     };
 
     const handleNext = () => {
@@ -1129,32 +1153,46 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
         // Clear draft immediately
         localStorage.removeItem(DRAFT_KEY);
 
-        // Submit the form and wait for result
+        // Submit the form and wait for result with timeout protection
         let success = false;
+        const SUBMISSION_TIMEOUT = 60000; // 60 seconds timeout
+
         try {
-            if (orderType === 'existing' && selectedQuoteId) {
-                success = await handleAddToQuoteRequest(selectedQuoteId, formState, [...sampleFiles, ...docFiles]);
-            } else {
-                success = await handleSubmitOrderForm(formState, [...sampleFiles, ...docFiles]);
-            }
+            // Create a timeout promise to prevent hanging forever
+            const timeoutPromise = new Promise<boolean>((_, reject) => {
+                setTimeout(() => reject(new Error('Submission timed out. Please try again.')), SUBMISSION_TIMEOUT);
+            });
+
+            // Race between the actual submission and timeout
+            const submissionPromise = orderType === 'existing' && selectedQuoteId
+                ? handleAddToQuoteRequest(selectedQuoteId, formState, [...sampleFiles, ...docFiles])
+                : handleSubmitOrderForm(formState, [...sampleFiles, ...docFiles]);
+
+            success = await Promise.race([submissionPromise, timeoutPromise]);
 
             if (success) {
                 // Show success animation only after successful submission
                 setShowSuccessAnimation(true);
 
-                // Trigger confetti
-                confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+                // Trigger confetti (wrapped in try-catch to prevent blocking navigation)
+                try {
+                    confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+                } catch (confettiError) {
+                    console.error('Confetti error:', confettiError);
+                }
 
                 // Navigate to quotes page after animation completes
                 setTimeout(() => {
+                    setIsSubmitting(false);
                     handleSetCurrentPage('myQuotes');
                 }, 2500);
             } else {
                 // Reset submitting state on failure so user can try again
                 setIsSubmitting(false);
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Submit error:', error);
+            showToast(error?.message || 'Submission failed. Please try again.', 'error');
             // Reset submitting state on error so user can try again
             setIsSubmitting(false);
         }
@@ -1164,11 +1202,24 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
         setIsResetModalOpen(true);
     };
 
+    const handleDeleteItemClick = (index: number) => {
+        setItemToDeleteIndex(index);
+        setIsDeleteModalOpen(true);
+    };
+
+    const confirmDeleteItem = () => {
+        if (itemToDeleteIndex !== null) {
+            handleRemoveItem(itemToDeleteIndex);
+            setItemToDeleteIndex(null);
+        }
+        setIsDeleteModalOpen(false);
+    };
+
     const confirmReset = () => {
         setFormState({
             lineItems: [{
                 id: generateId(),
-                category: 'T-shirt',
+                category: '',
                 qty: 0,
                 containerType: '',
                 fabricQuality: '',
@@ -1181,6 +1232,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                 customSize: '',
                 sizeRatio: {},
                 sleeveOption: '',
+                printOption: '',
                 trimsAndAccessories: '',
                 specialInstructions: '',
                 quantityType: 'units'
@@ -1226,58 +1278,41 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
     };
 
     const steps = [
-        { id: 1, title: 'Basic Details' },
-        { id: 2, title: 'Specifications' },
-        { id: 3, title: 'Attachments' },
-        { id: 4, title: 'Logistics' },
-        { id: 5, title: 'Summary' }
+        { id: 1, title: 'Basics', icon: <Shirt size={18}/> },
+        { id: 2, title: 'Specs', icon: <Ruler size={18}/> },
+        { id: 3, title: 'Files', icon: <Upload size={18}/> },
+        { id: 4, title: 'Logistics', icon: <Globe size={18}/> },
+        { id: 5, title: 'Review', icon: <Check size={18}/> }
     ];
 
     // --- Main Render ---
     return (
         // Wrap the page content in the MainLayout to ensure consistent navigation and styling.
         <MainLayout {...props}>
-            <div className="max-w-4xl mx-auto">
-                {/* Main Card Container */}
-                <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md p-6 sm:p-8 rounded-xl shadow-lg border border-gray-200 dark:border-white/10">
-                    
-                    {/* Header Section: Title and Back Button */}
-                    <div className="flex justify-between items-start mb-2">
-                        <div>
-                            <h2 className="text-3xl font-bold text-gray-800 dark:text-white mb-2">
-                                {orderType === 'existing' ? 'Add to Existing RFQ' : 'Garment Sourcing Requirements'}
-                            </h2>
-                            <p className="text-gray-500 dark:text-gray-200">
-                                {orderType === 'existing' 
-                                    ? 'Select an active quote to add more products.' 
-                                    : 'Fill out your order details to find matching factories.'}
-                            </p>
-                        </div>
-                        {/* Button to navigate back to the main sourcing page */}
-                        <button onClick={() => handleSetCurrentPage('sourcing')} className="text-sm text-[#c20c0b] font-semibold flex items-center hover:underline whitespace-nowrap">
-                            <ChevronLeft className="h-4 w-4 mr-1" />
-                            Back to Sourcing
-                        </button>
+            <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                {/* Header Section: Title and Back Button */}
+                <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 dark:text-white mb-2">
+                                {orderType === 'existing' ? 'Expand Request' : 'Create Your Order'}
+                        </h2>
+                        <p className="text-gray-500 dark:text-gray-400 font-medium">
+                                {orderType === 'existing'
+                                    ? 'Add items to an existing quote.'
+                                    : 'Tell us what you need, we\'ll find the factory.'}
+                        </p>
                     </div>
+                    {/* Button to navigate back to the main sourcing page */}
+                    <button onClick={() => handleSetCurrentPage('sourcing')} className="group flex items-center px-4 py-2 text-sm font-bold text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 rounded-full shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md hover:text-[#c20c0b] dark:hover:text-[#c20c0b] transition-all">
+                        <ChevronLeft className="h-4 w-4 mr-1 group-hover:-translate-x-1 transition-transform" />
+                        Back
+                    </button>
+                </div>
 
-                    <div className="mb-8">
-                        {orderType === 'new' ? (
-                            <button 
-                                onClick={() => handleOrderTypeChange('existing')}
-                                className="text-sm text-gray-500 dark:text-gray-400 hover:text-[#c20c0b] dark:hover:text-[#c20c0b] flex items-center gap-2 transition-colors px-1"
-                            >
-                                <Package size={16} />
-                                <span>Adding to an existing request? Click here.</span>
-                            </button>
-                        ) : (
-                            <button 
-                                onClick={() => handleOrderTypeChange('new')}
-                                className="text-sm text-gray-500 dark:text-gray-400 hover:text-[#c20c0b] dark:hover:text-[#c20c0b] flex items-center gap-2 transition-colors px-1"
-                            >
-                                <Plus size={16} />
-                                <span>Want to create a new request instead?</span>
-                            </button>
-                        )}
+                <div className="space-y-8">
+                    <div className="flex gap-4 p-1 bg-white dark:bg-gray-800 rounded-xl w-fit border border-gray-200 dark:border-gray-700">
+                        <button onClick={() => handleOrderTypeChange('new')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${orderType === 'new' ? 'bg-gray-100 dark:bg-gray-700 text-[#c20c0b]' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}>New Request</button>
+                        <button onClick={() => handleOrderTypeChange('existing')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${orderType === 'existing' ? 'bg-gray-100 dark:bg-gray-700 text-[#c20c0b]' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}>Add to Existing</button>
                     </div>
 
                     {orderType === 'existing' && selectedQuoteId === null && (
@@ -1298,37 +1333,33 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                     {/* The Form Element */}
                     {(orderType === 'new' || selectedQuoteId !== null) && ( 
                         <div className="animate-fade-in">
+                        <style>{`
+                            @keyframes slideIn {
+                                from { opacity: 0; transform: translateX(20px); }
+                                to { opacity: 1; transform: translateX(0); }
+                            }
+                            .animate-slide-in {
+                                animation: slideIn 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+                            }
+                        `}</style>
                         
-                        {/* Stepper */}
-                        <div className="mb-12 px-2">
-                            <div className="flex items-center justify-between relative">
-                                {/* Background Track */}
-                                <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-full h-1 bg-gray-200 dark:bg-gray-700 -z-10 rounded-full"></div>
-                                
-                                {/* Animated Progress Bar */}
-                                <div 
-                                    className="absolute left-0 top-1/2 transform -translate-y-1/2 h-1 bg-[#c20c0b] -z-10 rounded-full transition-all duration-500 ease-in-out"
-                                    style={{ width: `${((currentStep - 1) / (steps.length - 1)) * 100}%` }}
-                                ></div>
-
+                        {/* Gamified Stepper */}
+                        <div className="mb-12 relative">
+                            {/* Progress Bar Background */}
+                            <div className="absolute top-4 left-0 w-full h-2 bg-gray-200 dark:bg-gray-800 rounded-full" />
+                            {/* Progress Bar Fill */}
+                            <div className="absolute top-4 left-0 h-2 bg-gradient-to-r from-red-500 to-orange-500 rounded-full transition-all duration-700 ease-out" style={{ width: `${((currentStep - 1) / (steps.length - 1)) * 100}%` }} />
+                            <div className="flex justify-between">
                                 {steps.map((step) => (
-                                    <div key={step.id} className="flex flex-col items-center relative">
-                                        <div 
-                                            className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-500 border-2 z-10 ${
-                                                currentStep > step.id 
-                                                    ? 'bg-[#c20c0b] border-[#c20c0b] text-white' 
-                                                    : currentStep === step.id
-                                                        ? 'bg-white dark:bg-gray-900 border-[#c20c0b] text-[#c20c0b] scale-110 shadow-[0_0_0_4px_rgba(194,12,11,0.15)] dark:shadow-[0_0_0_4px_rgba(194,12,11,0.3)]'
-                                                        : 'bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500'
-                                            }`}
-                                        >
-                                            {currentStep > step.id ? <Check size={20} className="animate-fade-in" /> : step.id}
-                                        </div>
-                                        <span className={`absolute top-12 text-xs font-bold whitespace-nowrap transition-all duration-300 ${
-                                            currentStep >= step.id ? 'text-gray-800 dark:text-white' : 'text-gray-400 dark:text-gray-500'
+                                    <div key={step.id} className="flex flex-col items-center group cursor-default relative">
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center border-4 transition-all duration-500 z-10 ${
+                                            currentStep > step.id ? 'bg-gradient-to-br from-red-600 to-orange-500 border-white dark:border-gray-900 text-white shadow-lg' :
+                                            currentStep === step.id ? 'bg-white dark:bg-gray-900 border-red-500 text-red-500 shadow-lg scale-110' :
+                                            'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-400'
                                         }`}>
-                                            {step.title}
-                                        </span>
+                                            {currentStep > step.id ? <Check size={20} /> : step.icon}
+                                        </div>
+                                        <span className={`mt-2 text-xs font-bold uppercase tracking-wider transition-colors ${currentStep >= step.id ? 'text-gray-800 dark:text-white' : 'text-gray-400'}`}>{step.title}</span>
                                     </div>
                                 ))}
                             </div>
@@ -1336,646 +1367,689 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
 
                         <form onSubmit={onFormSubmit} className="space-y-8">
                         
-                        {/* Product Cards - Zomato Style with Progress */}
-                        {currentStep <= 3 && (
-                            <div className="mb-6">
-                                {/* Section Header */}
-                                <div className="flex items-center justify-between mb-4">
-                                    <div className="flex items-center gap-2">
-                                        <Package size={18} className="text-[#c20c0b]" />
-                                        <span className="text-sm font-bold text-gray-800 dark:text-white">Products</span>
-                                        <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-xs font-medium rounded-full">
-                                            {formState.lineItems.length}
-                                        </span>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={handleAddItem}
-                                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#c20c0b] bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors border border-red-200 dark:border-red-800"
-                                    >
-                                        <Plus size={14} /> Add Product
-                                    </button>
-                                </div>
-
-                                {/* Product Cards - Horizontal Scroll on Mobile */}
-                                <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap">
-                                    {formState.lineItems.map((item, index) => {
-                                        const completion = calculateProductCompletion(item);
-                                        const isActive = activeItemIndex === index;
-                                        const color = PRODUCT_COLORS[index % PRODUCT_COLORS.length];
-                                        const icon = getCategoryIcon(item.category);
-
-                                        return (
-                                            <button
-                                                key={item.id}
-                                                type="button"
-                                                onClick={() => setActiveItemIndex(index)}
-                                                className={`
-                                                    relative flex-shrink-0 w-[140px] sm:w-[160px] p-3 rounded-xl border-2 transition-all text-left
-                                                    ${isActive
-                                                        ? `${color.light} ${color.border} shadow-lg scale-[1.02]`
-                                                        : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md'}
-                                                `}
-                                            >
-                                                {/* Active Indicator */}
-                                                {isActive && (
-                                                    <div className={`absolute -top-1 -right-1 w-5 h-5 ${color.bg} rounded-full flex items-center justify-center shadow-md`}>
-                                                        <Check size={12} className="text-white" />
-                                                    </div>
-                                                )}
-
-                                                {/* Completion Badge */}
-                                                {!isActive && completion.percentage === 100 && (
-                                                    <div className="absolute -top-1 -right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center shadow-md">
-                                                        <Check size={12} className="text-white" />
-                                                    </div>
-                                                )}
-                                                {!isActive && completion.percentage < 100 && completion.percentage > 0 && (
-                                                    <div className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center shadow-md">
-                                                        <span className="text-[8px] font-bold text-white">{completion.percentage}%</span>
-                                                    </div>
-                                                )}
-
-                                                {/* Card Content */}
-                                                <div className="flex items-start gap-2 mb-2">
-                                                    <span className="text-2xl">{icon}</span>
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className={`text-xs font-bold uppercase tracking-wide ${isActive ? color.text : 'text-gray-500 dark:text-gray-400'}`}>
-                                                            Product {index + 1}
-                                                        </p>
-                                                        <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
-                                                            {item.category || 'Select...'}
-                                                        </p>
-                                                    </div>
-                                                </div>
-
-                                                {/* Quick Stats */}
-                                                <div className="space-y-1 text-xs text-gray-500 dark:text-gray-400">
-                                                    <div className="flex justify-between">
-                                                        <span>Qty:</span>
-                                                        <span className="font-medium text-gray-700 dark:text-gray-300">
-                                                            {item.qty ? item.qty.toLocaleString() : '—'}
-                                                        </span>
-                                                    </div>
-                                                    <div className="flex justify-between">
-                                                        <span>GSM:</span>
-                                                        <span className="font-medium text-gray-700 dark:text-gray-300">
-                                                            {item.weightGSM || '—'}
-                                                        </span>
-                                                    </div>
-                                                </div>
-
-                                                {/* Progress Bar */}
-                                                <div className="mt-2 h-1 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                                                    <div
-                                                        className={`h-full transition-all duration-500 ${completion.percentage === 100 ? 'bg-green-500' : isActive ? color.bg : 'bg-gray-400'}`}
-                                                        style={{ width: `${completion.percentage}%` }}
-                                                    />
-                                                </div>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Sticky Product Banner - Shows Current Product Context */}
-                        {currentStep <= 3 && (
-                            <div className="sticky top-0 z-30 -mx-6 px-6 sm:-mx-8 sm:px-8 py-4 mb-8 bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl border-y border-gray-200/50 dark:border-gray-700/50 shadow-sm transition-all duration-300">
-                                {(() => {
-                                    const completion = calculateProductCompletion(activeItem);
-                                    const color = PRODUCT_COLORS[activeItemIndex % PRODUCT_COLORS.length];
-                                    const icon = getCategoryIcon(activeItem.category);
-
-                                    return (
-                                        <div className="max-w-5xl mx-auto">
-                                            <div className="flex items-center justify-between gap-3 sm:gap-6">
-                                                
-                                                {/* Left: Product Identity */}
-                                                <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
-                                                    {/* Badge */}
-                                                    <div className={`flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 ${color.bg} rounded-2xl flex items-center justify-center text-white font-bold shadow-lg transform transition-transform hover:scale-105`}>
-                                                        <span className="text-lg sm:text-xl">{activeItemIndex + 1}</span>
-                                                    </div>
-
-                                                    {/* Info */}
-                                                    <div className="min-w-0 flex-1">
-                                                        <div className="flex items-center gap-2 mb-0.5">
-                                                            <span className="text-lg sm:text-xl">{icon}</span>
-                                                            <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white truncate leading-tight">
-                                                                {activeItem.category || 'New Item'}
-                                                            </h3>
-                                                        </div>
-                                                        
-                                                        {/* Desktop Specs */}
-                                                        <div className="hidden sm:flex items-center gap-3 text-xs font-medium text-gray-500 dark:text-gray-400">
-                                                            {activeItem.qty > 0 && (
-                                                                <span className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-md">
-                                                                    <Package size={12} /> {activeItem.qty.toLocaleString()} {activeItem.quantityType === 'container' ? 'cntr' : 'units'}
-                                                                </span>
-                                                            )}
-                                                            {Number(activeItem.weightGSM) > 0 && (
-                                                                <span className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-md">
-                                                                    <Weight size={12} /> {activeItem.weightGSM} GSM
-                                                                </span>
-                                                            )}
-                                                            {activeItem.fabricQuality && (
-                                                                <span className="truncate max-w-[150px] bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-md" title={activeItem.fabricQuality}>
-                                                                    {activeItem.fabricQuality}
-                                                                </span>
-                                                            )}
-                                                        </div>
-
-                                                        {/* Mobile Progress */}
-                                                        <div className="sm:hidden flex items-center gap-2 w-full max-w-[140px]">
-                                                            <div className="flex-1 h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                                                                <div 
-                                                                    className={`h-full rounded-full transition-all duration-500 ${completion.percentage === 100 ? 'bg-green-500' : color.bg}`} 
-                                                                    style={{ width: `${completion.percentage}%` }}
-                                                                />
-                                                            </div>
-                                                            <span className="text-[10px] font-bold text-gray-400">{completion.percentage}%</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                {/* Right: Controls */}
-                                                <div className="flex items-center gap-2 sm:gap-3">
-                                                    
-                                                    {/* Navigation Group */}
-                                                    <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-xl p-1 border border-gray-200 dark:border-gray-700">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setActiveItemIndex(Math.max(0, activeItemIndex - 1))}
-                                                            disabled={activeItemIndex === 0}
-                                                            className="p-1.5 sm:p-2 rounded-lg text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-white dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm disabled:shadow-none"
-                                                        >
-                                                            <ChevronLeft size={18} />
-                                                        </button>
-                                                        <span className="px-2 text-xs font-bold text-gray-600 dark:text-gray-300 min-w-[3rem] text-center">
-                                                            {activeItemIndex + 1} / {formState.lineItems.length}
-                                                        </span>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setActiveItemIndex(Math.min(formState.lineItems.length - 1, activeItemIndex + 1))}
-                                                            disabled={activeItemIndex === formState.lineItems.length - 1}
-                                                            className="p-1.5 sm:p-2 rounded-lg text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-white dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm disabled:shadow-none"
-                                                        >
-                                                            <ChevronRight size={18} />
-                                                        </button>
-                                                    </div>
-
-                                                    {/* Actions Group (Desktop) */}
-                                                    <div className="hidden sm:flex items-center gap-2 pl-3 border-l border-gray-200 dark:border-gray-700">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleDuplicateItem(activeItemIndex)}
-                                                            className="p-2.5 text-blue-600 bg-blue-50 hover:bg-blue-100 dark:text-blue-400 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 rounded-xl transition-colors"
-                                                            title="Duplicate"
-                                                        >
-                                                            <Copy size={18} />
-                                                        </button>
-                                                        {formState.lineItems.length > 1 && (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleRemoveItem(activeItemIndex)}
-                                                                className="p-2.5 text-red-600 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:bg-red-900/20 dark:hover:bg-red-900/40 rounded-xl transition-colors"
-                                                                title="Remove"
-                                                            >
-                                                                <Trash2 size={18} />
-                                                            </button>
-                                                        )}
-                                                    </div>
-
-                                                    {/* Mobile Actions Menu (Simplified) */}
-                                                    <div className="sm:hidden">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleDuplicateItem(activeItemIndex)}
-                                                            className="p-2 text-blue-600 bg-blue-50 rounded-lg mr-1"
-                                                        >
-                                                            <Copy size={16} />
-                                                        </button>
-                                                        {formState.lineItems.length > 1 && (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleRemoveItem(activeItemIndex)}
-                                                                className="p-2 text-red-600 bg-red-50 rounded-lg"
-                                                            >
-                                                                <Trash2 size={16} />
-                                                            </button>
-                                                        )}
-                                                    </div>
-
-                                                </div>
-                                            </div>
-                                        </div>
-                                    );
-                                })()}
-                            </div>
-                        )}
-
-                        {/* Section 1: Basic Details */}
-                        {currentStep === 1 && (
-                        <div className="animate-fade-in">
-                            <legend className="text-lg font-semibold text-gray-700 dark:text-white mb-6">Basic Details</legend>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {/* Product Category Dropdown */}
-                                <div className="md:col-span-2">
-                                    <FormField label="Product Category" icon={<Shirt className="h-5 w-5 text-gray-400" />} required error={errors[`lineItems[${activeItemIndex}].category`]}>
-                                        <div className="relative">
-                                            <select id={`lineItems[${activeItemIndex}].category`} name="category" value={activeItem.category} onChange={handleFormChange} className={`${getInputClass(errors[`lineItems[${activeItemIndex}].category`])} appearance-none`}>
-                                                <option>T-shirt</option> <option>Polo Shirt</option> <option>Hoodies</option> <option>Jeans</option> <option>Jackets</option> <option>Shirts</option> <option>Casual Shirts</option> <option>Trousers</option>
-                                            </select>
-                                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-gray-400">
-                                                <ChevronDown size={16} />
-                                            </div>
-                                        </div>
-                                    </FormField>
-                                </div>
-
-                                {/* Fabric Quality Input */}
-                                <FormField label="Fabric Quality/Composition" icon={<Award className="h-5 w-5 text-gray-400" />} required error={errors[`lineItems[${activeItemIndex}].fabricQuality`]}>
-                                    <input id={`lineItems[${activeItemIndex}].fabricQuality`} type="text" name="fabricQuality" value={activeItem.fabricQuality} onChange={handleFormChange} placeholder="e.g., 100% Organic Cotton" className={getInputClass(errors[`lineItems[${activeItemIndex}].fabricQuality`])} />
-                                </FormField>
-
-                                {/* Fabric Weight Input */}
-                                <FormField label="Fabric Weight (GSM)" icon={<Weight className="h-5 w-5 text-gray-400" />} required error={errors[`lineItems[${activeItemIndex}].weightGSM`]}>
-                                    <input id={`lineItems[${activeItemIndex}].weightGSM`} type="number" min="0" name="weightGSM" value={activeItem.weightGSM} onChange={handleFormChange} placeholder="e.g., 180" className={getInputClass(errors[`lineItems[${activeItemIndex}].weightGSM`])} />
-                                </FormField>
-
-                                {/* Quantity Section - Redesigned */}
-                                <div className="md:col-span-2 bg-gray-50 dark:bg-gray-800/50 p-5 rounded-xl border border-gray-200 dark:border-gray-700 mt-2">
-                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3">
-                                        <label className="block text-sm font-bold text-gray-700 dark:text-white">
-                                            Quantity <span className="text-red-500">*</span>
-                                        </label>
-                                        <div className="flex p-1 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 shadow-sm">
-                                            <button 
-                                                type="button" 
-                                                onClick={() => setQuantityType('units')} 
-                                                className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${activeItem.quantityType === 'units' ? 'bg-[#c20c0b] text-white shadow-sm' : 'text-gray-500 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'}`}
-                                            >
-                                                By Units
-                                            </button>
-                                            <button 
-                                                type="button" 
-                                                onClick={() => setQuantityType('container')} 
-                                                className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${activeItem.quantityType === 'container' ? 'bg-[#c20c0b] text-white shadow-sm' : 'text-gray-500 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'}`}
-                                            >
-                                                By Container
-                                            </button>
-                                        </div>
+                        {/* Product Cards - Vertical Grid Layout */}
+                        {currentStep <= 3 ? (
+                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                                {/* Left Sidebar: Product List */}
+                                <div className="lg:col-span-3 lg:border-r lg:border-gray-200 lg:dark:border-gray-700 lg:pr-6">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h3 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                                            <Package className="text-[#c20c0b]" size={20} /> Products
+                                        </h3>
+                                        <button
+                                            type="button"
+                                            onClick={handleAddItem}
+                                            disabled={currentStep < 3}
+                                            className={`p-2 rounded-lg transition-colors ${currentStep < 3 ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-white hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                                            title={currentStep < 3 ? "Complete previous steps first" : "Add Item"}
+                                        >
+                                            <Plus size={18} />
+                                        </button>
                                     </div>
                                     
-                                    {activeItem.quantityType === 'units' ? (
-                                        <div className="relative">
-                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
-                                                <Package className="h-5 w-5" />
-                                            </div>
-                                            <input 
-                                                id={`lineItems[${activeItemIndex}].qty`} 
-                                                type="number" 
-                                                min="0" 
-                                                name="qty" 
-                                                value={activeItem.qty || ''} 
-                                                onChange={handleFormChange} 
-                                                placeholder="e.g., 5000" 
-                                                className={getInputClass(errors[`lineItems[${activeItemIndex}].qty`])} 
-                                            />
-                                        </div>
-                                    ) : (
-                                        <div className="relative">
-                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
-                                                <Package className="h-5 w-5" />
-                                            </div>
-                                            <select 
-                                                id={`lineItems[${activeItemIndex}].qty`} 
-                                                name="containerType" 
-                                                value={activeItem.containerType || ''} 
-                                                onChange={handleFormChange} 
-                                                className={`${getInputClass(errors[`lineItems[${activeItemIndex}].qty`])} appearance-none`}
-                                            >
-                                                <option value="">Select Container Type</option>
-                                                {containerOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                                            </select>
-                                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-gray-400">
-                                                <ChevronDown size={16} />
-                                            </div>
-                                        </div>
-                                    )}
-                                    {errors[`lineItems[${activeItemIndex}].qty`] && <p className="mt-1 text-xs text-red-600 dark:text-red-400 animate-fade-in">{errors[`lineItems[${activeItemIndex}].qty`]}</p>}
-                                </div>
-                            </div>
-                        </div>
-                        )}
+                                    <div className="flex flex-col gap-3 max-h-[600px] overflow-y-auto pr-1 custom-scrollbar">
+                                        {formState.lineItems.map((item, index) => {
+                                            const completion = calculateProductCompletion(item);
+                                            const isActive = activeItemIndex === index;
+                                            const color = PRODUCT_COLORS[index % PRODUCT_COLORS.length];
+                                            const catOption = CATEGORY_OPTIONS.find(c => c.id === item.category);
+                                            const image = catOption ? catOption.image : null;
+                                            const icon = getCategoryIcon(item.category);
 
-                        {/* Section 2: Specifications */}
-                        {currentStep === 2 && (
-                        <div className="animate-fade-in">
-                            <legend className="text-lg font-semibold text-gray-700 dark:text-white mb-4">Specifications</legend>
-                            <div className="space-y-6">
-                                {/* 1. Size Range */}
-                                <div>
-                                    <label id={`lineItems[${activeItemIndex}].sizeRange`} className={`block text-sm font-medium mb-2 ${errors[`lineItems[${activeItemIndex}].sizeRange`] ? 'text-red-600 dark:text-red-400' : 'text-gray-700 dark:text-white'}`}>Size Range <span className="text-red-500">*</span></label>
-                                    <div className="flex flex-wrap gap-3">
-                                        {sizeOptions.map(size => (
-                                            <label key={size} className="inline-flex items-center bg-gray-50 dark:bg-gray-800 px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
-                                                <input 
-                                                    type="checkbox" 
-                                                    checked={activeItem.sizeRange.includes(size)} 
-                                                    onChange={() => handleSizeCheckbox(size)}
-                                                    className="rounded text-[#c20c0b] focus:ring-[#c20c0b] mr-2" 
-                                                />
-                                                <span className="text-sm text-gray-700 dark:text-gray-200">{size}</span>
-                                            </label>
-                                        ))}
-                                        <label className="inline-flex items-center bg-gray-50 dark:bg-gray-800 px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
-                                            <input 
-                                                type="checkbox" 
-                                                checked={activeItem.sizeRange.includes('Custom')} 
-                                                onChange={() => handleSizeCheckbox('Custom')}
-                                                className="rounded text-[#c20c0b] focus:ring-[#c20c0b] mr-2" 
-                                            />
-                                            <span className="text-sm text-gray-700 dark:text-gray-200">Custom</span>
-                                        </label>
-                                    </div>
-                                    {activeItem.sizeRange.includes('Custom') && (
-                                        <div className="mt-3">
-                                            <input type="text" name="customSize" value={activeItem.customSize} onChange={handleFormChange} placeholder="Enter custom sizes (e.g., 4XL, 5XL)" className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm" />
-                                        </div>
-                                    )}
-                                    {errors[`lineItems[${activeItemIndex}].sizeRange`] && <p className="mt-1 text-xs text-red-600 dark:text-red-400 animate-fade-in">{errors[`lineItems[${activeItemIndex}].sizeRange`]}</p>}
-                                </div>
-
-                                {/* 2. Size Ratio */}
-                                {activeItem.sizeRange.length > 0 && (
-                                    <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-white mb-2 flex items-center"><Ruler className="w-4 h-4 mr-1"/> Size Ratio / Breakdown</label>
-                                        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-4">
-                                            {activeItem.sizeRange.map(size => (
-                                                <div key={size}>
-                                                    <label className="block text-xs text-gray-500 dark:text-gray-200 mb-1">{size}</label>
-                                                    <input 
-                                                        type="number" 
-                                                        min="0"
-                                                        value={activeItem.sizeRatio[size] || ''} 
-                                                        onChange={(e) => {
-                                                            if (parseInt(e.target.value) < 0) return;
-                                                            setFormState(prev => {
-                                                                const newItems = [...prev.lineItems];
-                                                                const updatedItem = {
-                                                                    ...newItems[activeItemIndex],
-                                                                    sizeRatio: { ...newItems[activeItemIndex].sizeRatio, [size]: e.target.value }
-                                                                };
-                                                                newItems[activeItemIndex] = updatedItem;
-                                                                return { ...prev, lineItems: newItems };
-                                                            })
-                                                        }}
-                                                        placeholder="Qty" 
-                                                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" 
-                                                    />
+                                            return (
+                                                <div
+                                                    key={item.id}
+                                                    onClick={() => setActiveItemIndex(index)}
+                                                    className={`relative p-3 rounded-xl border-2 cursor-pointer transition-all duration-200 flex items-center gap-3 ${isActive ? `${color.border} bg-white dark:bg-gray-800 shadow-md` : 'border-transparent bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                                                >
+                                                    <div className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold shrink-0 border ${isActive ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900 border-transparent' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-600'}`}>
+                                                        {index + 1}
+                                                    </div>
+                                                    <div className="h-12 w-12 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex-shrink-0 flex items-center justify-center">
+                                                        {image ? (
+                                                            <img src={image} alt={item.category} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <span className="text-xl">{icon}</span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className={`font-bold text-sm truncate ${isActive ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-300'}`}>{item.category || 'New Item'}</p>
+                                                        <p className="text-xs text-gray-400 truncate">{item.qty > 0 ? `${item.qty.toLocaleString()} units` : 'Qty pending'}</p>
+                                                    </div>
+                                                    
+                                                    {/* Completion Indicator */}
+                                                    <div className="flex flex-col items-end gap-1">
+                                                        {completion.percentage === 100 ? (
+                                                            <div className="text-green-500"><Check size={16} /></div>
+                                                        ) : (
+                                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isActive ? color.light + ' ' + color.text : 'bg-gray-100 dark:bg-gray-700 text-gray-500'}`}>{completion.percentage}%</span>
+                                                        )}
+                                                        {isActive && (
+                                                            <div className="flex gap-1">
+                                                                <button 
+                                                                    type="button" 
+                                                                    onClick={(e) => { e.stopPropagation(); handleDuplicateItem(index); }} 
+                                                                    disabled={currentStep < 3}
+                                                                    className={`${currentStep < 3 ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'text-blue-500 hover:text-blue-700'}`}
+                                                                    title={currentStep < 3 ? "Complete previous steps first" : "Duplicate Item"}
+                                                                ><Copy size={12} /></button>
+                                                                {formState.lineItems.length > 1 && <button type="button" onClick={(e) => { e.stopPropagation(); handleRemoveItem(index); }} className="text-red-500 hover:text-red-700"><Trash2 size={12} /></button>}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* Right Content */}
+                                <div className="lg:col-span-9">
+                                    {/* Current Product Context Bar */}
+                                    {formState.lineItems.length > 1 && (
+                                        <div className="flex items-center gap-2 mb-6 text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 p-2 rounded-lg w-fit">
+                                            <span>Editing:</span>
+                                            <span className="font-bold text-gray-800 dark:text-white">{getCategoryIcon(activeItem.category)} {activeItem.category}</span>
+                                            <span className="text-gray-300 dark:text-gray-600">|</span>
+                                            <span>Item {activeItemIndex + 1} of {formState.lineItems.length}</span>
+                                        </div>
+                                    )}
+
+                                    {/* Section 1: Basic Details */}
+                                    {currentStep === 1 && (
+                                    <div className="animate-slide-in">
+                                        <div className="text-center mb-8">
+                                            <h3 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">What are we making today?</h3>
+                                            <p className="text-gray-500 dark:text-gray-400">Choose a product category to get started.</p>
+                                        </div>
+
+                                        {/* Gamified Category Selection */}
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+                                            {CATEGORY_OPTIONS.map((cat) => (
+                                                <button
+                                                    key={cat.id}
+                                                    type="button"
+                                                    onClick={() => handleChipSelect('category', cat.id)}
+                                                    className={`relative rounded-2xl border-2 transition-all duration-300 flex flex-col items-center justify-start gap-0 group overflow-hidden ${
+                                                        activeItem.category === cat.id
+                                                            ? 'border-[#c20c0b] shadow-lg scale-105'
+                                                            : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:-translate-y-1 shadow-sm'
+                                                    }`}
+                                                >
+                                                    <div className="w-full h-32 overflow-hidden">
+                                                        <img src={cat.image} alt={cat.label} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                                    </div>
+                                                    <div className={`w-full py-3 px-2 text-center transition-colors ${activeItem.category === cat.id ? 'bg-[#c20c0b] text-white' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'}`}>
+                                                        <span className="font-bold text-sm block truncate">{cat.label}</span>
+                                                    </div>
+                                                    {activeItem.category === cat.id && (
+                                                        <div className="absolute top-2 right-2 bg-white text-[#c20c0b] rounded-full p-1 shadow-md"><Check size={14} /></div>
+                                                    )}
+                                                </button>
                                             ))}
                                         </div>
-                                    </div>
-                                )}
 
-                                {/* 3. Sleeve Options (Upper Body Only) */}
-                                {isUpperBody && (
-                                    <FormField label="Sleeve Options" icon={<Shirt className="h-5 w-5 text-gray-400" />} error={errors[`lineItems[${activeItemIndex}].sleeveOption`]}>
-                                        <select id={`lineItems[${activeItemIndex}].sleeveOption`} name="sleeveOption" value={activeItem.sleeveOption} onChange={handleFormChange} className={getInputClass(errors[`lineItems[${activeItemIndex}].sleeveOption`])}>
-                                            <option value="">Select Sleeve Type</option>
-                                            <option>Short Sleeve</option>
-                                            <option>Long Sleeve</option>
-                                            <option>Sleeveless</option>
-                                            <option>3/4 Sleeve</option>
-                                            <option>Raglan</option>
-                                        </select>
-                                    </FormField>
-                                )}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                            {/* Fabric Quality Input */}
+                                            <div>
+                                                <FormField label="Fabric Composition" icon={<Award className="h-5 w-5 text-gray-400" />} required error={errors[`lineItems[${activeItemIndex}].fabricQuality`]}>
+                                                    <input id={`lineItems[${activeItemIndex}].fabricQuality`} type="text" name="fabricQuality" value={activeItem.fabricQuality} onChange={handleFormChange} placeholder="e.g., 100% Organic Cotton" className={getInputClass(errors[`lineItems[${activeItemIndex}].fabricQuality`])} />
+                                                </FormField>
+                                                <div className="mt-3 flex flex-wrap gap-2">
+                                                    {FABRIC_SUGGESTIONS.map(fabric => (
+                                                        <button
+                                                            key={fabric}
+                                                            type="button"
+                                                            onClick={() => handleChipSelect('fabricQuality', fabric)}
+                                                            className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                                                                activeItem.fabricQuality === fabric
+                                                                    ? 'bg-gray-800 text-white border-gray-800 dark:bg-white dark:text-black'
+                                                                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-gray-400 shadow-sm'
+                                                            }`}
+                                                        >
+                                                            {fabric}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
 
-                                {/* 4. Packaging Option */}
-                                <FormField label="Packaging Option" icon={<Box className="h-5 w-5 text-gray-400" />} required error={errors[`lineItems[${activeItemIndex}].packagingReqs`]}>
-                                    <input id={`lineItems[${activeItemIndex}].packagingReqs`} type="text" name="packagingReqs" value={activeItem.packagingReqs} onChange={handleFormChange} placeholder="e.g., Poly bag with warning text" className={getInputClass(errors[`lineItems[${activeItemIndex}].packagingReqs`])} />
-                                </FormField>
+                                            {/* Fabric Weight Input */}
+                                            <div>
+                                                <FormField label="Fabric Weight (GSM)" icon={<Weight className="h-5 w-5 text-gray-400" />} required error={errors[`lineItems[${activeItemIndex}].weightGSM`]}>
+                                                    <input id={`lineItems[${activeItemIndex}].weightGSM`} type="number" min="0" name="weightGSM" value={activeItem.weightGSM} onChange={handleFormChange} placeholder="e.g., 180" className={getInputClass(errors[`lineItems[${activeItemIndex}].weightGSM`])} />
+                                                </FormField>
+                                                <div className="mt-3 flex gap-2">
+                                                    {['160', '180', '200', '220', '240', '280', '300'].map(gsm => (
+                                                        <button
+                                                            key={gsm}
+                                                            type="button"
+                                                            onClick={() => handleChipSelect('weightGSM', gsm)}
+                                                            className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                                                                activeItem.weightGSM === gsm
+                                                                    ? 'bg-gray-800 text-white border-gray-800 dark:bg-white dark:text-black'
+                                                                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-gray-400 shadow-sm'
+                                                            }`}
+                                                        >
+                                                            {gsm}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
 
-                                {/* 5. Trims & Accessories */}
-                                <FormField label="Trims & Accessories" icon={<Scissors className="h-5 w-5 text-gray-400" />} error={errors[`lineItems[${activeItemIndex}].trimsAndAccessories`]}>
-                                    <input id={`lineItems[${activeItemIndex}].trimsAndAccessories`} type="text" name="trimsAndAccessories" value={activeItem.trimsAndAccessories} onChange={handleFormChange} placeholder="e.g., YKK Zippers, Metal Buttons" className={getInputClass(errors[`lineItems[${activeItemIndex}].trimsAndAccessories`])} />
-                                </FormField>
-                            </div>
-                        </div>
-                        )}
-
-                        {/* Section 3: Attachments */}
-                        {currentStep === 3 && (
-                        <div className="animate-fade-in">
-                                {/* 6. Sample Photo Upload */}
-                                <div className="mb-6">
-                                    <FileDropZone
-                                        label="Sample Photo Upload"
-                                        accept="image/*"
-                                        multiple
-                                        onFilesSelected={onSampleFilesSelected}
-                                        onFileRemoved={onSampleFileRemoved}
-                                        icon={<ImageIcon className="h-8 w-8" />}
-                                        selectedFiles={sampleFiles}
-                                        previews={samplePreviews}
-                                    />
-                                </div>
-
-                                {/* 7. Document Upload */}
-                                <div className="mb-6">
-                                    <FileDropZone
-                                        label="Document Upload (Tech Pack, Size Chart)"
-                                        accept=".pdf,.doc,.docx,.xls,.xlsx"
-                                        multiple
-                                        onFilesSelected={onDocFilesSelected}
-                                        onFileRemoved={onDocFileRemoved}
-                                        icon={<FileText className="h-8 w-8" />}
-                                        selectedFiles={docFiles}
-                                    />
-                                </div>
-
-                                {/* 8. Special Instructions */}
-                                <div className="md:col-span-2 mb-6">
-                                    <FormField label="Special Instructions" icon={<AlertCircle className="h-5 w-5 text-gray-400" />} error={errors[`lineItems[${activeItemIndex}].specialInstructions`]}>
-                                        <textarea id={`lineItems[${activeItemIndex}].specialInstructions`} name="specialInstructions" value={activeItem.specialInstructions} onChange={handleFormChange} rows={3} placeholder="Any other specific requirements..." className={getInputClass(errors[`lineItems[${activeItemIndex}].specialInstructions`])}></textarea>
-                                    </FormField>
-                                </div>
-
-                                {/* 9. Target Price */}
-                                <div className="mb-6">
-                                    <FormField label="Target Price per Unit (USD)" icon={<DollarSign className="h-5 w-5 text-gray-400" />} error={errors[`lineItems[${activeItemIndex}].targetPrice`]}>
-                                        <input id={`lineItems[${activeItemIndex}].targetPrice`} type="number" min="0" step="0.01" name="targetPrice" value={activeItem.targetPrice} onChange={handleFormChange} placeholder="e.g., 4.50" className={getInputClass(errors[`lineItems[${activeItemIndex}].targetPrice`])} />
-                                    </FormField>
-                                </div>
-                        </div>
-                        )}
-
-                        {/* Section 3: Logistics & Commercials */}
-                        {currentStep === 4 && (
-                        <div className="animate-fade-in">
-                            <legend className="text-lg font-semibold text-gray-700 dark:text-white mb-4">Logistics & Commercials</legend>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {/* Destination Country */}
-                                <FormField label="Destination Country" icon={<Globe className="h-5 w-5 text-gray-400" />} required error={errors.shippingCountry}>
-                                    <input id="shippingCountry" type="text" name="shippingCountry" value={formState.shippingCountry} onChange={handleFormChange} list="countries" placeholder="Select Country" className={getInputClass(errors.shippingCountry)} disabled={orderType === 'existing'} />
-                                    <datalist id="countries">
-                                        {COUNTRIES.map(c => <option key={c} value={c} />)}
-                                    </datalist>
-                                </FormField>
-                                {/* Destination Port */}
-                                <FormField label="Destination Port" icon={<Anchor className="h-5 w-5 text-gray-400" />} required error={errors.shippingPort}>
-                                    <input id="shippingPort" type="text" name="shippingPort" value={formState.shippingPort} onChange={handleFormChange} list="ports" placeholder={isLoadingPorts ? "Loading ports..." : "Select Port"} className={getInputClass(errors.shippingPort)} disabled={orderType === 'existing'} />
-                                    {isLoadingPorts && (
-                                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#c20c0b]"></div>
+                                            {/* Quantity Section - Redesigned */}
+                                            <div className="md:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3">
+                                                    <label className="block text-sm font-bold text-gray-700 dark:text-white">
+                                                        Total Quantity <span className="text-red-500">*</span>
+                                                    </label>
+                                                    <div className="flex p-1 bg-gray-100 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 shadow-sm">
+                                                        <button 
+                                                            type="button" 
+                                                            onClick={() => setQuantityType('units')} 
+                                                            className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${activeItem.quantityType === 'units' ? 'bg-[#c20c0b] text-white shadow-sm' : 'text-gray-500 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'}`}
+                                                        >
+                                                            By Units
+                                                        </button>
+                                                        <button 
+                                                            type="button" 
+                                                            onClick={() => setQuantityType('container')} 
+                                                            className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${activeItem.quantityType === 'container' ? 'bg-[#c20c0b] text-white shadow-sm' : 'text-gray-500 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'}`}
+                                                        >
+                                                            By Container
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                
+                                                {activeItem.quantityType === 'units' ? (
+                                                    <div className="relative">
+                                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                                                            <Package className="h-5 w-5" />
+                                                        </div>
+                                                        <input 
+                                                            id={`lineItems[${activeItemIndex}].qty`} 
+                                                            type="number" 
+                                                            min="0" 
+                                                            name="qty" 
+                                                            value={activeItem.qty || ''} 
+                                                            onChange={handleFormChange} 
+                                                            placeholder="e.g., 5000" 
+                                                            className={getInputClass(errors[`lineItems[${activeItemIndex}].qty`])} 
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <div className="relative">
+                                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                                                            <Package className="h-5 w-5" />
+                                                        </div>
+                                                        <select 
+                                                            id={`lineItems[${activeItemIndex}].qty`} 
+                                                            name="containerType" 
+                                                            value={activeItem.containerType || ''} 
+                                                            onChange={handleFormChange} 
+                                                            className={`${getInputClass(errors[`lineItems[${activeItemIndex}].qty`])} appearance-none`}
+                                                        >
+                                                            <option value="">Select Container Type</option>
+                                                            {containerOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                                        </select>
+                                                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-gray-400">
+                                                            <ChevronDown size={16} />
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {errors[`lineItems[${activeItemIndex}].qty`] && <p className="mt-1 text-xs text-red-600 dark:text-red-400 animate-fade-in">{errors[`lineItems[${activeItemIndex}].qty`]}</p>}
+                                            </div>
                                         </div>
+                                    </div>
                                     )}
-                                    <datalist id="ports">
-                                        {availablePorts.map(p => <option key={p} value={p} />)}
-                                    </datalist>
-                                </FormField>
-                            </div>
-                        </div>
-                        )}
 
-                        {/* Section 5: Summary */}
-                        {currentStep === 5 && (
-                            <div className="animate-fade-in space-y-8">
-                                <h3 className="text-2xl font-bold text-gray-800 dark:text-white mb-6">Order Summary</h3>
-                                
-                                {/* Logistics Section */}
-                                <div className="bg-gray-50 dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700">
-                                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-3 flex items-center"><Globe size={20} className="mr-2 text-[#c20c0b]"/> Destination</h3>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        <div>
-                                            <p className="text-xs text-gray-500 dark:text-gray-200 uppercase font-semibold">Country</p>
-                                            <p className="text-gray-900 dark:text-white font-medium">{formState.shippingCountry}</p>
+                                    {/* Section 2: Specifications */}
+                                    {currentStep === 2 && (
+                                    <div className="animate-slide-in">
+                                        <div className="text-center mb-8">
+                                            <h3 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">Let's size it up</h3>
+                                            <p className="text-gray-500 dark:text-gray-400">Define your size range and packaging needs.</p>
                                         </div>
-                                        <div>
-                                            <p className="text-xs text-gray-500 dark:text-gray-200 uppercase font-semibold">Port</p>
-                                            <p className="text-gray-900 dark:text-white font-medium">{formState.shippingPort}</p>
+                                        <div className="space-y-6">
+                                            {/* 1. Size Range */}
+                                            <div>
+                                                <label id={`lineItems[${activeItemIndex}].sizeRange`} className={`block text-sm font-bold uppercase tracking-wider mb-3 ${errors[`lineItems[${activeItemIndex}].sizeRange`] ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}`}>Size Range <span className="text-red-500">*</span></label>
+                                                <div className="flex flex-wrap gap-3">
+                                                    {sizeOptions.map(size => (
+                                                        <label key={size} className={`inline-flex items-center px-4 py-3 rounded-xl border-2 cursor-pointer transition-all ${activeItem.sizeRange.includes(size) ? 'border-[#c20c0b] bg-red-50 dark:bg-red-900/20 text-[#c20c0b] font-bold shadow-sm' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:border-gray-300 shadow-sm'}`}>
+                                                            <input 
+                                                                type="checkbox" 
+                                                                checked={activeItem.sizeRange.includes(size)} 
+                                                                onChange={() => handleSizeCheckbox(size)}
+                                                                className="hidden" 
+                                                            />
+                                                            <span>{size}</span>
+                                                        </label>
+                                                    ))}
+                                                    <label className={`inline-flex items-center px-4 py-3 rounded-xl border-2 cursor-pointer transition-all ${activeItem.sizeRange.includes('Custom') ? 'border-[#c20c0b] bg-red-50 dark:bg-red-900/20 text-[#c20c0b] font-bold shadow-sm' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:border-gray-300 shadow-sm'}`}>
+                                                        <input 
+                                                            type="checkbox" 
+                                                            checked={activeItem.sizeRange.includes('Custom')} 
+                                                            onChange={() => handleSizeCheckbox('Custom')}
+                                                            className="hidden" 
+                                                        />
+                                                        <span>Custom</span>
+                                                    </label>
+                                                </div>
+                                                {activeItem.sizeRange.includes('Custom') && (
+                                                    <div className="mt-3">
+                                                        <input type="text" name="customSize" value={activeItem.customSize} onChange={handleFormChange} placeholder="Enter custom sizes (e.g., 4XL, 5XL)" className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm" />
+                                                    </div>
+                                                )}
+                                                {errors[`lineItems[${activeItemIndex}].sizeRange`] && <p className="mt-1 text-xs text-red-600 dark:text-red-400 animate-fade-in">{errors[`lineItems[${activeItemIndex}].sizeRange`]}</p>}
+                                            </div>
+
+                                            {/* 2. Size Ratio */}
+                                            {activeItem.sizeRange.length > 0 && (
+                                                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+                                                    <label className="block text-sm font-medium text-gray-700 dark:text-white mb-2 flex items-center"><Ruler className="w-4 h-4 mr-1"/> Size Ratio / Breakdown</label>
+                                                    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-4">
+                                                        {activeItem.sizeRange.map(size => (
+                                                            <div key={size}>
+                                                                <label className="block text-xs text-gray-500 dark:text-gray-200 mb-1">{size}</label>
+                                                                <input 
+                                                                    type="number" 
+                                                                    min="0"
+                                                                    value={activeItem.sizeRatio[size] || ''} 
+                                                                    onChange={(e) => {
+                                                                        if (parseInt(e.target.value) < 0) return;
+                                                                        setFormState(prev => {
+                                                                            const newItems = [...prev.lineItems];
+                                                                            const updatedItem = {
+                                                                                ...newItems[activeItemIndex],
+                                                                                sizeRatio: { ...newItems[activeItemIndex].sizeRatio, [size]: e.target.value }
+                                                                            };
+                                                                            newItems[activeItemIndex] = updatedItem;
+                                                                            return { ...prev, lineItems: newItems };
+                                                                        })
+                                                                    }}
+                                                                    placeholder="Qty" 
+                                                                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" 
+                                                                />
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* 3. Sleeve Options (Upper Body Only) */}
+                                            {isUpperBody && (
+                                                <div>
+                                                    <label className="block text-sm font-bold uppercase tracking-wider mb-3 text-gray-500 dark:text-gray-400">Sleeve Style</label>
+                                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                                        {SLEEVE_OPTIONS.map((opt) => (
+                                                            <button
+                                                                key={opt.id}
+                                                                type="button"
+                                                                onClick={() => handleChipSelect('sleeveOption', opt.id)}
+                                                                className={`relative rounded-xl border-2 transition-all duration-300 flex flex-col items-center gap-0 group overflow-hidden ${
+                                                                    activeItem.sleeveOption === opt.id
+                                                                        ? 'border-[#c20c0b] shadow-md'
+                                                                        : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 shadow-sm'
+                                                                }`}
+                                                            >
+                                                                <div className="w-full h-28 overflow-hidden">
+                                                                    <img src={opt.image} alt={opt.label} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                                                </div>
+                                                                <div className={`w-full py-2 px-1 text-center transition-colors ${activeItem.sleeveOption === opt.id ? 'bg-[#c20c0b] text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300'}`}>
+                                                                    <span className="font-bold text-xs block truncate">{opt.label}</span>
+                                                                </div>
+                                                                {activeItem.sleeveOption === opt.id && <div className="absolute top-2 right-2 bg-white text-[#c20c0b] rounded-full p-0.5 shadow-sm"><Check size={12} /></div>}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                    
+                                                    <label className="block text-sm font-bold uppercase tracking-wider mb-3 mt-6 text-gray-500 dark:text-gray-400">Print / Design</label>
+                                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+                                                        {PRINT_OPTIONS.map((opt) => (
+                                                            <button
+                                                                key={opt.id}
+                                                                type="button"
+                                                                onClick={() => handleChipSelect('printOption', opt.id)}
+                                                                className={`relative rounded-xl border-2 transition-all duration-300 flex flex-col items-center gap-0 group overflow-hidden ${
+                                                                    activeItem.printOption === opt.id
+                                                                        ? 'border-[#c20c0b] shadow-md'
+                                                                        : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 shadow-sm'
+                                                                }`}
+                                                            >
+                                                                <div className="w-full h-24 overflow-hidden">
+                                                                    <img src={opt.image} alt={opt.label} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                                                </div>
+                                                                <div className={`w-full py-2 px-1 text-center transition-colors ${activeItem.printOption === opt.id ? 'bg-[#c20c0b] text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300'}`}>
+                                                                    <span className="font-bold text-xs block truncate">{opt.label}</span>
+                                                                </div>
+                                                                {activeItem.printOption === opt.id && <div className="absolute top-2 right-2 bg-white text-[#c20c0b] rounded-full p-0.5 shadow-sm"><Check size={12} /></div>}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* 4. Packaging Option */}
+                                            <div>
+                                                <label className="block text-sm font-bold uppercase tracking-wider mb-3 text-gray-500 dark:text-gray-400">Packaging Preference <span className="text-red-500">*</span></label>
+                                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 mb-3">
+                                                    {PACKAGING_OPTIONS.map((pkg) => (
+                                                        <button
+                                                            key={pkg.id}
+                                                            type="button"
+                                                            onClick={() => handleChipSelect('packagingReqs', pkg.id)}
+                                                            className={`relative rounded-xl border-2 transition-all duration-300 flex flex-col items-center gap-0 group overflow-hidden ${
+                                                                activeItem.packagingReqs === pkg.id
+                                                                    ? 'border-[#c20c0b] shadow-md'
+                                                                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 shadow-sm'
+                                                            }`}
+                                                        >
+                                                            <div className="w-full h-24 overflow-hidden">
+                                                                <img src={pkg.image} alt={pkg.label} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                                            </div>
+                                                            <div className={`w-full py-2 px-1 text-center transition-colors ${activeItem.packagingReqs === pkg.id ? 'bg-[#c20c0b] text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300'}`}>
+                                                                <span className="font-bold text-[10px] block truncate">{pkg.label}</span>
+                                                            </div>
+                                                            {activeItem.packagingReqs === pkg.id && <div className="absolute top-2 right-2 bg-white text-[#c20c0b] rounded-full p-0.5 shadow-sm"><Check size={10} /></div>}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                                <input 
+                                                    id={`lineItems[${activeItemIndex}].packagingReqs`} 
+                                                    type="text" 
+                                                    name="packagingReqs" 
+                                                    value={activeItem.packagingReqs} 
+                                                    onChange={handleFormChange} 
+                                                    placeholder="Or type custom packaging requirements..." 
+                                                    className={`${getInputClass(errors[`lineItems[${activeItemIndex}].packagingReqs`])} text-sm`} 
+                                                />
+                                            </div>
+
+                                            {/* 5. Trims & Accessories */}
+                                            <FormField label="Trims & Accessories" icon={<Scissors className="h-5 w-5 text-gray-400" />} error={errors[`lineItems[${activeItemIndex}].trimsAndAccessories`]}>
+                                                <input id={`lineItems[${activeItemIndex}].trimsAndAccessories`} type="text" name="trimsAndAccessories" value={activeItem.trimsAndAccessories} onChange={handleFormChange} placeholder="e.g., YKK Zippers, Metal Buttons" className={getInputClass(errors[`lineItems[${activeItemIndex}].trimsAndAccessories`])} />
+                                            </FormField>
                                         </div>
                                     </div>
-                                </div>
+                                    )}
 
-                                {/* Cost Breakdown Section */}
-                                {(totalEstimatedCost > 0 || hasContainerItems) && (
-                                    <div className="bg-green-50 dark:bg-green-900/20 p-5 rounded-xl border border-green-100 dark:border-green-800">
-                                        <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-3 flex items-center">
-                                            <DollarSign size={20} className="mr-2 text-green-600 dark:text-green-400"/> Estimated Cost Breakdown
-                                        </h3>
-                                        <div className="space-y-2">
-                                            {formState.lineItems.map((item, idx) => {
-                                                if (!item.targetPrice) return null;
-                                                if (item.quantityType === 'units') {
-                                                    if (!item.qty) return null;
-                                                    const qty = item.qty;
-                                                    const price = parseFloat(item.targetPrice);
-                                                    if (isNaN(qty) || isNaN(price)) return null;
-                                                    const itemTotal = qty * price;
-                                                    return (
-                                                        <div key={item.id} className="flex justify-between text-sm">
-                                                            <span className="text-gray-600 dark:text-gray-300">{idx + 1}. {item.category} ({qty.toLocaleString()} x ${price.toFixed(2)})</span>
-                                                            <span className="font-medium text-gray-900 dark:text-white">${itemTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                    {/* Section 3: Attachments */}
+                                    {currentStep === 3 && (
+                                    <div className="animate-slide-in">
+                                            <div className="text-center mb-8">
+                                                <h3 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">Visuals & Docs</h3>
+                                                <p className="text-gray-500 dark:text-gray-400">Upload samples, tech packs, or reference images.</p>
+                                            </div>
+                                            {/* 6. Sample Photo Upload */}
+                                            <div className="mb-6">
+                                                <FileDropZone
+                                                    label="Sample Photo Upload"
+                                                    accept="image/*"
+                                                    multiple
+                                                    onFilesSelected={onSampleFilesSelected}
+                                                    onFileRemoved={onSampleFileRemoved}
+                                                    icon={<ImageIcon className="h-8 w-8" />}
+                                                    selectedFiles={sampleFiles}
+                                                    previews={samplePreviews}
+                                                />
+                                            </div>
+
+                                            {/* 7. Document Upload */}
+                                            <div className="mb-6">
+                                                <FileDropZone
+                                                    label="Document Upload (Tech Pack, Size Chart)"
+                                                    accept=".pdf,.doc,.docx,.xls,.xlsx"
+                                                    multiple
+                                                    onFilesSelected={onDocFilesSelected}
+                                                    onFileRemoved={onDocFileRemoved}
+                                                    icon={<FileText className="h-8 w-8" />}
+                                                    selectedFiles={docFiles}
+                                                />
+                                            </div>
+
+                                            {/* 8. Special Instructions */}
+                                            <div className="md:col-span-2 mb-6">
+                                                <FormField label="Special Instructions" icon={<AlertCircle className="h-5 w-5 text-gray-400" />} error={errors[`lineItems[${activeItemIndex}].specialInstructions`]}>
+                                                    <textarea id={`lineItems[${activeItemIndex}].specialInstructions`} name="specialInstructions" value={activeItem.specialInstructions} onChange={handleFormChange} rows={3} placeholder="Any other specific requirements..." className={getInputClass(errors[`lineItems[${activeItemIndex}].specialInstructions`])}></textarea>
+                                                </FormField>
+                                            </div>
+
+                                            {/* 9. Target Price */}
+                                            <div className="mb-6">
+                                                <FormField label="Target Price per Unit (USD)" icon={<DollarSign className="h-5 w-5 text-gray-400" />} error={errors[`lineItems[${activeItemIndex}].targetPrice`]}>
+                                                    <input id={`lineItems[${activeItemIndex}].targetPrice`} type="number" min="0" step="0.01" name="targetPrice" value={activeItem.targetPrice} onChange={handleFormChange} placeholder="e.g., 4.50" className={getInputClass(errors[`lineItems[${activeItemIndex}].targetPrice`])} />
+                                                </FormField>
+                                            </div>
+
+                                            {/* Suggestions - Zomato Style */}
+                                            <div className="mt-10 pt-6 border-t border-dashed border-gray-200 dark:border-gray-700">
+                                                <div className="flex items-center justify-between mb-4">
+                                                    <div>
+                                                        <h4 className="text-lg font-bold text-gray-800 dark:text-white">Add more to your order?</h4>
+                                                        <p className="text-sm text-gray-500 dark:text-gray-400">Popular additions for your collection</p>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                                    {CATEGORY_OPTIONS
+                                                        .filter(cat => !formState.lineItems.some(item => item.category === cat.id))
+                                                        .slice(0, 4)
+                                                        .map((cat) => (
+                                                        <div key={cat.id} className="group relative bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-md transition-all">
+                                                            <div className="aspect-[4/3] relative overflow-hidden">
+                                                                <img src={cat.image} alt={cat.label} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80" />
+                                                                <span className="absolute bottom-2 left-3 text-white font-bold text-sm">{cat.label}</span>
+                                                            </div>
+                                                            <div className="p-3">
+                                                                <button 
+                                                                    type="button"
+                                                                    onClick={() => handleAddSuggestedItem(cat.id)}
+                                                                    className="w-full py-2 bg-red-50 dark:bg-red-900/20 text-[#c20c0b] dark:text-red-400 font-bold text-xs rounded-lg hover:bg-[#c20c0b] hover:text-white transition-colors flex items-center justify-center gap-1"
+                                                                >
+                                                                    <Plus size={14} /> Add
+                                                                </button>
+                                                            </div>
                                                         </div>
-                                                    );
-                                                } else {
-                                                    return (
-                                                        <div key={item.id} className="flex justify-between text-sm">
-                                                            <span className="text-gray-600 dark:text-gray-300">{idx + 1}. {item.category} ({item.containerType} @ ${item.targetPrice}/unit)</span>
-                                                            <span className="font-medium text-gray-500 dark:text-gray-400 italic">N/A (Container)</span>
-                                                        </div>
-                                                    );
-                                                }
-                                            })}
-                                            <div className="border-t border-green-200 dark:border-green-700 pt-2 mt-2 flex justify-between items-center">
-                                                <span className="font-bold text-gray-800 dark:text-white">Total Estimated Target</span>
-                                                <span className="font-bold text-green-700 dark:text-green-400 text-lg">
-                                                    ${totalEstimatedCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                    {hasContainerItems && <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-1"> + Container Costs</span>}
-                                                </span>
+                                                    ))}
+                                                </div>
+
+                                                <div className="mt-8 flex flex-col items-center justify-center gap-3">
+                                                    <button 
+                                                        type="button"
+                                                        onClick={handleAddItem}
+                                                        className="px-8 py-3 bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-bold rounded-xl shadow-lg hover:scale-105 transition-transform flex items-center gap-2"
+                                                    >
+                                                        <Plus size={18} /> Add More Products
+                                                    </button>
+                                                </div>
+                                            </div>
+                                    </div>
+                                    )}
+                                </div>
+                            </div>
+                        ) : (
+                            // Steps 4 and 5 (Logistics and Review)
+                            <>
+                                {/* Section 4: Logistics & Commercials */}
+                                {currentStep === 4 && (
+                                <div className="animate-slide-in">
+                                    <div className="text-center mb-8">
+                                        <h3 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">Where is it going?</h3>
+                                        <p className="text-gray-500 dark:text-gray-400">Set your destination and logistics preferences.</p>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        {/* Destination Country */}
+                                        <FormField label="Destination Country" icon={<Globe className="h-5 w-5 text-gray-400" />} required error={errors.shippingCountry}>
+                                            <input id="shippingCountry" type="text" name="shippingCountry" value={formState.shippingCountry} onChange={handleFormChange} list="countries" placeholder="Select Country" className={getInputClass(errors.shippingCountry)} disabled={orderType === 'existing'} />
+                                            <datalist id="countries">
+                                                {COUNTRIES.map(c => <option key={c} value={c} />)}
+                                            </datalist>
+                                        </FormField>
+                                        {/* Destination Port */}
+                                        <FormField label="Destination Port" icon={<Anchor className="h-5 w-5 text-gray-400" />} required error={errors.shippingPort}>
+                                            <input id="shippingPort" type="text" name="shippingPort" value={formState.shippingPort} onChange={handleFormChange} list="ports" placeholder={isLoadingPorts ? "Loading ports..." : "Select Port"} className={getInputClass(errors.shippingPort)} disabled={orderType === 'existing'} />
+                                            {isLoadingPorts && (
+                                                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#c20c0b]"></div>
+                                                </div>
+                                            )}
+                                            <datalist id="ports">
+                                                {availablePorts.map(p => <option key={p} value={p} />)}
+                                            </datalist>
+                                        </FormField>
+                                    </div>
+                                </div>
+                                )}
+
+                                {/* Section 5: Summary */}
+                                {currentStep === 5 && (
+                                    <div className="animate-slide-in space-y-8 bg-white dark:bg-gray-800/50 p-6 sm:p-8 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
+                                        {/* Invoice Header */}
+                                        <div className="flex justify-between items-start pb-6 border-b border-gray-200 dark:border-gray-700">
+                                            <div>
+                                                <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Order Review</h2>
+                                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Please review your order details before submitting.</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-sm text-gray-500 dark:text-gray-400">Request Date</p>
+                                                <p className="font-medium text-gray-800 dark:text-white">{new Date().toLocaleDateString()}</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Shipping Details */}
+                                        <div>
+                                            <h4 className="text-sm font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3">Shipping To</h4>
+                                            <p className="font-semibold text-gray-800 dark:text-white">{formState.shippingCountry}</p>
+                                            <p className="text-gray-600 dark:text-gray-300">{formState.shippingPort}</p>
+                                        </div>
+
+                                        {/* Items Table */}
+                                        <div className="overflow-x-auto -mx-6 sm:-mx-8">
+                                            <table className="min-w-full">
+                                                <thead className="border-b border-gray-200 dark:border-gray-700">
+                                                    <tr>
+                                                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">#</th>
+                                                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Product</th>
+                                                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider hidden md:table-cell">Details</th>
+                                                        <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Quantity</th>
+                                                        <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Target/Unit</th>
+                                                        <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Subtotal</th>
+                                                        <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider"></th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {formState.lineItems.map((item: any, idx) => {
+                                                        const subtotal = (item.quantityType === 'units' && item.qty && item.targetPrice) ? item.qty * parseFloat(item.targetPrice) : 0;
+                                                        return (
+                                                            <tr key={item.id} className="border-b border-gray-100 dark:border-gray-800">
+                                                                <td className="px-6 py-4 align-top text-sm font-medium text-gray-500 dark:text-gray-400">{idx + 1}</td>
+                                                                <td className="px-6 py-4 align-top">
+                                                                    <p className="font-bold text-gray-800 dark:text-white text-sm">{item.category}</p>
+                                                                    <p className="text-xs text-gray-500 dark:text-gray-400">{item.fabricQuality}</p>
+                                                                </td>
+                                                                <td className="px-6 py-4 align-top text-xs text-gray-600 dark:text-gray-300 hidden md:table-cell">
+                                                                    <p><strong>Weight:</strong> {item.weightGSM} GSM</p>
+                                                                    <p><strong>Sizes:</strong> {item.sizeRange.join(', ')}</p>
+                                                                    {item.sleeveOption && <p><strong>Sleeve:</strong> {item.sleeveOption}</p>}
+                                                                    {item.printOption && <p><strong>Print:</strong> {item.printOption}</p>}
+                                                                </td>
+                                                                <td className="px-6 py-4 align-top text-right text-sm">{item.quantityType === 'units' ? `${item.qty.toLocaleString()} units` : item.containerType}</td>
+                                                                <td className="px-6 py-4 align-top text-right text-sm">${item.targetPrice ? parseFloat(item.targetPrice).toFixed(2) : 'N/A'}</td>
+                                                                <td className="px-6 py-4 align-top text-right text-sm font-semibold text-gray-800 dark:text-white">${subtotal > 0 ? subtotal.toFixed(2) : 'N/A'}</td>
+                                                                <td className="px-6 py-4 align-top text-right">
+                                                                    <div className="flex items-center justify-end gap-0">
+                                                                        <button type="button" onClick={() => handleEditItem(idx)} className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-700" title="Edit Item"><Edit size={16} /></button>
+                                                                        {formState.lineItems.length > 1 && <button type="button" onClick={() => handleDeleteItemClick(idx)} className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-700" title="Remove Item"><Trash2 size={16} /></button>}
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+
+                                        {/* Add More Products Button */}
+                                        <div className="flex justify-center mt-6">
+                                            <button type="button" onClick={handleAddItem} className="px-6 py-2 border-2 border-dashed border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 font-semibold rounded-lg hover:border-[#c20c0b] hover:text-[#c20c0b] transition-colors flex items-center gap-2">
+                                                <Plus size={16} /> Add Another Product
+                                            </button>
+                                        </div>
+
+                                        {/* Totals Section */}
+                                        <div className="flex justify-end mt-8">
+                                            <div className="w-full max-w-xs space-y-2">
+                                                <div className="flex justify-between text-sm">
+                                                    <span className="text-gray-500 dark:text-gray-400">Subtotal</span>
+                                                    <span className="font-medium text-gray-800 dark:text-white">${totalEstimatedCost > 0 ? totalEstimatedCost.toFixed(2) : 'N/A'}</span>
+                                                </div>
+                                                <div className="flex justify-between text-sm">
+                                                    <span className="text-gray-500 dark:text-gray-400">Taxes & Fees</span>
+                                                    <span className="font-medium text-gray-800 dark:text-white">Calculated at checkout</span>
+                                                </div>
+                                                <div className="pt-2 border-t border-gray-200 dark:border-gray-700 flex justify-between font-bold text-lg">
+                                                    <span className="text-gray-900 dark:text-white">Estimated Total</span>
+                                                    <span className="text-gray-900 dark:text-white">${totalEstimatedCost > 0 ? totalEstimatedCost.toFixed(2) : 'N/A'}</span>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
                                 )}
-
-                                {/* Products Section */}
-                                <div>
-                                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center"><Package size={20} className="mr-2 text-[#c20c0b]"/> Products ({formState.lineItems.length})</h3>
-                                    <div className="space-y-4">
-                                        {formState.lineItems.map((item, idx) => (
-                                            <div key={item.id} className="border border-gray-200 dark:border-gray-700 rounded-xl p-5 hover:shadow-sm transition-shadow">
-                                                <div className="flex justify-between items-start mb-3">
-                                                    <h4 className="font-bold text-[#c20c0b] text-lg">Product {idx + 1}: {item.category}</h4>
-                                                    <span className="bg-red-100 text-[#a50a09] text-xs font-bold px-2 py-1 rounded-full">{item.quantityType === 'container' ? item.containerType : `${item.qty} Units`}</span>
-                                                </div>
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-y-3 gap-x-6 text-sm">
-                                                    <div><span className="text-gray-500 dark:text-gray-200">Fabric:</span> <span className="font-medium text-gray-900 dark:text-white">{item.fabricQuality}</span></div>
-                                                    <div><span className="text-gray-500 dark:text-gray-200">Weight:</span> <span className="font-medium text-gray-900 dark:text-white">{item.weightGSM} GSM</span></div>
-                                                    <div><span className="text-gray-500 dark:text-gray-200">Target Price:</span> <span className="font-medium text-gray-900 dark:text-white">${item.targetPrice}</span></div>
-                                                    <div><span className="text-gray-500 dark:text-gray-200">Sizes:</span> <span className="font-medium text-gray-900 dark:text-white">{item.sizeRange.join(', ')}</span></div>
-                                                    {item.sleeveOption && <div><span className="text-gray-500 dark:text-gray-200">Sleeve:</span> <span className="font-medium text-gray-900 dark:text-white">{item.sleeveOption}</span></div>}
-                                                    <div className="md:col-span-2"><span className="text-gray-500 dark:text-gray-200">Packaging:</span> <span className="font-medium text-gray-900 dark:text-white">{item.packagingReqs}</span></div>
-                                                    {item.specialInstructions && <div className="md:col-span-2"><span className="text-gray-500 dark:text-gray-200">Instructions:</span> <span className="font-medium text-gray-900 dark:text-white">{item.specialInstructions}</span></div>}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
+                            </>
                         )}
                         
                         {/* Navigation Buttons */}
-                        <div className="pt-6 border-t flex flex-col md:flex-row justify-between gap-4 mt-8"> 
-                            <div>
-                                {currentStep === 1 && (
-                                    <button type="button" onClick={handleResetForm} className="px-6 py-3 text-gray-500 dark:text-gray-400 font-medium hover:text-red-600 transition">Reset Form</button>
-                                )}
+                        <div className="flex justify-between items-center pt-6 border-t border-gray-100 dark:border-gray-800">
+                            <div className="flex gap-2">
                                 {currentStep > 1 && (
-                                    <button type="button" onClick={handleBack} className="px-6 py-3 text-gray-700 dark:text-white font-semibold bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition">Back</button>
-                                )}
-                            </div>
-                            <div className="flex gap-4">
-                                <button type="button" onClick={handleSaveDraft} className="px-4 py-3 text-gray-600 dark:text-gray-300 font-medium hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition flex items-center gap-2">
-                                    <Save size={18} /> <span className="hidden sm:inline">Save Draft</span>
-                                </button>
-                                {currentStep === 3 && (
-                                    <button type="button" onClick={handleNext} className="px-6 py-3 text-gray-500 dark:text-gray-400 font-medium hover:text-[#c20c0b] transition flex items-center gap-2">
-                                        Skip <SkipForward size={16} />
+                                    <button type="button" onClick={handleBack} className="px-4 py-2 text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl font-bold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2 shadow-sm">
+                                        <ChevronLeft size={16}/> Back
                                     </button>
                                 )}
-                                {currentStep < 5 ? (
-                                    <button type="button" onClick={handleNext} className="px-8 py-3 text-white rounded-lg font-semibold bg-[#c20c0b] hover:bg-[#a50a09] transition shadow-md flex items-center gap-2">
-                                        Next Step <ArrowRight size={18} />
+                                <button type="button" onClick={handleSaveDraft} className="px-4 py-2 text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl font-bold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2 shadow-sm">
+                                    <Save size={16}/> Save Draft
+                                </button>
+                                <button type="button" onClick={handleResetForm} className="px-4 py-2 text-red-600 bg-red-50 dark:bg-red-900/20 rounded-xl font-bold hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors">
+                                    <Trash2 size={16}/>
+                                </button>
+                            </div>
+                            {currentStep < 5 ? (
+                                currentStep === 3 ? (
+                                    <button 
+                                        type="button"
+                                        onClick={handleNext}
+                                        className="text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white transition-colors flex items-center gap-1 px-4 py-3"
+                                    >
+                                        Skip to next step <ArrowRight size={14} />
                                     </button>
                                 ) : (
-                                    <button
-                                        type="button"
-                                        onClick={onSubmitButtonClick}
-                                        disabled={isSubmitting}
-                                        className={`px-8 py-3 text-white rounded-lg font-bold transition shadow-md flex items-center gap-2 ${
-                                            isSubmitting
-                                                ? 'bg-gray-400 cursor-not-allowed'
-                                                : 'bg-green-600 hover:bg-green-700 transform hover:scale-105'
-                                        }`}
-                                    >
-                                        {isSubmitting ? (
-                                            <>
-                                                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                                Submitting...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Check size={18} /> {orderType === 'new' ? 'Submit Quote Request' : 'Add Products to RFQ'}
-                                            </>
-                                        )}
+                                    <button type="button" onClick={handleNext} className="px-6 py-3 bg-gradient-to-r from-[#c20c0b] to-orange-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl hover:scale-105 transition-all flex items-center gap-2">
+                                        Continue <ArrowRight size={18}/>
                                     </button>
-                                )}
-                            </div>
+                                )
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={onSubmitButtonClick}
+                                    disabled={isSubmitting}
+                                    className={`px-8 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center gap-2 ${
+                                        isSubmitting
+                                            ? 'bg-gray-400 cursor-not-allowed text-white'
+                                            : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:scale-105'
+                                    }`}
+                                >
+                                    {isSubmitting ? (
+                                        <>
+                                            <Zap className="animate-spin" size={18}/> Submitting...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Check size={18}/> Submit Request
+                                        </>
+                                    )}
+                                </button>
+                            )}
                         </div>
                     </form>
                     </div>
@@ -1983,27 +2057,31 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                 </div>
 
                 {/* Reset Confirmation Modal */}
-                {isResetModalOpen && (
-                    createPortal(<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 animate-fade-in">
-                        <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-md border border-gray-200 dark:border-gray-700 p-6">
-                            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Reset Form?</h3>
-                            <p className="text-gray-600 dark:text-gray-300 mb-6">Are you sure you want to reset the form? All entered data will be lost.</p>
-                            <div className="flex justify-end gap-3">
-                                <button 
-                                    onClick={() => setIsResetModalOpen(false)}
-                                    className="px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                                <button 
-                                    onClick={confirmReset}
-                                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                                >
-                                    Reset Form
-                                </button>
+                {isResetModalOpen && createPortal(
+                    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setIsResetModalOpen(false)}>
+                        <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>
+                            <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">Reset Form?</h3>
+                            <p className="text-gray-500 dark:text-gray-400 mb-6">This will clear all entered data. This action cannot be undone.</p>
+                            <div className="flex gap-3 justify-end">
+                                <button onClick={() => setIsResetModalOpen(false)} className="px-4 py-2 text-gray-600 bg-gray-100 rounded-xl font-bold hover:bg-gray-200 transition-colors">Cancel</button>
+                                <button onClick={confirmReset} className="px-4 py-2 bg-red-500 text-white rounded-xl font-bold hover:bg-red-600 transition-colors">Reset</button>
                             </div>
                         </div>
-                    </div>, document.body)
+                    </div>, document.body
+                )}
+
+                {/* Delete Item Confirmation Modal */}
+                {isDeleteModalOpen && createPortal(
+                    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setIsDeleteModalOpen(false)}>
+                        <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>
+                            <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">Remove Item?</h3>
+                            <p className="text-gray-500 dark:text-gray-400 mb-6">Are you sure you want to remove this item from your order?</p>
+                            <div className="flex gap-3 justify-end">
+                                <button onClick={() => setIsDeleteModalOpen(false)} className="px-4 py-2 text-gray-600 bg-gray-100 rounded-xl font-bold hover:bg-gray-200 transition-colors">Cancel</button>
+                                <button onClick={confirmDeleteItem} className="px-4 py-2 bg-red-500 text-white rounded-xl font-bold hover:bg-red-600 transition-colors">Remove</button>
+                            </div>
+                        </div>
+                    </div>, document.body
                 )}
 
                 {/* Success Animation Overlay */}

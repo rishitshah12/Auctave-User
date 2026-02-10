@@ -24,6 +24,7 @@ export interface LineItem {
     customSize: string;
     sizeRatio: Record<string, string>;
     sleeveOption: string;
+    printOption: string;
     trimsAndAccessories: string;
     specialInstructions: string;
     quantityType?: 'units' | 'container';

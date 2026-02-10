@@ -119,7 +119,7 @@ const AppContent: FC = () => {
     // State to store data entered in the Order Form
     const [orderFormData, setOrderFormData] = useState<OrderFormData>({
         lineItems: [{
-            id: Date.now(), 
+            id: Date.now(),
             category: 'T-shirt',
             fabricQuality: '100% Cotton',
             weightGSM: '180',
@@ -133,6 +133,7 @@ const AppContent: FC = () => {
             customSize: '',
             sizeRatio: {},
             sleeveOption: '',
+            printOption: '',
             trimsAndAccessories: '',
             specialInstructions: '',
             quantityType: 'units'
@@ -470,8 +471,53 @@ const AppContent: FC = () => {
         };
     }, [user, isAdmin]);
 
-    // --- Authentication & Profile Functions (Mocked) ---
-    
+    // --- Authentication & Profile Functions ---
+
+    // Helper function to validate session with timeout to prevent hanging
+    const validateSessionWithTimeout = useCallback(async (timeoutMs: number = 5000): Promise<{ valid: boolean; session: any }> => {
+        try {
+            const timeoutPromise = new Promise<{ valid: false; session: null }>((resolve) => {
+                setTimeout(() => resolve({ valid: false, session: null }), timeoutMs);
+            });
+
+            const sessionPromise = (async () => {
+                const { data: { session }, error } = await supabase.auth.getSession();
+                if (error || !session) {
+                    return { valid: false, session: null };
+                }
+                return { valid: true, session };
+            })();
+
+            return await Promise.race([sessionPromise, timeoutPromise]);
+        } catch (err) {
+            console.error('Session validation error:', err);
+            return { valid: false, session: null };
+        }
+    }, []);
+
+    // Proactive session refresh to keep token fresh during active sessions
+    useEffect(() => {
+        if (!user) return;
+
+        const REFRESH_INTERVAL = 10 * 60 * 1000; // Refresh every 10 minutes during active use
+
+        const refreshSession = async () => {
+            try {
+                const { data, error } = await supabase.auth.refreshSession();
+                if (error) {
+                    console.warn('Session refresh failed:', error.message);
+                    // Don't force logout here - let the next action trigger proper session check
+                }
+            } catch (err) {
+                console.error('Session refresh error:', err);
+            }
+        };
+
+        const intervalId = setInterval(refreshSession, REFRESH_INTERVAL);
+
+        return () => clearInterval(intervalId);
+    }, [user]);
+
     // Function to handle user sign out
     const handleSignOut = useCallback(async (skipConfirmation = false) => {
         if (!skipConfirmation && !window.confirm("Are you sure you want to log out?")) return;
@@ -551,17 +597,10 @@ const AppContent: FC = () => {
     // Session validation on page visibility change (handles refresh and returning to tab)
     useEffect(() => {
         const validateSession = async () => {
-            try {
-                const { data: { session }, error } = await supabase.auth.getSession();
-                if (error || !session) {
-                    // Session is invalid or expired
-                    if (user) {
-                        showToast('Your session has expired. Please log in again.', 'error');
-                        handleSignOut(true);
-                    }
-                }
-            } catch (err) {
-                console.error('Session validation error:', err);
+            const { valid } = await validateSessionWithTimeout(5000);
+            if (!valid && user) {
+                showToast('Your session has expired. Please log in again.', 'error');
+                handleSignOut(true);
             }
         };
 
@@ -586,7 +625,7 @@ const AppContent: FC = () => {
             document.removeEventListener('visibilitychange', handleVisibilityChange);
             window.removeEventListener('focus', handleFocus);
         };
-    }, [user, handleSignOut, showToast]);
+    }, [user, handleSignOut, showToast, validateSessionWithTimeout]);
 
     // Function to save or update user profile in Supabase
     const saveUserProfile = async (profileData: Partial<UserProfile>) => {
@@ -634,9 +673,9 @@ const AppContent: FC = () => {
     const submitQuoteRequest = async (quoteData: { factory?: { id: string; name: string; location: string; imageUrl: string }, order: OrderFormData, files?: File[] }): Promise<boolean> => {
         showToast('Submitting quote request...', 'success');
         try {
-            // Check if session is valid before submitting
-            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-            if (sessionError || !session) {
+            // Check if session is valid before submitting (with timeout to prevent hanging)
+            const { valid, session } = await validateSessionWithTimeout(5000);
+            if (!valid || !session) {
                 showToast('Your session has expired. Please log in again.', 'error');
                 handleSignOut(true);
                 return false;
@@ -713,9 +752,9 @@ const AppContent: FC = () => {
     const addToQuoteRequest = async (quoteId: string, newOrderDetails: OrderFormData, files: File[]): Promise<boolean> => {
         showToast('Adding to quote request...', 'success');
         try {
-            // Check if session is valid before submitting
-            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-            if (sessionError || !session) {
+            // Check if session is valid before submitting (with timeout to prevent hanging)
+            const { valid, session } = await validateSessionWithTimeout(5000);
+            if (!valid || !session) {
                 showToast('Your session has expired. Please log in again.', 'error');
                 handleSignOut(true);
                 return false;

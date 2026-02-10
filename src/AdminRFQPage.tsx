@@ -1799,12 +1799,14 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                                                 {item.labelingReqs && <div className="flex justify-between items-start"><span className="text-gray-500 dark:text-gray-200">Labeling:</span> <span className="font-medium text-gray-900 dark:text-white text-right ml-4">{item.labelingReqs}</span></div>}
                                                             </div>
                                                         </div>
-                                                        {(item.trimsAndAccessories || item.specialInstructions) && (
+                                                        {(item.trimsAndAccessories || item.specialInstructions || item.sleeveOption || (item as any).printOption) && (
                                                             <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
                                                                 <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-5 py-3">
                                                                     <p className="text-xs text-white uppercase font-bold tracking-wider">Additional Details</p>
                                                                 </div>
                                                                 <div className="p-5 bg-white dark:bg-gray-800 space-y-3 text-sm">
+                                                                    {item.sleeveOption && <div><span className="text-gray-500 dark:text-gray-200 block mb-1">Sleeve:</span> <span className="font-medium text-gray-900 dark:text-white">{item.sleeveOption}</span></div>}
+                                                                    {(item as any).printOption && <div><span className="text-gray-500 dark:text-gray-200 block mb-1">Print:</span> <span className="font-medium text-gray-900 dark:text-white">{(item as any).printOption}</span></div>}
                                                                     {item.trimsAndAccessories && <div><span className="text-gray-500 dark:text-gray-200 block mb-1">Trims:</span> <span className="font-medium text-gray-900 dark:text-white">{item.trimsAndAccessories}</span></div>}
                                                                     {item.specialInstructions && <div><span className="text-gray-500 dark:text-gray-200 block mb-1">Instructions:</span> <span className="font-medium text-gray-900 dark:text-white bg-yellow-50 dark:bg-yellow-900/30 px-2 py-1 rounded border border-yellow-100 dark:border-yellow-800 inline-block w-full">{item.specialInstructions}</span></div>}
                                                                 </div>

@@ -622,6 +622,10 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                                                     <span className="block text-[10px] uppercase text-gray-400 mb-0.5">Style</span>
                                                     {item.styleOption || 'N/A'}
                                                 </div>
+                                                {item.printOption && <div>
+                                                    <span className="block text-[10px] uppercase text-gray-400 mb-0.5">Print</span>
+                                                    {item.printOption}
+                                                </div>}
                                                 <div>
                                                     <span className="block text-[10px] uppercase text-gray-400 mb-0.5">Target Price</span>
                                                     ${item.targetPrice}
