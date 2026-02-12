@@ -4,13 +4,14 @@ import { createPortal } from 'react-dom';
 import confetti from 'canvas-confetti';
 // Import specific icons from the 'lucide-react' library to use in the form UI.
 import {
-    Shirt, Package, Award, Weight, Palette, DollarSign, Map as MapIcon, Box, Tag, ChevronLeft, Ruler, Scissors, Image as ImageIcon, FileText, Upload, AlertCircle, Globe, Anchor, Plus, Trash2, Copy, X, ChevronRight, Check, ArrowRight, SkipForward, Save, ChevronDown, Eye, Sparkles, Zap, Wand2, Edit
+    Shirt, Package, Award, Weight, Palette, DollarSign, Map as MapIcon, Box, Tag, ChevronLeft, Ruler, Scissors, Image as ImageIcon, FileText, Upload, AlertCircle, Globe, Anchor, Plus, Trash2, Copy, X, ChevronRight, Check, ArrowRight, SkipForward, Save, ChevronDown, Eye, Sparkles, Zap, Wand2, Edit,
+    Clock, MapPin, ArrowUpDown, Info
 } from 'lucide-react';
 // Import the main layout wrapper which provides the sidebar and header structure.
 import { MainLayout } from '../src/MainLayout';
 // Import the TypeScript definition for the order form data structure.
-import { OrderFormData, QuoteRequest } from '../src/types';
-import { formatFriendlyDate } from './utils';
+import { OrderFormData, QuoteRequest, LineItem } from '../src/types';
+import { formatFriendlyDate, getStatusColor, getStatusGradientBorder } from './utils';
 import { useToast } from './ToastContext';
 
 // Define the properties (props) that this component expects to receive from its parent (App.tsx).
@@ -129,6 +130,67 @@ const calculateProductCompletion = (item: any): { percentage: number; filledFiel
 
 const getCategoryIcon = (category: string): string => {
     return CATEGORY_ICONS[category] || CATEGORY_ICONS['default'];
+};
+
+// --- Diff utility for modification tracking ---
+type ItemModificationStatus = 'new' | 'modified' | 'unchanged' | 'removed';
+
+interface FieldChange {
+    field: string;
+    label: string;
+    oldValue: string;
+    newValue: string;
+}
+
+interface ItemDiff {
+    status: ItemModificationStatus;
+    changes: FieldChange[];
+    item: LineItem;
+    originalItem?: LineItem;
+}
+
+const DIFF_FIELD_LABELS: Record<string, string> = {
+    category: 'Category', fabricQuality: 'Fabric', weightGSM: 'Weight (GSM)',
+    qty: 'Quantity', containerType: 'Container', targetPrice: 'Target Price',
+    packagingReqs: 'Packaging', labelingReqs: 'Labeling', sizeRange: 'Sizes',
+    sleeveOption: 'Sleeve', printOption: 'Print', trimsAndAccessories: 'Trims',
+    specialInstructions: 'Instructions', quantityType: 'Qty Type', styleOption: 'Style',
+};
+
+const computeLineItemDiffs = (currentItems: LineItem[], originalItems: LineItem[]): ItemDiff[] => {
+    const diffs: ItemDiff[] = [];
+    const matchedOriginalIds = new Set<number>();
+
+    currentItems.forEach(currentItem => {
+        const originalItem = originalItems.find(o => o.id === currentItem.id);
+        if (!originalItem) {
+            diffs.push({ status: 'new', changes: [], item: currentItem });
+        } else {
+            matchedOriginalIds.add(originalItem.id);
+            const changes: FieldChange[] = [];
+            (Object.keys(DIFF_FIELD_LABELS) as (keyof LineItem)[]).forEach(field => {
+                const oldVal = originalItem[field];
+                const newVal = currentItem[field];
+                const oldStr = Array.isArray(oldVal) ? (oldVal as string[]).sort().join(', ') : String(oldVal ?? '');
+                const newStr = Array.isArray(newVal) ? (newVal as string[]).sort().join(', ') : String(newVal ?? '');
+                if (oldStr !== newStr) {
+                    changes.push({ field: field as string, label: DIFF_FIELD_LABELS[field as string], oldValue: oldStr || '(empty)', newValue: newStr || '(empty)' });
+                }
+            });
+            diffs.push(changes.length > 0
+                ? { status: 'modified', changes, item: currentItem, originalItem }
+                : { status: 'unchanged', changes: [], item: currentItem, originalItem }
+            );
+        }
+    });
+
+    originalItems.forEach(originalItem => {
+        if (!matchedOriginalIds.has(originalItem.id)) {
+            diffs.push({ status: 'removed', changes: [], item: originalItem, originalItem });
+        }
+    });
+
+    return diffs;
 };
 
 const COUNTRIES = [
@@ -508,23 +570,80 @@ const FileDropZone: FC<{
 // --- Quote Selection Card Component ---
 const QuoteSelectionCard: FC<{ quote: QuoteRequest, onSelect: () => void }> = ({ quote, onSelect }) => {
     const totalUnits = quote.order?.lineItems?.reduce((sum, item) => item.quantityType === 'units' ? sum + (item.qty || 0) : sum, 0) || 0;
-    const categories = Array.from(new Set(quote.order?.lineItems?.map(i => i.category) || [])).join(', ');
+    const hasContainers = quote.order?.lineItems?.some(i => i.quantityType === 'container');
+    const categories = Array.from(new Set(quote.order?.lineItems?.map(i => i.category) || []));
+    const productCount = quote.order?.lineItems?.length || 0;
 
     return (
-        <div onClick={onSelect} className="relative overflow-hidden border border-gray-200 dark:border-gray-700 rounded-2xl p-5 cursor-pointer hover:border-[#c20c0b] dark:hover:border-[#c20c0b] transition-all group bg-white dark:bg-gray-800/50 hover:shadow-lg">
-            <div className="absolute top-0 right-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                <div className="bg-[#c20c0b] text-white p-1.5 rounded-full shadow-lg"><Check size={16} /></div>
+        <div onClick={onSelect} className="relative overflow-hidden border-2 border-gray-200 dark:border-gray-700 rounded-2xl p-5 cursor-pointer transition-all duration-300 group bg-white dark:bg-gray-800/50 hover:shadow-xl hover:-translate-y-1 hover:border-[#c20c0b] dark:hover:border-[#c20c0b]">
+            {/* Status gradient top bar */}
+            <div className={`absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r ${getStatusGradientBorder(quote.status)}`} />
+
+            {/* Selection check indicator */}
+            <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-200 group-hover:scale-100 scale-75">
+                <div className="bg-[#c20c0b] text-white p-1.5 rounded-full shadow-lg"><Check size={14} /></div>
             </div>
-            <div className="flex justify-between items-start mb-2">
-                <div>
-                    <p className="font-bold text-gray-800 dark:text-white text-lg">#{quote.id.slice(0, 8)}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{formatFriendlyDate(quote.submittedAt)}</p>
+
+            {/* Header: ID + Status Badge */}
+            <div className="flex items-center justify-between mb-3">
+                <span className="px-2.5 py-1 text-xs font-bold rounded-md bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600">
+                    #{quote.id.slice(0, 8)}
+                </span>
+                <span className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full border ${getStatusColor(quote.status)}`}>
+                    {quote.status}
+                </span>
+            </div>
+
+            {/* Factory info */}
+            {quote.factory && (
+                <div className="flex items-center gap-2.5 mb-3">
+                    <img className="h-8 w-8 rounded-full object-cover border border-gray-200 dark:border-gray-600 shadow-sm" src={quote.factory.imageUrl} alt={quote.factory.name} />
+                    <div>
+                        <p className="font-semibold text-sm text-gray-800 dark:text-white leading-tight">{quote.factory.name}</p>
+                        {quote.factory.location && (
+                            <p className="text-[10px] text-gray-400 dark:text-gray-500 flex items-center mt-0.5">
+                                <MapPin size={10} className="mr-0.5" />{quote.factory.location}
+                            </p>
+                        )}
+                    </div>
                 </div>
-                <span className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">{quote.status}</span>
+            )}
+
+            {/* Product category chips */}
+            <div className="flex flex-wrap gap-1.5 mb-3">
+                {categories.slice(0, 3).map(cat => {
+                    const catOption = CATEGORY_OPTIONS.find(c => c.id === cat);
+                    const icon = getCategoryIcon(cat);
+                    return (
+                        <div key={cat} className="flex items-center gap-1.5 bg-gray-50 dark:bg-gray-700/50 rounded-lg px-2 py-1">
+                            {catOption?.image ? (
+                                <img src={catOption.image} alt={cat} className="w-5 h-5 rounded object-cover" />
+                            ) : (
+                                <span className="text-sm">{icon}</span>
+                            )}
+                            <span className="text-xs font-medium text-gray-600 dark:text-gray-300">{cat}</span>
+                        </div>
+                    );
+                })}
+                {categories.length > 3 && (
+                    <span className="text-xs text-gray-400 dark:text-gray-500 self-center">+{categories.length - 3} more</span>
+                )}
             </div>
-            <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex justify-between text-sm">
-                <span className="text-gray-600 dark:text-gray-300 font-medium">{categories || 'Various'}</span>
-                <span className="text-gray-500 dark:text-gray-400">{totalUnits > 0 ? `${totalUnits.toLocaleString()} units` : 'Container'}</span>
+
+            {/* Footer: Date, Product Count, Units */}
+            <div className="pt-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1 text-gray-400 dark:text-gray-500">
+                    <Clock size={12} />
+                    <span>{formatFriendlyDate(quote.submittedAt)}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                    <span className="text-gray-500 dark:text-gray-400 font-medium">
+                        {productCount} {productCount === 1 ? 'product' : 'products'}
+                    </span>
+                    <span className="text-gray-600 dark:text-gray-300 font-semibold">
+                        {totalUnits > 0 ? `${totalUnits.toLocaleString()} units` : hasContainers ? 'Container' : '0 units'}
+                    </span>
+                </div>
             </div>
         </div>
     );
@@ -561,6 +680,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
 
     const [orderType, setOrderType] = useState<'new' | 'existing'>('new');
     const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
+    const [originalLineItems, setOriginalLineItems] = useState<LineItem[]>([]);
     const [showLandingPage, setShowLandingPage] = useState(true);
     const [errors, setErrors] = useState<Record<string, string>>({});
     // Track step per product - each product maintains its own step position
@@ -705,6 +825,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
         setOrderType(type);
         setShowLandingPage(false);
         setSelectedQuoteId(null);
+        setOriginalLineItems([]);
         // Reset form to default state
         setFormState({
             lineItems: [{
@@ -756,22 +877,41 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
         const quote = quoteRequests.find(q => q.id === quoteId);
         if (quote) {
             setSelectedQuoteId(quoteId);
-            setFormState({
-                lineItems: [{
+
+            // Deep-copy existing line items from the quote
+            const existingItems: LineItem[] = (quote.order?.lineItems || []).map(item => ({
+                ...JSON.parse(JSON.stringify(item)),
+                id: item.id || generateId(),
+            }));
+
+            // Store originals for diff comparison
+            setOriginalLineItems(JSON.parse(JSON.stringify(existingItems)));
+
+            const lineItemsForForm = existingItems.length > 0
+                ? existingItems
+                : [{
                     id: generateId(),
                     category: 'T-shirt', qty: 0, containerType: '',
                     fabricQuality: '', weightGSM: '', targetPrice: '', packagingReqs: '', labelingReqs: '', styleOption: '', printOption: '',
-                    sizeRange: [], customSize: '', sizeRatio: {}, sleeveOption: '', trimsAndAccessories: '', specialInstructions: '', quantityType: 'units'
-                }],
+                    sizeRange: [] as string[], customSize: '', sizeRatio: {} as Record<string, string>, sleeveOption: '', trimsAndAccessories: '', specialInstructions: '', quantityType: 'units' as const
+                }];
+
+            setFormState({
+                lineItems: lineItemsForForm,
                 shippingCountry: quote.order.shippingCountry,
                 shippingPort: quote.order.shippingPort
             });
+
+            // Set all loaded products to step 5 (review-ready) so user sees them first
+            const steps: Record<number, number> = {};
+            lineItemsForForm.forEach((_, index) => { steps[index] = 5; });
+            setProductSteps(steps);
+
             setErrors({});
             setSampleFiles([]);
             setDocFiles([]);
             setSamplePreviews([]);
             setActiveItemIndex(0);
-            setCurrentStep(1);
         }
     };
 
@@ -1249,6 +1389,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
         setAvailablePorts([]);
         setActiveItemIndex(0);
         setCurrentStep(1);
+        setOriginalLineItems([]);
         localStorage.removeItem(DRAFT_KEY);
         setIsResetModalOpen(false);
         showToast('Form reset successfully.');
@@ -1426,9 +1567,9 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                 </div>
 
                                 {/* Badge showing number of existing quotes */}
-                                {quoteRequests.filter(q => q.status !== 'Trashed').length > 0 && (
+                                {quoteRequests.filter(q => ['Pending', 'In Negotiation', 'Responded'].includes(q.status) && (q.modification_count || 0) < 1).length > 0 && (
                                     <div className="absolute top-4 right-4 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 text-xs font-bold px-2.5 py-1 rounded-full">
-                                        {quoteRequests.filter(q => q.status !== 'Trashed').length} quotes
+                                        {quoteRequests.filter(q => ['Pending', 'In Negotiation', 'Responded'].includes(q.status) && (q.modification_count || 0) < 1).length} quotes
                                     </div>
                                 )}
                             </button>
@@ -1450,11 +1591,11 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                         <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                             <div>
                                 <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 dark:text-white mb-2">
-                                        {orderType === 'existing' ? 'Expand Request' : 'Create Your Order'}
+                                        {orderType === 'existing' ? 'Modify Quote' : 'Create Your Order'}
                                 </h2>
                                 <p className="text-gray-500 dark:text-gray-400 font-medium">
                                         {orderType === 'existing'
-                                            ? 'Add items to an existing quote.'
+                                            ? 'Edit existing products, add new items, or remove items from your quote.'
                                             : 'Tell us what you need, we\'ll find the factory.'}
                                 </p>
                             </div>
@@ -1472,14 +1613,19 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
 
                     {orderType === 'existing' && selectedQuoteId === null && (
                         <div className="animate-fade-in">
-                            <h3 className="text-xl font-semibold text-gray-700 dark:text-white mb-4">Select an existing RFQ</h3>
-                            <div className="space-y-3 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
-                                {quoteRequests.filter(q => q.status !== 'Trashed').length > 0 ? (
-                                    quoteRequests.filter(q => q.status !== 'Trashed').map(quote => (
+                            <h3 className="text-xl font-semibold text-gray-700 dark:text-white mb-1">Select an existing RFQ</h3>
+                            <p className="text-sm text-gray-400 dark:text-gray-500 mb-4">Choose a quote to modify its products, specs, or add new items.</p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                                {quoteRequests.filter(q => ['Pending', 'In Negotiation', 'Responded'].includes(q.status) && (q.modification_count || 0) < 1).length > 0 ? (
+                                    quoteRequests.filter(q => ['Pending', 'In Negotiation', 'Responded'].includes(q.status) && (q.modification_count || 0) < 1).map(quote => (
                                         <QuoteSelectionCard key={quote.id} quote={quote} onSelect={() => handleSelectQuote(quote.id)} />
                                     ))
                                 ) : (
-                                    <p className="text-center text-gray-500 py-8">You have no existing RFQs to add to.</p>
+                                    <div className="col-span-2 text-center py-12">
+                                        <Package className="mx-auto mb-3 text-gray-300 dark:text-gray-600" size={40} />
+                                        <p className="text-gray-500 dark:text-gray-400 font-medium">No eligible RFQs to modify.</p>
+                                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Only Pending, Responded, or In Negotiation quotes that haven't been modified yet are eligible.</p>
+                                    </div>
                                 )}
                             </div>
                         </div>
@@ -2058,19 +2204,53 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                 )}
 
                                 {/* Section 5: Summary */}
-                                {currentStep === 5 && (
+                                {currentStep === 5 && (() => {
+                                    const isExistingModification = orderType === 'existing' && originalLineItems.length > 0;
+                                    const diffs = isExistingModification ? computeLineItemDiffs(formState.lineItems, originalLineItems) : [];
+                                    const currentDiffs = diffs.filter(d => d.status !== 'removed');
+                                    const removedDiffs = diffs.filter(d => d.status === 'removed');
+                                    const newCount = diffs.filter(d => d.status === 'new').length;
+                                    const modifiedCount = diffs.filter(d => d.status === 'modified').length;
+                                    const removedCount = removedDiffs.length;
+                                    const unchangedCount = diffs.filter(d => d.status === 'unchanged').length;
+                                    const hasChanges = newCount > 0 || modifiedCount > 0 || removedCount > 0;
+
+                                    return (
                                     <div className="animate-slide-in space-y-8 bg-white dark:bg-gray-800/50 p-6 sm:p-8 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
                                         {/* Invoice Header */}
                                         <div className="flex justify-between items-start pb-6 border-b border-gray-200 dark:border-gray-700">
                                             <div>
-                                                <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Order Review</h2>
-                                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Please review your order details before submitting.</p>
+                                                <h2 className="text-3xl font-bold text-gray-900 dark:text-white">{isExistingModification ? 'Modification Review' : 'Order Review'}</h2>
+                                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{isExistingModification ? 'Review your changes before submitting the modification.' : 'Please review your order details before submitting.'}</p>
                                             </div>
                                             <div className="text-right">
                                                 <p className="text-sm text-gray-500 dark:text-gray-400">Request Date</p>
                                                 <p className="font-medium text-gray-800 dark:text-white">{new Date().toLocaleDateString()}</p>
                                             </div>
                                         </div>
+
+                                        {/* Modifications Summary Banner */}
+                                        {isExistingModification && (
+                                            hasChanges ? (
+                                                <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-4">
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <ArrowUpDown size={16} className="text-amber-600 dark:text-amber-400" />
+                                                        <h4 className="font-bold text-amber-800 dark:text-amber-300 text-sm">Modifications Summary</h4>
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-3 text-xs">
+                                                        {newCount > 0 && <span className="px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 font-semibold">+{newCount} New {newCount === 1 ? 'Item' : 'Items'}</span>}
+                                                        {modifiedCount > 0 && <span className="px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 font-semibold">{modifiedCount} Modified</span>}
+                                                        {removedCount > 0 && <span className="px-2.5 py-1 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400 font-semibold">-{removedCount} Removed</span>}
+                                                        {unchangedCount > 0 && <span className="px-2.5 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 font-semibold">{unchangedCount} Unchanged</span>}
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex items-center gap-2">
+                                                    <Info size={16} className="text-gray-400" />
+                                                    <p className="text-sm text-gray-500 dark:text-gray-400">No modifications made to existing items.</p>
+                                                </div>
+                                            )
+                                        )}
 
                                         {/* Shipping Details */}
                                         <div>
@@ -2094,14 +2274,49 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    {formState.lineItems.map((item: any, idx) => {
+                                                    {formState.lineItems.map((item: any, idx: number) => {
                                                         const subtotal = (item.quantityType === 'units' && item.qty && item.targetPrice) ? item.qty * parseFloat(item.targetPrice) : 0;
+                                                        const diff = isExistingModification ? currentDiffs.find(d => d.item.id === item.id) : null;
+                                                        const status = diff?.status || null;
+
                                                         return (
-                                                            <tr key={item.id} className="border-b border-gray-100 dark:border-gray-800">
+                                                            <tr key={item.id} className={`border-b border-gray-100 dark:border-gray-800 ${
+                                                                status === 'new' ? 'bg-emerald-50/50 dark:bg-emerald-900/10' :
+                                                                status === 'modified' ? 'bg-amber-50/50 dark:bg-amber-900/10' : ''
+                                                            }`}>
                                                                 <td className="px-6 py-4 align-top text-sm font-medium text-gray-500 dark:text-gray-400">{idx + 1}</td>
                                                                 <td className="px-6 py-4 align-top">
-                                                                    <p className="font-bold text-gray-800 dark:text-white text-sm">{item.category}</p>
-                                                                    <p className="text-xs text-gray-500 dark:text-gray-400">{item.fabricQuality}</p>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <div>
+                                                                            <p className="font-bold text-gray-800 dark:text-white text-sm">{item.category}</p>
+                                                                            <p className="text-xs text-gray-500 dark:text-gray-400">{item.fabricQuality}</p>
+                                                                        </div>
+                                                                        {status === 'new' && (
+                                                                            <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700">New</span>
+                                                                        )}
+                                                                        {status === 'modified' && (
+                                                                            <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-700">Modified</span>
+                                                                        )}
+                                                                        {status === 'unchanged' && (
+                                                                            <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500">Unchanged</span>
+                                                                        )}
+                                                                    </div>
+                                                                    {/* Show field-level changes for modified items */}
+                                                                    {status === 'modified' && diff?.changes && diff.changes.length > 0 && (
+                                                                        <div className="mt-2 space-y-1">
+                                                                            {diff.changes.slice(0, 3).map(change => (
+                                                                                <div key={change.field} className="text-[10px] text-amber-600 dark:text-amber-400">
+                                                                                    <span className="font-medium">{change.label}:</span>{' '}
+                                                                                    <span className="line-through text-gray-400">{change.oldValue}</span>{' '}
+                                                                                    <ArrowRight size={8} className="inline" />{' '}
+                                                                                    <span className="font-semibold">{change.newValue}</span>
+                                                                                </div>
+                                                                            ))}
+                                                                            {diff.changes.length > 3 && (
+                                                                                <p className="text-[10px] text-amber-500">+{diff.changes.length - 3} more changes</p>
+                                                                            )}
+                                                                        </div>
+                                                                    )}
                                                                 </td>
                                                                 <td className="px-6 py-4 align-top text-xs text-gray-600 dark:text-gray-300 hidden md:table-cell">
                                                                     <p><strong>Weight:</strong> {item.weightGSM} GSM</p>
@@ -2121,6 +2336,34 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                                             </tr>
                                                         );
                                                     })}
+
+                                                    {/* Removed items */}
+                                                    {isExistingModification && removedDiffs.map((diff, idx) => (
+                                                        <tr key={`removed-${diff.item.id}`} className="border-b border-gray-100 dark:border-gray-800 bg-red-50/30 dark:bg-red-900/10 opacity-60">
+                                                            <td className="px-6 py-4 align-top text-sm font-medium text-gray-400 line-through">{formState.lineItems.length + idx + 1}</td>
+                                                            <td className="px-6 py-4 align-top">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div>
+                                                                        <p className="font-bold text-gray-400 dark:text-gray-500 text-sm line-through">{diff.item.category}</p>
+                                                                        <p className="text-xs text-gray-400 line-through">{diff.item.fabricQuality}</p>
+                                                                    </div>
+                                                                    <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-full bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-700">Removed</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-6 py-4 align-top text-xs text-gray-400 hidden md:table-cell line-through">
+                                                                <p>Weight: {diff.item.weightGSM} GSM</p>
+                                                                <p>Sizes: {diff.item.sizeRange.join(', ')}</p>
+                                                            </td>
+                                                            <td className="px-6 py-4 align-top text-right text-sm text-gray-400 line-through">
+                                                                {diff.item.quantityType === 'units' ? `${diff.item.qty?.toLocaleString()} units` : diff.item.containerType}
+                                                            </td>
+                                                            <td className="px-6 py-4 align-top text-right text-sm text-gray-400 line-through">
+                                                                ${diff.item.targetPrice ? parseFloat(diff.item.targetPrice).toFixed(2) : 'N/A'}
+                                                            </td>
+                                                            <td className="px-6 py-4 align-top text-right text-sm text-gray-400">-</td>
+                                                            <td className="px-6 py-4"></td>
+                                                        </tr>
+                                                    ))}
                                                 </tbody>
                                             </table>
                                         </div>
@@ -2150,7 +2393,8 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                             </div>
                                         </div>
                                     </div>
-                                )}
+                                    );
+                                })()}
                             </>
                         )}
                         

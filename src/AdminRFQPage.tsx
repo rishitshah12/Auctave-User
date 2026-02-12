@@ -290,7 +290,9 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                     clientCountry: client?.country || 'N/A',
                     clientJobRole: client?.job_role || 'N/A',
                     clientRevenue: client?.yearly_est_revenue || 'N/A',
-                    clientSpecialization: client?.category_specialization || 'N/A'
+                    clientSpecialization: client?.category_specialization || 'N/A',
+                    modification_count: q.modification_count || 0,
+                    modified_at: q.modified_at
                 };
             });
             
@@ -588,6 +590,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
     };
 
     const getQuoteTimestamp = (quote: QuoteRequest) => {
+        if (quote.modified_at) return quote.modified_at;
         if (quote.status === 'Accepted' && quote.acceptedAt) return quote.acceptedAt;
         if (quote.status === 'In Negotiation' && quote.negotiation_details?.submittedAt) return quote.negotiation_details.submittedAt;
         if (quote.status === 'Responded' && quote.response_details?.respondedAt) return quote.response_details.respondedAt;
@@ -598,7 +601,8 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
     const getDisplayDateInfo = (quote: QuoteRequest) => {
         const date = getQuoteTimestamp(quote);
         let label = 'Submitted';
-        if (quote.status === 'Accepted') label = 'Accepted';
+        if (quote.modified_at) label = 'Modified';
+        else if (quote.status === 'Accepted') label = 'Accepted';
         else if (quote.status === 'In Negotiation') label = 'Updated';
         else if (quote.status === 'Responded') label = 'Responded';
         else if (quote.status === 'Declined') label = 'Declined';
@@ -1402,6 +1406,12 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                         <div>
                                             <div className="flex items-center gap-3 mb-1">
                                                 <h1 className="text-xl font-bold text-gray-900 dark:text-white">Quote #{selectedQuote.id.slice(0, 8)}</h1>
+                                                {(selectedQuote.modification_count || 0) > 0 && (
+                                                    <span className="px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide rounded-full border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                                                        <Edit size={10} />
+                                                        Modified
+                                                    </span>
+                                                )}
                                                 <span className={`px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide rounded-full border ${getStatusColor(selectedQuote.status)} flex items-center gap-1`}>
                                                     {selectedQuote.status === 'Accepted' && <CheckCheck size={12} />}
                                                     {(selectedQuote.status === 'Admin Accepted' || selectedQuote.status === 'Client Accepted') && <Check size={12} />}
@@ -1409,7 +1419,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                                 </span>
                                             </div>
                                             <p className="text-gray-500 dark:text-gray-400 text-sm flex items-center gap-3">
-                                                <span className="flex items-center"><Calendar size={14} className="mr-1"/> {formatFriendlyDate(selectedQuote.submittedAt)}</span>
+                                                <span className="flex items-center"><Calendar size={14} className="mr-1"/> {selectedQuote.modified_at ? formatFriendlyDate(selectedQuote.modified_at) : formatFriendlyDate(selectedQuote.submittedAt)}</span>
                                                 <span className="flex items-center"><Package size={14} className="mr-1"/> {selectedQuote.order?.lineItems?.length || 0} items</span>
                                             </p>
                                         </div>
@@ -2670,11 +2680,19 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                         #{quote.id.slice(0, 8)}
                                     </span>
                                 </div>
-                                 <span className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full border ${getStatusColor(quote.status)} flex items-center gap-1`}>
-                                     {quote.status === 'Accepted' && <CheckCheck size={12} />}
-                                     {(quote.status === 'Admin Accepted' || quote.status === 'Client Accepted') && <Check size={12} />}
-                                     {quote.status === 'Admin Accepted' ? 'Admin Accepted' : quote.status === 'Client Accepted' ? 'Client Accepted' : quote.status}
-                                </span>
+                                <div className="flex items-center gap-1.5">
+                                    {(quote.modification_count || 0) > 0 && (
+                                        <span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                                            <Edit size={10} />
+                                            Modified
+                                        </span>
+                                    )}
+                                    <span className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full border ${getStatusColor(quote.status)} flex items-center gap-1`}>
+                                        {quote.status === 'Accepted' && <CheckCheck size={12} />}
+                                        {(quote.status === 'Admin Accepted' || quote.status === 'Client Accepted') && <Check size={12} />}
+                                        {quote.status === 'Admin Accepted' ? 'Admin Accepted' : quote.status === 'Client Accepted' ? 'Client Accepted' : quote.status}
+                                    </span>
+                                </div>
                             </div>
 
                             {/* Client Info (Replaces Factory Info from MyQuotesPage) */}

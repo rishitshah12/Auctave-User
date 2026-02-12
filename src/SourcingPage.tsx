@@ -3,7 +3,8 @@ import React, { FC, useState, useMemo, useEffect, useRef, ReactNode, useCallback
 // Import icons for UI elements
 import {
     Search, Star, SlidersHorizontal, ChevronDown, Menu, User as UserIcon, LogOut, Briefcase, Truck, DollarSign,
-    Building, ChevronLeft, ChevronRight, Package, Trash2, X, Bell
+    Building, ChevronLeft, ChevronRight, Package, Trash2, X, Bell,
+    Sparkles, TrendingUp, ArrowRight, Zap, Globe, Award, ShieldCheck, Clock
 } from 'lucide-react';
 import { Factory, UserProfile, QuoteRequest } from '../src/types';
 import {
@@ -33,16 +34,17 @@ interface SourcingPageProps {
     setGlobalLoading?: (isLoading: boolean) => void;
 }
 
-const DashboardCard: FC<{ icon: ReactNode; title: string; value: string | number; colorClass: string }> = React.memo(({ icon, title, value, colorClass }) => (
-    <div className={`relative p-5 rounded-xl overflow-hidden bg-white dark:bg-gray-900/40 dark:backdrop-blur-md shadow-lg border border-gray-200 dark:border-white/10 transition-transform hover:scale-105 cursor-pointer`}>
-        <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${colorClass}`}></div>
-        <div className="flex items-start justify-between">
+const DashboardCard: FC<{ icon: ReactNode; title: string; value: string | number; colorClass: string; index?: number }> = React.memo(({ icon, title, value, colorClass, index = 0 }) => (
+    <div className={`relative p-5 rounded-2xl overflow-hidden bg-white dark:bg-gray-900/40 dark:backdrop-blur-md shadow-lg border border-gray-200 dark:border-white/10 transition-all duration-300 hover:scale-[1.04] hover:-translate-y-1 cursor-pointer group hover-pulse-glow animate-stagger-in`} style={{ animationDelay: `${index * 100}ms` }}>
+        <div className={`absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r ${colorClass} transition-all duration-300 group-hover:h-2`}></div>
+        <div className="absolute -bottom-6 -right-6 w-24 h-24 rounded-full opacity-[0.07] group-hover:opacity-[0.12] transition-opacity duration-500 bg-gradient-to-br from-current" style={{ color: colorClass.includes('red') || colorClass.includes('#c20c0b') ? '#c20c0b' : colorClass.includes('blue') ? '#2563EB' : colorClass.includes('green') ? '#059669' : '#D97706' }}></div>
+        <div className="flex items-start justify-between relative z-10">
             <div>
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-200">{title}</p>
-                <p className="text-3xl font-bold text-gray-800 dark:text-white mt-1">{value}</p>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-300 tracking-wide">{title}</p>
+                <p className="text-3xl font-extrabold text-gray-800 dark:text-white mt-1 animate-count-up">{value}</p>
             </div>
-            <div className={`p-2 rounded-full bg-opacity-20 ${colorClass.split(' ')[0].replace('from-', 'bg-')}`}>
-                {icon}
+            <div className={`p-3 rounded-xl bg-gradient-to-br ${colorClass} shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-110`}>
+                <div className="text-white">{icon}</div>
             </div>
         </div>
     </div>
@@ -128,16 +130,16 @@ const Dashboard: FC<{ quoteRequests: QuoteRequest[]; handleSetCurrentPage: (page
     return(
         <section className="mb-8 space-y-8 animate-fade-in">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                <DashboardCard title="Accepted Orders" value={activeOrdersCount} icon={<Briefcase className="text-[#c20c0b]" size={24}/>} colorClass="from-[#c20c0b] to-red-500" />
-                <DashboardCard title="Units (Accepted)" value={unitsInProduction.toLocaleString()} icon={<Truck className="text-blue-600" size={24}/>} colorClass="from-blue-500 to-cyan-500" />
-                <DashboardCard title="Total Value" value={`$${totalOrderValue.toLocaleString()}`} icon={<DollarSign className="text-green-600" size={24}/>} colorClass="from-green-500 to-emerald-500" />
-                <DashboardCard title="Engaged Factories" value={uniqueFactories} icon={<Building className="text-orange-600" size={24}/>} colorClass="from-orange-500 to-amber-500" />
+                <DashboardCard title="Accepted Orders" value={activeOrdersCount} icon={<Briefcase size={22}/>} colorClass="from-[#c20c0b] to-red-500" index={0} />
+                <DashboardCard title="Units (Accepted)" value={unitsInProduction.toLocaleString()} icon={<Truck size={22}/>} colorClass="from-blue-500 to-cyan-500" index={1} />
+                <DashboardCard title="Total Value" value={`$${totalOrderValue.toLocaleString()}`} icon={<DollarSign size={22}/>} colorClass="from-green-500 to-emerald-500" index={2} />
+                <DashboardCard title="Engaged Factories" value={uniqueFactories} icon={<Building size={22}/>} colorClass="from-orange-500 to-amber-500" index={3} />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Quote Status Chart */}
-                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-lg border border-gray-200 dark:border-white/10 flex flex-col">
-                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4">Quote Status Distribution</h3>
+                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 flex flex-col transition-all duration-300 hover:shadow-xl animate-stagger-in" style={{ animationDelay: '400ms' }}>
+                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2"><Sparkles size={18} className="text-amber-500" /> Quote Status Distribution</h3>
                     <div className="flex-grow min-h-[300px]">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
@@ -190,8 +192,8 @@ const Dashboard: FC<{ quoteRequests: QuoteRequest[]; handleSetCurrentPage: (page
                 </div>
 
                 {/* Category Volume Chart */}
-                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-lg border border-gray-200 dark:border-white/10 flex flex-col">
-                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4">Requested Volume by Category</h3>
+                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 flex flex-col transition-all duration-300 hover:shadow-xl animate-stagger-in" style={{ animationDelay: '500ms' }}>
+                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2"><TrendingUp size={18} className="text-blue-500" /> Requested Volume by Category</h3>
                     <div className="flex-grow min-h-[300px]">
                         {barData.length > 0 ? (
                             <ResponsiveContainer width="100%" height="100%">
@@ -451,11 +453,15 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
 
     const SkeletonCard: FC = () => (
         <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden animate-pulse">
-            <div className="h-48 w-full bg-gray-300 dark:bg-gray-700"></div>
-            <div className="p-4">
-                <div className="h-5 bg-gray-300 dark:bg-gray-700 rounded w-3/4 mb-3"></div>
-                <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-1/2 mb-4"></div>
-                <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-full"></div>
+            <div className="h-48 w-full bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 dark:from-gray-700 dark:via-gray-600 dark:to-gray-700 bg-[length:200%_100%]" style={{ animation: 'shimmer 1.5s ease-in-out infinite' }}></div>
+            <div className="p-4 space-y-3">
+                <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded-lg w-3/4"></div>
+                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded-lg w-1/2"></div>
+                <div className="border-t border-dashed border-gray-100 dark:border-gray-800 my-2"></div>
+                <div className="flex justify-between">
+                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded-lg w-1/3"></div>
+                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded-lg w-1/4"></div>
+                </div>
             </div>
         </div>
     );
@@ -583,52 +589,155 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
         </div>
     );
 
+    const getGreeting = () => {
+        const hour = new Date().getHours();
+        if (hour < 12) return { text: 'Good Morning', emoji: '☀️' };
+        if (hour < 17) return { text: 'Good Afternoon', emoji: '🌤️' };
+        return { text: 'Good Evening', emoji: '🌙' };
+    };
+    const greeting = getGreeting();
+    const firstName = userProfile?.name ? userProfile.name.split(' ')[0] : 'User';
+
+    const promoBanners = [
+        {
+            title: 'Verified Factories',
+            description: 'All factories are vetted and certified for quality assurance.',
+            icon: <ShieldCheck size={28} />,
+            gradient: 'from-emerald-500 to-teal-600',
+            bgGlow: 'bg-emerald-500/20',
+        },
+        {
+            title: 'Fast Turnaround',
+            description: 'Get quotes within 24 hours from top manufacturers.',
+            icon: <Clock size={28} />,
+            gradient: 'from-blue-500 to-indigo-600',
+            bgGlow: 'bg-blue-500/20',
+        },
+        {
+            title: 'Global Network',
+            description: 'Access 500+ factories across Asia, Europe & Americas.',
+            icon: <Globe size={28} />,
+            gradient: 'from-purple-500 to-pink-600',
+            bgGlow: 'bg-purple-500/20',
+        },
+    ];
+
     return (
         <MainLayout {...props}>
-            {/* Header Section: Contains title, search bar, and profile menu */}
-            <header className="mb-6">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <button className="flex items-center text-2xl font-bold text-gray-800 dark:text-white">Dashboard <ChevronDown className="h-5 w-5 ml-1 text-gray-500" /></button>
-                        <p className="text-gray-500 text-sm mt-1">Welcome back, {userProfile?.name ? userProfile.name.split(' ')[0] : 'User'}!</p>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                        <button className="p-2 rounded-full bg-white dark:bg-gray-800 shadow-sm md:hidden"><Search size={20} className="text-gray-600 dark:text-gray-300" /></button>
-                        <button onClick={toggleMenu} className="p-2 rounded-full bg-white dark:bg-gray-800 shadow-sm md:hidden"><Menu size={20} className="text-gray-600 dark:text-gray-300" /></button>
-                        <NotificationBell />
-                        <ProfileDropdown />
+            {/* Hero Welcome Section */}
+            <header className="mb-8 relative">
+                <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 p-6 sm:p-8 shadow-2xl border border-white/5">
+                    {/* Animated background blobs */}
+                    <div className="absolute top-0 left-0 w-72 h-72 bg-pink-500/30 rounded-full filter blur-3xl animate-blob"></div>
+                    <div className="absolute top-10 right-10 w-64 h-64 bg-purple-500/30 rounded-full filter blur-3xl animate-blob-delay-2"></div>
+                    <div className="absolute -bottom-10 left-1/3 w-56 h-56 bg-cyan-500/30 rounded-full filter blur-3xl animate-blob-delay-4"></div>
+
+                    {/* Grid pattern overlay */}
+                    <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '24px 24px' }}></div>
+
+                    {/* Content */}
+                    <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                        <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                                <span className="text-2xl">{greeting.emoji}</span>
+                                <p className="text-gray-300 text-sm font-medium tracking-wide uppercase">{greeting.text}</p>
+                            </div>
+                            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white leading-tight">
+                                Welcome back, <span className="text-gradient-animated">{firstName}</span>
+                            </h1>
+                            <p className="text-gray-400 mt-2 text-sm sm:text-base max-w-xl">
+                                {userProfile?.companyName ? `${userProfile.companyName} • ` : ''}Discover top-rated factories, get instant quotes, and scale your garment production.
+                            </p>
+
+                            {/* Quick action buttons */}
+                            <div className="flex flex-wrap gap-3 mt-5">
+                                <button onClick={() => handleSetCurrentPage('orderForm')} className="px-5 py-2.5 bg-gradient-to-r from-[#c20c0b] to-red-600 text-white rounded-xl font-semibold text-sm shadow-lg shadow-red-500/25 hover:shadow-red-500/40 transition-all duration-300 hover:scale-[1.03] flex items-center gap-2">
+                                    <Zap size={16} /> Place New Order
+                                </button>
+                                <button onClick={() => handleSetCurrentPage('myQuotes')} className="px-5 py-2.5 bg-white/10 backdrop-blur-sm text-white rounded-xl font-semibold text-sm border border-white/20 hover:bg-white/20 transition-all duration-300 flex items-center gap-2">
+                                    View My Quotes <ArrowRight size={16} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Right side: Profile + Notification cluster */}
+                        <div className="flex items-center space-x-2 self-start sm:self-center">
+                            <button className="p-2 rounded-full bg-white/10 backdrop-blur-sm shadow-sm md:hidden hover:bg-white/20 transition-colors"><Search size={20} className="text-white" /></button>
+                            <button onClick={toggleMenu} className="p-2 rounded-full bg-white/10 backdrop-blur-sm shadow-sm md:hidden hover:bg-white/20 transition-colors"><Menu size={20} className="text-white" /></button>
+                            <NotificationBell />
+                            <ProfileDropdown />
+                        </div>
                     </div>
                 </div>
-                {/* Search Bar and Filter Button Row */}
-                <div className="relative mt-6 flex flex-col sm:flex-row gap-2">
-                    <div className="relative flex-grow">
-                        <Search className="h-5 w-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                        <input type="text" placeholder="Search factories by name or location..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#c20c0b] shadow-sm bg-white dark:bg-gray-900/50 dark:text-white text-gray-900" />
+
+                {/* Search Bar - floating below the hero */}
+                <div className="relative -mt-5 mx-4 sm:mx-8 flex flex-col sm:flex-row gap-2">
+                    <div className="relative flex-grow group">
+                        <Search className="h-5 w-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#c20c0b] transition-colors" />
+                        <input type="text" placeholder="Search factories by name or location..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3.5 border border-gray-200 dark:border-gray-700 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#c20c0b] focus:border-transparent shadow-lg bg-white dark:bg-gray-900/80 dark:backdrop-blur-md dark:text-white text-gray-900 text-sm" />
                     </div>
-                    <button onClick={() => setShowFilterPanel(true)} className="flex-shrink-0 px-4 py-3 bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl flex items-center justify-center gap-2 hover:bg-gray-100 dark:hover:bg-gray-800 font-semibold shadow-sm text-gray-700 dark:text-white"><SlidersHorizontal size={16} /> <span className="hidden sm:inline">Filters</span></button>
+                    <button onClick={() => setShowFilterPanel(true)} className="flex-shrink-0 px-5 py-3.5 bg-white dark:bg-gray-900/80 dark:backdrop-blur-md border border-gray-200 dark:border-gray-700 rounded-2xl flex items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800 font-semibold shadow-lg text-gray-700 dark:text-white text-sm transition-all duration-200 hover:scale-[1.02]"><SlidersHorizontal size={16} /> <span className="hidden sm:inline">Filters</span></button>
                 </div>
             </header>
 
+            {/* Promotional Banners */}
+            <section className="mb-8">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {promoBanners.map((banner, i) => (
+                        <div key={banner.title} className="relative overflow-hidden rounded-2xl p-5 bg-white dark:bg-gray-900/40 dark:backdrop-blur-md border border-gray-200 dark:border-white/10 shadow-md hover:shadow-xl transition-all duration-300 group cursor-pointer hover:-translate-y-1 animate-banner-slide banner-shimmer" style={{ animationDelay: `${i * 150}ms` }}>
+                            <div className={`absolute -top-6 -right-6 w-24 h-24 rounded-full ${banner.bgGlow} filter blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500`}></div>
+                            <div className="relative z-10">
+                                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${banner.gradient} flex items-center justify-center text-white shadow-lg mb-3 group-hover:scale-110 transition-transform duration-300`}>
+                                    {banner.icon}
+                                </div>
+                                <h3 className="font-bold text-gray-900 dark:text-white text-sm">{banner.title}</h3>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">{banner.description}</p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </section>
+
             {/* Dashboard Stats: Displays key metrics like Active Orders */}
-            <Dashboard quoteRequests={quoteRequests} handleSetCurrentPage={handleSetCurrentPage} setSelectedGarmentCategory={setSelectedGarmentCategory} />
+            <section className="mb-8">
+                <div className="flex items-center gap-2 mb-5">
+                    <Award size={20} className="text-[#c20c0b]" />
+                    <h2 className="text-lg font-bold text-gray-800 dark:text-white">Your Performance</h2>
+                </div>
+                <Dashboard quoteRequests={quoteRequests} handleSetCurrentPage={handleSetCurrentPage} setSelectedGarmentCategory={setSelectedGarmentCategory} />
+            </section>
 
             {/* Category Carousel: Horizontal scrollable list of garment types */}
-            <section className="mb-6"><CategoryCarousel /></section>
+            <section className="mb-6">
+                <div className="flex items-center gap-2 mb-4">
+                    <Package size={20} className="text-purple-500" />
+                    <h2 className="text-lg font-bold text-gray-800 dark:text-white">Browse Categories</h2>
+                </div>
+                <CategoryCarousel />
+            </section>
 
             {/* Quick Filters: Sticky bar with easy-access filters (Rating, Sustainable, etc.) */}
-            <section className="mb-6 sticky top-0 bg-white/80 dark:bg-gray-900/60 backdrop-blur-md py-3 z-30 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 transition-colors">
+            <section className="mb-6 sticky top-0 bg-white/80 dark:bg-gray-900/60 backdrop-blur-md py-3 z-30 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 transition-colors border-b border-gray-100 dark:border-gray-800/50">
                 <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide max-w-7xl mx-auto">
-                    <button onClick={() => setShowFilterPanel(true)} className="flex-shrink-0 px-4 py-2 border rounded-lg text-sm font-semibold transition-colors bg-white dark:bg-gray-900/50 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-white flex items-center gap-2"><SlidersHorizontal size={16} />Filters</button>
+                    <button onClick={() => setShowFilterPanel(true)} className="flex-shrink-0 px-4 py-2 border rounded-xl text-sm font-semibold transition-all duration-200 bg-white dark:bg-gray-900/50 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-white flex items-center gap-2 hover:scale-[1.03]"><SlidersHorizontal size={16} />Filters</button>
                     {quickFilters.map(filter => {
                         const isActive = isQuickFilterActive(filter.type, filter.value);
-                        return (<button key={filter.name} onClick={() => handleQuickFilter(filter.type, filter.value)} className={`flex-shrink-0 px-4 py-2 border rounded-lg text-sm font-semibold transition-colors ${isActive ? 'bg-[#c20c0b] text-white border-[#c20c0b]' : 'bg-white dark:bg-gray-900/50 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-white'}`}>{filter.name}</button>)
+                        return (<button key={filter.name} onClick={() => handleQuickFilter(filter.type, filter.value)} className={`flex-shrink-0 px-4 py-2 border rounded-xl text-sm font-semibold transition-all duration-200 hover:scale-[1.03] ${isActive ? 'bg-[#c20c0b] text-white border-[#c20c0b] shadow-md shadow-red-500/20' : 'bg-white dark:bg-gray-900/50 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-white'}`}>{filter.name}</button>)
                     })}
                 </div>
             </section>
 
             {/* Factory Grid: The main content area displaying the list of factories */}
             <section>
-                <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Recommended For You</h2>
+                <div className="flex items-center justify-between mb-5">
+                    <div className="flex items-center gap-2">
+                        <Sparkles size={20} className="text-amber-500" />
+                        <h2 className="text-xl font-bold text-gray-800 dark:text-white">Recommended For You</h2>
+                    </div>
+                    <span className="text-sm text-gray-500 dark:text-gray-400 font-medium">
+                        {!isFiltering && `${filteredFactories.length} ${filteredFactories.length === 1 ? 'factory' : 'factories'}`}
+                    </span>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                     {/* Conditional Rendering: Show Skeletons while loading, Cards if data exists, or 'No Results' message */}
                     {isFiltering ? (
@@ -638,10 +747,13 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                             <FactoryCard key={factory.id} factory={factory} onSelect={() => handleSelectFactory(factory)} style={{ animationDelay: `${index * 60}ms` }} />
                         ))
                     ) : (
-                        <div className="col-span-full text-center py-12 bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-sm border border-gray-200 dark:border-white/10">
-                            <Package className="mx-auto h-16 w-16 text-gray-400" />
-                            <p className="text-gray-600 dark:text-gray-200 font-semibold mt-4">No Factories Found</p>
-                            <p className="text-gray-500 text-sm">Try adjusting your category or search filters.</p>
+                        <div className="col-span-full text-center py-16 bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-sm border border-gray-200 dark:border-white/10">
+                            <div className="w-20 h-20 mx-auto rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
+                                <Package className="h-10 w-10 text-gray-400" />
+                            </div>
+                            <p className="text-gray-600 dark:text-gray-200 font-bold text-lg">No Factories Found</p>
+                            <p className="text-gray-500 text-sm mt-1 max-w-md mx-auto">Try adjusting your category or search filters to discover more manufacturers.</p>
+                            <button onClick={clearFilters} className="mt-4 px-5 py-2 bg-[#c20c0b] text-white rounded-xl text-sm font-semibold hover:bg-[#a50a09] transition-all shadow-md">Clear All Filters</button>
                         </div>
                     )}
                 </div>

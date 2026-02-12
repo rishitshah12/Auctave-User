@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { MainLayout } from './MainLayout';
 import { QuoteRequest } from './types';
 import {
-    Plus, MapPin, Globe, Shirt, Package, Clock, ChevronRight, FileQuestion, RefreshCw, MessageSquare, Bell, Calendar, DollarSign, CheckCircle, Check, CheckCheck, FileText, Trash2, AlertCircle, Filter, Search, Eye, X, ChevronDown, ClipboardList, Inbox, Archive, CheckSquare
+    Plus, MapPin, Globe, Shirt, Package, Clock, ChevronRight, FileQuestion, RefreshCw, MessageSquare, Bell, Calendar, DollarSign, CheckCircle, Check, CheckCheck, FileText, Trash2, AlertCircle, Filter, Search, Eye, X, ChevronDown, ClipboardList, Inbox, Archive, CheckSquare, Pencil
 } from 'lucide-react';
 import { formatFriendlyDate, getStatusColor, getStatusGradientBorder, getStatusHoverShadow } from './utils';
 import { useToast } from './ToastContext';
@@ -118,6 +118,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
     }, []);
 
     const getQuoteTimestamp = (quote: QuoteRequest) => {
+        if (quote.modified_at) return quote.modified_at;
         if (quote.status === 'Accepted' && quote.acceptedAt) return quote.acceptedAt;
         if (quote.status === 'In Negotiation' && quote.negotiation_details?.submittedAt) return quote.negotiation_details.submittedAt;
         if (quote.status === 'Responded' && quote.response_details?.respondedAt) return quote.response_details.respondedAt;
@@ -130,7 +131,8 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
     const getDisplayDateInfo = (quote: QuoteRequest) => {
         const date = getQuoteTimestamp(quote);
         let label = 'Submitted';
-        if (quote.status === 'Accepted') label = 'Accepted';
+        if (quote.modified_at) label = 'Modified';
+        else if (quote.status === 'Accepted') label = 'Accepted';
         else if (quote.status === 'In Negotiation') label = 'Updated';
         else if (quote.status === 'Responded') label = 'Received';
         else if (quote.status === 'Declined') label = 'Declined';
@@ -275,11 +277,19 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                 <span className="px-2.5 py-1 text-xs font-bold rounded-md bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
                     #{quote.id.slice(0, 8)}
                 </span>
-                <span className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wide rounded-full border ${getStatusColor(quote.status)} flex items-center gap-1.5 shadow-sm`}>
-                    {quote.status === 'Accepted' && <CheckCheck size={14} />}
-                    {(quote.status === 'Admin Accepted' || quote.status === 'Client Accepted') && <Check size={14} />}
-                    {quote.status === 'Admin Accepted' ? 'Admin Accepted' : quote.status === 'Client Accepted' ? 'You Accepted' : quote.status}
-                </span>
+                <div className="flex items-center gap-1.5">
+                    {(quote.modification_count || 0) > 0 && (
+                        <span className="px-2.5 py-1.5 text-xs font-bold uppercase tracking-wide rounded-full border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center gap-1 shadow-sm">
+                            <Pencil size={12} />
+                            Modified
+                        </span>
+                    )}
+                    <span className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wide rounded-full border ${getStatusColor(quote.status)} flex items-center gap-1.5 shadow-sm`}>
+                        {quote.status === 'Accepted' && <CheckCheck size={14} />}
+                        {(quote.status === 'Admin Accepted' || quote.status === 'Client Accepted') && <Check size={14} />}
+                        {quote.status === 'Admin Accepted' ? 'Admin Accepted' : quote.status === 'Client Accepted' ? 'You Accepted' : quote.status}
+                    </span>
+                </div>
             </div>
 
             {quote.status === 'Draft' ? (

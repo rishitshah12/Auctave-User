@@ -129,6 +129,8 @@ export interface QuoteRequest {
         adminApprovedLineItems?: number[];
         clientApprovedLineItems?: number[];
     };
+    modification_count?: number;
+    modified_at?: string;
 }
 
 

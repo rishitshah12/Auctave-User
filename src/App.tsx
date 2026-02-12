@@ -397,7 +397,9 @@ const AppContent: FC = () => {
                         userId: q.user_id,
                         files: q.files || [],
                         response_details: q.response_details,
-                        negotiation_details: q.negotiation_details
+                        negotiation_details: q.negotiation_details,
+                        modification_count: q.modification_count || 0,
+                        modified_at: q.modified_at
                     }));
                     console.log('[App.tsx] Transformed quotes files:', transformedQuotes.map(q => ({ id: q.id, files: q.files })));
                     setQuoteRequests(transformedQuotes);
@@ -777,16 +779,11 @@ const AppContent: FC = () => {
                 }
             }
 
-            const existingLineItems = existingQuote.order_details.lineItems || [];
-            const newLineItems = newOrderDetails.lineItems.map(item => ({
-                ...item,
-                id: Date.now() + Math.random() * 1000 // ensure unique id
-            }));
-            const combinedLineItems = [...existingLineItems, ...newLineItems];
-
+            // The form now contains the complete set of line items (existing modified + new),
+            // so we use them directly instead of appending.
             const updatedOrderDetails = {
                 ...existingQuote.order_details,
-                lineItems: combinedLineItems,
+                lineItems: newOrderDetails.lineItems,
             };
 
             const existingFiles = existingQuote.files || [];
@@ -798,6 +795,8 @@ const AppContent: FC = () => {
                 order_details: updatedOrderDetails,
                 files: combinedFiles,
                 status: newStatus,
+                modification_count: (existingQuote.modification_count || 0) + 1,
+                modified_at: new Date().toISOString(),
             });
 
             if (updateError) throw updateError;
