@@ -643,7 +643,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                                 <p className="text-gray-300 text-sm font-medium tracking-wide uppercase">{greeting.text}</p>
                             </div>
                             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white leading-tight">
-                                Welcome back, <span className="text-gradient-animated">{firstName}</span>
+                                Welcome back, <span className="bg-gradient-to-r from-blue-400 via-sky-300 to-cyan-300 bg-clip-text text-transparent animate-gradient-x font-black">{firstName}</span>
                             </h1>
                             <p className="text-gray-400 mt-2 text-sm sm:text-base max-w-xl">
                                 {userProfile?.companyName ? `${userProfile.companyName} • ` : ''}Discover top-rated factories, get instant quotes, and scale your garment production.

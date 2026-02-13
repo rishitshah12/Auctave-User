@@ -4,7 +4,7 @@ import { MainLayout } from './MainLayout';
 import { quoteService } from './quote.service';
 import { crmService } from './crm.service';
 import { QuoteRequest, NegotiationHistoryItem } from './types';
-import { MapPin, Shirt, Package, Clock, ChevronRight, ChevronLeft, FileQuestion, MessageSquare, CheckCircle, XCircle, X, Download, RefreshCw, User, Building, Calendar, FileText, Eye, EyeOff, CheckSquare, ArrowUp, ArrowDown, ChevronDown, ChevronUp, History, DollarSign, Search, Mail, Phone, Check, CheckCheck, Trash2, RotateCcw, Image as ImageIcon, Scale, Paperclip, Send, Circle, Layers, Scissors, Factory, ShieldCheck, Truck, LifeBuoy, ClipboardList, Plus, Edit, GripVertical, Info, Sparkles, Globe } from 'lucide-react';
+import { MapPin, Shirt, Package, Clock, ChevronRight, ChevronLeft, FileQuestion, MessageSquare, CheckCircle, XCircle, X, Download, RefreshCw, User, Building, Calendar, FileText, Eye, EyeOff, CheckSquare, ArrowUp, ArrowDown, ChevronDown, ChevronUp, History, DollarSign, Search, Mail, Phone, Check, CheckCheck, Trash2, RotateCcw, Image as ImageIcon, Scale, Paperclip, Send, Circle, Layers, Scissors, Factory, ShieldCheck, Truck, LifeBuoy, ClipboardList, Plus, Edit, GripVertical, Info, Sparkles, Globe, Box, Link as LinkIcon } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import confetti from 'canvas-confetti';
@@ -226,7 +226,10 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
     const [uploadingChats, setUploadingChats] = useState<Record<number, boolean>>({});
     const cancellationRefs = useRef<Record<number, boolean>>({});
     const [isBulkActionModalOpen, setIsBulkActionModalOpen] = useState(false);
+    const [isSampleResponseModalOpen, setIsSampleResponseModalOpen] = useState(false);
     const [bulkActionType, setBulkActionType] = useState<'hide' | 'unhide' | 'delete' | 'restore' | null>(null);
+    const [isShippingModalOpen, setIsShippingModalOpen] = useState(false);
+    const [shippingForm, setShippingForm] = useState({ trackingNumber: '', trackingLink: '', courier: '' });
     const { showToast } = useToast();
 
     const toggleExpand = (index: number) => {
@@ -1346,6 +1349,151 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
         }
     };
 
+    const handleSampleResponseSubmit = async (itemsData: any[], shippingCost: string, notes: string, commercialData: any) => {
+        if (!selectedQuote) return;
+
+        const sampleRequest = (selectedQuote.negotiation_details as any)?.sample_request;
+        if (!sampleRequest) return;
+
+        try {
+            showToast('Uploading sample photos and generating invoice...');
+
+            // Upload photos for each item
+            const itemsWithPhotos = await Promise.all(
+                itemsData.map(async (item) => {
+                    const photoUrls: string[] = [];
+
+                    for (const file of item.photos) {
+                        const fileName = `${selectedQuote.id}/samples/${item.lineItemId}/${Date.now()}_${file.name}`;
+                        const { data, error } = await props.supabase.storage
+                            .from('quote-attachments')
+                            .upload(fileName, file);
+
+                        if (!error && data) {
+                            photoUrls.push(data.path);
+                        }
+                    }
+
+                    return {
+                        lineItemId: item.lineItemId,
+                        category: item.category,
+                        sampleQty: item.sampleQty,
+                        sampleCost: parseFloat(item.sampleCost),
+                        photos: photoUrls
+                    };
+                })
+            );
+
+            const subtotal = itemsData.reduce((sum, item) => sum + parseFloat(item.sampleCost) * item.sampleQty, 0);
+            const shipping = parseFloat(shippingCost);
+            const total = subtotal + shipping;
+
+            const updatedSampleRequest = {
+                ...sampleRequest,
+                status: 'payment_pending',
+                admin_response: {
+                    items: itemsWithPhotos,
+                    subtotal: subtotal.toFixed(2),
+                    shippingCost: shipping.toFixed(2),
+                    total: total.toFixed(2),
+                    notes,
+                    commercialData,
+                    invoiceNumber: `INV-SAMPLE-${Date.now()}`,
+                    invoiceDate: new Date().toISOString(),
+                    respondedAt: new Date().toISOString()
+                }
+            };
+
+            const updatedNegotiationDetails = {
+                ...(selectedQuote.negotiation_details || {}),
+                sample_request: updatedSampleRequest
+            };
+
+            await quoteService.update(selectedQuote.id, { negotiation_details: updatedNegotiationDetails });
+            setSelectedQuote(prev => prev ? { ...prev, negotiation_details: updatedNegotiationDetails } : null);
+            setIsSampleResponseModalOpen(false);
+            showToast('Sample invoice sent successfully!');
+        } catch (error) {
+            console.error('Error processing sample response:', error);
+            showToast('Failed to process sample response', 'error');
+        }
+    };
+
+    const handleConfirmPayment = async () => {
+        if (!selectedQuote) return;
+        const sampleRequest = (selectedQuote.negotiation_details as any)?.sample_request;
+        const updatedNegotiationDetails = {
+            ...(selectedQuote.negotiation_details || {}),
+            sample_request: {
+                ...sampleRequest,
+                status: 'paid'
+            }
+        };
+        await quoteService.update(selectedQuote.id, { negotiation_details: updatedNegotiationDetails });
+        setSelectedQuote(prev => prev ? { ...prev, negotiation_details: updatedNegotiationDetails } : null);
+        setQuotes(prev => prev.map(q => q.id === selectedQuote.id ? { ...q, negotiation_details: updatedNegotiationDetails } : q));
+        showToast('Payment confirmed. Ready to ship.');
+    };
+
+    const handleOpenShippingModal = () => {
+        if (!selectedQuote) return;
+        const sampleRequest = (selectedQuote.negotiation_details as any)?.sample_request;
+        const commercialData = sampleRequest?.admin_response?.commercialData || {};
+        setShippingForm({
+            trackingNumber: commercialData.trackingNumber || '',
+            trackingLink: commercialData.trackingLink || '',
+            courier: commercialData.courierService || ''
+        });
+        setIsShippingModalOpen(true);
+    };
+
+    const handleSubmitShipping = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedQuote) return;
+        const sampleRequest = (selectedQuote.negotiation_details as any)?.sample_request;
+        
+        const updatedCommercialData = {
+            ...(sampleRequest.admin_response.commercialData || {}),
+            trackingNumber: shippingForm.trackingNumber,
+            courierService: shippingForm.courier,
+            trackingLink: shippingForm.trackingLink
+        };
+
+        const updatedNegotiationDetails = {
+            ...(selectedQuote.negotiation_details || {}),
+            sample_request: {
+                ...sampleRequest,
+                status: 'sent',
+                admin_response: {
+                    ...sampleRequest.admin_response,
+                    commercialData: updatedCommercialData
+                }
+            }
+        };
+        
+        await quoteService.update(selectedQuote.id, { negotiation_details: updatedNegotiationDetails });
+        setSelectedQuote(prev => prev ? { ...prev, negotiation_details: updatedNegotiationDetails } : null);
+        setQuotes(prev => prev.map(q => q.id === selectedQuote.id ? { ...q, negotiation_details: updatedNegotiationDetails } : q));
+        setIsShippingModalOpen(false);
+        showToast('Sample marked as shipped.');
+    };
+
+    const handleMarkDelivered = async () => {
+        if (!selectedQuote) return;
+        const sampleRequest = (selectedQuote.negotiation_details as any)?.sample_request;
+        const updatedNegotiationDetails = {
+            ...(selectedQuote.negotiation_details || {}),
+            sample_request: {
+                ...sampleRequest,
+                status: 'delivered'
+            }
+        };
+        await quoteService.update(selectedQuote.id, { negotiation_details: updatedNegotiationDetails });
+        setSelectedQuote(prev => prev ? { ...prev, negotiation_details: updatedNegotiationDetails } : null);
+        setQuotes(prev => prev.map(q => q.id === selectedQuote.id ? { ...q, negotiation_details: updatedNegotiationDetails } : q));
+        showToast('Sample marked as delivered.');
+    };
+
     const getStepIcon = (index: number, title: string) => {
         const lowerTitle = title.toLowerCase();
         if (lowerTitle.includes('sourcing') || lowerTitle.includes('material')) return <Layers size={20} />;
@@ -1381,6 +1529,34 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
         { id: 'timeline', label: 'Timeline', icon: <History size={18} />, badge: displayHistory.length },
         { id: 'files', label: 'Files', icon: <FileText size={18} />, badge: fileLinks.length || selectedQuote?.files?.length || 0 },
     ];
+
+    const sampleRequest = (selectedQuote?.negotiation_details as any)?.sample_request;
+
+    // Sample Response Page (Full Page instead of Modal)
+    if (isSampleResponseModalOpen && selectedQuote && sampleRequest) {
+        const requestedLineItems = selectedQuote.order.lineItems.filter((item: any) =>
+            sampleRequest.requestedItems.includes(item.id)
+        );
+
+        return (
+            <SampleResponsePage
+                requestedLineItems={requestedLineItems}
+                sampleRequest={sampleRequest}
+                quoteName={`Quote #${selectedQuote.id}`}
+                buyerInfo={{
+                    name: selectedQuote.clientName || selectedQuote.companyName || '',
+                    address: '',
+                    city: '',
+                    country: selectedQuote.clientCountry || selectedQuote.order.shippingCountry || '',
+                    phone: selectedQuote.clientPhone || '',
+                    email: selectedQuote.clientEmail || ''
+                }}
+                onSubmit={handleSampleResponseSubmit}
+                onClose={() => setIsSampleResponseModalOpen(false)}
+                supabase={props.supabase}
+            />
+        );
+    }
 
     if (selectedQuote) {
         return (
@@ -1523,6 +1699,85 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                             <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Lead Time</p>
                                         </div>
                                     </div>
+
+                                    {/* Sample Request Section */}
+                                    {sampleRequest && (
+                                        <div className="mt-6 bg-purple-50 dark:bg-purple-900/20 rounded-xl p-5 border border-purple-100 dark:border-purple-800">
+                                            <div className="flex justify-between items-start mb-3">
+                                                <h4 className="font-bold text-purple-900 dark:text-purple-100 flex items-center gap-2">
+                                                    <Box size={18} /> Sample Request
+                                                </h4>
+                                                <span className={`text-xs font-bold px-2 py-1 rounded-full uppercase ${
+                                                    sampleRequest.status === 'confirmed' ? 'bg-green-100 text-green-700' : 
+                                                    sampleRequest.status === 'sent' ? 'bg-blue-100 text-blue-700' : 
+                                                    sampleRequest.status === 'delivered' ? 'bg-green-100 text-green-700' :
+                                                    sampleRequest.status === 'paid' ? 'bg-indigo-100 text-indigo-700' :
+                                                    'bg-yellow-100 text-yellow-700'
+                                                }`}>
+                                                    {sampleRequest.status}
+                                                </span>
+                                            </div>
+                                            <div className="text-sm text-purple-800 dark:text-purple-200 space-y-2">
+                                                <p><strong>Requested Items:</strong> {sampleRequest.requestedItems.length} items</p>
+                                                <p><strong>Speed:</strong> {sampleRequest.deliverySpeed}</p>
+                                                {sampleRequest.specifications && <p><strong>Specs:</strong> {sampleRequest.specifications}</p>}
+
+                                                {/* Show invoice details if sent or confirmed */}
+                                                {sampleRequest.admin_response && (sampleRequest.status === 'sent' || sampleRequest.status === 'confirmed' || sampleRequest.status === 'delivered' || sampleRequest.status === 'paid' || sampleRequest.status === 'payment_pending') && (
+                                                    <div className="mt-3 pt-3 border-t border-purple-200 dark:border-purple-700">
+                                                        <p className="font-semibold mb-2">Invoice Details:</p>
+                                                        <div className="bg-white dark:bg-purple-900/30 rounded-lg p-3 space-y-2">
+                                                            <div className="flex justify-between text-xs">
+                                                                <span>Invoice #:</span>
+                                                                <span className="font-mono">{sampleRequest.admin_response.invoiceNumber}</span>
+                                                            </div>
+                                                            <div className="flex justify-between text-xs">
+                                                                <span>Subtotal:</span>
+                                                                <span className="font-semibold">${sampleRequest.admin_response.subtotal}</span>
+                                                            </div>
+                                                            <div className="flex justify-between text-xs">
+                                                                <span>Shipping:</span>
+                                                                <span className="font-semibold">${sampleRequest.admin_response.shippingCost}</span>
+                                                            </div>
+                                                            <div className="flex justify-between text-sm font-bold pt-2 border-t border-purple-200 dark:border-purple-700">
+                                                                <span>Total:</span>
+                                                                <span className="text-purple-600 dark:text-purple-400">${sampleRequest.admin_response.total}</span>
+                                                            </div>
+                                                        </div>
+                                                        {sampleRequest.admin_response.notes && (
+                                                            <p className="text-xs mt-2"><strong>Notes:</strong> {sampleRequest.admin_response.notes}</p>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {sampleRequest.status === 'requested' && (
+                                                    <button onClick={() => setIsSampleResponseModalOpen(true)} className="mt-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-xs font-bold hover:bg-purple-700 transition-colors flex items-center gap-2">
+                                                        <FileText size={14} /> Process Request
+                                                    </button>
+                                                )}
+                                                {sampleRequest.status === 'payment_pending' && (
+                                                    <button onClick={handleConfirmPayment} className="mt-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2">
+                                                        <CheckCircle size={14} /> Confirm Payment
+                                                    </button>
+                                                )}
+                                                {sampleRequest.status === 'paid' && (
+                                                    <button onClick={handleOpenShippingModal} className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors flex items-center gap-2">
+                                                        <Truck size={14} /> Ship Sample
+                                                    </button>
+                                                )}
+                                                {sampleRequest.status === 'sent' && (
+                                                    <div className="flex gap-2 mt-2">
+                                                        <button onClick={handleOpenShippingModal} className="px-3 py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-lg text-xs font-bold hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors">
+                                                            Update Tracking
+                                                        </button>
+                                                        <button onClick={handleMarkDelivered} className="px-3 py-2 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 transition-colors">
+                                                            Mark Delivered
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* Product Preview */}
                                     <div className="mt-6">
@@ -2380,6 +2635,34 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                         </div>, document.body)
                     )}
 
+                    {/* Shipping Modal */}
+                    {isShippingModalOpen && (
+                        createPortal(<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 animate-fade-in">
+                            <div className="bg-white/90 backdrop-blur-xl dark:bg-gray-900/95 dark:backdrop-blur-xl rounded-xl shadow-2xl w-full max-w-md p-6 relative border border-gray-200 dark:border-white/10">
+                                <button onClick={() => setIsShippingModalOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><X size={24} /></button>
+                                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2"><Truck size={20} className="text-blue-600"/> Shipping Details</h2>
+                                <form onSubmit={handleSubmitShipping} className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Courier Service</label>
+                                        <input type="text" required value={shippingForm.courier} onChange={e => setShippingForm({...shippingForm, courier: e.target.value})} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none" placeholder="DHL, FedEx, etc." />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tracking Number</label>
+                                        <input type="text" required value={shippingForm.trackingNumber} onChange={e => setShippingForm({...shippingForm, trackingNumber: e.target.value})} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Tracking #" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tracking Link (Optional)</label>
+                                        <input type="url" value={shippingForm.trackingLink} onChange={e => setShippingForm({...shippingForm, trackingLink: e.target.value})} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none" placeholder="https://..." />
+                                    </div>
+                                    <div className="flex justify-end gap-3 pt-2">
+                                        <button type="button" onClick={() => setIsShippingModalOpen(false)} className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-white font-semibold rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition">Cancel</button>
+                                        <button type="submit" className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition shadow-md">Confirm Shipment</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>, document.body)
+                    )}
+
                     {/* Price History Modal */}
                     {historyModalData && (
                         <PriceHistoryModal
@@ -2474,6 +2757,8 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                             onClose={() => setIsExecutionPlanModalOpen(false)}
                         />
                     )}
+
+                    {/* Sample Response Modal - Now rendered as full page above */}
                 </div>
             </MainLayout>
         );
@@ -2931,6 +3216,745 @@ const PriceHistoryModal: FC<{
             </div>
         </div>
     , document.body);
+};
+
+interface SampleItemData {
+    lineItemId: number;
+    category: string;
+    qty: number;
+    targetPrice: string;
+    sampleQty: number;
+    sampleCost: string;
+    photos: File[];
+}
+
+interface CommercialInvoiceData {
+    // Shipper/Exporter
+    shipperName: string;
+    shipperAddress: string;
+    shipperCity: string;
+    shipperCountry: string;
+    shipperPhone: string;
+    shipperEmail: string;
+
+    // Consignee/Buyer
+    consigneeName: string;
+    consigneeAddress: string;
+    consigneeCity: string;
+    consigneeCountry: string;
+    consigneePhone: string;
+    consigneeEmail: string;
+
+    // Shipping Details
+    portOfLoading: string;
+    portOfDischarge: string;
+    termsOfDelivery: string;
+    paymentTerms: string;
+
+    // Courier/Tracking
+    courierService: string;
+    trackingNumber: string;
+}
+
+const SampleResponsePage: FC<{
+    requestedLineItems: any[];
+    sampleRequest: any;
+    quoteName: string;
+    buyerInfo: {
+        name: string;
+        address: string;
+        city: string;
+        country: string;
+        phone: string;
+        email: string;
+    };
+    supabase: any;
+    onSubmit: (itemsData: SampleItemData[], shippingCost: string, notes: string, commercialData: CommercialInvoiceData) => void;
+    onClose: () => void;
+}> = ({ requestedLineItems, sampleRequest, quoteName, buyerInfo, supabase, onSubmit, onClose }) => {
+    const invoiceRef = useRef<HTMLDivElement>(null);
+    const [notes, setNotes] = useState('');
+    const [shippingCost, setShippingCost] = useState('');
+    const [itemsData, setItemsData] = useState<SampleItemData[]>(
+        requestedLineItems.map(item => ({
+            lineItemId: item.id,
+            category: item.category,
+            qty: item.qty,
+            targetPrice: item.targetPrice,
+            sampleQty: 1,
+            sampleCost: '',
+            photos: []
+        }))
+    );
+    const [commercialData, setCommercialData] = useState<CommercialInvoiceData>({
+        shipperName: '',
+        shipperAddress: '',
+        shipperCity: '',
+        shipperCountry: '',
+        shipperPhone: '',
+        shipperEmail: '',
+        consigneeName: buyerInfo.name,
+        consigneeAddress: buyerInfo.address,
+        consigneeCity: buyerInfo.city,
+        consigneeCountry: buyerInfo.country,
+        consigneePhone: buyerInfo.phone,
+        consigneeEmail: buyerInfo.email,
+        portOfLoading: '',
+        portOfDischarge: '',
+        termsOfDelivery: 'DDP',
+        paymentTerms: 'Prepaid',
+        courierService: '',
+        trackingNumber: ''
+    });
+    const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+
+    const updateItemData = (index: number, field: keyof SampleItemData, value: any) => {
+        const updated = [...itemsData];
+        updated[index] = { ...updated[index], [field]: value };
+        setItemsData(updated);
+    };
+
+    const handlePhotoUpload = (index: number, files: FileList | null) => {
+        if (!files) return;
+        updateItemData(index, 'photos', [...itemsData[index].photos, ...Array.from(files)]);
+    };
+
+    const removePhoto = (itemIndex: number, photoIndex: number) => {
+        const updated = [...itemsData];
+        updated[itemIndex].photos = updated[itemIndex].photos.filter((_, i) => i !== photoIndex);
+        setItemsData(updated);
+    };
+
+    const calculateSubtotal = () => {
+        return itemsData.reduce((sum, item) => sum + (parseFloat(item.sampleCost) || 0) * (item.sampleQty || 1), 0);
+    };
+
+    const calculateTotal = () => {
+        return calculateSubtotal() + (parseFloat(shippingCost) || 0);
+    };
+
+    const generateInvoicePDF = async () => {
+        if (!invoiceRef.current) return;
+        setIsGeneratingPDF(true);
+
+        try {
+            const canvas = await html2canvas(invoiceRef.current, { scale: 2, backgroundColor: '#ffffff' });
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            pdf.save(`Sample_Invoice_${Date.now()}.pdf`);
+        } finally {
+            setIsGeneratingPDF(false);
+        }
+    };
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+
+        // Validate all items have costs
+        if (itemsData.some(item => !item.sampleCost || parseFloat(item.sampleCost) <= 0)) {
+            alert('Please enter sample cost for all items');
+            return;
+        }
+
+        if (!shippingCost || parseFloat(shippingCost) <= 0) {
+            alert('Please enter shipping cost');
+            return;
+        }
+
+        // Validate required commercial invoice fields
+        if (!commercialData.shipperName || !commercialData.consigneeName) {
+            alert('Please fill in shipper and consignee details');
+            return;
+        }
+
+        onSubmit(itemsData, shippingCost, notes, commercialData);
+    };
+
+    const invoiceDate = new Date().toLocaleDateString();
+    const invoiceNumber = `INV-SAMPLE-${Date.now()}`;
+
+    return (
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+            {/* Header */}
+            <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 sticky top-0 z-10 shadow-sm">
+                <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <button
+                                onClick={onClose}
+                                className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
+                                aria-label="Go back"
+                            >
+                                <ChevronLeft size={24} />
+                            </button>
+                            <div>
+                                <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                    <Box size={24} className="text-blue-600" /> Process Sample Request
+                                </h1>
+                                <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
+                                    {quoteName} - Commercial Invoice
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Main Content */}
+            <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24">
+                <form onSubmit={handleSubmit} className="space-y-8">
+                    {/* Section 1: Form Fields */}
+                    <div className="bg-white dark:bg-gray-900 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-800">
+                        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+                            <FileText size={20} className="text-blue-600" /> Invoice Information
+                        </h2>
+
+                        {/* Shipper/Exporter Details */}
+                        <div className="mb-8">
+                            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">
+                                Shipper / Exporter Details
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Company Name *</label>
+                                    <input
+                                        type="text"
+                                        value={commercialData.shipperName}
+                                        onChange={(e) => setCommercialData({...commercialData, shipperName: e.target.value})}
+                                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                        placeholder="Exporter Company Name"
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone</label>
+                                    <input
+                                        type="text"
+                                        value={commercialData.shipperPhone}
+                                        onChange={(e) => setCommercialData({...commercialData, shipperPhone: e.target.value})}
+                                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                        placeholder="+1 234 567 8900"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Address</label>
+                                    <input
+                                        type="text"
+                                        value={commercialData.shipperAddress}
+                                        onChange={(e) => setCommercialData({...commercialData, shipperAddress: e.target.value})}
+                                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                        placeholder="Street Address"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
+                                    <input
+                                        type="email"
+                                        value={commercialData.shipperEmail}
+                                        onChange={(e) => setCommercialData({...commercialData, shipperEmail: e.target.value})}
+                                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                        placeholder="email@company.com"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">City</label>
+                                    <input
+                                        type="text"
+                                        value={commercialData.shipperCity}
+                                        onChange={(e) => setCommercialData({...commercialData, shipperCity: e.target.value})}
+                                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                        placeholder="City"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Country</label>
+                                    <input
+                                        type="text"
+                                        value={commercialData.shipperCountry}
+                                        onChange={(e) => setCommercialData({...commercialData, shipperCountry: e.target.value})}
+                                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                        placeholder="Country"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Consignee/Buyer Details */}
+                        <div className="mb-8">
+                            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">
+                                Consignee / Buyer Details
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Company Name *</label>
+                                    <input
+                                        type="text"
+                                        value={commercialData.consigneeName}
+                                        onChange={(e) => setCommercialData({...commercialData, consigneeName: e.target.value})}
+                                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                        placeholder="Buyer Company Name"
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone</label>
+                                    <input
+                                        type="text"
+                                        value={commercialData.consigneePhone}
+                                        onChange={(e) => setCommercialData({...commercialData, consigneePhone: e.target.value})}
+                                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                        placeholder="+1 234 567 8900"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Address</label>
+                                    <input
+                                        type="text"
+                                        value={commercialData.consigneeAddress}
+                                        onChange={(e) => setCommercialData({...commercialData, consigneeAddress: e.target.value})}
+                                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                        placeholder="Street Address"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
+                                    <input
+                                        type="email"
+                                        value={commercialData.consigneeEmail}
+                                        onChange={(e) => setCommercialData({...commercialData, consigneeEmail: e.target.value})}
+                                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                        placeholder="email@company.com"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">City</label>
+                                    <input
+                                        type="text"
+                                        value={commercialData.consigneeCity}
+                                        onChange={(e) => setCommercialData({...commercialData, consigneeCity: e.target.value})}
+                                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                        placeholder="City"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Country</label>
+                                    <input
+                                        type="text"
+                                        value={commercialData.consigneeCountry}
+                                        onChange={(e) => setCommercialData({...commercialData, consigneeCountry: e.target.value})}
+                                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                        placeholder="Country"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Shipping & Payment Terms */}
+                        <div className="mb-0">
+                            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">
+                                Shipping & Payment Information
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Port of Loading</label>
+                                    <input
+                                        type="text"
+                                        value={commercialData.portOfLoading}
+                                        onChange={(e) => setCommercialData({...commercialData, portOfLoading: e.target.value})}
+                                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                        placeholder="Port Name, Country"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Port of Discharge</label>
+                                    <input
+                                        type="text"
+                                        value={commercialData.portOfDischarge}
+                                        onChange={(e) => setCommercialData({...commercialData, portOfDischarge: e.target.value})}
+                                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                        placeholder="Port Name, Country"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Terms of Delivery</label>
+                                    <select
+                                        value={commercialData.termsOfDelivery}
+                                        onChange={(e) => setCommercialData({...commercialData, termsOfDelivery: e.target.value})}
+                                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                    >
+                                        <option value="DDP">DDP - Delivered Duty Paid</option>
+                                        <option value="FOB">FOB - Free On Board</option>
+                                        <option value="CIF">CIF - Cost, Insurance & Freight</option>
+                                        <option value="EXW">EXW - Ex Works</option>
+                                        <option value="FCA">FCA - Free Carrier</option>
+                                        <option value="CPT">CPT - Carriage Paid To</option>
+                                        <option value="DAP">DAP - Delivered At Place</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Payment Terms</label>
+                                    <select
+                                        value={commercialData.paymentTerms}
+                                        onChange={(e) => setCommercialData({...commercialData, paymentTerms: e.target.value})}
+                                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                    >
+                                        <option value="Prepaid">Prepaid</option>
+                                        <option value="COD">COD - Cash On Delivery</option>
+                                        <option value="Net 30">Net 30</option>
+                                        <option value="Net 60">Net 60</option>
+                                        <option value="Net 90">Net 90</option>
+                                        <option value="50% Advance">50% Advance, 50% On Delivery</option>
+                                        <option value="Letter of Credit">Letter of Credit</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Courier Service</label>
+                                    <input
+                                        type="text"
+                                        value={commercialData.courierService}
+                                        onChange={(e) => setCommercialData({...commercialData, courierService: e.target.value})}
+                                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                        placeholder="DHL, FedEx, UPS, etc."
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tracking Number</label>
+                                    <input
+                                        type="text"
+                                        value={commercialData.trackingNumber}
+                                        onChange={(e) => setCommercialData({...commercialData, trackingNumber: e.target.value})}
+                                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                        placeholder="Tracking number"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Item Costs Section */}
+                    <div className="bg-white dark:bg-gray-900 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-800">
+                        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+                            <DollarSign size={20} className="text-green-600" /> Item Costs & Pricing
+                        </h2>
+                        <div className="space-y-3">
+                            {itemsData.map((item, index) => (
+                                <div key={index} className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-3">
+                                        <div className="flex-1">
+                                            <p className="font-semibold text-gray-900 dark:text-white">{item.category}</p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400">Order Qty: {item.qty} units | Target: ${item.targetPrice}</p>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div className="flex items-center gap-2">
+                                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Sample Qty:</label>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                value={item.sampleQty}
+                                                onChange={(e) => updateItemData(index, 'sampleQty', parseInt(e.target.value) || 1)}
+                                                className="w-20 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-center bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                                required
+                                            />
+                                            <span className="text-sm text-gray-500 dark:text-gray-400">pcs</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Unit Cost:</label>
+                                            <div className="flex items-center gap-1">
+                                                <span className="text-gray-600 dark:text-gray-400">$</span>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={item.sampleCost}
+                                                    onChange={(e) => updateItemData(index, 'sampleCost', e.target.value)}
+                                                    className="w-28 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-right bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                                    placeholder="0.00"
+                                                    required
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {item.sampleQty > 0 && item.sampleCost && (
+                                        <div className="mt-2 text-sm text-right">
+                                            <span className="text-gray-600 dark:text-gray-400">Total: </span>
+                                            <span className="font-bold text-gray-900 dark:text-white">
+                                                ${((parseFloat(item.sampleCost) || 0) * item.sampleQty).toFixed(2)}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                                <div className="flex-1">
+                                    <p className="font-semibold text-gray-900 dark:text-white">Shipping & Handling</p>
+                                </div>
+                                <div className="flex items-center gap-2 w-full sm:w-auto">
+                                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Cost:</label>
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-gray-600 dark:text-gray-400">$</span>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={shippingCost}
+                                            onChange={(e) => setShippingCost(e.target.value)}
+                                            className="w-28 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-right bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                            placeholder="0.00"
+                                            required
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Total Preview */}
+                            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border-2 border-blue-200 dark:border-blue-800">
+                                <div className="flex justify-between items-center text-sm mb-2">
+                                    <span className="text-gray-700 dark:text-gray-300">Subtotal:</span>
+                                    <span className="font-semibold text-gray-900 dark:text-white">${calculateSubtotal().toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-sm mb-3 pb-3 border-b border-blue-200 dark:border-blue-700">
+                                    <span className="text-gray-700 dark:text-gray-300">Shipping:</span>
+                                    <span className="font-semibold text-gray-900 dark:text-white">${(parseFloat(shippingCost) || 0).toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-lg font-bold text-gray-900 dark:text-white">Total Amount:</span>
+                                    <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">${calculateTotal().toFixed(2)} USD</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Photo Upload Section */}
+                    <div className="bg-white dark:bg-gray-900 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-800">
+                        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+                            <ImageIcon size={20} className="text-purple-600" /> Upload Sample Photos
+                        </h2>
+                        <div className="space-y-4">
+                            {itemsData.map((item, index) => (
+                                <div key={index} className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <p className="font-semibold text-gray-900 dark:text-white">{item.category}</p>
+                                        <label className="cursor-pointer px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+                                            <Plus size={16} /> Add Photos
+                                            <input
+                                                type="file"
+                                                multiple
+                                                accept="image/*"
+                                                onChange={(e) => handlePhotoUpload(index, e.target.files)}
+                                                className="hidden"
+                                            />
+                                        </label>
+                                    </div>
+
+                                    {item.photos.length > 0 && (
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mt-3">
+                                            {item.photos.map((photo, photoIndex) => (
+                                                <div key={photoIndex} className="relative group">
+                                                    <img
+                                                        src={URL.createObjectURL(photo)}
+                                                        alt={`${item.category} ${photoIndex + 1}`}
+                                                        className="w-full h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removePhoto(index, photoIndex)}
+                                                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                                                    >
+                                                        <X size={14} />
+                                                    </button>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">{photo.name}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {item.photos.length === 0 && (
+                                        <p className="text-sm text-gray-500 dark:text-gray-400 italic text-center py-4">No photos uploaded yet</p>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Additional Notes */}
+                    <div className="bg-white dark:bg-gray-900 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-800">
+                        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                            <MessageSquare size={20} className="text-orange-600" /> Additional Notes
+                        </h2>
+                        <textarea
+                            value={notes}
+                            onChange={(e) => setNotes(e.target.value)}
+                            className="w-full p-4 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                            rows={4}
+                            placeholder="Any special instructions, shipping notes, or additional details..."
+                        />
+                    </div>
+
+                    {/* Section 2: Invoice Preview */}
+                    <div className="bg-white dark:bg-gray-900 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-800">
+                        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+                            <Eye size={20} className="text-indigo-600" /> Commercial Invoice Preview
+                        </h2>
+                        <div ref={invoiceRef} className="bg-white rounded-xl border-2 border-black p-8">
+                        {/* Invoice Header */}
+                        <div className="flex justify-between items-start mb-8 pb-6 border-b-2 border-black">
+                            <div>
+                                <h1 className="text-3xl font-bold text-black mb-2">COMMERCIAL INVOICE</h1>
+                                <p className="text-sm text-gray-700">Sample Request</p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-sm text-gray-700">Invoice Number</p>
+                                <p className="text-lg font-bold text-black">{invoiceNumber}</p>
+                                <p className="text-sm text-gray-700 mt-2">Date: {invoiceDate}</p>
+                            </div>
+                        </div>
+
+                        {/* Shipper & Consignee Info */}
+                        <div className="grid grid-cols-2 gap-8 mb-6 pb-6 border-b border-black">
+                            <div>
+                                <p className="text-xs font-bold text-black uppercase mb-2 border-b border-gray-400 pb-1">Shipper / Exporter</p>
+                                {commercialData.shipperName && <p className="text-sm font-bold text-black">{commercialData.shipperName}</p>}
+                                {commercialData.shipperAddress && <p className="text-sm text-gray-700">{commercialData.shipperAddress}</p>}
+                                {(commercialData.shipperCity || commercialData.shipperCountry) && (
+                                    <p className="text-sm text-gray-700">
+                                        {commercialData.shipperCity}{commercialData.shipperCity && commercialData.shipperCountry && ', '}{commercialData.shipperCountry}
+                                    </p>
+                                )}
+                                {commercialData.shipperPhone && <p className="text-sm text-gray-700">Tel: {commercialData.shipperPhone}</p>}
+                                {commercialData.shipperEmail && <p className="text-sm text-gray-700">Email: {commercialData.shipperEmail}</p>}
+                            </div>
+                            <div>
+                                <p className="text-xs font-bold text-black uppercase mb-2 border-b border-gray-400 pb-1">Consignee / Buyer</p>
+                                {commercialData.consigneeName && <p className="text-sm font-bold text-black">{commercialData.consigneeName}</p>}
+                                {commercialData.consigneeAddress && <p className="text-sm text-gray-700">{commercialData.consigneeAddress}</p>}
+                                {(commercialData.consigneeCity || commercialData.consigneeCountry) && (
+                                    <p className="text-sm text-gray-700">
+                                        {commercialData.consigneeCity}{commercialData.consigneeCity && commercialData.consigneeCountry && ', '}{commercialData.consigneeCountry}
+                                    </p>
+                                )}
+                                {commercialData.consigneePhone && <p className="text-sm text-gray-700">Tel: {commercialData.consigneePhone}</p>}
+                                {commercialData.consigneeEmail && <p className="text-sm text-gray-700">Email: {commercialData.consigneeEmail}</p>}
+                            </div>
+                        </div>
+
+                        {/* Shipping Details */}
+                        <div className="grid grid-cols-2 gap-6 mb-6 pb-6 border-b border-black">
+                            <div>
+                                <p className="text-xs font-bold text-black uppercase mb-2">Shipping Information</p>
+                                {commercialData.portOfLoading && (
+                                    <p className="text-sm text-gray-700"><span className="font-semibold">Port of Loading:</span> {commercialData.portOfLoading}</p>
+                                )}
+                                {commercialData.portOfDischarge && (
+                                    <p className="text-sm text-gray-700"><span className="font-semibold">Port of Discharge:</span> {commercialData.portOfDischarge}</p>
+                                )}
+                                {commercialData.courierService && (
+                                    <p className="text-sm text-gray-700"><span className="font-semibold">Courier:</span> {commercialData.courierService}</p>
+                                )}
+                                {commercialData.trackingNumber && (
+                                    <p className="text-sm text-gray-700"><span className="font-semibold">Tracking:</span> {commercialData.trackingNumber}</p>
+                                )}
+                            </div>
+                            <div>
+                                <p className="text-xs font-bold text-black uppercase mb-2">Terms & Conditions</p>
+                                <p className="text-sm text-gray-700"><span className="font-semibold">Terms of Delivery:</span> {commercialData.termsOfDelivery}</p>
+                                <p className="text-sm text-gray-700"><span className="font-semibold">Payment Terms:</span> {commercialData.paymentTerms}</p>
+                            </div>
+                        </div>
+
+                        {/* Items Table */}
+                        <table className="w-full mb-6">
+                            <thead>
+                                <tr className="border-b-2 border-black bg-gray-100">
+                                    <th className="text-left py-3 px-2 text-xs font-bold text-black uppercase">#</th>
+                                    <th className="text-left py-3 px-2 text-xs font-bold text-black uppercase">Description</th>
+                                    <th className="text-center py-3 px-2 text-xs font-bold text-black uppercase">Quantity</th>
+                                    <th className="text-right py-3 px-2 text-xs font-bold text-black uppercase">Unit Price</th>
+                                    <th className="text-right py-3 px-2 text-xs font-bold text-black uppercase">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {itemsData.map((item, index) => (
+                                    <tr key={index} className="border-b border-gray-300">
+                                        <td className="py-4 px-2 text-sm text-black">{index + 1}</td>
+                                        <td className="py-4 px-2">
+                                            <p className="text-sm font-semibold text-black">{item.category}</p>
+                                            <p className="text-xs text-gray-600">Sample for order qty: {item.qty} units</p>
+                                        </td>
+                                        <td className="py-4 px-2 text-center text-sm text-black">{item.sampleQty} {item.sampleQty === 1 ? 'pc' : 'pcs'}</td>
+                                        <td className="py-4 px-2 text-right text-sm text-black">
+                                            ${(parseFloat(item.sampleCost) || 0).toFixed(2)}
+                                        </td>
+                                        <td className="py-4 px-2 text-right text-sm font-semibold text-black">
+                                            ${((parseFloat(item.sampleCost) || 0) * item.sampleQty).toFixed(2)}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                            <tfoot>
+                                <tr className="border-t-2 border-black">
+                                    <td colSpan={4} className="py-3 px-2 text-right text-sm font-semibold text-black">Subtotal:</td>
+                                    <td className="py-3 px-2 text-right text-sm font-bold text-black">${calculateSubtotal().toFixed(2)}</td>
+                                </tr>
+                                <tr>
+                                    <td colSpan={4} className="py-3 px-2 text-right text-sm font-semibold text-black">Shipping & Handling:</td>
+                                    <td className="py-3 px-2 text-right text-sm font-bold text-black">
+                                        ${(parseFloat(shippingCost) || 0).toFixed(2)}
+                                    </td>
+                                </tr>
+                                <tr className="border-t-2 border-black bg-gray-100">
+                                    <td colSpan={4} className="py-4 px-2 text-right text-lg font-bold text-black">TOTAL AMOUNT:</td>
+                                    <td className="py-4 px-2 text-right text-xl font-bold text-black">
+                                        ${calculateTotal().toFixed(2)} USD
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
+
+                        {/* Terms & Conditions Footer */}
+                        <div className="border-t border-gray-400 pt-4">
+                            <p className="text-xs text-gray-700">
+                                This invoice represents sample products for evaluation purposes. Payment terms and delivery conditions as specified above.
+                            </p>
+                        </div>
+                        </div>
+                    </div>
+
+                    {/* Section 3: Action Buttons */}
+                    <div className="bg-white dark:bg-gray-900 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-800 sticky bottom-0 z-10">
+                        <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+                            <button
+                                type="button"
+                                onClick={generateInvoicePDF}
+                                disabled={isGeneratingPDF || !itemsData.every(item => item.sampleCost) || !shippingCost}
+                                className="w-full sm:w-auto px-5 py-2.5 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                            >
+                                <Download size={18} /> {isGeneratingPDF ? 'Generating...' : 'Download PDF'}
+                            </button>
+
+                            <div className="flex gap-3 w-full sm:w-auto">
+                                <button
+                                    type="button"
+                                    onClick={onClose}
+                                    className="flex-1 sm:flex-none px-5 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-medium"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="flex-1 sm:flex-none px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all shadow-lg font-bold flex items-center justify-center gap-2"
+                                >
+                                    <Send size={18} /> Submit Invoice
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
 };
 
 const SingleItemNegotiationModal: FC<{ item: any; onSubmit: (price: string, note: string) => void; onClose: () => void }> = ({ item, onSubmit, onClose }) => {

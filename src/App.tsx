@@ -277,51 +277,88 @@ const AppContent: FC = () => {
                 setIsAdmin(isUserAdmin);
 
                 if (session?.user) {
-                    // Fetch profile from Supabase (admins or clients table)
-                    const tableName = isUserAdmin ? 'admins' : 'clients';
-                    const { data, error } = await supabase
-                        .from(tableName)
-                        .select('*')
-                        .eq('id', session.user.id)
-                        .single();
-
                     let currentProfile: UserProfile | null = null;
 
-                    if (data) {
-                        // Map database fields to UserProfile interface
-                        currentProfile = {
-                            name: data.name,
-                            companyName: data.company_name,
-                            phone: data.phone,
-                            email: data.email,
-                            country: data.country,
-                            jobRole: data.job_role,
-                            categorySpecialization: data.category_specialization,
-                            yearlyEstRevenue: data.yearly_est_revenue
-                        };
-                        setUserProfile(currentProfile);
-                    } else {
-                        if (error && error.code !== 'PGRST116') {
-                            console.error('Error fetching profile:', error.message);
+                    try {
+                        // Fetch profile from Supabase (admins or clients table) with timeout
+                        const tableName = isUserAdmin ? 'admins' : 'clients';
+                        console.log(`Fetching profile from ${tableName} table for user ${session.user.id}`);
+
+                        const profilePromise = supabase
+                            .from(tableName)
+                            .select('*')
+                            .eq('id', session.user.id)
+                            .single();
+
+                        const timeoutPromise = new Promise((_, reject) => {
+                            setTimeout(() => reject(new Error('Profile fetch timeout')), 5000);
+                        });
+
+                        const { data, error } = await Promise.race([profilePromise, timeoutPromise]) as any;
+
+                        if (data) {
+                            // Map database fields to UserProfile interface
+                            currentProfile = {
+                                name: data.name,
+                                companyName: data.company_name,
+                                phone: data.phone,
+                                email: data.email,
+                                country: data.country,
+                                jobRole: data.job_role,
+                                categorySpecialization: data.category_specialization,
+                                yearlyEstRevenue: data.yearly_est_revenue
+                            };
+                            setUserProfile(currentProfile);
+                            console.log('Profile loaded successfully');
+                        } else {
+                            // Profile doesn't exist - will be redirected to profile page
+                            if (error && error.code !== 'PGRST116') {
+                                console.error('Error fetching profile:', error.message, error.code);
+                            } else {
+                                console.log('No profile found in database - user will be redirected to create one');
+                            }
+                            setUserProfile(null);
                         }
+                    } catch (profileError: any) {
+                        console.error('Profile fetch failed:', profileError?.message || profileError);
+                        setUserProfile(null);
                     }
 
-                    // Enforce Onboarding Flow via MasterController
+                    // Enforce Onboarding Flow via MasterController - ALWAYS execute this
                     if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY') {
                         const redirectRoute = masterController.getOnboardingRedirect(session.user, currentProfile);
+                        console.log('Onboarding redirect:', {
+                            event,
+                            redirectRoute,
+                            hasProfile: !!currentProfile,
+                            passwordSet: session.user.user_metadata?.password_set,
+                            isAdmin: isUserAdmin,
+                            email: session.user.email
+                        });
+
                         if (redirectRoute) {
+                            console.log(`Redirecting to ${redirectRoute} for onboarding`);
                             setCurrentPage(redirectRoute);
                         } else {
                             // If it's INITIAL_SESSION or SIGNED_IN (refresh), try to keep current page if valid
                             if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
                                 const lastPage = localStorage.getItem('garment_erp_last_page');
-                                if (lastPage && lastPage !== 'login') {
-                                    setCurrentPage(lastPage);
-                                } else {
-                                    setCurrentPage(isUserAdmin ? 'adminDashboard' : 'sourcing');
-                                }
+                                const targetPage = (lastPage && lastPage !== 'login')
+                                    ? lastPage
+                                    : (isUserAdmin ? 'adminDashboard' : 'sourcing');
+                                console.log(`No onboarding needed, redirecting to ${targetPage}`);
+                                setCurrentPage(targetPage);
                             }
                         }
+
+                        // Force redirect away from login if still on login page after 2 seconds
+                        setTimeout(() => {
+                            if (currentPage === 'login' && session?.user) {
+                                console.warn('Still on login page after auth - forcing redirect');
+                                const forcedPage = isUserAdmin ? 'adminDashboard' : 'sourcing';
+                                setCurrentPage(forcedPage);
+                            }
+                        }, 2000);
                     } else if (event === 'SIGNED_OUT') {
                         // Explicitly handle sign out event
                         setUser(null);
@@ -336,6 +373,13 @@ const AppContent: FC = () => {
                 }
             } catch (error) {
                 console.error("Auth state change error:", error);
+                // Even if there's an error, try to recover by redirecting appropriately
+                if (session?.user) {
+                    const isUserAdmin = session.user.email?.toLowerCase().endsWith('@auctaveexports.com') ?? false;
+                    setCurrentPage(isUserAdmin ? 'adminDashboard' : 'sourcing');
+                } else {
+                    setCurrentPage('login');
+                }
             } finally {
                 // Clear timeout and set auth ready
                 clearTimeout(safetyTimer);
@@ -551,12 +595,13 @@ const AppContent: FC = () => {
         }
     }, [showToast]);
 
-    // Session Timeout Logic
+    // Session Timeout Logic - Only expires after 15 minutes of complete inactivity
     useEffect(() => {
         if (!user) return;
 
-        const TIMEOUT_DURATION = 30 * 60 * 1000; // 30 minutes
+        const TIMEOUT_DURATION = 15 * 60 * 1000; // 15 minutes of inactivity
         const LAST_ACTIVITY_KEY = 'garment_erp_last_activity';
+        const SESSION_REFRESH_INTERVAL = 5 * 60 * 1000; // Refresh Supabase session every 5 minutes
 
         const handleInactivity = () => {
             showToast('Session timed out due to inactivity.', 'error');
@@ -571,12 +616,22 @@ const AppContent: FC = () => {
             }
         };
 
-        const updateActivity = () => {
+        const updateActivity = async () => {
             const now = Date.now();
             const lastSaved = parseInt(localStorage.getItem(LAST_ACTIVITY_KEY) || '0', 10);
-            // Throttle updates to max once per 5 seconds to reduce storage writes
+
+            // Update activity timestamp (throttled to once per 5 seconds)
             if (now - lastSaved > 5000) {
                 localStorage.setItem(LAST_ACTIVITY_KEY, now.toString());
+
+                // Refresh Supabase session token periodically to keep it alive
+                if (now - lastSaved > SESSION_REFRESH_INTERVAL) {
+                    try {
+                        await supabase.auth.refreshSession();
+                    } catch (err) {
+                        console.error('Failed to refresh session:', err);
+                    }
+                }
             }
         };
 
@@ -596,27 +651,45 @@ const AppContent: FC = () => {
         };
     }, [user, handleSignOut, showToast]);
 
-    // Session validation on page visibility change (handles refresh and returning to tab)
+    // Session validation on page visibility change - only validate if user has been inactive
     useEffect(() => {
-        const validateSession = async () => {
-            const { valid } = await validateSessionWithTimeout(5000);
-            if (!valid && user) {
-                showToast('Your session has expired. Please log in again.', 'error');
-                handleSignOut(true);
+        const TIMEOUT_DURATION = 15 * 60 * 1000; // 15 minutes
+        const LAST_ACTIVITY_KEY = 'garment_erp_last_activity';
+
+        const validateSessionIfInactive = async () => {
+            // Check if user has been inactive for more than the timeout duration
+            const lastActivity = parseInt(localStorage.getItem(LAST_ACTIVITY_KEY) || Date.now().toString(), 10);
+            const inactiveTime = Date.now() - lastActivity;
+
+            // Only validate Supabase session if user has been inactive for a while
+            // This prevents abrupt logouts when switching tabs during active use
+            if (inactiveTime > TIMEOUT_DURATION) {
+                const { valid } = await validateSessionWithTimeout(5000);
+                if (!valid && user) {
+                    showToast('Your session has expired. Please log in again.', 'error');
+                    handleSignOut(true);
+                }
+            } else {
+                // User is still active, just refresh the session to keep it alive
+                try {
+                    await supabase.auth.refreshSession();
+                } catch (err) {
+                    console.error('Failed to refresh session on focus:', err);
+                }
             }
         };
 
-        // Validate session when tab becomes visible
+        // Validate session when tab becomes visible (only if inactive)
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'visible' && user) {
-                validateSession();
+                validateSessionIfInactive();
             }
         };
 
-        // Validate session on page focus
+        // Validate session on page focus (only if inactive)
         const handleFocus = () => {
             if (user) {
-                validateSession();
+                validateSessionIfInactive();
             }
         };
 

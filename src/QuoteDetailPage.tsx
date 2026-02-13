@@ -7,11 +7,11 @@ import {
     ChevronLeft, ChevronRight, MapPin, Calendar, Package, Shirt, DollarSign, Clock, ArrowRight,
     FileText, MessageSquare, CheckCircle, AlertCircle, X, Globe, Download, ChevronDown, ChevronUp, History, Printer, Check, CheckCheck, Eye, RefreshCw, Image as ImageIcon, Edit, Scale, Paperclip, Send, Circle,
     Layers, Scissors, Factory, ShieldCheck, Truck, LifeBuoy, ClipboardList, Plus, Trash2, GripVertical,
-    Sparkles, Info, ListOrdered, Phone, Building, CreditCard
+    Sparkles, Info, ListOrdered, Phone, Building, CreditCard, Box, Copy, Activity, ExternalLink
 } from 'lucide-react';
 
 // Tab type for the main content area - Zomato-style progressive disclosure
-type TabType = 'overview' | 'products' | 'timeline' | 'files';
+type TabType = 'overview' | 'products' | 'timeline' | 'files' | 'tracking';
 import {
     BarChart,
     Bar,
@@ -168,9 +168,11 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
     const [isNegotiationModalOpen, setIsNegotiationModalOpen] = useState(false);
     const [isExecutionPlanModalOpen, setIsExecutionPlanModalOpen] = useState(false);
     const [negotiatingItem, setNegotiatingItem] = useState<any | null>(null);
+    const [isSampleRequestModalOpen, setIsSampleRequestModalOpen] = useState(false);
     const [historyModalData, setHistoryModalData] = useState<any | null>(null);
     const quoteDetailsRef = useRef<HTMLDivElement>(null);
     const pdfContentRef = useRef<HTMLDivElement>(null);
+    const invoiceTemplateRef = useRef<HTMLDivElement>(null);
     const [fileLinks, setFileLinks] = useState<{ name: string; url: string }[]>([]);
     const [expandedItems, setExpandedItems] = useState<number[]>([]);
     const [chatStates, setChatStates] = useState<Record<number, { message: string; file: File | null }>>({});
@@ -199,6 +201,17 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
     // Lightbox state
     const [isLightboxOpen, setIsLightboxOpen] = useState(false);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
+    const [isInvoicePreviewOpen, setIsInvoicePreviewOpen] = useState(false);
+    
+    // Tracking Tab State
+    const [trackingEvents, setTrackingEvents] = useState<any[]>([]);
+    const [isTrackingLoading, setIsTrackingLoading] = useState(false);
+    const [expandedSampleItems, setExpandedSampleItems] = useState<number[]>([]);
+
+    const sampleRequest = (quote?.negotiation_details as any)?.sample_request;
+    const toggleSampleItem = (index: number) => {
+        setExpandedSampleItems(prev => prev.includes(index) ? prev.filter(i => i !== index) : [...prev, index]);
+    };
 
     // Filter for image files for the lightbox
     const imageFiles = fileLinks.filter(f => f.name.match(/\.(jpg|jpeg|png|gif|webp)$/i));
@@ -345,6 +358,27 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
             if (fileLinksAbortController.current) fileLinksAbortController.current.abort();
         };
     }, [fetchSignedUrls]);
+
+    // Effect to fetch tracking data
+    useEffect(() => {
+        if (activeTab === 'tracking' && sampleRequest?.admin_response?.commercialData?.trackingNumber) {
+            setIsTrackingLoading(true);
+            // Simulate API call to courier
+            setTimeout(() => {
+                const today = new Date();
+                const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
+                const twoDaysAgo = new Date(today); twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+                
+                setTrackingEvents([
+                    { id: 1, status: 'In Transit', location: 'New York, NY', time: '09:45 AM', date: today.toLocaleDateString(), description: 'Arrived at destination facility', current: true },
+                    { id: 2, status: 'Departed', location: 'Heathrow Airport, London', time: '11:30 PM', date: yesterday.toLocaleDateString(), description: 'Flight departed', current: false },
+                    { id: 3, status: 'Customs Cleared', location: 'London, UK', time: '04:15 PM', date: yesterday.toLocaleDateString(), description: 'Export customs clearance completed', current: false },
+                    { id: 4, status: 'Picked Up', location: 'Factory Warehouse', time: '10:00 AM', date: twoDaysAgo.toLocaleDateString(), description: 'Shipment picked up by courier', current: false },
+                ]);
+                setIsTrackingLoading(false);
+            }, 1500);
+        }
+    }, [activeTab, sampleRequest]);
 
     const openLightbox = (fileUrl: string) => {
         const index = imageFiles.findIndex(img => img.url === fileUrl);
@@ -638,6 +672,123 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         handleSetCurrentPage('myQuotes');
     };
 
+    const handleSampleRequestSubmit = async (selectedIds: number[], specs: string, speed: string) => {
+        if (!quote) return;
+
+        const sampleRequest = {
+            status: 'requested',
+            requestedItems: selectedIds,
+            specifications: specs,
+            deliverySpeed: speed,
+            requestedAt: new Date().toISOString()
+        };
+
+        const updatedNegotiationDetails = {
+            ...(quote.negotiation_details || {}),
+            sample_request: sampleRequest
+        };
+
+        const { error } = await quoteService.update(quote.id, { negotiation_details: updatedNegotiationDetails });
+
+        if (error) {
+            showToast('Failed to submit sample request', 'error');
+        } else {
+            showToast('Sample request submitted successfully');
+            setQuote(prev => prev ? { ...prev, negotiation_details: updatedNegotiationDetails } : null);
+            setIsSampleRequestModalOpen(false);
+        }
+    };
+
+    const handleConfirmSample = async () => {
+        if (!quote) return;
+        const updatedNegotiationDetails = {
+            ...(quote.negotiation_details || {}),
+            sample_request: { ...((quote.negotiation_details as any)?.sample_request || {}), status: 'confirmed' }
+        };
+        await quoteService.update(quote.id, { negotiation_details: updatedNegotiationDetails });
+        setQuote(prev => prev ? { ...prev, negotiation_details: updatedNegotiationDetails } : null);
+        showToast('Sample details confirmed');
+    };
+
+    const handleDownloadInvoice = async () => {
+        if (!invoiceTemplateRef.current) {
+            showToast('Invoice template not found', 'error');
+            return;
+        }
+
+        try {
+            showToast('Generating PDF...');
+
+            // Create a temporary container to render the content for capture
+            const tempContainer = document.createElement('div');
+            tempContainer.style.position = 'absolute';
+            tempContainer.style.top = '0';
+            tempContainer.style.left = '0';
+            tempContainer.style.zIndex = '-9999';
+            
+            // Clone the content
+            const clone = invoiceTemplateRef.current.cloneNode(true) as HTMLElement;
+            
+            // Reset positioning on the clone so it's visible in the temp container
+            clone.style.position = 'relative';
+            clone.style.left = '0';
+            clone.style.top = '0';
+            
+            tempContainer.appendChild(clone);
+            document.body.appendChild(tempContainer);
+
+            // Explicitly set crossOrigin for images to help html2canvas capture them
+            const allImages = clone.getElementsByTagName('img');
+            for (let i = 0; i < allImages.length; i++) {
+                allImages[i].crossOrigin = "anonymous";
+            }
+
+            // Wait a brief moment for images to settle
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            // Generate canvas from the invoice template
+            const canvas = await html2canvas(clone, {
+                scale: 2,
+                backgroundColor: '#ffffff',
+                logging: false,
+                useCORS: true,
+                allowTaint: false
+            });
+
+            // Clean up
+            document.body.removeChild(tempContainer);
+
+            // Create PDF
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+
+            // Calculate scaling to fit the page
+            const imgWidthMM = (canvas.width * 25.4) / 96; // Convert px to mm
+            const imgHeightMM = (canvas.height * 25.4) / 96;
+            const scale = Math.min(pdfWidth / imgWidthMM, pdfHeight / imgHeightMM);
+
+            const scaledWidth = imgWidthMM * scale;
+            const scaledHeight = imgHeightMM * scale;
+
+            // Center on page
+            const x = (pdfWidth - scaledWidth) / 2;
+            const y = 10;
+
+            pdf.addImage(imgData, 'PNG', x, y, scaledWidth, scaledHeight);
+
+            const sampleRequest = (quote?.negotiation_details as any)?.sample_request;
+            const invoiceNumber = sampleRequest?.admin_response?.invoiceNumber || 'invoice';
+            pdf.save(`${invoiceNumber}.pdf`);
+
+            showToast('Invoice downloaded successfully');
+        } catch (error) {
+            console.error('Error generating PDF:', error);
+            showToast('Failed to download invoice. Please try again.', 'error');
+        }
+    };
+
     const handleNegotiationSubmit = async (counterPrice: string, details: string, lineItemNegotiations: any[]) => {
         const updatedLineItems = quote.order.lineItems.map(item => {
             const negotiation = lineItemNegotiations.find(neg => neg.lineItemId === item.id);
@@ -894,6 +1045,10 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         { id: 'products', label: 'Products', icon: <Package size={18} />, badge: order.lineItems.length },
         { id: 'timeline', label: 'Timeline', icon: <History size={18} />, badge: negotiationHistory.length },
         { id: 'files', label: 'Files', icon: <FileText size={18} />, badge: fileLinks.length || quote?.files?.length || 0 },
+        ...(sampleRequest?.status === 'confirmed' || sampleRequest?.status === 'sent' || sampleRequest?.status === 'delivered' ?
+            [{ id: 'tracking' as TabType, label: 'Sample Tracking', icon: <Truck size={18} /> }] :
+            []
+        )
     ];
 
     return (
@@ -1066,6 +1221,26 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                         )}
                                     </div>
                                 </div>
+
+                                {/* Action Buttons */}
+                                {status !== 'Accepted' && status !== 'Declined' && (
+                                    <div className="flex flex-wrap justify-end gap-3 mt-6 pt-4 border-t border-gray-100 dark:border-white/10">
+                                        {(status === 'Responded' || status === 'In Negotiation') && !sampleRequest && (
+                                            <button
+                                                onClick={() => setIsSampleRequestModalOpen(true)}
+                                                className="px-4 py-2 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-700 font-semibold rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/40 transition shadow-sm flex items-center gap-2"
+                                            >
+                                                <Box size={18} /> Request Sample
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={() => setIsNegotiationModalOpen(true)}
+                                            className="px-4 py-2 bg-[#c20c0b] text-white font-semibold rounded-lg hover:bg-[#a50a09] transition shadow-md flex items-center gap-2"
+                                        >
+                                            <MessageSquare size={18} /> Negotiate / Respond
+                                        </button>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Sidebar */}
@@ -1108,6 +1283,97 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                         </div>
                                     </div>
                                 </div>
+
+                                {/* Sample Request Card */}
+                                {sampleRequest && (
+                                    <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                                        <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-5 py-3">
+                                            <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                                                <Box size={16} /> Sample Request
+                                            </h3>
+                                        </div>
+                                        <div className="p-5 space-y-3">
+                                            {/* Status Badge */}
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-sm text-gray-500 dark:text-gray-300">Status</span>
+                                                <span className={`text-xs font-bold px-2 py-1 rounded-full uppercase ${
+                                                    sampleRequest.status === 'confirmed' ? 'bg-green-100 text-green-700' :
+                                                    sampleRequest.status === 'delivered' ? 'bg-green-100 text-green-700' :
+                                                    sampleRequest.status === 'sent' ? 'bg-blue-100 text-blue-700' :
+                                                    sampleRequest.status === 'paid' ? 'bg-indigo-100 text-indigo-700' :
+                                                    sampleRequest.status === 'payment_pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'
+                                                }`}>
+                                                    {sampleRequest.status === 'sent' ? 'Shipped' : sampleRequest.status}
+                                                </span>
+                                            </div>
+
+                                            {/* Quick Stats */}
+                                            <div className="flex justify-between text-sm">
+                                                <span className="text-gray-500 dark:text-gray-300">Items</span>
+                                                <span className="font-medium text-gray-900 dark:text-white">{sampleRequest.requestedItems.length}</span>
+                                            </div>
+
+                                            {sampleRequest.admin_response && (
+                                                <>
+                                                    <div className="flex justify-between text-sm">
+                                                        <span className="text-gray-500 dark:text-gray-300">Total</span>
+                                                        <span className="font-bold text-purple-600 dark:text-purple-400">
+                                                            ${sampleRequest.admin_response.total}
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Tracking Number */}
+                                                    {sampleRequest.admin_response.commercialData?.trackingNumber && (
+                                                        <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
+                                                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Tracking</p>
+                                                            <div className="flex items-center gap-2">
+                                                                <code className="flex-1 text-xs bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded font-mono text-gray-900 dark:text-white truncate">
+                                                                    {sampleRequest.admin_response.commercialData.trackingNumber}
+                                                                </code>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        navigator.clipboard.writeText(sampleRequest.admin_response.commercialData.trackingNumber);
+                                                                        showToast('Copied!');
+                                                                    }}
+                                                                    className="p-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded hover:bg-purple-200 dark:hover:bg-purple-900/50"
+                                                                >
+                                                                    <Copy size={12} />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Action Buttons */}
+                                                    <div className="pt-3 space-y-2">
+                                                        <button
+                                                            onClick={handleDownloadInvoice}
+                                                            className="w-full py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                                                        >
+                                                            <Download size={14} /> Download Invoice
+                                                        </button>
+                                                        {(sampleRequest.status === 'sent' || sampleRequest.status === 'delivered' || sampleRequest.status === 'confirmed') && (
+                                                            <button
+                                                                onClick={() => setActiveTab('tracking')}
+                                                                className="w-full py-2 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded-lg text-sm font-semibold hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors flex items-center justify-center gap-2"
+                                                            >
+                                                                <Truck size={14} /> Track Shipment
+                                                            </button>
+                                                        )}
+                                                    </div>
+
+                                                    {sampleRequest.status === 'sent' && (
+                                                        <button
+                                                            onClick={handleConfirmSample}
+                                                            className="w-full mt-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+                                                        >
+                                                            <CheckCircle size={14} /> Confirm Receipt
+                                                        </button>
+                                                    )}
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* Help Card */}
                                 <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-5 text-white shadow-lg">
@@ -1435,7 +1701,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                 {/* Respond Button */}
                                                 {(status === 'Responded' || status === 'In Negotiation' || status === 'Admin Accepted') && (
                                                     <div className="mt-6 pt-4 border-t border-gray-100 dark:border-white/10 flex justify-end">
-                                                        <button 
+                                                        <button
                                                             onClick={(e) => { e.stopPropagation(); setIsNegotiationModalOpen(true); }}
                                                             className="flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 font-semibold rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors"
                                                         >
@@ -1653,6 +1919,215 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                             <p className="text-gray-500 dark:text-gray-400">No attachments found</p>
                                             <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Files uploaded with this quote will appear here.</p>
                                         </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* TRACKING TAB */}
+                    {activeTab === 'tracking' && sampleRequest && (
+                        <div className="animate-fade-in space-y-6">
+                            {/* Header Card with Courier Info */}
+                            <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 p-6 relative overflow-hidden">
+                                <div className="absolute top-0 right-0 p-4 opacity-10">
+                                    <Truck size={120} />
+                                </div>
+                                <div className="relative z-10">
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                        <div>
+                                            <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                <Truck className="text-blue-600" size={24} />
+                                                Sample Shipment Tracking
+                                            </h3>
+                                            <p className="text-gray-500 dark:text-gray-400 mt-1">
+                                                Courier: <span className="font-semibold text-gray-800 dark:text-white">{sampleRequest.admin_response?.commercialData?.courierService || 'Unknown Courier'}</span>
+                                            </p>
+                                        </div>
+                                        <div className="flex flex-col items-end">
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase font-bold tracking-wider">Tracking Number</p>
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <code className="text-xl font-mono font-bold text-blue-600 dark:text-blue-400">
+                                                    {sampleRequest.admin_response?.commercialData?.trackingNumber || 'N/A'}
+                                                </code>
+                                                <button 
+                                                    onClick={() => {
+                                                        navigator.clipboard.writeText(sampleRequest.admin_response?.commercialData?.trackingNumber || '');
+                                                        showToast('Copied to clipboard');
+                                                    }}
+                                                    className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors text-gray-500"
+                                                >
+                                                    <Copy size={16} />
+                                                </button>
+                                            </div>
+                                            {sampleRequest.admin_response?.commercialData?.trackingLink && (
+                                                <a 
+                                                    href={sampleRequest.admin_response.commercialData.trackingLink} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    className="mt-2 text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center justify-end gap-1"
+                                                >
+                                                    Track on Courier Website <ExternalLink size={10} />
+                                                </a>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                {/* Left Column: Live Tracking Timeline */}
+                                <div className="lg:col-span-2">
+                                    <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 p-6">
+                                        <h4 className="font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+                                            <Activity size={18} className="text-[#c20c0b]" /> Shipment Progress
+                                        </h4>
+                                        
+                                        {isTrackingLoading ? (
+                                            <div className="space-y-6 p-4">
+                                                {[1, 2, 3].map(i => (
+                                                    <div key={i} className="flex gap-4 animate-pulse">
+                                                        <div className="w-4 h-4 rounded-full bg-gray-200 dark:bg-gray-700"></div>
+                                                        <div className="flex-1 space-y-2">
+                                                            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/4"></div>
+                                                            <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="relative pl-2">
+                                                {/* Vertical Line */}
+                                                <div className="absolute left-[15px] top-2 bottom-4 w-0.5 bg-gray-100 dark:bg-gray-800"></div>
+                                                
+                                                <div className="space-y-8">
+                                                    {trackingEvents.map((event, idx) => (
+                                                        <div key={idx} className="relative flex gap-6 group">
+                                                            {/* Dot */}
+                                                            <div className={`relative z-10 w-8 h-8 rounded-full flex items-center justify-center border-4 border-white dark:border-gray-900 shrink-0 ${event.current ? 'bg-blue-600 shadow-lg shadow-blue-500/30' : 'bg-gray-200 dark:bg-gray-700'}`}>
+                                                                {event.current ? (
+                                                                    <div className="w-2.5 h-2.5 bg-white rounded-full animate-pulse"></div>
+                                                                ) : (
+                                                                    <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full"></div>
+                                                                )}
+                                                            </div>
+                                                            
+                                                            {/* Content */}
+                                                            <div className={`flex-1 p-4 rounded-xl border transition-all duration-300 ${event.current ? 'bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800' : 'bg-white dark:bg-gray-800/50 border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600'}`}>
+                                                                <div className="flex justify-between items-start mb-1">
+                                                                    <span className={`font-bold ${event.current ? 'text-blue-700 dark:text-blue-400' : 'text-gray-900 dark:text-white'}`}>
+                                                                        {event.status}
+                                                                    </span>
+                                                                    <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">
+                                                                        {event.time}
+                                                                    </span>
+                                                                </div>
+                                                                <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">{event.description}</p>
+                                                                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                                                    <MapPin size={12} /> {event.location}
+                                                                    <span className="mx-1">•</span>
+                                                                    <Calendar size={12} /> {event.date}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Right Column: Sample Contents Droplist */}
+                                <div className="space-y-6">
+                                    <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 p-6">
+                                        <h4 className="font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                                            <Box size={18} className="text-purple-600" /> Package Contents
+                                        </h4>
+                                        
+                                        <div className="space-y-3">
+                                            {sampleRequest.admin_response?.items?.map((item: any, idx: number) => (
+                                                <div key={idx} className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden transition-all duration-300 hover:shadow-md bg-white dark:bg-gray-800">
+                                                    <button 
+                                                        onClick={() => toggleSampleItem(idx)}
+                                                        className="w-full flex items-center justify-between p-4 text-left"
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">
+                                                                {item.photos && item.photos.length > 0 ? (
+                                                                    <img src={item.photos[0]} alt="" className="w-full h-full object-cover rounded-lg" />
+                                                                ) : (
+                                                                    <Shirt size={18} className="text-gray-400" />
+                                                                )}
+                                                            </div>
+                                                            <div>
+                                                                <p className="font-semibold text-sm text-gray-900 dark:text-white">{item.category}</p>
+                                                                <p className="text-xs text-gray-500 dark:text-gray-400">{item.sampleQty || 1} unit(s)</p>
+                                                            </div>
+                                                        </div>
+                                                        {expandedSampleItems.includes(idx) ? <ChevronUp size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}
+                                                    </button>
+                                                    
+                                                    {expandedSampleItems.includes(idx) && (
+                                                        <div className="px-4 pb-4 pt-0 border-t border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
+                                                            <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-300">
+                                                                <div>
+                                                                    <span className="block text-gray-400 uppercase text-[10px] font-bold">Cost</span>
+                                                                    ${item.sampleCost}
+                                                                </div>
+                                                                <div>
+                                                                    <span className="block text-gray-400 uppercase text-[10px] font-bold">Total</span>
+                                                                    ${((item.sampleCost || 0) * (item.sampleQty || 1)).toFixed(2)}
+                                                                </div>
+                                                            </div>
+                                                            {item.photos && item.photos.length > 0 && (
+                                                                <div className="mt-3">
+                                                                    <p className="text-[10px] font-bold text-gray-400 uppercase mb-2">Photos</p>
+                                                                    <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                                                                        {item.photos.map((photo: string, pIdx: number) => (
+                                                                            <img 
+                                                                                key={pIdx} 
+                                                                                src={photo} 
+                                                                                alt="Sample" 
+                                                                                className="w-16 h-16 rounded-lg object-cover border border-gray-200 dark:border-gray-600 cursor-pointer hover:opacity-80 transition-opacity"
+                                                                                onClick={() => openLightbox(photo)}
+                                                                            />
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Invoice Card */}
+                                    <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 text-white shadow-lg">
+                                        <div className="flex justify-between items-start mb-4">
+                                            <div>
+                                                <p className="text-gray-400 text-xs font-bold uppercase tracking-wider">Total Value</p>
+                                                <p className="text-3xl font-bold mt-1">${sampleRequest.admin_response?.total}</p>
+                                            </div>
+                                            <div className="p-2 bg-white/10 rounded-lg">
+                                                <FileText size={20} />
+                                            </div>
+                                        </div>
+                                        <button 
+                                            onClick={handleDownloadInvoice}
+                                            className="w-full py-3 bg-white text-gray-900 rounded-xl font-bold text-sm hover:bg-gray-100 transition-colors flex items-center justify-center gap-2"
+                                        >
+                                            <Download size={16} /> Download Invoice
+                                        </button>
+                                    </div>
+                                    
+                                    {sampleRequest.status === 'sent' && (
+                                        <button
+                                            onClick={handleConfirmSample}
+                                            className="w-full py-4 bg-green-600 text-white rounded-2xl font-bold shadow-lg shadow-green-500/30 hover:bg-green-700 hover:shadow-green-500/40 transition-all flex items-center justify-center gap-2"
+                                        >
+                                            <CheckCircle size={20} /> Confirm Delivery
+                                        </button>
                                     )}
                                 </div>
                             </div>
@@ -2018,6 +2493,15 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                 />
             )}
 
+            {/* Sample Request Modal */}
+            {isSampleRequestModalOpen && (
+                <SampleRequestModal 
+                    lineItems={order.lineItems}
+                    onSubmit={handleSampleRequestSubmit}
+                    onClose={() => setIsSampleRequestModalOpen(false)}
+                />
+            )}
+
             {/* Negotiation History Modal */}
             {isHistoryModalOpen && (
                 <NegotiationHistoryModal
@@ -2028,6 +2512,167 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                     lineItems={quote.order.lineItems}
                     onClose={() => setIsHistoryModalOpen(false)}
                 />
+            )}
+
+            {/* Hidden Invoice Template for PDF Generation */}
+            {sampleRequest?.admin_response && (
+                <div
+                    ref={invoiceTemplateRef}
+                    style={{
+                        position: 'absolute',
+                        left: '-9999px',
+                        top: '-9999px',
+                        width: '210mm',
+                        background: 'white',
+                        padding: '20mm'
+                    }}
+                >
+                    {/* Professional Commercial Invoice Template */}
+                    <div style={{ fontFamily: 'Arial, sans-serif', color: '#000' }}>
+                        {/* Header */}
+                        <div style={{ borderBottom: '3px solid #000', paddingBottom: '10px', marginBottom: '20px' }}>
+                            <h1 style={{ margin: 0, fontSize: '28px', fontWeight: 'bold' }}>COMMERCIAL INVOICE</h1>
+                            <div style={{ marginTop: '10px', fontSize: '12px' }}>
+                                <p style={{ margin: '3px 0' }}><strong>Invoice Number:</strong> {sampleRequest.admin_response.invoiceNumber}</p>
+                                {sampleRequest.admin_response.invoiceDate && (
+                                    <p style={{ margin: '3px 0' }}><strong>Invoice Date:</strong> {new Date(sampleRequest.admin_response.invoiceDate).toLocaleDateString()}</p>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Shipper & Consignee Section */}
+                        {sampleRequest.admin_response.commercialData && (
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
+                                {/* Shipper */}
+                                {sampleRequest.admin_response.commercialData.shipperName && (
+                                    <div style={{ border: '1px solid #000', padding: '10px' }}>
+                                        <h3 style={{ margin: '0 0 10px 0', fontSize: '14px', fontWeight: 'bold', textTransform: 'uppercase' }}>Shipper/Exporter</h3>
+                                        <div style={{ fontSize: '11px', lineHeight: '1.6' }}>
+                                            <p style={{ margin: '2px 0', fontWeight: 'bold' }}>{sampleRequest.admin_response.commercialData.shipperName}</p>
+                                            {sampleRequest.admin_response.commercialData.shipperAddress && (
+                                                <p style={{ margin: '2px 0' }}>{sampleRequest.admin_response.commercialData.shipperAddress}</p>
+                                            )}
+                                            <p style={{ margin: '2px 0' }}>
+                                                {[
+                                                    sampleRequest.admin_response.commercialData.shipperCity,
+                                                    sampleRequest.admin_response.commercialData.shipperCountry
+                                                ].filter(Boolean).join(', ')}
+                                            </p>
+                                            {sampleRequest.admin_response.commercialData.shipperPhone && (
+                                                <p style={{ margin: '2px 0' }}>Tel: {sampleRequest.admin_response.commercialData.shipperPhone}</p>
+                                            )}
+                                            {sampleRequest.admin_response.commercialData.shipperEmail && (
+                                                <p style={{ margin: '2px 0' }}>Email: {sampleRequest.admin_response.commercialData.shipperEmail}</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Consignee */}
+                                {sampleRequest.admin_response.commercialData.consigneeName && (
+                                    <div style={{ border: '1px solid #000', padding: '10px' }}>
+                                        <h3 style={{ margin: '0 0 10px 0', fontSize: '14px', fontWeight: 'bold', textTransform: 'uppercase' }}>Consignee</h3>
+                                        <div style={{ fontSize: '11px', lineHeight: '1.6' }}>
+                                            <p style={{ margin: '2px 0', fontWeight: 'bold' }}>{sampleRequest.admin_response.commercialData.consigneeName}</p>
+                                            {sampleRequest.admin_response.commercialData.consigneeAddress && (
+                                                <p style={{ margin: '2px 0' }}>{sampleRequest.admin_response.commercialData.consigneeAddress}</p>
+                                            )}
+                                            <p style={{ margin: '2px 0' }}>
+                                                {[
+                                                    sampleRequest.admin_response.commercialData.consigneeCity,
+                                                    sampleRequest.admin_response.commercialData.consigneeCountry
+                                                ].filter(Boolean).join(', ')}
+                                            </p>
+                                            {sampleRequest.admin_response.commercialData.consigneePhone && (
+                                                <p style={{ margin: '2px 0' }}>Tel: {sampleRequest.admin_response.commercialData.consigneePhone}</p>
+                                            )}
+                                            {sampleRequest.admin_response.commercialData.consigneeEmail && (
+                                                <p style={{ margin: '2px 0' }}>Email: {sampleRequest.admin_response.commercialData.consigneeEmail}</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Shipping Information */}
+                        {sampleRequest.admin_response.commercialData && (
+                            <div style={{ marginBottom: '20px', fontSize: '11px' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                    {sampleRequest.admin_response.commercialData.portOfLoading && (
+                                        <p style={{ margin: '2px 0' }}><strong>Port of Loading:</strong> {sampleRequest.admin_response.commercialData.portOfLoading}</p>
+                                    )}
+                                    {sampleRequest.admin_response.commercialData.portOfDischarge && (
+                                        <p style={{ margin: '2px 0' }}><strong>Port of Discharge:</strong> {sampleRequest.admin_response.commercialData.portOfDischarge}</p>
+                                    )}
+                                    {sampleRequest.admin_response.commercialData.termsOfDelivery && (
+                                        <p style={{ margin: '2px 0' }}><strong>Terms of Delivery:</strong> {sampleRequest.admin_response.commercialData.termsOfDelivery}</p>
+                                    )}
+                                    {sampleRequest.admin_response.commercialData.paymentTerms && (
+                                        <p style={{ margin: '2px 0' }}><strong>Payment Terms:</strong> {sampleRequest.admin_response.commercialData.paymentTerms}</p>
+                                    )}
+                                    {sampleRequest.admin_response.commercialData.courierService && (
+                                        <p style={{ margin: '2px 0' }}><strong>Courier Service:</strong> {sampleRequest.admin_response.commercialData.courierService}</p>
+                                    )}
+                                    {sampleRequest.admin_response.commercialData.trackingNumber && (
+                                        <p style={{ margin: '2px 0' }}><strong>Tracking Number:</strong> {sampleRequest.admin_response.commercialData.trackingNumber}</p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Items Table */}
+                        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', fontSize: '11px' }}>
+                            <thead>
+                                <tr style={{ backgroundColor: '#f0f0f0', borderTop: '2px solid #000', borderBottom: '2px solid #000' }}>
+                                    <th style={{ padding: '8px', textAlign: 'left', fontWeight: 'bold' }}>Description</th>
+                                    <th style={{ padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>Qty</th>
+                                    <th style={{ padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>Unit Price</th>
+                                    <th style={{ padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>Amount (USD)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {sampleRequest.admin_response.items?.map((item: any, idx: number) => (
+                                    <tr key={idx} style={{ borderBottom: '1px solid #ddd' }}>
+                                        <td style={{ padding: '8px' }}>{item.category}</td>
+                                        <td style={{ padding: '8px', textAlign: 'center' }}>{item.sampleQty || 1} {(item.sampleQty || 1) === 1 ? 'pc' : 'pcs'}</td>
+                                        <td style={{ padding: '8px', textAlign: 'right' }}>${item.sampleCost?.toFixed(2)}</td>
+                                        <td style={{ padding: '8px', textAlign: 'right' }}>${((item.sampleCost || 0) * (item.sampleQty || 1)).toFixed(2)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+
+                        {/* Totals */}
+                        <div style={{ marginLeft: 'auto', width: '300px', fontSize: '11px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 10px', borderTop: '1px solid #ddd' }}>
+                                <span>Subtotal:</span>
+                                <span>${sampleRequest.admin_response.subtotal}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 10px', borderTop: '1px solid #ddd' }}>
+                                <span>Shipping Cost:</span>
+                                <span>${sampleRequest.admin_response.shippingCost}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 10px', borderTop: '2px solid #000', fontWeight: 'bold', fontSize: '13px' }}>
+                                <span>TOTAL:</span>
+                                <span>${sampleRequest.admin_response.total}</span>
+                            </div>
+                        </div>
+
+                        {/* Notes */}
+                        {sampleRequest.admin_response.notes && (
+                            <div style={{ marginTop: '20px', fontSize: '11px' }}>
+                                <p style={{ margin: '0 0 5px 0', fontWeight: 'bold' }}>Notes:</p>
+                                <p style={{ margin: 0 }}>{sampleRequest.admin_response.notes}</p>
+                            </div>
+                        )}
+
+                        {/* Footer */}
+                        <div style={{ marginTop: '30px', paddingTop: '10px', borderTop: '1px solid #ddd', fontSize: '10px', textAlign: 'center', color: '#666' }}>
+                            <p style={{ margin: 0 }}>This is a computer-generated invoice and does not require a signature.</p>
+                        </div>
+                    </div>
+                </div>
             )}
         </MainLayout>
     );
@@ -2111,6 +2756,65 @@ const NegotiationModal: FC<{ onSubmit: (counterPrice: string, details: string, l
                     <div className="flex justify-end gap-3 pt-2">
                         <button type="button" onClick={onClose} className="px-5 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-semibold rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors border border-transparent dark:border-white/10">Cancel</button>
                         <button type="submit" className="px-5 py-2.5 bg-[#c20c0b] text-white font-semibold rounded-xl hover:bg-[#a50a09] transition-colors shadow-md">Submit Offer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    , document.body);
+};
+
+const SampleRequestModal: FC<{ 
+    lineItems: any[]; 
+    onSubmit: (selectedIds: number[], specs: string, speed: string) => void; 
+    onClose: () => void 
+}> = ({ lineItems, onSubmit, onClose }) => {
+    const [selectedIds, setSelectedIds] = useState<number[]>([]);
+    const [specs, setSpecs] = useState('');
+    const [speed, setSpeed] = useState('regular');
+
+    const toggleSelection = (id: number) => {
+        setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+    };
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (selectedIds.length === 0) return;
+        onSubmit(selectedIds, specs, speed);
+    };
+
+    return createPortal(
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[80] p-4 animate-fade-in">
+            <div className="bg-white dark:bg-gray-900/95 dark:backdrop-blur-xl p-6 rounded-2xl shadow-2xl w-full max-w-md border border-gray-200 dark:border-white/10">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">Request Samples</h3>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={24} /></button>
+                </div>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Select Products</label>
+                        <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg p-2">
+                            {lineItems.map(item => (
+                                <label key={item.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded cursor-pointer">
+                                    <input type="checkbox" checked={selectedIds.includes(item.id)} onChange={() => toggleSelection(item.id)} className="rounded text-[#c20c0b] focus:ring-[#c20c0b]" />
+                                    <span className="text-sm text-gray-800 dark:text-gray-200">{item.category}</span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Delivery Speed</label>
+                        <select value={speed} onChange={(e) => setSpeed(e.target.value)} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white">
+                            <option value="regular">Regular (Standard Shipping)</option>
+                            <option value="express">Express (Fast Shipping)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Specifications / Notes</label>
+                        <textarea value={specs} onChange={(e) => setSpecs(e.target.value)} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white" rows={3} placeholder="Any specific requirements for the samples..." />
+                    </div>
+                    <div className="flex justify-end gap-3 pt-2">
+                        <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg">Cancel</button>
+                        <button type="submit" disabled={selectedIds.length === 0} className="px-4 py-2 bg-[#c20c0b] text-white rounded-lg hover:bg-[#a50a09] disabled:opacity-50">Submit Request</button>
                     </div>
                 </form>
             </div>

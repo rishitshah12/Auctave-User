@@ -93,6 +93,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
         setLoading(true);
         setAuthError('');
 
+        // Timeout to prevent infinite loading state
+        const timeoutId = setTimeout(() => {
+            console.error('Sign-in timeout - forcing loading state to false');
+            setLoading(false);
+            setAuthError('Sign-in is taking too long. Please try again or check your connection.');
+        }, 30000); // 30 second timeout
+
         try {
             const normalizedEmail = email.toLowerCase().trim();
 
@@ -101,13 +108,39 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
             }
 
             if (adminSignInMethod === 'password') {
-                const { data, error } = await supabase.auth.signInWithPassword({
+                console.log('Attempting admin password sign-in...');
+
+                // Add timeout to the sign-in request
+                const signInPromise = supabase.auth.signInWithPassword({
                     email: normalizedEmail,
                     password,
                 });
-                if (error) throw error;
-                showToast('Signed in successfully!', 'success');
-                if (onLoginSuccess) await onLoginSuccess(data.session);
+
+                const timeoutPromise = new Promise((_, reject) => {
+                    setTimeout(() => reject(new Error('Sign-in request timed out')), 15000);
+                });
+
+                const { data, error } = await Promise.race([signInPromise, timeoutPromise]) as any;
+
+                if (error) {
+                    console.error('Sign-in error:', error);
+                    throw error;
+                }
+
+                console.log('Sign-in successful, session:', data.session ? 'exists' : 'null');
+                console.log('User metadata:', data.session?.user?.user_metadata);
+                showToast('Signed in successfully! Redirecting...', 'success');
+
+                // Wait a brief moment for auth state to update
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                // onLoginSuccess callback is optional - auth state will handle redirect automatically
+                if (onLoginSuccess) {
+                    console.log('Calling onLoginSuccess callback...');
+                    await onLoginSuccess(data.session);
+                } else {
+                    console.log('No onLoginSuccess callback - relying on auth state change');
+                }
             } else {
                 const { error } = await supabase.auth.signInWithOtp({
                     email: normalizedEmail,
@@ -123,10 +156,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
                 showToast('Magic link sent to your email!', 'success');
             }
         } catch (error: any) {
-            setAuthError(error.message);
-            showToast(error.message, 'error');
+            console.error('Admin sign-in failed:', error);
+            setAuthError(error.message || 'An error occurred during sign-in');
+            showToast(error.message || 'Sign-in failed', 'error');
         } finally {
+            clearTimeout(timeoutId);
             setLoading(false);
+            console.log('Sign-in process completed, loading state set to false');
         }
     };
 

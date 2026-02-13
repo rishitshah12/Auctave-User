@@ -2,7 +2,8 @@ import React, { FC, useState, useEffect, useMemo, ReactNode, useCallback } from 
 import {
     List, TrendingUp, CheckCircle, Package, PieChart as PieChartIcon,
     BarChart as BarChartIcon, Info, LayoutDashboard, ClipboardCheck,
-    GanttChartSquare, Bot, FileText, Ship, DollarSign, Download, MapPin, Plus, ChevronDown, X
+    GanttChartSquare, Bot, FileText, Ship, DollarSign, Download, MapPin, Plus, ChevronDown, X,
+    Star, AlertCircle, ArrowRight, Building, Clock
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Pie, Cell, PieChart
@@ -28,16 +29,18 @@ interface CRMPageProps {
     showToast: (message: string, type?: 'success' | 'error') => void;
 }
 
-export function DashboardCard({ icon, title, value, colorClass }: { icon: ReactNode, title: string, value: string | number, colorClass: string }) {
+export function DashboardCard({ icon, title, value, colorClass, index = 0 }: { icon: ReactNode, title: string, value: string | number, colorClass: string, index?: number }) {
     return (
-        <div className={`relative p-5 rounded-xl overflow-hidden bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md shadow-md border border-gray-200 dark:border-white/10 cursor-pointer hover:scale-105 transition-transform`}>
-            <div className="flex items-start justify-between">
+        <div className={`relative p-5 rounded-2xl overflow-hidden bg-white dark:bg-gray-900/40 dark:backdrop-blur-md shadow-lg border border-gray-200 dark:border-white/10 transition-all duration-300 hover:scale-[1.04] hover:-translate-y-1 cursor-pointer group hover-pulse-glow animate-stagger-in`} style={{ animationDelay: `${index * 100}ms` }}>
+            <div className={`absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r ${colorClass} transition-all duration-300 group-hover:h-2`}></div>
+            <div className="absolute -bottom-6 -right-6 w-24 h-24 rounded-full opacity-[0.07] group-hover:opacity-[0.12] transition-opacity duration-500 bg-gradient-to-br from-current" style={{ color: colorClass.includes('red') ? '#c20c0b' : colorClass.includes('yellow') ? '#D97706' : colorClass.includes('green') ? '#059669' : '#2563EB' }}></div>
+            <div className="flex items-start justify-between relative z-10">
                 <div>
-                    <p className="text-sm font-medium text-gray-500 dark:text-gray-200">{title}</p>
-                    <p className="text-3xl font-bold text-gray-800 dark:text-white mt-1">{value}</p>
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-300 tracking-wide">{title}</p>
+                    <p className="text-3xl font-extrabold text-gray-800 dark:text-white mt-1 animate-count-up">{value}</p>
                 </div>
-                <div className={`p-3 rounded-lg ${colorClass}`}>
-                    {icon}
+                <div className={`p-3 rounded-xl bg-gradient-to-br ${colorClass} shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-110`}>
+                    <div className="text-white">{icon}</div>
                 </div>
             </div>
         </div>
@@ -66,14 +69,19 @@ export const DashboardView: FC<{ tasks: any[]; orderKey: string; orderDetails: a
         return (
             <div className="mt-6 space-y-6 animate-fade-in">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <DashboardCard title="Total Tasks" value={totalTasks} icon={<List className="text-[var(--color-primary)]"/>} colorClass="bg-red-100" />
-                    <DashboardCard title="In Progress" value={inProgressTasks} icon={<TrendingUp className="text-yellow-800"/>} colorClass="bg-yellow-100" />
-                    <DashboardCard title="Completed" value={completedTasks} icon={<CheckCircle className="text-green-800"/>} colorClass="bg-green-100" />
-                    <DashboardCard title="Total Quantity" value={totalQuantity.toLocaleString()} icon={<Package className="text-blue-800"/>} colorClass="bg-blue-100" />
+                    <DashboardCard title="Total Tasks" value={totalTasks} icon={<List size={22}/>} colorClass="from-[#c20c0b] to-red-500" index={0} />
+                    <DashboardCard title="In Progress" value={inProgressTasks} icon={<TrendingUp size={22}/>} colorClass="from-orange-500 to-amber-500" index={1} />
+                    <DashboardCard title="Completed" value={completedTasks} icon={<CheckCircle size={22}/>} colorClass="from-green-500 to-emerald-500" index={2} />
+                    <DashboardCard title="Total Quantity" value={totalQuantity.toLocaleString()} icon={<Package size={22}/>} colorClass="from-blue-500 to-cyan-500" index={3} />
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-                    <div className="lg:col-span-2 bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-sm border border-gray-200 dark:border-white/10">
-                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4 flex items-center"><PieChartIcon size={20} className="mr-2 text-[var(--color-primary)]"/>Task Status Distribution</h3>
+                    <div className="lg:col-span-2 bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 transition-all duration-300 hover:shadow-xl">
+                        <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                            <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg shadow-md">
+                                <PieChartIcon size={16} className="text-white"/>
+                            </div>
+                            Task Status Distribution
+                        </h3>
                         <ResponsiveContainer width="100%" height={300}>
                             <PieChart>
                                 <Pie data={statusData} cx="50%" cy="50%" labelLine={false} innerRadius={70} outerRadius={110} fill="#8884d8" dataKey="value" nameKey="name" label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}>
@@ -84,8 +92,13 @@ export const DashboardView: FC<{ tasks: any[]; orderKey: string; orderDetails: a
                             </PieChart>
                         </ResponsiveContainer>
                     </div>
-                    <div className="lg:col-span-3 bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-sm border border-gray-200 dark:border-white/10">
-                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4 flex items-center"><BarChartIcon size={20} className="mr-2 text-[var(--color-primary)]"/>Units Per Task</h3>
+                    <div className="lg:col-span-3 bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 transition-all duration-300 hover:shadow-xl">
+                        <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                            <div className="p-2 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg shadow-md">
+                                <BarChartIcon size={16} className="text-white"/>
+                            </div>
+                            Units Per Task
+                        </h3>
                         <ResponsiveContainer width="100%" height={300}>
                             <BarChart data={tasks.filter(t => t.quantity > 0)} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
                                 <defs>
@@ -121,41 +134,42 @@ export const ListView: FC<{ tasks: any[] }> = ({ tasks }) => {
 
         const TaskGroup: FC<{ title: string; tasks: any[]; showTotals?: boolean; totalsData?: any }> = ({ title, tasks, showTotals, totalsData }) => {
             const isCompletedGroup = title === 'COMPLETE';
-            const groupHeaderColor = isCompletedGroup ? 'text-green-600' : 'text-gray-600';
+            const groupHeaderColor = isCompletedGroup ? 'text-green-600 dark:text-green-400' : title === 'IN PROGRESS' ? 'text-orange-600 dark:text-orange-400' : 'text-gray-600 dark:text-gray-400';
+            const badgeColor = isCompletedGroup ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : title === 'IN PROGRESS' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
             return (
-                <div className="mb-8">
-                    <div className="flex items-center text-sm font-semibold mb-3">
-                        <ChevronDown size={20} className={`mr-1 ${groupHeaderColor} dark:text-gray-200`} />
-                        <span className={`mr-2 ${groupHeaderColor} dark:text-white`}>{title}</span>
-                        <span className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-white text-xs font-bold px-2 py-0.5 rounded-full">{tasks.length}</span>
-                        <button className="ml-4 text-gray-500 dark:text-gray-200 hover:text-gray-800 dark:hover:text-white flex items-center gap-1">
-                            <Plus size={16} /> Add Task
+                <div className="mb-6">
+                    <div className="flex items-center text-sm font-bold mb-3">
+                        <ChevronDown size={20} className={`mr-2 ${groupHeaderColor}`} />
+                        <span className={`mr-2 ${groupHeaderColor}`}>{title}</span>
+                        <span className={`${badgeColor} text-xs font-bold px-2.5 py-1 rounded-full shadow-sm`}>{tasks.length}</span>
+                        <button className="ml-4 text-gray-500 dark:text-gray-400 hover:text-[var(--color-primary)] dark:hover:text-red-400 flex items-center gap-1.5 text-xs font-semibold hover:scale-105 transition-all duration-200">
+                            <Plus size={14} /> Add Task
                         </button>
                     </div>
-                    <div className="overflow-x-auto bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md rounded-lg shadow-sm border border-gray-200 dark:border-white/10">
-                        <table className="min-w-full divide-y divide-gray-200 text-sm">
-                            <thead className="bg-gray-50 dark:bg-gray-700/50">
+                    <div className="overflow-x-auto bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10">
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                            <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50">
                                 <tr>
                                     {['Task Name', 'Due date', 'QTY'].map(header => (
-                                        <th key={header} scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-200 uppercase tracking-wider">{header}</th>
+                                        <th key={header} scope="col" className="px-5 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">{header}</th>
                                     ))}
                                 </tr>
                             </thead>
-                            <tbody className="bg-white dark:bg-gray-900/40 divide-y divide-gray-200 dark:divide-white/10">
+                            <tbody className="bg-white dark:bg-gray-900/40 divide-y divide-gray-100 dark:divide-gray-800">
                                 {tasks.map(task => (
-                                    <tr key={task.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                                        <td className="px-4 py-2 whitespace-nowrap font-medium text-gray-900 dark:text-white flex items-center">
-                                            <CheckCircle size={16} className={`${task.status === 'COMPLETE' ? 'text-green-500' : 'text-gray-300'} mr-2`} /> {task.name}
+                                    <tr key={task.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors duration-200">
+                                        <td className="px-5 py-3.5 whitespace-nowrap font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                                            <CheckCircle size={18} className={`${task.status === 'COMPLETE' ? 'text-green-500' : 'text-gray-300 dark:text-gray-600'}`} /> {task.name}
                                         </td>
-                                        <td className="px-4 py-2 whitespace-nowrap text-gray-600 dark:text-gray-200">{task.plannedEndDate}</td>
-                                        <td className="px-4 py-2 whitespace-nowrap text-gray-600 dark:text-gray-200">{task.quantity?.toLocaleString() || 'N/A'}</td>
+                                        <td className="px-5 py-3.5 whitespace-nowrap text-gray-600 dark:text-gray-300">{task.plannedEndDate}</td>
+                                        <td className="px-5 py-3.5 whitespace-nowrap text-gray-600 dark:text-gray-300 font-medium">{task.quantity?.toLocaleString() || 'N/A'}</td>
                                     </tr>
                                 ))}
                                 {showTotals && (
-                                <tr className="bg-gray-50 dark:bg-gray-700/50 font-bold">
-                                    <td className="px-4 py-2 text-gray-800"></td>
-                                    <td className="px-4 py-2 text-gray-800"></td>
-                                    <td className="px-4 py-2 text-gray-800 dark:text-white">{totalsData.qty.toLocaleString()}</td>
+                                <tr className="bg-gradient-to-r from-gray-100 to-gray-50 dark:from-gray-700/50 dark:to-gray-800/50 font-bold border-t-2 border-gray-200 dark:border-gray-600">
+                                    <td className="px-5 py-3.5 text-gray-800 dark:text-white">Total</td>
+                                    <td className="px-5 py-3.5"></td>
+                                    <td className="px-5 py-3.5 text-gray-900 dark:text-white">{totalsData.qty.toLocaleString()}</td>
                                 </tr>
                                 )}
                             </tbody>
@@ -181,35 +195,53 @@ export const BoardView: FC<{ tasks: any[] }> = ({ tasks }) => {
             'COMPLETE': tasks.filter(t => t.status === 'COMPLETE'),
         };
 
+        const columnColors: { [key: string]: { bg: string; badge: string; border: string } } = {
+            'TO DO': { bg: 'bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50', badge: 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300', border: 'border-gray-300 dark:border-gray-600' },
+            'IN PROGRESS': { bg: 'bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20', badge: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400', border: 'border-orange-300 dark:border-orange-600' },
+            'COMPLETE': { bg: 'bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20', badge: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400', border: 'border-green-300 dark:border-green-600' },
+        };
+
         const TaskCard: FC<{ task: any }> = ({ task }) => (
-            <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/60 dark:backdrop-blur-md p-3 rounded-lg border border-gray-200 dark:border-white/10 shadow-sm mb-3">
-                <p className="font-semibold text-sm text-gray-800 dark:text-white">{task.name}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Due: {task.plannedEndDate}</p>
-                <div className="flex items-center justify-between mt-2">
+            <div className="bg-white dark:bg-gray-900/60 dark:backdrop-blur-md p-4 rounded-xl border border-gray-200 dark:border-white/10 shadow-md hover:shadow-lg mb-3 transition-all duration-300 hover:-translate-y-1 cursor-pointer group">
+                <p className="font-bold text-sm text-gray-800 dark:text-white group-hover:text-[var(--color-primary)] dark:group-hover:text-red-400 transition-colors">{task.name}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 flex items-center gap-1">
+                    <Clock size={12} /> {task.plannedEndDate}
+                </p>
+                <div className="flex items-center justify-between mt-3">
                     <div className="flex -space-x-2">
-                        <img className="w-6 h-6 rounded-full border-2 border-white" src={`https://i.pravatar.cc/150?u=${task.responsible}`} alt="user"/>
+                        <img className="w-7 h-7 rounded-full border-2 border-white dark:border-gray-800 shadow-sm" src={`https://i.pravatar.cc/150?u=${task.responsible}`} alt="user"/>
                     </div>
-                    <span className={`w-10 h-2 rounded-full ${task.color}`}></span>
+                    <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${task.status === 'COMPLETE' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : task.status === 'IN PROGRESS' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}>
+                        {task.quantity?.toLocaleString() || 0} units
+                    </span>
                 </div>
             </div>
         )
 
         return (
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
-                {Object.entries(columns).map(([status, tasksInColumn]) => (
-                    <div key={status} className="bg-gray-50/70 dark:bg-gray-800/50 p-3 rounded-lg">
-                        <h3 className="flex items-center justify-between text-sm font-semibold mb-4 px-1 text-gray-700 dark:text-white">
-                            <span>{status}</span>
-                            <span className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-white text-xs font-bold px-2 py-0.5 rounded-full">{tasksInColumn.length}</span>
-                        </h3>
-                        <div>
-                            {tasksInColumn.map(task => <TaskCard key={task.id} task={task} />)}
-                            <button className="w-full text-left text-sm font-medium text-gray-500 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 p-2 rounded-md flex items-center">
-                                <Plus size={16} className="mr-1"/> Add Task
-                            </button>
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-5 animate-fade-in">
+                {Object.entries(columns).map(([status, tasksInColumn]) => {
+                    const colors = columnColors[status];
+                    return (
+                        <div key={status} className={`${colors.bg} p-4 rounded-2xl border ${colors.border} shadow-lg`}>
+                            <h3 className="flex items-center justify-between text-sm font-bold mb-4 px-1 text-gray-800 dark:text-white">
+                                <span className="flex items-center gap-2">
+                                    {status === 'COMPLETE' && <CheckCircle size={16} className="text-green-600 dark:text-green-400" />}
+                                    {status === 'IN PROGRESS' && <TrendingUp size={16} className="text-orange-600 dark:text-orange-400" />}
+                                    {status === 'TO DO' && <List size={16} className="text-gray-600 dark:text-gray-400" />}
+                                    {status}
+                                </span>
+                                <span className={`${colors.badge} text-xs font-bold px-2.5 py-1 rounded-full shadow-sm`}>{tasksInColumn.length}</span>
+                            </h3>
+                            <div className="space-y-3">
+                                {tasksInColumn.map(task => <TaskCard key={task.id} task={task} />)}
+                                <button className="w-full text-left text-sm font-semibold text-gray-600 dark:text-gray-300 hover:bg-white/50 dark:hover:bg-gray-800/50 p-3 rounded-xl flex items-center gap-2 transition-all duration-200 hover:shadow-md border border-dashed border-gray-300 dark:border-gray-600">
+                                    <Plus size={16} /> Add Task
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
         )
     }
@@ -327,14 +359,14 @@ export const GanttChartView: FC<{ tasks: any[]; onTaskUpdate?: (taskId: number, 
         }, [timelineStart, timelineEnd]);
 
         return (
-            <div className="mt-6 overflow-x-auto scrollbar-hide animate-fade-in">
+            <div className="mt-6 overflow-x-auto scrollbar-hide animate-fade-in bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 p-4">
                 <div className="relative" style={{ minWidth: `${totalDuration * 40}px`}}>
                     {/* Grid Lines & Header */}
-                    <div className="relative grid border-b-2 border-gray-200 dark:border-white/10" style={{ gridTemplateColumns: `repeat(${totalDuration}, minmax(40px, 1fr))`}}>
+                    <div className="relative grid border-b-2 border-gray-300 dark:border-gray-600 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50 rounded-t-xl overflow-hidden" style={{ gridTemplateColumns: `repeat(${totalDuration}, minmax(40px, 1fr))`}}>
                         {timelineHeader.map((date, i) => (
-                            <div key={i} className="text-center border-r border-gray-200 dark:border-gray-700 py-2">
-                                <p className="text-xs text-gray-500 dark:text-gray-400">{date.toLocaleDateString('en-US', {month: 'short'})}</p>
-                                <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{date.getDate()}</p>
+                            <div key={i} className="text-center border-r border-gray-200 dark:border-gray-700 py-3">
+                                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">{date.toLocaleDateString('en-US', {month: 'short'})}</p>
+                                <p className="text-sm font-bold text-gray-800 dark:text-gray-200">{date.getDate()}</p>
                             </div>
                         ))}
                     </div>
@@ -446,28 +478,40 @@ export const TNAView: FC<{ tasks: any[] }> = ({ tasks }) => {
 
         return (
             <div className="mt-6 overflow-x-auto animate-fade-in">
-                <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-sm border border-gray-200 dark:border-white/10">
-                    <table className="min-w-full divide-y divide-gray-200 dark:divide-white/10">
-                        <thead className="bg-gray-50 dark:bg-gray-700/50">
+                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10">
+                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50">
                             <tr>
                                 {['Task', 'Responsible', 'Planned Start', 'Planned End', 'Actual Start', 'Actual End', 'Status', 'Delay (Days)'].map(header => (
-                                    <th key={header} scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-200 uppercase tracking-wider">{header}</th>
+                                    <th key={header} scope="col" className="px-5 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">{header}</th>
                                 ))}
                             </tr>
                         </thead>
-                        <tbody className="bg-white dark:bg-gray-900/40 divide-y divide-gray-200 dark:divide-white/10 text-sm">
-                            {tasks.map(task => {
+                        <tbody className="bg-white dark:bg-gray-900/40 divide-y divide-gray-100 dark:divide-gray-800 text-sm">
+                            {tasks.map((task, index) => {
                                 const delayInfo = calculateDelay(task);
                                 return (
-                                    <tr key={task.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                                        <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-800 dark:text-white">{task.name}</td>
-                                        <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-200">{task.responsible}</td>
-                                        <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-200">{task.plannedStartDate}</td>
-                                        <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-200">{task.plannedEndDate}</td>
-                                        <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-200">{task.actualStartDate || '—'}</td>
-                                        <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-200">{task.actualEndDate || '—'}</td>
-                                        <td className="px-4 py-3 whitespace-nowrap"><span className={getStatusPill(task.status)}>{task.status}</span></td>
-                                        <td className={`px-4 py-3 whitespace-nowrap ${getDelayColor(delayInfo.status)}`}>{delayInfo.days > 0 ? `+${delayInfo.days}` : '—'}</td>
+                                    <tr key={task.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors duration-200">
+                                        <td className="px-5 py-4 whitespace-nowrap font-semibold text-gray-900 dark:text-white">{task.name}</td>
+                                        <td className="px-5 py-4 whitespace-nowrap text-gray-600 dark:text-gray-300">
+                                            <div className="flex items-center gap-2">
+                                                <img className="w-6 h-6 rounded-full border border-gray-200 dark:border-gray-700" src={`https://i.pravatar.cc/150?u=${task.responsible}`} alt="user"/>
+                                                {task.responsible}
+                                            </div>
+                                        </td>
+                                        <td className="px-5 py-4 whitespace-nowrap text-gray-600 dark:text-gray-300">{task.plannedStartDate}</td>
+                                        <td className="px-5 py-4 whitespace-nowrap text-gray-600 dark:text-gray-300">{task.plannedEndDate}</td>
+                                        <td className="px-5 py-4 whitespace-nowrap text-gray-600 dark:text-gray-300">{task.actualStartDate || '—'}</td>
+                                        <td className="px-5 py-4 whitespace-nowrap text-gray-600 dark:text-gray-300">{task.actualEndDate || '—'}</td>
+                                        <td className="px-5 py-4 whitespace-nowrap"><span className={getStatusPill(task.status)}>{task.status}</span></td>
+                                        <td className={`px-5 py-4 whitespace-nowrap font-bold ${getDelayColor(delayInfo.status)}`}>
+                                            {delayInfo.days > 0 ? (
+                                                <span className="flex items-center gap-1">
+                                                    <AlertCircle size={14} />
+                                                    +{delayInfo.days}d
+                                                </span>
+                                            ) : '—'}
+                                        </td>
                                     </tr>
                                 );
                             })}
@@ -493,27 +537,48 @@ export const OrderDetailsView: FC<{ order: any; allFactories: Factory[]; handleS
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Left Column */}
                     <div className="lg:col-span-2 space-y-6">
-                        <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-sm border border-gray-200 dark:border-white/10">
-                            <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">Order Summary</h3>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div><p className="text-sm text-gray-500 dark:text-gray-200">Order ID</p><p className="font-semibold dark:text-white">{order.id || 'N/A'}</p></div>
-                                <div><p className="text-sm text-gray-500 dark:text-gray-200">Customer</p><p className="font-semibold dark:text-white">{order.customer}</p></div>
-                                <div><p className="text-sm text-gray-500 dark:text-gray-200">Product</p><p className="font-semibold dark:text-white">{order.product}</p></div>
+                        <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 transition-all duration-300 hover:shadow-xl">
+                            <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-5 flex items-center gap-2">
+                                <div className="p-2 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg shadow-md">
+                                    <Info size={16} className="text-white"/>
+                                </div>
+                                Order Summary
+                            </h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                                <div className="p-4 bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-xl border border-blue-200 dark:border-blue-700/30">
+                                    <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide mb-1">Order ID</p>
+                                    <p className="font-bold text-gray-900 dark:text-white text-lg">{order.id || 'N/A'}</p>
+                                </div>
+                                <div className="p-4 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl border border-purple-200 dark:border-purple-700/30">
+                                    <p className="text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wide mb-1">Customer</p>
+                                    <p className="font-bold text-gray-900 dark:text-white text-lg">{order.customer}</p>
+                                </div>
+                                <div className="p-4 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl border border-green-200 dark:border-green-700/30 sm:col-span-2">
+                                    <p className="text-xs font-semibold text-green-600 dark:text-green-400 uppercase tracking-wide mb-1">Product</p>
+                                    <p className="font-bold text-gray-900 dark:text-white text-lg">{order.product}</p>
+                                </div>
                             </div>
                         </div>
-                            <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-sm border border-gray-200 dark:border-white/10">
-                            <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">Order Documents</h3>
+                        <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 transition-all duration-300 hover:shadow-xl">
+                            <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-5 flex items-center gap-2">
+                                <div className="p-2 bg-gradient-to-br from-orange-500 to-amber-500 rounded-lg shadow-md">
+                                    <FileText size={16} className="text-white"/>
+                                </div>
+                                Order Documents
+                            </h3>
                             <div className="space-y-3">
                                 {order.documents.map((doc: any, index: number) => (
-                                    <div key={index} className="border border-gray-200 dark:border-white/10 rounded-lg p-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                                    <div key={index} className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-all duration-200 hover:shadow-md group">
                                         <div className="flex items-center gap-3">
-                                            {getDocIcon(doc.type)}
+                                            <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg group-hover:scale-110 transition-transform">
+                                                {getDocIcon(doc.type)}
+                                            </div>
                                             <div>
-                                                <p className="font-semibold text-gray-800 dark:text-white">{doc.name}</p>
-                                                <p className="text-xs text-gray-500">Updated: {doc.lastUpdated}</p>
+                                                <p className="font-bold text-gray-800 dark:text-white">{doc.name}</p>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Updated: {doc.lastUpdated}</p>
                                             </div>
                                         </div>
-                                        <button className="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500">
+                                        <button className="p-2.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-[var(--color-primary)] dark:hover:text-red-400 transition-all duration-200">
                                             <Download size={18} />
                                         </button>
                                     </div>
@@ -522,29 +587,50 @@ export const OrderDetailsView: FC<{ order: any; allFactories: Factory[]; handleS
                         </div>
                     </div>
                     {/* Right Column */}
-                    <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-sm border border-gray-200 dark:border-white/10">
-                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">Assigned Factory</h3>
+                    <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 transition-all duration-300 hover:shadow-xl">
+                        <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-5 flex items-center gap-2">
+                            <div className="p-2 bg-gradient-to-br from-red-500 to-pink-500 rounded-lg shadow-md">
+                                <Building size={16} className="text-white"/>
+                            </div>
+                            Assigned Factory
+                        </h3>
                         {factory ? (
-                            <div className="space-y-4">
-                                <div className="flex items-center gap-4">
-                                    <img src={factory.imageUrl} alt={factory.name} className="w-16 h-16 rounded-lg object-cover"/>
+                            <div className="space-y-5">
+                                <div className="flex items-center gap-4 p-4 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50 rounded-xl">
+                                    <img src={factory.imageUrl} alt={factory.name} className="w-16 h-16 rounded-xl object-cover border-2 border-white dark:border-gray-600 shadow-md"/>
                                     <div>
-                                        <p className="font-bold text-gray-900 dark:text-white">{factory.name}</p>
-                                        <p className="text-sm text-gray-500 flex items-center"><MapPin size={14} className="mr-1.5"/>{factory.location}</p>
+                                        <p className="font-bold text-gray-900 dark:text-white text-base">{factory.name}</p>
+                                        <p className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-1 mt-1">
+                                            <MapPin size={14} />{factory.location}
+                                        </p>
                                     </div>
                                 </div>
-                                <div className="text-sm space-y-2 dark:text-gray-200">
-                                    <p><span className="font-semibold">Rating:</span> {factory.rating} / 5.0</p>
-                                    <p><span className="font-semibold">Specialties:</span> {factory.specialties.join(', ')}</p>
-                                    <p><span className="font-semibold">Contact:</span> john.doe@example.com</p>
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-700/30">
+                                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Rating</span>
+                                        <div className="flex items-center gap-1">
+                                            <Star size={16} className="text-yellow-500 fill-yellow-500"/>
+                                            <span className="font-bold text-gray-900 dark:text-white">{factory.rating}</span>
+                                            <span className="text-gray-500 text-sm">/ 5.0</span>
+                                        </div>
+                                    </div>
+                                    <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700/30">
+                                        <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide mb-2">Specialties</p>
+                                        <p className="text-sm text-gray-700 dark:text-gray-300">{factory.specialties.join(', ')}</p>
+                                    </div>
+                                    <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-700/30">
+                                        <p className="text-xs font-semibold text-green-600 dark:text-green-400 uppercase tracking-wide mb-2">Contact</p>
+                                        <p className="text-sm text-gray-700 dark:text-gray-300">john.doe@example.com</p>
+                                    </div>
                                 </div>
-                                <button 
+                                <button
                                     onClick={() => factory && handleSetCurrentPage('factoryDetail', factory)}
-                                    className="w-full mt-2 py-2 px-4 text-sm font-semibold bg-red-100 text-[var(--color-primary)] rounded-lg hover:bg-red-200">
+                                    className="w-full mt-2 py-3 px-4 text-sm font-bold bg-gradient-to-r from-[#c20c0b] to-red-600 text-white rounded-xl shadow-lg shadow-red-500/25 hover:shadow-red-500/40 transition-all duration-300 hover:scale-105 flex items-center justify-center gap-2">
                                     View Factory Profile
+                                    <ArrowRight size={16} />
                                 </button>
                             </div>
-                        ) : <p className="dark:text-gray-200">No factory assigned.</p>}
+                        ) : <p className="text-gray-500 dark:text-gray-400 text-center py-8">No factory assigned.</p>}
                     </div>
                 </div>
             </div>
@@ -646,15 +732,38 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
     };
 
     const AIOrderSummaryModal: FC = () => (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60] p-4 animate-fade-in" onClick={() => setIsSummaryModalOpen(false)}>
-            <div className="bg-white/90 backdrop-blur-xl dark:bg-gray-800 rounded-2xl shadow-2xl p-6 sm:p-8 w-full max-w-2xl relative" onClick={e => e.stopPropagation()}>
-                <button onClick={() => setIsSummaryModalOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition"> <X size={24} /> </button>
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-fade-in" onClick={() => setIsSummaryModalOpen(false)}>
+            <div className="bg-white dark:bg-gray-900/95 dark:backdrop-blur-xl rounded-3xl shadow-2xl p-6 sm:p-8 w-full max-w-3xl relative border border-gray-200 dark:border-white/10 animate-scale-in" onClick={e => e.stopPropagation()}>
+                <button
+                    onClick={() => setIsSummaryModalOpen(false)}
+                    className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+                >
+                    <X size={24} />
+                </button>
                 <div className="flex items-center gap-3 mb-6">
-                    <div className="p-2 bg-red-100 rounded-lg"> <Bot className="w-6 h-6 text-[var(--color-primary)]" /> </div>
-                    <h2 className="text-2xl font-bold text-gray-800 dark:text-white">AI Order Summary</h2>
+                    <div className="p-3 bg-gradient-to-br from-red-500 to-pink-600 rounded-xl shadow-lg">
+                        <Bot className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                        <h2 className="text-2xl font-extrabold text-gray-800 dark:text-white">AI Order Summary</h2>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Powered by Gemini AI</p>
+                    </div>
                 </div>
-                <div className="min-h-[200px] prose prose-sm max-w-none">
-                    {isSummaryLoading ? ( <div className="flex items-center justify-center h-full flex-col"> <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--color-primary)]"></div> <p className="mt-4 text-gray-500">Analyzing order data...</p> </div> ) : ( <MarkdownRenderer text={orderSummary} /> )}
+                <div className="min-h-[250px] max-h-[70vh] overflow-y-auto prose prose-sm max-w-none p-5 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50 rounded-2xl border border-gray-200 dark:border-gray-700">
+                    {isSummaryLoading ? (
+                        <div className="flex items-center justify-center h-full flex-col py-12">
+                            <div className="relative">
+                                <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-200 dark:border-gray-700"></div>
+                                <div className="animate-spin rounded-full h-16 w-16 border-4 border-t-[var(--color-primary)] dark:border-t-red-400 absolute top-0"></div>
+                            </div>
+                            <p className="mt-6 text-gray-600 dark:text-gray-400 font-semibold flex items-center gap-2">
+                                <span className="inline-block w-2 h-2 bg-[var(--color-primary)] rounded-full animate-pulse"></span>
+                                Analyzing order data...
+                            </p>
+                        </div>
+                    ) : (
+                        <MarkdownRenderer text={orderSummary} />
+                    )}
                 </div>
             </div>
         </div>
@@ -662,26 +771,64 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
 
     return (
         <MainLayout {...props}>
-            <div className="flex justify-between items-center mb-6">
-                <h1 className="text-3xl font-bold text-gray-800 dark:text-white">CRM Portal</h1>
-                <button className="bg-[var(--color-primary)] text-white font-semibold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-[var(--color-primary-hover)] transition">
-                    <Plus size={18} /> Add Task
-                </button>
-            </div>
-            <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-lg p-4 sm:p-6 border border-gray-200 dark:border-white/10">
-                <div className="border-b border-gray-200 dark:border-white/10 pb-4">
-                    <div className="flex flex-wrap items-center justify-between gap-y-4 gap-x-2">
+            {/* Hero Header Section */}
+            <header className="mb-8 relative">
+                <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 p-6 sm:p-8 shadow-2xl border border-white/5">
+                    {/* Animated background blobs */}
+                    <div className="absolute top-0 left-0 w-72 h-72 bg-red-500/30 rounded-full filter blur-3xl animate-blob"></div>
+                    <div className="absolute top-10 right-10 w-64 h-64 bg-pink-500/30 rounded-full filter blur-3xl animate-blob-delay-2"></div>
+                    <div className="absolute -bottom-10 left-1/3 w-56 h-56 bg-purple-500/30 rounded-full filter blur-3xl animate-blob-delay-4"></div>
+
+                    {/* Grid pattern overlay */}
+                    <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '24px 24px' }}></div>
+
+                    {/* Content */}
+                    <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                        <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="p-2 bg-gradient-to-br from-[#c20c0b] to-red-600 rounded-xl shadow-lg">
+                                    <ClipboardCheck className="w-6 h-6 text-white" />
+                                </div>
+                                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white leading-tight">
+                                    CRM <span className="bg-gradient-to-r from-blue-400 via-sky-300 to-cyan-300 bg-clip-text text-transparent animate-gradient-x font-black">Portal</span>
+                                </h1>
+                            </div>
+                            <p className="text-gray-400 mt-2 text-sm sm:text-base max-w-2xl">
+                                Track orders, manage tasks, and monitor production progress in real-time
+                            </p>
+                        </div>
+
+                        {/* Action Button */}
+                        <button className="px-6 py-3 bg-gradient-to-r from-[#c20c0b] to-red-600 text-white rounded-xl font-semibold text-sm shadow-lg shadow-red-500/25 hover:shadow-red-500/40 transition-all duration-300 hover:scale-[1.03] flex items-center gap-2">
+                            <Plus size={18} /> Add Task
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg p-4 sm:p-6 border border-gray-200 dark:border-white/10">
+                <div className="border-b border-gray-200 dark:border-white/10 pb-4 mb-2">
+                    <div className="flex flex-wrap items-center justify-between gap-y-4 gap-x-3">
                         {/* Order Tabs */}
-                        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+                        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1">
                             {Object.keys(crmData).map(orderKey => (
-                                <button key={orderKey} onClick={() => setActiveOrderKey(orderKey)} className={`flex-shrink-0 py-2 px-4 font-semibold text-sm rounded-t-lg transition-colors ${activeOrderKey === orderKey ? 'border-b-2 border-[var(--color-primary)] text-[var(--color-primary)]' : 'text-gray-500 dark:text-gray-200 hover:text-gray-700 dark:hover:text-white'}`}>
+                                <button
+                                    key={orderKey}
+                                    onClick={() => setActiveOrderKey(orderKey)}
+                                    className={`flex-shrink-0 py-2.5 px-5 font-semibold text-sm rounded-xl transition-all duration-300 ${
+                                        activeOrderKey === orderKey
+                                            ? 'bg-gradient-to-r from-[#c20c0b] to-red-600 text-white shadow-lg shadow-red-500/25 scale-105'
+                                            : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 hover:scale-105'
+                                    }`}
+                                >
+                                    <Package size={14} className="inline mr-1.5" />
                                     {crmData[orderKey].product}
                                 </button>
                             ))}
                         </div>
                         {/* View Tabs & AI Button */}
                         <div className="flex items-center gap-2">
-                            <div className="flex items-center border border-gray-200 dark:border-gray-700 rounded-lg p-1 bg-gray-50 dark:bg-gray-700">
+                            <div className="flex items-center border border-gray-200 dark:border-gray-700 rounded-xl p-1 bg-gray-50 dark:bg-gray-800/50 shadow-sm">
                                 {[
                                     {name: 'Details', icon: <Info size={16}/>},
                                     {name: 'List', icon: <List size={16}/>},
@@ -690,12 +837,24 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
                                     {name: 'Dashboard', icon: <PieChartIcon size={16}/>},
                                     {name: 'Gantt', icon: <GanttChartSquare size={16}/>}
                                 ].map(view => (
-                                    <button key={view.name} onClick={() => setActiveView(view.name)} className={`flex items-center gap-2 py-1.5 px-3 text-sm font-semibold rounded-md transition-colors ${activeView === view.name ? 'bg-white dark:bg-gray-600 text-[var(--color-primary)] dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>
+                                    <button
+                                        key={view.name}
+                                        onClick={() => setActiveView(view.name)}
+                                        className={`flex items-center gap-1.5 py-2 px-3 text-xs font-semibold rounded-lg transition-all duration-200 ${
+                                            activeView === view.name
+                                                ? 'bg-white dark:bg-gray-700 text-[var(--color-primary)] dark:text-white shadow-md scale-105'
+                                                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-gray-200'
+                                        }`}
+                                    >
                                         {view.icon} <span className="hidden sm:inline">{view.name}</span>
                                     </button>
                                 ))}
                             </div>
-                            <button onClick={generateOrderSummary} className="p-2.5 bg-red-100 dark:bg-red-900/30 text-[var(--color-primary)] dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors" title="Generate AI Summary">
+                            <button
+                                onClick={generateOrderSummary}
+                                className="p-2.5 bg-gradient-to-br from-red-100 to-pink-100 dark:from-red-900/30 dark:to-pink-900/30 text-[var(--color-primary)] dark:text-red-400 rounded-xl hover:from-red-200 hover:to-pink-200 dark:hover:from-red-900/50 dark:hover:to-pink-900/50 transition-all duration-300 shadow-md hover:shadow-lg hover:scale-110"
+                                title="Generate AI Summary"
+                            >
                                 <Bot size={18}/>
                             </button>
                         </div>
