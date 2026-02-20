@@ -134,23 +134,39 @@ export interface QuoteRequest {
 }
 
 
+export interface CrmProduct {
+    id: string;
+    name: string;
+    status?: 'Pending' | 'In Production' | 'Quality Check' | 'Shipped' | 'Completed';
+    quantity?: number;
+}
+
+export interface CrmTask {
+    id: number;
+    name: string;
+    responsible: string;
+    plannedStartDate: string;
+    plannedEndDate: string;
+    actualStartDate: string | null;
+    actualEndDate: string | null;
+    status: 'TO DO' | 'IN PROGRESS' | 'COMPLETE';
+    color?: string;
+    quantity?: number;
+    productId?: string;
+    priority?: 'Low' | 'Medium' | 'High' | 'Urgent';
+    notes?: string;
+    progress?: number;
+}
+
 export interface CrmOrder {
+    id?: string;
     customer: string;
     product: string;
     factoryId: string;
+    status?: 'Pending' | 'In Production' | 'Quality Check' | 'Shipped' | 'Completed';
     documents: { name: string; type: string; lastUpdated: string }[];
-    tasks: {
-        id: number;
-        name: string;
-        responsible: string;
-        plannedStartDate: string;
-        plannedEndDate: string;
-        actualStartDate: string | null;
-        actualEndDate: string | null;
-        status: 'TO DO' | 'IN PROGRESS' | 'COMPLETE';
-        color?: string;
-        quantity?: number;
-    }[];
+    tasks: CrmTask[];
+    products?: CrmProduct[];
 }
 
 

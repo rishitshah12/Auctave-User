@@ -207,14 +207,96 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
     const [trackingEvents, setTrackingEvents] = useState<any[]>([]);
     const [isTrackingLoading, setIsTrackingLoading] = useState(false);
     const [expandedSampleItems, setExpandedSampleItems] = useState<number[]>([]);
+    const [samplePhotoUrls, setSamplePhotoUrls] = useState<Record<string, string>>({});
 
     const sampleRequest = (quote?.negotiation_details as any)?.sample_request;
+
+    useEffect(() => {
+        const fetchSamplePhotoUrls = async () => {
+            if (!sampleRequest?.admin_response?.items) return;
+            
+            const paths: string[] = [];
+            sampleRequest.admin_response.items.forEach((item: any) => {
+                if (item.photos && Array.isArray(item.photos)) {
+                    paths.push(...item.photos);
+                }
+            });
+
+            if (paths.length === 0) return;
+
+            const newUrls: Record<string, string> = {};
+            let hasNew = false;
+
+            await Promise.all(paths.map(async (path) => {
+                if (path.startsWith('http') || path.startsWith('https') || path.startsWith('blob:')) return;
+                
+                if (samplePhotoUrls[path]) return;
+
+                const cleanPath = path.startsWith('quote-attachments/') ? path.replace('quote-attachments/', '') : path;
+                const { data, error } = await layoutProps.supabase.storage
+                    .from('quote-attachments')
+                    .createSignedUrl(cleanPath, 3600);
+
+                if (error) {
+                    console.error('Error signing URL for:', cleanPath, error);
+                }
+
+                if (data?.signedUrl) {
+                    newUrls[path] = data.signedUrl;
+                    hasNew = true;
+                }
+            }));
+
+            if (hasNew) {
+                setSamplePhotoUrls(prev => ({ ...prev, ...newUrls }));
+            }
+        };
+
+        fetchSamplePhotoUrls();
+    }, [sampleRequest, layoutProps.supabase]);
+
     const toggleSampleItem = (index: number) => {
         setExpandedSampleItems(prev => prev.includes(index) ? prev.filter(i => i !== index) : [...prev, index]);
     };
 
+    // Helper function to get public URL from storage path
+    const getPhotoUrl = (path: string) => {
+        if (!path) return '';
+        // If it's already a full URL, return it
+        if (path.startsWith('http://') || path.startsWith('https://')) {
+            return path;
+        }
+        // Check if we have a signed URL
+        if (samplePhotoUrls[path]) {
+            return samplePhotoUrls[path];
+        }
+        // Otherwise, get public URL from Supabase storage
+        const { data: { publicUrl } } = layoutProps.supabase.storage
+            .from('quote-attachments')
+            .getPublicUrl(path);
+        return publicUrl;
+    };
+
     // Filter for image files for the lightbox
     const imageFiles = fileLinks.filter(f => f.name.match(/\.(jpg|jpeg|png|gif|webp)$/i));
+
+    // Collect all sample photos for the lightbox
+    const samplePhotos: { url: string; name: string }[] = [];
+    if (sampleRequest?.admin_response?.items) {
+        sampleRequest.admin_response.items.forEach((item: any, itemIndex: number) => {
+            if (item.photos && item.photos.length > 0) {
+                item.photos.forEach((photo: string, photoIndex: number) => {
+                    samplePhotos.push({
+                        url: getPhotoUrl(photo),
+                        name: `${item.category} - Photo ${photoIndex + 1}`
+                    });
+                });
+            }
+        });
+    }
+
+    // Combine quote attachments and sample photos for lightbox
+    const allImages = [...imageFiles, ...samplePhotos];
 
     useEffect(() => {
         const fetchFreshQuoteData = async () => {
@@ -381,7 +463,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
     }, [activeTab, sampleRequest]);
 
     const openLightbox = (fileUrl: string) => {
-        const index = imageFiles.findIndex(img => img.url === fileUrl);
+        const index = allImages.findIndex(img => img.url === fileUrl);
         if (index !== -1) {
             setCurrentImageIndex(index);
             setIsLightboxOpen(true);
@@ -703,7 +785,11 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         if (!quote) return;
         const updatedNegotiationDetails = {
             ...(quote.negotiation_details || {}),
-            sample_request: { ...((quote.negotiation_details as any)?.sample_request || {}), status: 'confirmed' }
+            sample_request: {
+                ...((quote.negotiation_details as any)?.sample_request || {}),
+                status: 'confirmed',
+                confirmedAt: new Date().toISOString()
+            }
         };
         await quoteService.update(quote.id, { negotiation_details: updatedNegotiationDetails });
         setQuote(prev => prev ? { ...prev, negotiation_details: updatedNegotiationDetails } : null);
@@ -955,7 +1041,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         if (chatState.file) {
             try {
                 const fileExt = chatState.file.name.split('.').pop();
-                const fileName = `${quote.id}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+                const fileName = `${quote.userId}/${quote.id}/chat/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
                 const { data, error } = await layoutProps.supabase.storage
                     .from('quote-attachments')
                     .upload(fileName, chatState.file);
@@ -1045,7 +1131,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         { id: 'products', label: 'Products', icon: <Package size={18} />, badge: order.lineItems.length },
         { id: 'timeline', label: 'Timeline', icon: <History size={18} />, badge: negotiationHistory.length },
         { id: 'files', label: 'Files', icon: <FileText size={18} />, badge: fileLinks.length || quote?.files?.length || 0 },
-        ...(sampleRequest?.status === 'confirmed' || sampleRequest?.status === 'sent' || sampleRequest?.status === 'delivered' ?
+        ...(sampleRequest ?
             [{ id: 'tracking' as TabType, label: 'Sample Tracking', icon: <Truck size={18} /> }] :
             []
         )
@@ -1928,113 +2014,103 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                     {/* TRACKING TAB */}
                     {activeTab === 'tracking' && sampleRequest && (
                         <div className="animate-fade-in space-y-6">
-                            {/* Header Card with Courier Info */}
-                            <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 p-6 relative overflow-hidden">
-                                <div className="absolute top-0 right-0 p-4 opacity-10">
-                                    <Truck size={120} />
+                            {/* Header Card with Status */}
+                            <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 p-6">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                        <Activity size={20} className="text-[#c20c0b]" /> Sample Request Activity
+                                    </h3>
+                                    <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${
+                                        sampleRequest.status === 'confirmed' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' :
+                                        sampleRequest.status === 'delivered' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' :
+                                        sampleRequest.status === 'sent' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' :
+                                        sampleRequest.status === 'paid' ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300' :
+                                        sampleRequest.status === 'payment_pending' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' :
+                                        'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                                    }`}>
+                                        {sampleRequest.status === 'sent' ? 'Shipped' : sampleRequest.status.replace('_', ' ')}
+                                    </span>
                                 </div>
-                                <div className="relative z-10">
-                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                        <div>
-                                            <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                                <Truck className="text-blue-600" size={24} />
-                                                Sample Shipment Tracking
-                                            </h3>
-                                            <p className="text-gray-500 dark:text-gray-400 mt-1">
-                                                Courier: <span className="font-semibold text-gray-800 dark:text-white">{sampleRequest.admin_response?.commercialData?.courierService || 'Unknown Courier'}</span>
-                                            </p>
-                                        </div>
-                                        <div className="flex flex-col items-end">
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase font-bold tracking-wider">Tracking Number</p>
-                                            <div className="flex items-center gap-2 mt-1">
-                                                <code className="text-xl font-mono font-bold text-blue-600 dark:text-blue-400">
-                                                    {sampleRequest.admin_response?.commercialData?.trackingNumber || 'N/A'}
-                                                </code>
-                                                <button 
-                                                    onClick={() => {
-                                                        navigator.clipboard.writeText(sampleRequest.admin_response?.commercialData?.trackingNumber || '');
-                                                        showToast('Copied to clipboard');
-                                                    }}
-                                                    className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors text-gray-500"
-                                                >
-                                                    <Copy size={16} />
-                                                </button>
-                                            </div>
-                                            {sampleRequest.admin_response?.commercialData?.trackingLink && (
-                                                <a 
-                                                    href={sampleRequest.admin_response.commercialData.trackingLink} 
-                                                    target="_blank" 
-                                                    rel="noopener noreferrer"
-                                                    className="mt-2 text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center justify-end gap-1"
-                                                >
-                                                    Track on Courier Website <ExternalLink size={10} />
-                                                </a>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    Complete timeline of your sample request from submission to delivery
+                                </p>
                             </div>
 
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                {/* Left Column: Live Tracking Timeline */}
-                                <div className="lg:col-span-2">
+                                {/* Left Column: Activity Timeline */}
+                                <div className="lg:col-span-2 space-y-6">
                                     <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 p-6">
                                         <h4 className="font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
-                                            <Activity size={18} className="text-[#c20c0b]" /> Shipment Progress
+                                            <History size={18} className="text-[#c20c0b]" /> Activity Timeline
                                         </h4>
-                                        
-                                        {isTrackingLoading ? (
-                                            <div className="space-y-6 p-4">
-                                                {[1, 2, 3].map(i => (
-                                                    <div key={i} className="flex gap-4 animate-pulse">
-                                                        <div className="w-4 h-4 rounded-full bg-gray-200 dark:bg-gray-700"></div>
-                                                        <div className="flex-1 space-y-2">
-                                                            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/4"></div>
-                                                            <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <div className="relative pl-2">
-                                                {/* Vertical Line */}
-                                                <div className="absolute left-[15px] top-2 bottom-4 w-0.5 bg-gray-100 dark:bg-gray-800"></div>
-                                                
-                                                <div className="space-y-8">
-                                                    {trackingEvents.map((event, idx) => (
-                                                        <div key={idx} className="relative flex gap-6 group">
-                                                            {/* Dot */}
-                                                            <div className={`relative z-10 w-8 h-8 rounded-full flex items-center justify-center border-4 border-white dark:border-gray-900 shrink-0 ${event.current ? 'bg-blue-600 shadow-lg shadow-blue-500/30' : 'bg-gray-200 dark:bg-gray-700'}`}>
-                                                                {event.current ? (
-                                                                    <div className="w-2.5 h-2.5 bg-white rounded-full animate-pulse"></div>
-                                                                ) : (
-                                                                    <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full"></div>
-                                                                )}
-                                                            </div>
-                                                            
-                                                            {/* Content */}
-                                                            <div className={`flex-1 p-4 rounded-xl border transition-all duration-300 ${event.current ? 'bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800' : 'bg-white dark:bg-gray-800/50 border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600'}`}>
-                                                                <div className="flex justify-between items-start mb-1">
-                                                                    <span className={`font-bold ${event.current ? 'text-blue-700 dark:text-blue-400' : 'text-gray-900 dark:text-white'}`}>
-                                                                        {event.status}
-                                                                    </span>
-                                                                    <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">
-                                                                        {event.time}
-                                                                    </span>
-                                                                </div>
-                                                                <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">{event.description}</p>
-                                                                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                                                                    <MapPin size={12} /> {event.location}
-                                                                    <span className="mx-1">•</span>
-                                                                    <Calendar size={12} /> {event.date}
-                                                                </div>
+
+                                        <SampleActivityTimeline
+                                            sampleRequest={sampleRequest}
+                                            lineItems={order.lineItems}
+                                        />
+                                    </div>
+
+                                    {/* Show courier tracking ONLY when shipped */}
+                                    {(sampleRequest.status === 'sent' || sampleRequest.status === 'delivered' || sampleRequest.status === 'confirmed') &&
+                                     sampleRequest.admin_response?.commercialData?.trackingNumber && (
+                                        <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 p-6">
+                                            <h4 className="font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                                                <Truck size={18} className="text-blue-600" /> Live Courier Tracking
+                                            </h4>
+
+                                            {isTrackingLoading ? (
+                                                <div className="space-y-6 p-4">
+                                                    {[1, 2, 3].map(i => (
+                                                        <div key={i} className="flex gap-4 animate-pulse">
+                                                            <div className="w-4 h-4 rounded-full bg-gray-200 dark:bg-gray-700"></div>
+                                                            <div className="flex-1 space-y-2">
+                                                                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/4"></div>
+                                                                <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
                                                             </div>
                                                         </div>
                                                     ))}
                                                 </div>
-                                            </div>
-                                        )}
-                                    </div>
+                                            ) : (
+                                                <div className="relative pl-2">
+                                                    {/* Vertical Line */}
+                                                    <div className="absolute left-[15px] top-2 bottom-4 w-0.5 bg-gray-100 dark:bg-gray-800"></div>
+
+                                                    <div className="space-y-8">
+                                                        {trackingEvents.map((event, idx) => (
+                                                            <div key={idx} className="relative flex gap-6 group">
+                                                                {/* Dot */}
+                                                                <div className={`relative z-10 w-8 h-8 rounded-full flex items-center justify-center border-4 border-white dark:border-gray-900 shrink-0 ${event.current ? 'bg-blue-600 shadow-lg shadow-blue-500/30' : 'bg-gray-200 dark:bg-gray-700'}`}>
+                                                                    {event.current ? (
+                                                                        <div className="w-2.5 h-2.5 bg-white rounded-full animate-pulse"></div>
+                                                                    ) : (
+                                                                        <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full"></div>
+                                                                    )}
+                                                                </div>
+
+                                                                {/* Content */}
+                                                                <div className={`flex-1 p-4 rounded-xl border transition-all duration-300 ${event.current ? 'bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800' : 'bg-white dark:bg-gray-800/50 border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600'}`}>
+                                                                    <div className="flex justify-between items-start mb-1">
+                                                                        <span className={`font-bold ${event.current ? 'text-blue-700 dark:text-blue-400' : 'text-gray-900 dark:text-white'}`}>
+                                                                            {event.status}
+                                                                        </span>
+                                                                        <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">
+                                                                            {event.time}
+                                                                        </span>
+                                                                    </div>
+                                                                    <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">{event.description}</p>
+                                                                    <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                                                        <MapPin size={12} /> {event.location}
+                                                                        <span className="mx-1">•</span>
+                                                                        <Calendar size={12} /> {event.date}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Right Column: Sample Contents Droplist */}
@@ -2052,11 +2128,11 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                         className="w-full flex items-center justify-between p-4 text-left"
                                                     >
                                                         <div className="flex items-center gap-3">
-                                                            <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">
+                                                            <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">
                                                                 {item.photos && item.photos.length > 0 ? (
-                                                                    <img src={item.photos[0]} alt="" className="w-full h-full object-cover rounded-lg" />
+                                                                    <img src={getPhotoUrl(item.photos[0])} alt="" className="w-full h-full object-cover rounded-lg" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                                                                 ) : (
-                                                                    <Shirt size={18} className="text-gray-400" />
+                                                                    <Shirt size={24} className="text-gray-400" />
                                                                 )}
                                                             </div>
                                                             <div>
@@ -2084,12 +2160,13 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                                     <p className="text-[10px] font-bold text-gray-400 uppercase mb-2">Photos</p>
                                                                     <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                                                                         {item.photos.map((photo: string, pIdx: number) => (
-                                                                            <img 
-                                                                                key={pIdx} 
-                                                                                src={photo} 
-                                                                                alt="Sample" 
-                                                                                className="w-16 h-16 rounded-lg object-cover border border-gray-200 dark:border-gray-600 cursor-pointer hover:opacity-80 transition-opacity"
-                                                                                onClick={() => openLightbox(photo)}
+                                                                            <img
+                                                                                key={pIdx}
+                                                                                src={getPhotoUrl(photo)}
+                                                                                alt="Sample"
+                                                                                className="w-32 h-32 rounded-lg object-cover border border-gray-200 dark:border-gray-600 cursor-pointer hover:opacity-80 transition-opacity shadow-sm"
+                                                                                onClick={() => openLightbox(getPhotoUrl(photo))}
+                                                                                onError={(e) => { e.currentTarget.style.display = 'none'; }}
                                                                             />
                                                                         ))}
                                                                     </div>
@@ -2121,12 +2198,12 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                         </button>
                                     </div>
                                     
-                                    {sampleRequest.status === 'sent' && (
+                                    {(sampleRequest.status === 'sent' || sampleRequest.status === 'delivered') && (
                                         <button
                                             onClick={handleConfirmSample}
                                             className="w-full py-4 bg-green-600 text-white rounded-2xl font-bold shadow-lg shadow-green-500/30 hover:bg-green-700 hover:shadow-green-500/40 transition-all flex items-center justify-center gap-2"
                                         >
-                                            <CheckCircle size={20} /> Confirm Delivery
+                                            <CheckCircle size={20} /> Confirm Receipt
                                         </button>
                                     )}
                                 </div>
@@ -2436,22 +2513,33 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                     <button onClick={() => setIsLightboxOpen(false)} className="absolute top-6 right-6 text-white/70 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors z-50">
                         <X size={32} />
                     </button>
+                    {allImages[currentImageIndex] && (
+                        <a 
+                            href={allImages[currentImageIndex].url} 
+                            download={allImages[currentImageIndex].name}
+                            className="absolute top-6 right-20 text-white/70 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors z-50"
+                            onClick={(e) => e.stopPropagation()}
+                            title="Download"
+                        >
+                            <Download size={32} />
+                        </a>
+                    )}
                     <div className="relative w-full h-full flex items-center justify-center" onClick={e => e.stopPropagation()}>
-                        {imageFiles.length > 1 && (
+                        {allImages.length > 1 && (
                             <>
-                                <button onClick={(e) => { e.stopPropagation(); setCurrentImageIndex((prev) => (prev - 1 + imageFiles.length) % imageFiles.length); }} className="absolute left-2 md:left-8 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/50 hover:bg-black/70 text-white transition-all border border-white/10 backdrop-blur-sm group cursor-pointer">
+                                <button onClick={(e) => { e.stopPropagation(); setCurrentImageIndex((prev) => (prev - 1 + allImages.length) % allImages.length); }} className="absolute left-2 md:left-8 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/50 hover:bg-black/70 text-white transition-all border border-white/10 backdrop-blur-sm group cursor-pointer">
                                     <ChevronLeft size={32} className="group-hover:-translate-x-1 transition-transform" />
                                 </button>
-                                <button onClick={(e) => { e.stopPropagation(); setCurrentImageIndex((prev) => (prev + 1) % imageFiles.length); }} className="absolute right-2 md:right-8 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/50 hover:bg-black/70 text-white transition-all border border-white/10 backdrop-blur-sm group cursor-pointer">
+                                <button onClick={(e) => { e.stopPropagation(); setCurrentImageIndex((prev) => (prev + 1) % allImages.length); }} className="absolute right-2 md:right-8 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/50 hover:bg-black/70 text-white transition-all border border-white/10 backdrop-blur-sm group cursor-pointer">
                                     <ChevronRight size={32} className="group-hover:translate-x-1 transition-transform" />
                                 </button>
                             </>
                         )}
-                        {imageFiles[currentImageIndex] && (
-                            <img src={imageFiles[currentImageIndex].url} alt={imageFiles[currentImageIndex].name} className="max-h-[85vh] max-w-[90vw] object-contain rounded-lg shadow-2xl select-none" />
+                        {allImages[currentImageIndex] && (
+                            <img src={allImages[currentImageIndex].url} alt={allImages[currentImageIndex].name} className="max-h-[85vh] max-w-[90vw] object-contain rounded-lg shadow-2xl select-none" />
                         )}
                         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white text-sm bg-black/50 px-3 py-1 rounded-full border border-white/20">
-                            {currentImageIndex + 1} / {imageFiles.length}
+                            {currentImageIndex + 1} / {allImages.length}
                         </div>
                     </div>
                 </div>,
@@ -2761,6 +2849,358 @@ const NegotiationModal: FC<{ onSubmit: (counterPrice: string, details: string, l
             </div>
         </div>
     , document.body);
+};
+
+// Timeline Event Interface
+interface TimelineEvent {
+    status: string;
+    title: string;
+    timestamp: string | null;
+    icon: string;
+    color: 'purple' | 'blue' | 'green' | 'yellow';
+    description: string;
+    details?: Record<string, any>;
+    isPending?: boolean;
+    completed: boolean;
+}
+
+// Helper function to build timeline events from sample request data
+const buildTimelineEvents = (sampleRequest: any, lineItems: any[]): TimelineEvent[] => {
+    const events: TimelineEvent[] = [];
+
+    // 1. Request Submitted
+    if (sampleRequest.requestedAt) {
+        const requestedItems = lineItems.filter(item =>
+            sampleRequest.requestedItems?.includes(item.id)
+        );
+        events.push({
+            status: 'requested',
+            title: 'Sample Request Submitted',
+            timestamp: sampleRequest.requestedAt,
+            icon: 'Send',
+            color: 'purple',
+            description: `Requested ${requestedItems.length} sample${requestedItems.length !== 1 ? 's' : ''}`,
+            details: {
+                items: requestedItems.map(item => item.category),
+                specifications: sampleRequest.specifications,
+                deliverySpeed: sampleRequest.deliverySpeed
+            },
+            completed: true
+        });
+    }
+
+    // 2. Invoice Generated
+    if (sampleRequest.admin_response?.respondedAt) {
+        events.push({
+            status: 'payment_pending',
+            title: 'Invoice Generated',
+            timestamp: sampleRequest.admin_response.respondedAt,
+            icon: 'FileText',
+            color: 'blue',
+            description: `Invoice ${sampleRequest.admin_response.invoiceNumber || 'N/A'} created`,
+            details: {
+                invoiceNumber: sampleRequest.admin_response.invoiceNumber,
+                subtotal: sampleRequest.admin_response.subtotal,
+                shipping: sampleRequest.admin_response.shippingCost,
+                total: sampleRequest.admin_response.total
+            },
+            completed: true
+        });
+    }
+
+    // 3. Payment Confirmed or Awaiting Payment
+    if (sampleRequest.paidAt) {
+        events.push({
+            status: 'paid',
+            title: 'Payment Confirmed',
+            timestamp: sampleRequest.paidAt,
+            icon: 'CheckCircle',
+            color: 'green',
+            description: 'Payment received and verified',
+            details: {
+                amount: sampleRequest.admin_response?.total
+            },
+            completed: true
+        });
+    } else if (sampleRequest.status === 'payment_pending' ||
+               (sampleRequest.admin_response && !sampleRequest.paidAt &&
+                sampleRequest.status !== 'paid' && sampleRequest.status !== 'sent' &&
+                sampleRequest.status !== 'delivered' && sampleRequest.status !== 'confirmed')) {
+        events.push({
+            status: 'payment_pending',
+            title: 'Awaiting Payment',
+            timestamp: null,
+            icon: 'Clock',
+            color: 'yellow',
+            description: 'Waiting for payment confirmation',
+            isPending: true,
+            completed: false
+        });
+    }
+
+    // 4. Shipped or Preparing Shipment
+    if (sampleRequest.sentAt) {
+        events.push({
+            status: 'sent',
+            title: 'Sample Shipped',
+            timestamp: sampleRequest.sentAt,
+            icon: 'Truck',
+            color: 'blue',
+            description: `Shipped via ${sampleRequest.admin_response?.commercialData?.courierService || 'courier'}`,
+            details: {
+                courier: sampleRequest.admin_response?.commercialData?.courierService,
+                trackingNumber: sampleRequest.admin_response?.commercialData?.trackingNumber,
+                trackingLink: sampleRequest.admin_response?.commercialData?.trackingLink
+            },
+            completed: true
+        });
+    } else if (sampleRequest.status === 'paid') {
+        events.push({
+            status: 'paid',
+            title: 'Preparing Shipment',
+            timestamp: null,
+            icon: 'Box',
+            color: 'yellow',
+            description: 'Sample is being prepared for shipment',
+            isPending: true,
+            completed: false
+        });
+    }
+
+    // 5. Delivered or In Transit
+    if (sampleRequest.deliveredAt) {
+        events.push({
+            status: 'delivered',
+            title: 'Sample Delivered',
+            timestamp: sampleRequest.deliveredAt,
+            icon: 'MapPin',
+            color: 'green',
+            description: 'Sample delivered to destination',
+            completed: true
+        });
+    } else if (sampleRequest.status === 'sent') {
+        events.push({
+            status: 'sent',
+            title: 'In Transit',
+            timestamp: null,
+            icon: 'Truck',
+            color: 'blue',
+            description: 'Sample is on the way',
+            isPending: true,
+            completed: false
+        });
+    }
+
+    // 6. Confirmed by Client or Awaiting Confirmation
+    if (sampleRequest.confirmedAt) {
+        events.push({
+            status: 'confirmed',
+            title: 'Receipt Confirmed',
+            timestamp: sampleRequest.confirmedAt,
+            icon: 'CheckCheck',
+            color: 'green',
+            description: 'Client confirmed receipt of sample',
+            completed: true
+        });
+    } else if (sampleRequest.status === 'delivered') {
+        events.push({
+            status: 'delivered',
+            title: 'Awaiting Confirmation',
+            timestamp: null,
+            icon: 'Clock',
+            color: 'yellow',
+            description: 'Waiting for client confirmation',
+            isPending: true,
+            completed: false
+        });
+    }
+
+    return events;
+};
+
+// Timeline Event Component
+const TimelineEventItem: FC<{ event: TimelineEvent; isLast: boolean }> = ({ event, isLast }) => {
+    const [copied, setCopied] = useState(false);
+
+    const iconMap: Record<string, any> = {
+        Send, FileText, CheckCircle, Clock, Truck, Box, MapPin, CheckCheck
+    };
+
+    const colorMap = {
+        purple: {
+            bg: 'bg-purple-500',
+            text: 'text-purple-600 dark:text-purple-400',
+            border: 'border-purple-100 dark:border-purple-800',
+            bgLight: 'bg-purple-50/50 dark:bg-purple-900/10'
+        },
+        blue: {
+            bg: 'bg-blue-500',
+            text: 'text-blue-600 dark:text-blue-400',
+            border: 'border-blue-100 dark:border-blue-800',
+            bgLight: 'bg-blue-50/50 dark:bg-blue-900/10'
+        },
+        green: {
+            bg: 'bg-green-500',
+            text: 'text-green-600 dark:text-green-400',
+            border: 'border-green-100 dark:border-green-800',
+            bgLight: 'bg-green-50/50 dark:bg-green-900/10'
+        },
+        yellow: {
+            bg: 'bg-yellow-500',
+            text: 'text-yellow-600 dark:text-yellow-400',
+            border: 'border-yellow-100 dark:border-yellow-800',
+            bgLight: 'bg-yellow-50/50 dark:bg-yellow-900/10'
+        }
+    };
+
+    const Icon = iconMap[event.icon] || Circle;
+    const colors = colorMap[event.color];
+
+    const handleCopy = async (text: string) => {
+        try {
+            await navigator.clipboard.writeText(text);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch (err) {
+            console.error('Failed to copy:', err);
+        }
+    };
+
+    return (
+        <div className="relative flex gap-4">
+            {/* Icon */}
+            <div className={`relative z-10 w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                event.completed ? `${colors.bg} text-white` : 'bg-gray-200 dark:bg-gray-700 text-gray-400'
+            } ${event.isPending ? 'animate-pulse' : ''}`}>
+                <Icon size={14} />
+            </div>
+
+            {/* Content */}
+            <div className={`flex-1 ${isLast ? 'pb-0' : 'pb-6'}`}>
+                <div className="flex items-center justify-between mb-1">
+                    <span className={`font-bold ${event.completed ? colors.text : 'text-gray-400 dark:text-gray-500'}`}>
+                        {event.title}
+                    </span>
+                    {event.timestamp && (
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                            {formatFriendlyDate(event.timestamp)}
+                        </span>
+                    )}
+                </div>
+                <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">{event.description}</p>
+
+                {/* Details */}
+                {event.details && Object.keys(event.details).filter(k => event.details?.[k]).length > 0 && (
+                    <div className={`mt-2 p-3 rounded-lg border ${colors.border} ${colors.bgLight}`}>
+                        {event.details.items && event.details.items.length > 0 && (
+                            <div className="mb-2">
+                                <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Items Requested</p>
+                                <div className="flex flex-wrap gap-1">
+                                    {event.details.items.map((item: string, idx: number) => (
+                                        <span key={idx} className="px-2 py-0.5 bg-white dark:bg-gray-800 rounded text-xs text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
+                                            {item}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {event.details.specifications && (
+                            <div className="mb-2">
+                                <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Specifications</p>
+                                <p className="text-xs text-gray-600 dark:text-gray-300">{event.details.specifications}</p>
+                            </div>
+                        )}
+
+                        {event.details.deliverySpeed && (
+                            <div className="mb-2">
+                                <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Delivery Speed</p>
+                                <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
+                                    event.details.deliverySpeed === 'express'
+                                        ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300'
+                                        : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
+                                }`}>
+                                    {event.details.deliverySpeed.charAt(0).toUpperCase() + event.details.deliverySpeed.slice(1)}
+                                </span>
+                            </div>
+                        )}
+
+                        {event.details.invoiceNumber && (
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                <div>
+                                    <span className="text-gray-500 dark:text-gray-400">Invoice:</span>
+                                    <span className="ml-1 font-mono text-gray-900 dark:text-white">{event.details.invoiceNumber}</span>
+                                </div>
+                                {event.details.total && (
+                                    <div>
+                                        <span className="text-gray-500 dark:text-gray-400">Total:</span>
+                                        <span className="ml-1 font-bold text-gray-900 dark:text-white">${event.details.total}</span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {event.details.amount && !event.details.invoiceNumber && (
+                            <div className="text-xs">
+                                <span className="text-gray-500 dark:text-gray-400">Amount:</span>
+                                <span className="ml-1 font-bold text-gray-900 dark:text-white">${event.details.amount}</span>
+                            </div>
+                        )}
+
+                        {event.details.trackingNumber && (
+                            <div className="mt-2">
+                                <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Tracking</p>
+                                <div className="flex items-center gap-2">
+                                    <code className="flex-1 px-2 py-1 bg-white dark:bg-gray-800 rounded font-mono text-xs text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700">
+                                        {event.details.trackingNumber}
+                                    </code>
+                                    <button
+                                        onClick={() => handleCopy(event.details?.trackingNumber)}
+                                        className="p-1 hover:bg-white dark:hover:bg-gray-800 rounded transition-colors"
+                                        title="Copy tracking number"
+                                    >
+                                        {copied ? <Check size={12} className="text-green-600" /> : <Copy size={12} className="text-gray-500" />}
+                                    </button>
+                                    {event.details.trackingLink && (
+                                        <a
+                                            href={event.details.trackingLink}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                                        >
+                                            Track <ExternalLink size={10} />
+                                        </a>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+// Main Sample Activity Timeline Component
+const SampleActivityTimeline: FC<{
+    sampleRequest: any;
+    lineItems: any[];
+}> = ({ sampleRequest, lineItems }) => {
+    const timelineEvents = useMemo(
+        () => buildTimelineEvents(sampleRequest, lineItems),
+        [sampleRequest, lineItems]
+    );
+
+    return (
+        <div className="relative">
+            <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200 dark:bg-gray-700"></div>
+            <div className="space-y-6">
+                {timelineEvents.map((event, idx) => (
+                    <TimelineEventItem key={idx} event={event} isLast={idx === timelineEvents.length - 1} />
+                ))}
+            </div>
+        </div>
+    );
 };
 
 const SampleRequestModal: FC<{ 

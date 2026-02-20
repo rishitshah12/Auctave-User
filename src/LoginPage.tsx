@@ -47,44 +47,74 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
 
     const handleGoogleSignIn = async () => {
         setLoading(true);
-        const { error } = await supabase.auth.signInWithOAuth({
-            provider: 'google',
-            options: {
-                redirectTo: window.location.origin,
-                queryParams: {
-                    prompt: 'select_account',
-                }
-            }
-        });
-        if (error) {
-            if (error.message.includes("provider is not enabled")) {
-                setAuthError("Google Sign-In is disabled. Enable it in Supabase > Authentication > Providers.");
-            } else {
-                setAuthError(error.message);
-            }
-            showToast(error.message, 'error');
+        setAuthError('');
+
+        // Safety timeout
+        const safetyTimeoutId = setTimeout(() => {
             setLoading(false);
+            setAuthError('Request timeout. Please try again.');
+            showToast('Request timeout - please try again', 'error');
+        }, 20000);
+
+        try {
+            const { error } = await supabase.auth.signInWithOAuth({
+                provider: 'google',
+                options: {
+                    redirectTo: window.location.origin,
+                    queryParams: {
+                        prompt: 'select_account',
+                    }
+                }
+            });
+            if (error) {
+                if (error.message.includes("provider is not enabled")) {
+                    setAuthError("Google Sign-In is disabled. Enable it in Supabase > Authentication > Providers.");
+                } else {
+                    setAuthError(error.message);
+                }
+                showToast(error.message, 'error');
+            }
+        } finally {
+            clearTimeout(safetyTimeoutId);
+            // Only set loading to false on error - successful OAuth redirects away
+            if (!window.location.href.includes('code=')) {
+                setLoading(false);
+            }
         }
     };
 
     const handleUserEmailSignIn = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
-        const normalizedEmail = email.toLowerCase().trim();
-        // User Magic Link Login
-        const { error } = await supabase.auth.signInWithOtp({
-            email: normalizedEmail,
-            options: {
-                emailRedirectTo: window.location.origin,
+        setAuthError('');
+
+        // Safety timeout
+        const safetyTimeoutId = setTimeout(() => {
+            setLoading(false);
+            setAuthError('Request timeout. Please try again.');
+            showToast('Request timeout - please try again', 'error');
+        }, 20000);
+
+        try {
+            const normalizedEmail = email.toLowerCase().trim();
+            // User Magic Link Login
+            const { error } = await supabase.auth.signInWithOtp({
+                email: normalizedEmail,
+                options: {
+                    emailRedirectTo: window.location.origin,
+                }
+            });
+
+            if (error) {
+                setAuthError(error.message);
+                showToast(error.message, 'error');
+            } else {
+                showToast('Magic link sent to your email!', 'success');
+                setAuthError('');
             }
-        });
-        setLoading(false);
-        if (error) {
-            setAuthError(error.message);
-            showToast(error.message, 'error');
-        } else {
-            showToast('Magic link sent to your email!', 'success');
-            setAuthError('');
+        } finally {
+            clearTimeout(safetyTimeoutId);
+            setLoading(false);
         }
     };
 
@@ -93,12 +123,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
         setLoading(true);
         setAuthError('');
 
-        // Timeout to prevent infinite loading state
-        const timeoutId = setTimeout(() => {
-            console.error('Sign-in timeout - forcing loading state to false');
+        // Safety timeout to force-clear loading state after 20 seconds
+        const safetyTimeoutId = setTimeout(() => {
+            console.error('Safety timeout triggered - clearing loading state');
             setLoading(false);
-            setAuthError('Sign-in is taking too long. Please try again or check your connection.');
-        }, 30000); // 30 second timeout
+            setAuthError('Sign-in is taking too long. Please check your connection and try again.');
+            showToast('Request timeout - please try again', 'error');
+        }, 20000);
 
         try {
             const normalizedEmail = email.toLowerCase().trim();
@@ -109,30 +140,40 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
 
             if (adminSignInMethod === 'password') {
                 console.log('Attempting admin password sign-in...');
+                console.log('Email:', normalizedEmail);
+                console.log('Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
 
-                // Add timeout to the sign-in request
-                const signInPromise = supabase.auth.signInWithPassword({
+                // Add timeout wrapper to detect if the request hangs
+                const loginTimeoutPromise = new Promise((_, reject) => {
+                    setTimeout(() => {
+                        reject(new Error('Login request exceeded 15 seconds - possible network or configuration issue'));
+                    }, 15000);
+                });
+
+                const loginPromise = supabase.auth.signInWithPassword({
                     email: normalizedEmail,
                     password,
                 });
 
-                const timeoutPromise = new Promise((_, reject) => {
-                    setTimeout(() => reject(new Error('Sign-in request timed out')), 15000);
-                });
-
-                const { data, error } = await Promise.race([signInPromise, timeoutPromise]) as any;
+                console.log('Waiting for sign-in response...');
+                const { data, error } = await Promise.race([loginPromise, loginTimeoutPromise]) as any;
 
                 if (error) {
                     console.error('Sign-in error:', error);
+                    console.error('Error details:', JSON.stringify(error, null, 2));
                     throw error;
                 }
 
-                console.log('Sign-in successful, session:', data.session ? 'exists' : 'null');
+                console.log('Sign-in successful!');
+                console.log('Session exists:', !!data.session);
+                console.log('User ID:', data.session?.user?.id);
                 console.log('User metadata:', data.session?.user?.user_metadata);
+
                 showToast('Signed in successfully! Redirecting...', 'success');
 
-                // Wait a brief moment for auth state to update
-                await new Promise(resolve => setTimeout(resolve, 500));
+                // Wait for auth state to propagate
+                console.log('Waiting for auth state to update...');
+                await new Promise(resolve => setTimeout(resolve, 1000));
 
                 // onLoginSuccess callback is optional - auth state will handle redirect automatically
                 if (onLoginSuccess) {
@@ -160,7 +201,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
             setAuthError(error.message || 'An error occurred during sign-in');
             showToast(error.message || 'Sign-in failed', 'error');
         } finally {
-            clearTimeout(timeoutId);
+            clearTimeout(safetyTimeoutId);
             setLoading(false);
             console.log('Sign-in process completed, loading state set to false');
         }
@@ -194,6 +235,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
         e.preventDefault();
         setLoading(true);
         setAuthError('');
+
+        // Safety timeout
+        const safetyTimeoutId = setTimeout(() => {
+            setLoading(false);
+            setAuthError('Request timeout. Please try again.');
+            showToast('Request timeout - please try again', 'error');
+        }, 20000);
 
         try {
             const normalizedEmail = email.toLowerCase().trim();
@@ -231,6 +279,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
             setAuthError(error.message);
             showToast(error.message, 'error');
         } finally {
+            clearTimeout(safetyTimeoutId);
             setLoading(false);
         }
     };
@@ -239,6 +288,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
         e.preventDefault();
         setLoading(true);
         setAuthError('');
+
+        // Safety timeout
+        const safetyTimeoutId = setTimeout(() => {
+            setLoading(false);
+            setAuthError('Verification timeout. Please try again.');
+            showToast('Request timeout - please try again', 'error');
+        }, 20000);
 
         try {
             const token = otp.trim();
@@ -290,41 +346,66 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
             showToast('Verified successfully!', 'success');
             if (onLoginSuccess) await onLoginSuccess(session);
         } catch (error: any) {
-            setLoading(false);
             setAuthError(error.message);
             showToast(error.message, 'error');
+        } finally {
+            clearTimeout(safetyTimeoutId);
+            setLoading(false);
         }
     };
 
     const handlePhoneSignIn = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
-        const cleanPhone = phone.replace(/\D/g, '').replace(/^0+/, '');
-        const fullPhone = `${countryCode}${cleanPhone}`;
-        const { error } = await supabase.auth.signInWithOtp({
-            phone: fullPhone,
-        });
-        setLoading(false);
-        if (error) {
-            if (error.message.includes("provider is not enabled")) {
-                setAuthError("Phone Sign-In is disabled. Enable it in Supabase > Authentication > Providers.");
-            } else if (error.message.includes("Invalid From Number")) {
-                setAuthError("System Configuration Error: The Twilio 'From' number in Supabase is invalid.");
+        setAuthError('');
+
+        // Safety timeout
+        const safetyTimeoutId = setTimeout(() => {
+            setLoading(false);
+            setAuthError('Request timeout. Please try again.');
+            showToast('Request timeout - please try again', 'error');
+        }, 20000);
+
+        try {
+            const cleanPhone = phone.replace(/\D/g, '').replace(/^0+/, '');
+            const fullPhone = `${countryCode}${cleanPhone}`;
+            const { error } = await supabase.auth.signInWithOtp({
+                phone: fullPhone,
+            });
+
+            if (error) {
+                if (error.message.includes("provider is not enabled")) {
+                    setAuthError("Phone Sign-In is disabled. Enable it in Supabase > Authentication > Providers.");
+                } else if (error.message.includes("Invalid From Number")) {
+                    setAuthError("System Configuration Error: The Twilio 'From' number in Supabase is invalid.");
+                } else {
+                    setAuthError(error.message);
+                }
+                showToast(error.message, 'error');
             } else {
-                setAuthError(error.message);
+                setSubmittedPhone(fullPhone);
+                setIsOtpSent(true);
+                showToast('Verification code sent!', 'success');
+                setAuthError('');
             }
-            showToast(error.message, 'error');
-        } else {
-            setSubmittedPhone(fullPhone);
-            setIsOtpSent(true);
-            showToast('Verification code sent!', 'success');
-            setAuthError('');
+        } finally {
+            clearTimeout(safetyTimeoutId);
+            setLoading(false);
         }
     };
 
     const handleVerifyOtp = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
+        setAuthError('');
+
+        // Safety timeout
+        const safetyTimeoutId = setTimeout(() => {
+            setLoading(false);
+            setAuthError('Verification timeout. Please try again.');
+            showToast('Request timeout - please try again', 'error');
+        }, 20000);
+
         try {
             const { data, error } = await supabase.auth.verifyOtp({
                 phone: submittedPhone,
@@ -340,12 +421,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
             }
 
             showToast('Phone verified successfully!', 'success');
-            setLoading(false);
             if (onLoginSuccess) onLoginSuccess(session);
         } catch (error: any) {
-            setLoading(false);
             setAuthError(error.message);
             showToast(error.message, 'error');
+        } finally {
+            clearTimeout(safetyTimeoutId);
+            setLoading(false);
         }
     };
 

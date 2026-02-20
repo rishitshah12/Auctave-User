@@ -3,14 +3,15 @@ import {
     List, TrendingUp, CheckCircle, Package, PieChart as PieChartIcon,
     BarChart as BarChartIcon, Info, LayoutDashboard, ClipboardCheck,
     GanttChartSquare, Bot, FileText, Ship, DollarSign, Download, MapPin, Plus, ChevronDown, X,
-    Star, AlertCircle, ArrowRight, Building, Clock
+    Star, AlertCircle, ArrowRight, ArrowLeft, Building, Clock, Flag
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Pie, Cell, PieChart
 } from 'recharts';
 import { MainLayout } from '../src/MainLayout';
-import { CrmOrder, Factory } from '../src/types';
+import { CrmOrder, CrmProduct, CrmTask, Factory } from '../src/types';
 import { crmService } from './crm.service';
+import { normalizeOrder, getProductProgress, getOrderStatusColor } from './utils';
 
 interface CRMPageProps {
     pageKey: number;
@@ -150,24 +151,50 @@ export const ListView: FC<{ tasks: any[] }> = ({ tasks }) => {
                         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
                             <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50">
                                 <tr>
-                                    {['Task Name', 'Due date', 'QTY'].map(header => (
+                                    {['Task Name', 'Priority', 'Progress', 'Due date', 'QTY'].map(header => (
                                         <th key={header} scope="col" className="px-5 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">{header}</th>
                                     ))}
                                 </tr>
                             </thead>
                             <tbody className="bg-white dark:bg-gray-900/40 divide-y divide-gray-100 dark:divide-gray-800">
-                                {tasks.map(task => (
-                                    <tr key={task.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors duration-200">
-                                        <td className="px-5 py-3.5 whitespace-nowrap font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                                            <CheckCircle size={18} className={`${task.status === 'COMPLETE' ? 'text-green-500' : 'text-gray-300 dark:text-gray-600'}`} /> {task.name}
-                                        </td>
-                                        <td className="px-5 py-3.5 whitespace-nowrap text-gray-600 dark:text-gray-300">{task.plannedEndDate}</td>
-                                        <td className="px-5 py-3.5 whitespace-nowrap text-gray-600 dark:text-gray-300 font-medium">{task.quantity?.toLocaleString() || 'N/A'}</td>
-                                    </tr>
-                                ))}
+                                {tasks.map(task => {
+                                    const priorityColors: Record<string, string> = {
+                                        'Urgent': 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400',
+                                        'High': 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400',
+                                        'Medium': 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400',
+                                        'Low': 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400',
+                                    };
+                                    const progress = task.status === 'COMPLETE' ? 100 : (task.progress || 0);
+                                    return (
+                                        <tr key={task.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors duration-200">
+                                            <td className="px-5 py-3.5 whitespace-nowrap font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                                                <CheckCircle size={18} className={`flex-shrink-0 ${task.status === 'COMPLETE' ? 'text-green-500' : 'text-gray-300 dark:text-gray-600'}`} /> {task.name}
+                                            </td>
+                                            <td className="px-5 py-3.5 whitespace-nowrap">
+                                                {task.priority ? (
+                                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold ${priorityColors[task.priority] || priorityColors['Medium']}`}>
+                                                        <Flag size={10} /> {task.priority}
+                                                    </span>
+                                                ) : <span className="text-gray-400 text-xs">—</span>}
+                                            </td>
+                                            <td className="px-5 py-3.5 whitespace-nowrap">
+                                                <div className="flex items-center gap-2 min-w-[100px]">
+                                                    <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                        <div className={`h-full rounded-full transition-all duration-500 ${progress === 100 ? 'bg-green-500' : progress > 50 ? 'bg-blue-500' : 'bg-amber-500'}`} style={{ width: `${progress}%` }} />
+                                                    </div>
+                                                    <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 w-8 text-right">{progress}%</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-5 py-3.5 whitespace-nowrap text-gray-600 dark:text-gray-300">{task.plannedEndDate}</td>
+                                            <td className="px-5 py-3.5 whitespace-nowrap text-gray-600 dark:text-gray-300 font-medium">{task.quantity?.toLocaleString() || 'N/A'}</td>
+                                        </tr>
+                                    );
+                                })}
                                 {showTotals && (
                                 <tr className="bg-gradient-to-r from-gray-100 to-gray-50 dark:from-gray-700/50 dark:to-gray-800/50 font-bold border-t-2 border-gray-200 dark:border-gray-600">
                                     <td className="px-5 py-3.5 text-gray-800 dark:text-white">Total</td>
+                                    <td className="px-5 py-3.5"></td>
+                                    <td className="px-5 py-3.5"></td>
                                     <td className="px-5 py-3.5"></td>
                                     <td className="px-5 py-3.5 text-gray-900 dark:text-white">{totalsData.qty.toLocaleString()}</td>
                                 </tr>
@@ -201,22 +228,46 @@ export const BoardView: FC<{ tasks: any[] }> = ({ tasks }) => {
             'COMPLETE': { bg: 'bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20', badge: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400', border: 'border-green-300 dark:border-green-600' },
         };
 
-        const TaskCard: FC<{ task: any }> = ({ task }) => (
-            <div className="bg-white dark:bg-gray-900/60 dark:backdrop-blur-md p-4 rounded-xl border border-gray-200 dark:border-white/10 shadow-md hover:shadow-lg mb-3 transition-all duration-300 hover:-translate-y-1 cursor-pointer group">
-                <p className="font-bold text-sm text-gray-800 dark:text-white group-hover:text-[var(--color-primary)] dark:group-hover:text-red-400 transition-colors">{task.name}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 flex items-center gap-1">
-                    <Clock size={12} /> {task.plannedEndDate}
-                </p>
-                <div className="flex items-center justify-between mt-3">
-                    <div className="flex -space-x-2">
-                        <img className="w-7 h-7 rounded-full border-2 border-white dark:border-gray-800 shadow-sm" src={`https://i.pravatar.cc/150?u=${task.responsible}`} alt="user"/>
+        const priorityColors: Record<string, string> = {
+            'Urgent': 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400',
+            'High': 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400',
+            'Medium': 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400',
+            'Low': 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400',
+        };
+
+        const TaskCard: FC<{ task: any }> = ({ task }) => {
+            const progress = task.status === 'COMPLETE' ? 100 : (task.progress || 0);
+            return (
+                <div className="bg-white dark:bg-gray-900/60 dark:backdrop-blur-md p-4 rounded-xl border border-gray-200 dark:border-white/10 shadow-md hover:shadow-lg mb-3 transition-all duration-300 hover:-translate-y-1 cursor-pointer group">
+                    <div className="flex items-start justify-between gap-2">
+                        <p className="font-bold text-sm text-gray-800 dark:text-white group-hover:text-[var(--color-primary)] dark:group-hover:text-red-400 transition-colors">{task.name}</p>
+                        {task.priority && (
+                            <span className={`flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold ${priorityColors[task.priority] || priorityColors['Medium']}`}>
+                                <Flag size={8} /> {task.priority}
+                            </span>
+                        )}
                     </div>
-                    <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${task.status === 'COMPLETE' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : task.status === 'IN PROGRESS' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}>
-                        {task.quantity?.toLocaleString() || 0} units
-                    </span>
+                    {/* Progress bar */}
+                    <div className="flex items-center gap-2 mt-2.5">
+                        <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full transition-all duration-500 ${progress === 100 ? 'bg-green-500' : progress > 50 ? 'bg-blue-500' : 'bg-amber-500'}`} style={{ width: `${progress}%` }} />
+                        </div>
+                        <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 w-7 text-right">{progress}%</span>
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 flex items-center gap-1">
+                        <Clock size={12} /> {task.plannedEndDate}
+                    </p>
+                    <div className="flex items-center justify-between mt-3">
+                        <div className="flex -space-x-2">
+                            <img className="w-7 h-7 rounded-full border-2 border-white dark:border-gray-800 shadow-sm" src={`https://i.pravatar.cc/150?u=${task.responsible}`} alt="user"/>
+                        </div>
+                        <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${task.status === 'COMPLETE' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : task.status === 'IN PROGRESS' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}>
+                            {task.quantity?.toLocaleString() || 0} units
+                        </span>
+                    </div>
                 </div>
-            </div>
-        )
+            );
+        }
 
         return (
             <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-5 animate-fade-in">
@@ -482,7 +533,7 @@ export const TNAView: FC<{ tasks: any[] }> = ({ tasks }) => {
                     <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                         <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50">
                             <tr>
-                                {['Task', 'Responsible', 'Planned Start', 'Planned End', 'Actual Start', 'Actual End', 'Status', 'Delay (Days)'].map(header => (
+                                {['Task', 'Priority', 'Responsible', 'Planned Start', 'Planned End', 'Actual Start', 'Actual End', 'Progress', 'Status', 'Delay (Days)'].map(header => (
                                     <th key={header} scope="col" className="px-5 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">{header}</th>
                                 ))}
                             </tr>
@@ -490,9 +541,23 @@ export const TNAView: FC<{ tasks: any[] }> = ({ tasks }) => {
                         <tbody className="bg-white dark:bg-gray-900/40 divide-y divide-gray-100 dark:divide-gray-800 text-sm">
                             {tasks.map((task, index) => {
                                 const delayInfo = calculateDelay(task);
+                                const priorityColors: Record<string, string> = {
+                                    'Urgent': 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400',
+                                    'High': 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400',
+                                    'Medium': 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400',
+                                    'Low': 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400',
+                                };
+                                const progress = task.status === 'COMPLETE' ? 100 : (task.progress || 0);
                                 return (
                                     <tr key={task.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors duration-200">
                                         <td className="px-5 py-4 whitespace-nowrap font-semibold text-gray-900 dark:text-white">{task.name}</td>
+                                        <td className="px-5 py-4 whitespace-nowrap">
+                                            {task.priority ? (
+                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold ${priorityColors[task.priority] || priorityColors['Medium']}`}>
+                                                    <Flag size={10} /> {task.priority}
+                                                </span>
+                                            ) : <span className="text-gray-400 text-xs">—</span>}
+                                        </td>
                                         <td className="px-5 py-4 whitespace-nowrap text-gray-600 dark:text-gray-300">
                                             <div className="flex items-center gap-2">
                                                 <img className="w-6 h-6 rounded-full border border-gray-200 dark:border-gray-700" src={`https://i.pravatar.cc/150?u=${task.responsible}`} alt="user"/>
@@ -503,6 +568,14 @@ export const TNAView: FC<{ tasks: any[] }> = ({ tasks }) => {
                                         <td className="px-5 py-4 whitespace-nowrap text-gray-600 dark:text-gray-300">{task.plannedEndDate}</td>
                                         <td className="px-5 py-4 whitespace-nowrap text-gray-600 dark:text-gray-300">{task.actualStartDate || '—'}</td>
                                         <td className="px-5 py-4 whitespace-nowrap text-gray-600 dark:text-gray-300">{task.actualEndDate || '—'}</td>
+                                        <td className="px-5 py-4 whitespace-nowrap">
+                                            <div className="flex items-center gap-2 min-w-[80px]">
+                                                <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                    <div className={`h-full rounded-full transition-all duration-500 ${progress === 100 ? 'bg-green-500' : progress > 50 ? 'bg-blue-500' : 'bg-amber-500'}`} style={{ width: `${progress}%` }} />
+                                                </div>
+                                                <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 w-7 text-right">{progress}%</span>
+                                            </div>
+                                        </td>
                                         <td className="px-5 py-4 whitespace-nowrap"><span className={getStatusPill(task.status)}>{task.status}</span></td>
                                         <td className={`px-5 py-4 whitespace-nowrap font-bold ${getDelayColor(delayInfo.status)}`}>
                                             {delayInfo.days > 0 ? (
@@ -522,8 +595,13 @@ export const TNAView: FC<{ tasks: any[] }> = ({ tasks }) => {
         )
     };
 
-export const OrderDetailsView: FC<{ order: any; allFactories: Factory[]; handleSetCurrentPage: (page: string, data?: any) => void }> = ({ order, allFactories, handleSetCurrentPage }) => {
+export const OrderDetailsView: FC<{ order: any; allFactories: Factory[]; handleSetCurrentPage: (page: string, data?: any) => void; onSelectProduct?: (productId: string) => void }> = ({ order, allFactories, handleSetCurrentPage, onSelectProduct }) => {
         const factory = allFactories.find(f => f.id === order.factoryId);
+        const products: CrmProduct[] = order.products && order.products.length > 0
+            ? order.products
+            : [{ id: 'default', name: order.product || 'Product', status: order.status }];
+        const tasks: CrmTask[] = order.tasks || [];
+
         const getDocIcon = (type: string) => {
             switch(type) {
                 case 'PO': return <FileText className="text-blue-500" />;
@@ -532,11 +610,24 @@ export const OrderDetailsView: FC<{ order: any; allFactories: Factory[]; handleS
                 default: return <FileText className="text-gray-500" />;
             }
         }
+
+        const PRODUCT_COLORS = [
+            'from-blue-500 to-cyan-500',
+            'from-purple-500 to-pink-500',
+            'from-emerald-500 to-green-500',
+            'from-amber-500 to-orange-500',
+            'from-rose-500 to-red-500',
+            'from-indigo-500 to-violet-500',
+            'from-teal-500 to-cyan-500',
+            'from-fuchsia-500 to-pink-500',
+        ];
+
         return (
             <div className="mt-6 space-y-6 animate-fade-in">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Left Column */}
                     <div className="lg:col-span-2 space-y-6">
+                        {/* Order Summary */}
                         <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 transition-all duration-300 hover:shadow-xl">
                             <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-5 flex items-center gap-2">
                                 <div className="p-2 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg shadow-md">
@@ -553,12 +644,97 @@ export const OrderDetailsView: FC<{ order: any; allFactories: Factory[]; handleS
                                     <p className="text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wide mb-1">Customer</p>
                                     <p className="font-bold text-gray-900 dark:text-white text-lg">{order.customer}</p>
                                 </div>
-                                <div className="p-4 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl border border-green-200 dark:border-green-700/30 sm:col-span-2">
-                                    <p className="text-xs font-semibold text-green-600 dark:text-green-400 uppercase tracking-wide mb-1">Product</p>
-                                    <p className="font-bold text-gray-900 dark:text-white text-lg">{order.product}</p>
-                                </div>
                             </div>
                         </div>
+
+                        {/* Products Overview */}
+                        <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 transition-all duration-300 hover:shadow-xl">
+                            <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-5 flex items-center gap-2">
+                                <div className="p-2 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg shadow-md">
+                                    <Package size={16} className="text-white"/>
+                                </div>
+                                Products ({products.length})
+                            </h3>
+                            <div className="space-y-4">
+                                {products.map((product, idx) => {
+                                    const productTasks = tasks.filter(t => t.productId === product.id);
+                                    const completedCount = productTasks.filter(t => t.status === 'COMPLETE').length;
+                                    const inProgressCount = productTasks.filter(t => t.status === 'IN PROGRESS').length;
+                                    const totalCount = productTasks.length;
+                                    const progress = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+                                    const colorGradient = PRODUCT_COLORS[idx % PRODUCT_COLORS.length];
+
+                                    return (
+                                        <div
+                                            key={product.id}
+                                            onClick={() => onSelectProduct?.(product.id)}
+                                            className="relative p-5 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-500 hover:shadow-lg transition-all duration-300 cursor-pointer group bg-gradient-to-br from-white to-gray-50 dark:from-gray-800/50 dark:to-gray-700/30"
+                                        >
+                                            <div className={`absolute top-0 left-0 w-1.5 h-full rounded-l-xl bg-gradient-to-b ${colorGradient}`} />
+                                            <div className="ml-3">
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <div className="flex items-center gap-3">
+                                                        <h4 className="font-bold text-gray-900 dark:text-white text-base group-hover:text-[#c20c0b] dark:group-hover:text-red-400 transition-colors">{product.name}</h4>
+                                                        {product.quantity && (
+                                                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+                                                                {product.quantity.toLocaleString()} units
+                                                            </span>
+                                                        )}
+                                                        {product.status && (
+                                                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${getOrderStatusColor(product.status)}`}>
+                                                                {product.status}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-2 text-gray-400 group-hover:text-[#c20c0b] dark:group-hover:text-red-400 transition-colors">
+                                                        <span className="text-xs font-semibold">View Details</span>
+                                                        <ArrowRight size={14} />
+                                                    </div>
+                                                </div>
+                                                {/* Progress Bar */}
+                                                <div className="mb-2">
+                                                    <div className="flex items-center justify-between mb-1.5">
+                                                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                                                            {completedCount} of {totalCount} tasks complete
+                                                        </span>
+                                                        <span className="text-xs font-bold text-gray-700 dark:text-gray-300">{progress}%</span>
+                                                    </div>
+                                                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+                                                        <div
+                                                            className={`h-full rounded-full bg-gradient-to-r ${colorGradient} transition-all duration-700 ease-out`}
+                                                            style={{ width: `${progress}%` }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                                {/* Task counts */}
+                                                <div className="flex items-center gap-4 text-xs mt-2">
+                                                    {inProgressCount > 0 && (
+                                                        <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
+                                                            <Clock size={12} />
+                                                            {inProgressCount} in progress
+                                                        </span>
+                                                    )}
+                                                    {completedCount > 0 && (
+                                                        <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                                                            <CheckCircle size={12} />
+                                                            {completedCount} done
+                                                        </span>
+                                                    )}
+                                                    {totalCount - completedCount - inProgressCount > 0 && (
+                                                        <span className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
+                                                            <AlertCircle size={12} />
+                                                            {totalCount - completedCount - inProgressCount} to do
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Documents */}
                         <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 transition-all duration-300 hover:shadow-xl">
                             <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-5 flex items-center gap-2">
                                 <div className="p-2 bg-gradient-to-br from-orange-500 to-amber-500 rounded-lg shadow-md">
@@ -658,14 +834,11 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
                 if (data) {
                     const mappedData: { [key: string]: CrmOrder } = {};
                     data.forEach((order: any) => {
+                        const normalized = normalizeOrder(order);
                         mappedData[order.id] = {
+                            ...normalized,
                             customer: 'My Order',
-                            product: order.product_name,
-                            factoryId: order.factory_id,
-                            documents: order.documents || [],
-                            tasks: order.tasks || [],
-                            status: order.status
-                        } as CrmOrder;
+                        };
                     });
                     setCrmData(mappedData);
                     if (!activeCrmOrderKey && data.length > 0) setActiveOrderKey(data[0].id);
@@ -676,12 +849,48 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
         fetchClientOrders();
     }, [user]);
 
-    const [activeView, setActiveView] = useState('Details');
+    const [activeView, setActiveView] = useState('Overview');
     const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
     const [orderSummary, setOrderSummary] = useState('');
     const [isSummaryLoading, setIsSummaryLoading] = useState(false);
+    const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
 
     const activeOrder = activeOrderKey && crmData[activeOrderKey] ? { ...crmData[activeOrderKey], id: activeOrderKey } : null;
+
+    // Filter tasks for the selected product
+    const filteredTasks = useMemo(() => {
+        if (!activeOrder) return [];
+        if (!selectedProductId) return activeOrder.tasks;
+        return activeOrder.tasks.filter(t => t.productId === selectedProductId);
+    }, [activeOrder, selectedProductId]);
+
+    const selectedProduct = useMemo(() => {
+        if (!selectedProductId || !activeOrder?.products) return null;
+        return activeOrder.products.find(p => p.id === selectedProductId) || null;
+    }, [selectedProductId, activeOrder]);
+
+    // Dynamic view tabs based on product selection
+    const overviewViews = [
+        { name: 'Overview', icon: <Info size={16}/> },
+        { name: 'TNA', icon: <ClipboardCheck size={16}/> },
+        { name: 'Dashboard', icon: <PieChartIcon size={16}/> },
+    ];
+    const productViews = [
+        { name: 'List', icon: <List size={16}/> },
+        { name: 'Board', icon: <LayoutDashboard size={16}/> },
+        { name: 'Gantt', icon: <GanttChartSquare size={16}/> },
+    ];
+    const currentViews = selectedProductId ? productViews : overviewViews;
+
+    // Reset view when switching product context
+    const handleSelectProduct = (productId: string) => {
+        setSelectedProductId(productId);
+        setActiveView('List');
+    };
+    const handleBackToOverview = () => {
+        setSelectedProductId(null);
+        setActiveView('Overview');
+    };
 
     const generateOrderSummary = async () => {
         if (!activeOrder) return;
@@ -814,7 +1023,7 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
                             {Object.keys(crmData).map(orderKey => (
                                 <button
                                     key={orderKey}
-                                    onClick={() => setActiveOrderKey(orderKey)}
+                                    onClick={() => { setActiveOrderKey(orderKey); setSelectedProductId(null); setActiveView('Overview'); }}
                                     className={`flex-shrink-0 py-2.5 px-5 font-semibold text-sm rounded-xl transition-all duration-300 ${
                                         activeOrderKey === orderKey
                                             ? 'bg-gradient-to-r from-[#c20c0b] to-red-600 text-white shadow-lg shadow-red-500/25 scale-105'
@@ -828,15 +1037,23 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
                         </div>
                         {/* View Tabs & AI Button */}
                         <div className="flex items-center gap-2">
+                            {/* Back button when viewing a product */}
+                            {selectedProductId && selectedProduct && (
+                                <button
+                                    onClick={handleBackToOverview}
+                                    className="flex items-center gap-1.5 py-2 px-3 text-xs font-semibold rounded-lg text-gray-600 dark:text-gray-400 hover:text-[#c20c0b] dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-200"
+                                >
+                                    <ArrowLeft size={14} />
+                                    <span className="hidden sm:inline">Back</span>
+                                </button>
+                            )}
+                            {selectedProduct && (
+                                <span className="text-sm font-bold text-gray-800 dark:text-white truncate max-w-[150px]">
+                                    {selectedProduct.name}
+                                </span>
+                            )}
                             <div className="flex items-center border border-gray-200 dark:border-gray-700 rounded-xl p-1 bg-gray-50 dark:bg-gray-800/50 shadow-sm">
-                                {[
-                                    {name: 'Details', icon: <Info size={16}/>},
-                                    {name: 'List', icon: <List size={16}/>},
-                                    {name: 'Board', icon: <LayoutDashboard size={16}/>},
-                                    {name: 'TNA', icon: <ClipboardCheck size={16}/>},
-                                    {name: 'Dashboard', icon: <PieChartIcon size={16}/>},
-                                    {name: 'Gantt', icon: <GanttChartSquare size={16}/>}
-                                ].map(view => (
+                                {currentViews.map(view => (
                                     <button
                                         key={view.name}
                                         onClick={() => setActiveView(view.name)}
@@ -860,12 +1077,14 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
                         </div>
                     </div>
                 </div>
-                {activeOrder && activeView === 'Details' && <OrderDetailsView order={activeOrder} allFactories={allFactories} handleSetCurrentPage={handleSetCurrentPage} />}
-                {activeOrder && activeView === 'List' && <ListView tasks={activeOrder.tasks} />}
-                {activeOrder && activeView === 'Board' && <BoardView tasks={activeOrder.tasks} />}
+                {/* Overview mode: Overview, TNA, Dashboard (all tasks) */}
+                {activeOrder && activeView === 'Overview' && <OrderDetailsView order={activeOrder} allFactories={allFactories} handleSetCurrentPage={handleSetCurrentPage} onSelectProduct={handleSelectProduct} />}
                 {activeOrder && activeView === 'TNA' && <TNAView tasks={activeOrder.tasks} />}
-                    {activeOrder && activeView === 'Dashboard' && <DashboardView tasks={activeOrder.tasks} orderKey={activeOrderKey || ''} orderDetails={activeOrder}/>}
-                {activeOrder && activeView === 'Gantt' && <GanttChartView tasks={activeOrder.tasks} />}
+                {activeOrder && activeView === 'Dashboard' && <DashboardView tasks={activeOrder.tasks} orderKey={activeOrderKey || ''} orderDetails={activeOrder}/>}
+                {/* Product mode: List, Board, Gantt (filtered tasks) */}
+                {activeOrder && activeView === 'List' && <ListView tasks={filteredTasks} />}
+                {activeOrder && activeView === 'Board' && <BoardView tasks={filteredTasks} />}
+                {activeOrder && activeView === 'Gantt' && <GanttChartView tasks={filteredTasks} />}
             </div>
             {isSummaryModalOpen && <AIOrderSummaryModal />}
         </MainLayout>

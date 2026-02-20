@@ -17,7 +17,7 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Pie, Cell, PieChart
 } from 'recharts';
 // Import TypeScript interfaces/types for data structures used in the app
-import { UserProfile, OrderFormData, Factory, QuoteRequest, CrmOrder, ToastState, MachineSlot } from './types';
+import { UserProfile, OrderFormData, Factory, QuoteRequest, CrmOrder, CrmProduct, ToastState, MachineSlot } from './types';
 // Import custom components for specific pages and UI elements
 import { MainLayout } from '../src/MainLayout';
 import { LoginPage } from '../src/LoginPage';
@@ -278,23 +278,25 @@ const AppContent: FC = () => {
 
                 if (session?.user) {
                     let currentProfile: UserProfile | null = null;
+                    let profileFetchFailed = false; // Track if fetch failed due to network/timeout
 
                     try {
                         // Fetch profile from Supabase (admins or clients table) with timeout
                         const tableName = isUserAdmin ? 'admins' : 'clients';
                         console.log(`Fetching profile from ${tableName} table for user ${session.user.id}`);
 
-                        const profilePromise = supabase
+                        // Add timeout to prevent hanging
+                        const profileFetchPromise = supabase
                             .from(tableName)
                             .select('*')
                             .eq('id', session.user.id)
                             .single();
 
-                        const timeoutPromise = new Promise((_, reject) => {
-                            setTimeout(() => reject(new Error('Profile fetch timeout')), 5000);
+                        const profileTimeoutPromise = new Promise((_, reject) => {
+                            setTimeout(() => reject(new Error('Profile fetch timeout (10s)')), 10000);
                         });
 
-                        const { data, error } = await Promise.race([profilePromise, timeoutPromise]) as any;
+                        const { data, error } = await Promise.race([profileFetchPromise, profileTimeoutPromise]) as any;
 
                         if (data) {
                             // Map database fields to UserProfile interface
@@ -310,22 +312,28 @@ const AppContent: FC = () => {
                             };
                             setUserProfile(currentProfile);
                             console.log('Profile loaded successfully');
-                        } else {
-                            // Profile doesn't exist - will be redirected to profile page
-                            if (error && error.code !== 'PGRST116') {
-                                console.error('Error fetching profile:', error.message, error.code);
-                            } else {
+                        } else if (error) {
+                            // Check if profile truly doesn't exist (PGRST116) vs other errors
+                            if (error.code === 'PGRST116') {
                                 console.log('No profile found in database - user will be redirected to create one');
+                                setUserProfile(null);
+                            } else {
+                                // Network/timeout/other error - don't treat as missing profile
+                                console.error('Error fetching profile:', error.message, error.code);
+                                profileFetchFailed = true;
+                                // Keep existing profile in state if available, or set to null
+                                setUserProfile(null);
                             }
-                            setUserProfile(null);
                         }
                     } catch (profileError: any) {
                         console.error('Profile fetch failed:', profileError?.message || profileError);
-                        setUserProfile(null);
+                        profileFetchFailed = true;
+                        // Don't set profile to null on network errors - keep existing state
                     }
 
-                    // Enforce Onboarding Flow via MasterController - ALWAYS execute this
-                    if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY') {
+                    // Enforce Onboarding Flow via MasterController - ONLY if profile fetch succeeded
+                    // Skip onboarding redirect if fetch failed due to network/timeout issues
+                    if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY') && !profileFetchFailed) {
                         const redirectRoute = masterController.getOnboardingRedirect(session.user, currentProfile);
                         console.log('Onboarding redirect:', {
                             event,
@@ -350,23 +358,35 @@ const AppContent: FC = () => {
                                 setCurrentPage(targetPage);
                             }
                         }
+                    } else if (profileFetchFailed && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN')) {
+                        // If profile fetch failed but user is authenticated, keep them logged in
+                        const lastPage = localStorage.getItem('garment_erp_last_page');
+                        const targetPage = (lastPage && lastPage !== 'login')
+                            ? lastPage
+                            : (isUserAdmin ? 'adminDashboard' : 'sourcing');
+                        console.log(`Profile fetch failed, but keeping user logged in at ${targetPage}`);
+                        setCurrentPage(targetPage);
+                    }
 
-                        // Force redirect away from login if still on login page after 2 seconds
+                    // Force redirect away from login if still on login page after 2 seconds
+                    // Only for initial auth events, not TOKEN_REFRESHED which fires on session refresh
+                    if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
                         setTimeout(() => {
-                            if (currentPage === 'login' && session?.user) {
+                            const currentSavedPage = localStorage.getItem('garment_erp_last_page');
+                            if ((!currentSavedPage || currentSavedPage === 'login') && session?.user) {
                                 console.warn('Still on login page after auth - forcing redirect');
                                 const forcedPage = isUserAdmin ? 'adminDashboard' : 'sourcing';
                                 setCurrentPage(forcedPage);
                             }
                         }, 2000);
-                    } else if (event === 'SIGNED_OUT') {
-                        // Explicitly handle sign out event
-                        setUser(null);
-                        setUserProfile(null);
-                        setIsAdmin(false);
-                        localStorage.removeItem('garment_erp_last_page');
-                        setCurrentPage('login');
                     }
+                } else if (event === 'SIGNED_OUT') {
+                    // Explicitly handle sign out event
+                    setUser(null);
+                    setUserProfile(null);
+                    setIsAdmin(false);
+                    localStorage.removeItem('garment_erp_last_page');
+                    setCurrentPage('login');
                 } else {
                     // If no session, go to login
                     setCurrentPage('login');
@@ -1632,14 +1652,24 @@ const AppContent: FC = () => {
     const createCrmOrder = (quote: QuoteRequest) => {
         const { factory, order } = quote;
         const newOrderId = `PO-2024-${String(Object.keys(crmData).length + 1).padStart(3, '0')}`;
+        const lineItems = order.lineItems || [];
+        const products: CrmProduct[] = lineItems.map((item) => ({
+            id: String(item.id),
+            name: `${item.qty} ${item.category}${item.styleOption ? ' - ' + item.styleOption : ''}${item.fabricQuality ? ' (' + item.fabricQuality + ')' : ''}`,
+            status: 'Pending' as const,
+            quantity: item.qty,
+        }));
+        const productName = products.length === 1 ? products[0].name : `${products.length} Items Order`;
+        const firstProductId = products.length > 0 ? products[0].id : 'default';
         const newOrder: CrmOrder = {
             customer: userProfile?.companyName || 'N/A',
-            product: `${order.lineItems.length} Items Order`,
+            product: productName,
             factoryId: factory.id,
+            products,
             documents: [{ name: 'Purchase Order', type: 'PO', lastUpdated: new Date().toISOString().split('T')[0] }],
             tasks: [
-                { id: Date.now(), name: 'Order Confirmation', responsible: 'Admin', plannedStartDate: new Date().toISOString().split('T')[0], plannedEndDate: new Date().toISOString().split('T')[0], actualStartDate: null, actualEndDate: null, status: 'TO DO' },
-                { id: Date.now() + 1, name: 'Fabric Sourcing', responsible: 'Merch Team', plannedStartDate: new Date().toISOString().split('T')[0], plannedEndDate: new Date(new Date().setDate(new Date().getDate() + 7)).toISOString().split('T')[0], actualStartDate: null, actualEndDate: null, status: 'TO DO' },
+                { id: Date.now(), name: 'Order Confirmation', responsible: 'Admin', plannedStartDate: new Date().toISOString().split('T')[0], plannedEndDate: new Date().toISOString().split('T')[0], actualStartDate: null, actualEndDate: null, status: 'TO DO', productId: firstProductId },
+                { id: Date.now() + 1, name: 'Fabric Sourcing', responsible: 'Merch Team', plannedStartDate: new Date().toISOString().split('T')[0], plannedEndDate: new Date(new Date().setDate(new Date().getDate() + 7)).toISOString().split('T')[0], actualStartDate: null, actualEndDate: null, status: 'TO DO', productId: firstProductId },
             ]
         };
         addNewOrderToCrm(newOrderId, newOrder);

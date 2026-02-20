@@ -4,7 +4,7 @@ import { MainLayout } from './MainLayout';
 import { quoteService } from './quote.service';
 import { crmService } from './crm.service';
 import { QuoteRequest, NegotiationHistoryItem } from './types';
-import { MapPin, Shirt, Package, Clock, ChevronRight, ChevronLeft, FileQuestion, MessageSquare, CheckCircle, XCircle, X, Download, RefreshCw, User, Building, Calendar, FileText, Eye, EyeOff, CheckSquare, ArrowUp, ArrowDown, ChevronDown, ChevronUp, History, DollarSign, Search, Mail, Phone, Check, CheckCheck, Trash2, RotateCcw, Image as ImageIcon, Scale, Paperclip, Send, Circle, Layers, Scissors, Factory, ShieldCheck, Truck, LifeBuoy, ClipboardList, Plus, Edit, GripVertical, Info, Sparkles, Globe, Box, Link as LinkIcon } from 'lucide-react';
+import { MapPin, Shirt, Package, Clock, ChevronRight, ChevronLeft, FileQuestion, MessageSquare, CheckCircle, XCircle, X, Download, RefreshCw, User, Building, Calendar, FileText, Eye, EyeOff, CheckSquare, ArrowUp, ArrowDown, ChevronDown, ChevronUp, History, DollarSign, Search, Mail, Phone, Check, CheckCheck, Trash2, RotateCcw, Image as ImageIcon, Scale, Paperclip, Send, Circle, Layers, Scissors, Factory, ShieldCheck, Truck, LifeBuoy, ClipboardList, Plus, Edit, GripVertical, Info, Sparkles, Globe, Box, Link as LinkIcon, Filter, Activity, ExternalLink, ArrowRight } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import confetti from 'canvas-confetti';
@@ -28,7 +28,7 @@ interface AdminRFQPageProps {
 const SIZE_ORDER = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL'];
 
 // Tab type for quote detail view
-type AdminQuoteTabType = 'overview' | 'products' | 'timeline' | 'files';
+type AdminQuoteTabType = 'overview' | 'products' | 'timeline' | 'files' | 'samples';
 
 interface ExecutionStep {
     title: string;
@@ -230,6 +230,9 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
     const [bulkActionType, setBulkActionType] = useState<'hide' | 'unhide' | 'delete' | 'restore' | null>(null);
     const [isShippingModalOpen, setIsShippingModalOpen] = useState(false);
     const [shippingForm, setShippingForm] = useState({ trackingNumber: '', trackingLink: '', courier: '' });
+    const [isInvoicePreviewOpen, setIsInvoicePreviewOpen] = useState(false);
+    const [isStatusUpdateOpen, setIsStatusUpdateOpen] = useState(false);
+    const invoicePreviewRef = useRef<HTMLDivElement>(null);
     const { showToast } = useToast();
 
     const toggleExpand = (index: number) => {
@@ -507,12 +510,14 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
         if (!quote.userId) return;
 
         const lineItems = quote.order?.lineItems || [];
-        let productName = 'Custom Order';
-        if (lineItems.length === 1) {
-            productName = `${lineItems[0].qty} ${lineItems[0].category}`;
-        } else if (lineItems.length > 1) {
-            productName = `${lineItems.length} Items Order`;
-        }
+        const products = lineItems.map((item) => ({
+            id: String(item.id),
+            name: `${item.qty} ${item.category}${item.styleOption ? ' - ' + item.styleOption : ''}${item.fabricQuality ? ' (' + item.fabricQuality + ')' : ''}`,
+            status: 'Pending' as const,
+            quantity: item.qty,
+        }));
+        const productName = products.length === 1 ? products[0].name : products.length > 1 ? `${products.length} Items Order` : 'Custom Order';
+        const firstProductId = products.length > 0 ? products[0].id : undefined;
 
         const documents = (quote.files || []).map(filePath => ({
             name: filePath.split('/').pop()?.replace(/^\d+_/, '') || 'Attachment',
@@ -526,9 +531,10 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
             product_name: productName,
             factory_id: quote.factory?.id || null,
             status: 'Pending',
+            products,
             tasks: [
-                { id: Date.now(), name: 'Order Confirmation', status: 'COMPLETE', plannedStartDate: new Date().toISOString().split('T')[0], plannedEndDate: new Date().toISOString().split('T')[0], responsible: 'Admin', actualStartDate: new Date().toISOString().split('T')[0], actualEndDate: new Date().toISOString().split('T')[0] },
-                { id: Date.now() + 1, name: 'Fabric Sourcing', status: 'TO DO', plannedStartDate: new Date().toISOString().split('T')[0], plannedEndDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0], responsible: 'Merch Team' }
+                { id: Date.now(), name: 'Order Confirmation', status: 'COMPLETE', plannedStartDate: new Date().toISOString().split('T')[0], plannedEndDate: new Date().toISOString().split('T')[0], responsible: 'Admin', actualStartDate: new Date().toISOString().split('T')[0], actualEndDate: new Date().toISOString().split('T')[0], productId: firstProductId },
+                { id: Date.now() + 1, name: 'Fabric Sourcing', status: 'TO DO', plannedStartDate: new Date().toISOString().split('T')[0], plannedEndDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0], responsible: 'Merch Team', productId: firstProductId }
             ],
             documents: documents
         };
@@ -1155,7 +1161,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
         if (chatState.file) {
             try {
                 const fileExt = chatState.file.name.split('.').pop();
-                const fileName = `${selectedQuote.id}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+                const fileName = `${selectedQuote.userId}/${selectedQuote.id}/chat/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
                 const { data, error } = await props.supabase.storage
                     .from('quote-attachments')
                     .upload(fileName, chatState.file);
@@ -1358,19 +1364,26 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
         try {
             showToast('Uploading sample photos and generating invoice...');
 
-            // Upload photos for each item
+            // Upload photos for each item (handle both new File uploads and existing URLs)
             const itemsWithPhotos = await Promise.all(
                 itemsData.map(async (item) => {
                     const photoUrls: string[] = [];
 
-                    for (const file of item.photos) {
-                        const fileName = `${selectedQuote.id}/samples/${item.lineItemId}/${Date.now()}_${file.name}`;
-                        const { data, error } = await props.supabase.storage
-                            .from('quote-attachments')
-                            .upload(fileName, file);
+                    for (const photo of item.photos) {
+                        // Check if it's a new File upload or existing URL string
+                        if (photo instanceof File) {
+                            // Upload new file
+                            const fileName = `${selectedQuote.userId}/samples/${selectedQuote.id}/${item.lineItemId}/${Date.now()}_${photo.name}`;
+                            const { data, error } = await props.supabase.storage
+                                .from('quote-attachments')
+                                .upload(fileName, photo);
 
-                        if (!error && data) {
-                            photoUrls.push(data.path);
+                            if (!error && data) {
+                                photoUrls.push(data.path);
+                            }
+                        } else if (typeof photo === 'string') {
+                            // Keep existing URL
+                            photoUrls.push(photo);
                         }
                     }
 
@@ -1426,7 +1439,8 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
             ...(selectedQuote.negotiation_details || {}),
             sample_request: {
                 ...sampleRequest,
-                status: 'paid'
+                status: 'paid',
+                paidAt: new Date().toISOString()
             }
         };
         await quoteService.update(selectedQuote.id, { negotiation_details: updatedNegotiationDetails });
@@ -1464,6 +1478,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
             sample_request: {
                 ...sampleRequest,
                 status: 'sent',
+                sentAt: new Date().toISOString(),
                 admin_response: {
                     ...sampleRequest.admin_response,
                     commercialData: updatedCommercialData
@@ -1485,13 +1500,114 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
             ...(selectedQuote.negotiation_details || {}),
             sample_request: {
                 ...sampleRequest,
-                status: 'delivered'
+                status: 'delivered',
+                deliveredAt: new Date().toISOString()
             }
         };
         await quoteService.update(selectedQuote.id, { negotiation_details: updatedNegotiationDetails });
         setSelectedQuote(prev => prev ? { ...prev, negotiation_details: updatedNegotiationDetails } : null);
         setQuotes(prev => prev.map(q => q.id === selectedQuote.id ? { ...q, negotiation_details: updatedNegotiationDetails } : q));
         showToast('Sample marked as delivered.');
+    };
+
+    const handleDownloadInvoicePDF = async () => {
+        const sampleRequest = (selectedQuote?.negotiation_details as any)?.sample_request;
+
+        if (!sampleRequest?.admin_response) {
+            showToast('No invoice data available', 'error');
+            return;
+        }
+
+        try {
+            console.log('Starting PDF generation...');
+            showToast('Generating PDF...');
+
+            // Open the preview modal to render the invoice
+            const wasOpen = isInvoicePreviewOpen;
+            console.log('Modal was open:', wasOpen);
+
+            if (!wasOpen) {
+                setIsInvoicePreviewOpen(true);
+                // Wait longer for the modal to render completely
+                await new Promise(resolve => setTimeout(resolve, 800));
+            } else {
+                // Even if open, give it a moment
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+
+            const invoiceElement = invoicePreviewRef.current;
+            console.log('Invoice element:', invoiceElement);
+
+            if (!invoiceElement) {
+                console.error('Invoice element not found');
+                showToast('Invoice element not ready. Please try again.', 'error');
+                if (!wasOpen) setIsInvoicePreviewOpen(false);
+                return;
+            }
+
+            console.log('Element dimensions:', invoiceElement.offsetWidth, 'x', invoiceElement.offsetHeight);
+            console.log('Starting html2canvas...');
+
+            const canvas = await html2canvas(invoiceElement, {
+                scale: 2,
+                backgroundColor: '#ffffff',
+                logging: true,
+                useCORS: true,
+                allowTaint: true,
+                imageTimeout: 15000
+            });
+
+            console.log('Canvas created:', canvas.width, 'x', canvas.height);
+
+            const imgData = canvas.toDataURL('image/png');
+            console.log('Image data length:', imgData.length);
+
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+            console.log('PDF dimensions:', pdfWidth, 'x', pdfHeight);
+
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            const invoiceNum = sampleRequest?.admin_response?.invoiceNumber || 'invoice';
+
+            console.log('Saving PDF:', `Commercial_Invoice_${invoiceNum}.pdf`);
+            pdf.save(`Commercial_Invoice_${invoiceNum}.pdf`);
+
+            showToast('Invoice downloaded successfully!', 'success');
+            console.log('PDF generation completed successfully');
+
+            // Close the modal if it wasn't originally open
+            if (!wasOpen) {
+                setTimeout(() => setIsInvoicePreviewOpen(false), 100);
+            }
+        } catch (error: any) {
+            console.error('Error generating PDF:', error);
+            console.error('Error message:', error?.message);
+            console.error('Error stack:', error?.stack);
+            showToast(`Failed: ${error?.message || 'Unknown error'}`, 'error');
+
+            // Close modal on error
+            setIsInvoicePreviewOpen(false);
+        }
+    };
+
+    const handleStatusUpdate = async (newStatus: string) => {
+        if (!selectedQuote) return;
+        const sampleRequest = (selectedQuote.negotiation_details as any)?.sample_request;
+        const updatedNegotiationDetails = {
+            ...(selectedQuote.negotiation_details || {}),
+            sample_request: {
+                ...sampleRequest,
+                status: newStatus,
+                [`${newStatus}At`]: new Date().toISOString()
+            }
+        };
+        await quoteService.update(selectedQuote.id, { negotiation_details: updatedNegotiationDetails });
+        setSelectedQuote(prev => prev ? { ...prev, negotiation_details: updatedNegotiationDetails } : null);
+        setQuotes(prev => prev.map(q => q.id === selectedQuote.id ? { ...q, negotiation_details: updatedNegotiationDetails } : q));
+        setIsStatusUpdateOpen(false);
+        showToast(`Sample status updated to ${newStatus.replace('_', ' ')}`, 'success');
     };
 
     const getStepIcon = (index: number, title: string) => {
@@ -1523,14 +1639,15 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
     };
 
     // Tabs configuration for quote detail view
+    const sampleRequest = (selectedQuote?.negotiation_details as any)?.sample_request;
+
     const quoteTabs: { id: AdminQuoteTabType; label: string; icon: React.ReactNode; badge?: number }[] = [
         { id: 'overview', label: 'Overview', icon: <Info size={18} /> },
         { id: 'products', label: 'Products', icon: <Package size={18} />, badge: selectedQuote?.order?.lineItems?.length || 0 },
         { id: 'timeline', label: 'Timeline', icon: <History size={18} />, badge: displayHistory.length },
         { id: 'files', label: 'Files', icon: <FileText size={18} />, badge: fileLinks.length || selectedQuote?.files?.length || 0 },
+        ...(sampleRequest ? [{ id: 'samples' as AdminQuoteTabType, label: 'Samples', icon: <Box size={18} />, badge: sampleRequest.requestedItems?.length || 0 }] : []),
     ];
-
-    const sampleRequest = (selectedQuote?.negotiation_details as any)?.sample_request;
 
     // Sample Response Page (Full Page instead of Modal)
     if (isSampleResponseModalOpen && selectedQuote && sampleRequest) {
@@ -2552,6 +2669,408 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                 </div>
                             </div>
                         )}
+
+                        {/* SAMPLES TAB */}
+                        {activeQuoteTab === 'samples' && sampleRequest && (
+                            <div className="animate-fade-in space-y-6">
+                                {/* Enhanced Header Card with Status and Progress */}
+                                <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-900/60 dark:to-gray-800/40 dark:backdrop-blur-md rounded-2xl shadow-xl border border-gray-200 dark:border-white/10 overflow-hidden">
+                                    {/* Status Banner */}
+                                    <div className={`h-2 bg-gradient-to-r ${
+                                        sampleRequest.status === 'confirmed' || sampleRequest.status === 'delivered' ? 'from-green-400 via-emerald-500 to-teal-500' :
+                                        sampleRequest.status === 'sent' ? 'from-blue-400 via-cyan-500 to-sky-500' :
+                                        sampleRequest.status === 'paid' ? 'from-indigo-400 via-purple-500 to-pink-500' :
+                                        sampleRequest.status === 'payment_pending' ? 'from-yellow-400 via-amber-500 to-orange-500' :
+                                        'from-purple-400 via-pink-500 to-rose-500'
+                                    }`}></div>
+
+                                    <div className="p-6 sm:p-8">
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                                            <div className="flex items-center gap-4">
+                                                <div className={`p-3 rounded-2xl ${
+                                                    sampleRequest.status === 'confirmed' || sampleRequest.status === 'delivered' ? 'bg-green-100 dark:bg-green-900/30' :
+                                                    sampleRequest.status === 'sent' ? 'bg-blue-100 dark:bg-blue-900/30' :
+                                                    sampleRequest.status === 'paid' ? 'bg-indigo-100 dark:bg-indigo-900/30' :
+                                                    sampleRequest.status === 'payment_pending' ? 'bg-yellow-100 dark:bg-yellow-900/30' :
+                                                    'bg-purple-100 dark:bg-purple-900/30'
+                                                }`}>
+                                                    <Box size={28} className={`${
+                                                        sampleRequest.status === 'confirmed' || sampleRequest.status === 'delivered' ? 'text-green-600 dark:text-green-400' :
+                                                        sampleRequest.status === 'sent' ? 'text-blue-600 dark:text-blue-400' :
+                                                        sampleRequest.status === 'paid' ? 'text-indigo-600 dark:text-indigo-400' :
+                                                        sampleRequest.status === 'payment_pending' ? 'text-yellow-600 dark:text-yellow-400' :
+                                                        'text-purple-600 dark:text-purple-400'
+                                                    }`} />
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white">Sample Request</h3>
+                                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage samples, invoices, and shipping</p>
+                                                </div>
+                                            </div>
+                                            <span className={`px-4 py-2 rounded-full text-xs font-bold uppercase shadow-lg ${
+                                                sampleRequest.status === 'confirmed' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-2 border-green-300 dark:border-green-700' :
+                                                sampleRequest.status === 'delivered' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-2 border-green-300 dark:border-green-700' :
+                                                sampleRequest.status === 'sent' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-2 border-blue-300 dark:border-blue-700' :
+                                                sampleRequest.status === 'paid' ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border-2 border-indigo-300 dark:border-indigo-700' :
+                                                sampleRequest.status === 'payment_pending' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 border-2 border-yellow-300 dark:border-yellow-700' :
+                                                'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-2 border-purple-300 dark:border-purple-700'
+                                            }`}>
+                                                {sampleRequest.status === 'sent' ? 'Shipped' : sampleRequest.status.replace('_', ' ')}
+                                            </span>
+                                        </div>
+
+                                        {/* Status Progress Bar */}
+                                        <div className="mt-6">
+                                            <div className="flex items-center justify-between text-xs font-medium mb-3">
+                                                <span className="text-gray-600 dark:text-gray-300">Request Progress</span>
+                                                <span className={`${
+                                                    sampleRequest.status === 'confirmed' || sampleRequest.status === 'delivered' ? 'text-green-600 dark:text-green-400' :
+                                                    sampleRequest.status === 'sent' ? 'text-blue-600 dark:text-blue-400' :
+                                                    sampleRequest.status === 'paid' ? 'text-indigo-600 dark:text-indigo-400' :
+                                                    sampleRequest.status === 'payment_pending' ? 'text-yellow-600 dark:text-yellow-400' :
+                                                    'text-purple-600 dark:text-purple-400'
+                                                }`}>
+                                                    {sampleRequest.status === 'confirmed' || sampleRequest.status === 'delivered' ? '100%' :
+                                                     sampleRequest.status === 'sent' ? '80%' :
+                                                     sampleRequest.status === 'paid' ? '60%' :
+                                                     sampleRequest.status === 'payment_pending' ? '40%' :
+                                                     '20%'}
+                                                </span>
+                                            </div>
+                                            <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden shadow-inner">
+                                                <div className={`h-full rounded-full transition-all duration-500 bg-gradient-to-r ${
+                                                    sampleRequest.status === 'confirmed' || sampleRequest.status === 'delivered' ? 'from-green-400 to-emerald-500 w-full' :
+                                                    sampleRequest.status === 'sent' ? 'from-blue-400 to-cyan-500 w-4/5' :
+                                                    sampleRequest.status === 'paid' ? 'from-indigo-400 to-purple-500 w-3/5' :
+                                                    sampleRequest.status === 'payment_pending' ? 'from-yellow-400 to-orange-500 w-2/5' :
+                                                    'from-purple-400 to-pink-500 w-1/5'
+                                                }`}></div>
+                                            </div>
+
+                                            {/* Status Steps */}
+                                            <div className="flex justify-between mt-4 text-xs">
+                                                <span className={`${sampleRequest.status !== 'requested' ? 'text-purple-600 dark:text-purple-400 font-bold' : 'text-gray-400'}`}>Requested</span>
+                                                <span className={`${sampleRequest.status === 'payment_pending' || sampleRequest.status === 'paid' || sampleRequest.status === 'sent' || sampleRequest.status === 'delivered' || sampleRequest.status === 'confirmed' ? 'text-yellow-600 dark:text-yellow-400 font-bold' : 'text-gray-400'}`}>Invoice Sent</span>
+                                                <span className={`${sampleRequest.status === 'paid' || sampleRequest.status === 'sent' || sampleRequest.status === 'delivered' || sampleRequest.status === 'confirmed' ? 'text-indigo-600 dark:text-indigo-400 font-bold' : 'text-gray-400'}`}>Paid</span>
+                                                <span className={`${sampleRequest.status === 'sent' || sampleRequest.status === 'delivered' || sampleRequest.status === 'confirmed' ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-gray-400'}`}>Shipped</span>
+                                                <span className={`${sampleRequest.status === 'delivered' || sampleRequest.status === 'confirmed' ? 'text-green-600 dark:text-green-400 font-bold' : 'text-gray-400'}`}>Delivered</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                    {/* Left Column: Main Actions & Details */}
+                                    <div className="lg:col-span-2 space-y-6">
+                                        {/* Request Information - Enhanced */}
+                                        <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                                            <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 p-5 border-b border-purple-100 dark:border-purple-800">
+                                                <h4 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                    <Info size={20} className="text-purple-600 dark:text-purple-400" /> Request Information
+                                                </h4>
+                                                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Details about the sample request</p>
+                                            </div>
+
+                                            <div className="p-6 space-y-4">
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-xl p-5 border border-purple-200 dark:border-purple-800 shadow-sm hover:shadow-md transition-shadow">
+                                                        <div className="flex items-center justify-between mb-3">
+                                                            <Package size={20} className="text-purple-600 dark:text-purple-400" />
+                                                        </div>
+                                                        <p className="text-xs text-purple-700 dark:text-purple-300 uppercase font-bold mb-1">Requested Items</p>
+                                                        <p className="text-3xl font-bold text-gray-900 dark:text-white">{sampleRequest.requestedItems.length}</p>
+                                                    </div>
+                                                    <div className="bg-gradient-to-br from-blue-50 to-cyan-100 dark:from-blue-900/20 dark:to-cyan-800/20 rounded-xl p-5 border border-blue-200 dark:border-blue-800 shadow-sm hover:shadow-md transition-shadow">
+                                                        <div className="flex items-center justify-between mb-3">
+                                                            <Truck size={20} className="text-blue-600 dark:text-blue-400" />
+                                                        </div>
+                                                        <p className="text-xs text-blue-700 dark:text-blue-300 uppercase font-bold mb-1">Delivery Speed</p>
+                                                        <p className="text-xl font-bold text-gray-900 dark:text-white">{sampleRequest.deliverySpeed}</p>
+                                                    </div>
+                                                </div>
+
+                                                {sampleRequest.specifications && (
+                                                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-2 border-blue-200 dark:border-blue-800 rounded-xl p-5 shadow-sm">
+                                                        <div className="flex items-start gap-3">
+                                                            <div className="p-2 bg-blue-100 dark:bg-blue-800/30 rounded-lg">
+                                                                <FileText size={18} className="text-blue-600 dark:text-blue-400" />
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                <p className="text-xs text-blue-800 dark:text-blue-200 uppercase font-bold mb-2">Special Requirements</p>
+                                                                <p className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">{sampleRequest.specifications}</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Commercial Invoice Details - Enhanced */}
+                                        {sampleRequest.admin_response && (sampleRequest.status !== 'requested') && (
+                                            <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                                                <div className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 p-5 border-b border-indigo-100 dark:border-indigo-800">
+                                                    <h4 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                        <FileText size={20} className="text-indigo-600 dark:text-indigo-400" /> Commercial Invoice
+                                                    </h4>
+                                                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Financial breakdown and payment details</p>
+                                                </div>
+
+                                                <div className="p-6">
+                                                    <div className="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 dark:from-indigo-900/20 dark:via-purple-900/20 dark:to-pink-900/20 rounded-2xl p-6 border-2 border-indigo-200 dark:border-indigo-800 shadow-inner mb-5">
+                                                        <div className="space-y-4">
+                                                            <div className="flex justify-between items-center pb-4 border-b-2 border-indigo-200 dark:border-indigo-700">
+                                                                <span className="text-sm text-gray-600 dark:text-gray-300 font-medium">Invoice Number</span>
+                                                                <span className="text-sm font-mono font-bold text-indigo-900 dark:text-indigo-200 bg-white dark:bg-gray-800 px-3 py-1 rounded-lg">{sampleRequest.admin_response.invoiceNumber}</span>
+                                                            </div>
+                                                            <div className="flex justify-between items-center">
+                                                                <span className="text-sm text-gray-600 dark:text-gray-300">Subtotal</span>
+                                                                <span className="text-base font-semibold text-gray-900 dark:text-white">${sampleRequest.admin_response.subtotal}</span>
+                                                            </div>
+                                                            <div className="flex justify-between items-center">
+                                                                <span className="text-sm text-gray-600 dark:text-gray-300">Shipping Cost</span>
+                                                                <span className="text-base font-semibold text-gray-900 dark:text-white">${sampleRequest.admin_response.shippingCost}</span>
+                                                            </div>
+                                                            <div className="flex justify-between items-center pt-4 border-t-2 border-indigo-200 dark:border-indigo-700">
+                                                                <span className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                                    <DollarSign size={18} className="text-purple-600" /> Total Amount
+                                                                </span>
+                                                                <span className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">${sampleRequest.admin_response.total}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Shipping Information */}
+                                                    {sampleRequest.admin_response.commercialData?.trackingNumber && (
+                                                        <div className="bg-gradient-to-br from-cyan-50 to-blue-50 dark:from-cyan-900/20 dark:to-blue-900/20 border-2 border-cyan-200 dark:border-cyan-800 rounded-2xl p-5 shadow-sm">
+                                                            <h5 className="text-sm font-bold text-cyan-900 dark:text-cyan-200 mb-4 flex items-center gap-2">
+                                                                <Truck size={18} className="text-cyan-600 dark:text-cyan-400" /> Shipping Information
+                                                            </h5>
+                                                            <div className="space-y-3">
+                                                                <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg">
+                                                                    <span className="text-xs text-cyan-700 dark:text-cyan-300 font-semibold">Courier</span>
+                                                                    <span className="text-sm font-bold text-cyan-900 dark:text-cyan-100">{sampleRequest.admin_response.commercialData.courierService || 'N/A'}</span>
+                                                                </div>
+                                                                <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg">
+                                                                    <span className="text-xs text-cyan-700 dark:text-cyan-300 font-semibold">Tracking Number</span>
+                                                                    <span className="text-sm font-mono font-bold text-cyan-900 dark:text-cyan-100">{sampleRequest.admin_response.commercialData.trackingNumber}</span>
+                                                                </div>
+                                                                {sampleRequest.admin_response.commercialData.trackingLink && (
+                                                                    <a
+                                                                        href={sampleRequest.admin_response.commercialData.trackingLink}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        className="flex items-center justify-center gap-2 mt-3 px-4 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white rounded-xl text-sm font-bold transition-all shadow-lg"
+                                                                    >
+                                                                        <ExternalLink size={16} /> Track Shipment
+                                                                    </a>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Quick Actions - Enhanced */}
+                                        <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                                            <div className="bg-gradient-to-r from-rose-50 to-red-50 dark:from-rose-900/20 dark:to-red-900/20 p-5 border-b border-rose-100 dark:border-rose-800">
+                                                <h4 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                    <Activity size={20} className="text-rose-600 dark:text-rose-400" /> Quick Actions
+                                                </h4>
+                                                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Manage sample request workflow</p>
+                                            </div>
+
+                                            <div className="p-6 space-y-3">
+                                                {sampleRequest.status === 'requested' && (
+                                                    <button
+                                                        onClick={() => setIsSampleResponseModalOpen(true)}
+                                                        className="w-full px-4 py-3 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-xl text-sm font-bold hover:from-purple-700 hover:to-purple-800 transition-all shadow-lg shadow-purple-500/30 flex items-center justify-center gap-2"
+                                                    >
+                                                        <FileText size={18} /> Process Sample Request
+                                                    </button>
+                                                )}
+
+                                                {sampleRequest.status === 'payment_pending' && (
+                                                    <>
+                                                        <button
+                                                            onClick={handleConfirmPayment}
+                                                            className="w-full px-4 py-3 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-xl text-sm font-bold hover:from-indigo-700 hover:to-indigo-800 transition-all shadow-lg shadow-indigo-500/30 flex items-center justify-center gap-2"
+                                                        >
+                                                            <CheckCircle size={18} /> Confirm Payment Received
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setIsSampleResponseModalOpen(true)}
+                                                            className="w-full px-4 py-3 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-2 border-gray-200 dark:border-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center justify-center gap-2"
+                                                        >
+                                                            <Edit size={18} /> Edit Invoice Details
+                                                        </button>
+                                                    </>
+                                                )}
+
+                                                {sampleRequest.status === 'paid' && (
+                                                    <>
+                                                        <button
+                                                            onClick={handleOpenShippingModal}
+                                                            className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl text-sm font-bold hover:from-blue-700 hover:to-cyan-700 transition-all shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2"
+                                                        >
+                                                            <Truck size={18} /> Add Shipping Details
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setIsSampleResponseModalOpen(true)}
+                                                            className="w-full px-4 py-3 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-2 border-gray-200 dark:border-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center justify-center gap-2"
+                                                        >
+                                                            <Edit size={18} /> Edit Sample Details
+                                                        </button>
+                                                    </>
+                                                )}
+
+                                                {sampleRequest.status === 'sent' && (
+                                                    <>
+                                                        <button
+                                                            onClick={handleMarkDelivered}
+                                                            className="w-full px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl text-sm font-bold hover:from-green-700 hover:to-emerald-700 transition-all shadow-lg shadow-green-500/30 flex items-center justify-center gap-2"
+                                                        >
+                                                            <CheckCircle size={18} /> Mark as Delivered
+                                                        </button>
+                                                        <button
+                                                            onClick={handleOpenShippingModal}
+                                                            className="w-full px-4 py-3 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-2 border-blue-200 dark:border-blue-800 rounded-xl text-sm font-bold hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors flex items-center justify-center gap-2"
+                                                        >
+                                                            <Edit size={18} /> Update Shipping Info
+                                                        </button>
+                                                    </>
+                                                )}
+
+                                                {(sampleRequest.status === 'delivered' || sampleRequest.status === 'confirmed') && (
+                                                    <div className="p-4 bg-green-50 dark:bg-green-900/20 border-2 border-green-200 dark:border-green-800 rounded-xl text-center">
+                                                        <CheckCircle size={24} className="text-green-600 dark:text-green-400 mx-auto mb-2" />
+                                                        <p className="text-sm font-bold text-green-800 dark:text-green-200">Sample {sampleRequest.status === 'confirmed' ? 'Confirmed' : 'Delivered'}</p>
+                                                        <p className="text-xs text-green-600 dark:text-green-400 mt-1">No further actions required</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Right Column: Invoice & Status Management - Enhanced */}
+                                    <div className="space-y-6">
+                                        {/* Invoice Management Card - Enhanced */}
+                                        {sampleRequest.admin_response && (sampleRequest.status !== 'requested') && (
+                                            <div className="bg-gradient-to-br from-gray-900 via-gray-800 to-indigo-900 dark:from-gray-800 dark:via-gray-900 dark:to-indigo-950 rounded-2xl p-6 text-white shadow-2xl border border-white/10 overflow-hidden relative">
+                                                {/* Decorative element */}
+                                                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-full blur-3xl"></div>
+
+                                                <div className="relative z-10">
+                                                    <div className="flex justify-between items-start mb-6">
+                                                        <div>
+                                                            <p className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Invoice Number</p>
+                                                            <p className="text-base font-mono font-bold bg-white/10 px-3 py-1.5 rounded-lg inline-block">{sampleRequest.admin_response.invoiceNumber}</p>
+                                                        </div>
+                                                        <div className="p-3 bg-gradient-to-br from-purple-500/30 to-pink-500/30 rounded-xl backdrop-blur-sm">
+                                                            <FileText size={22} />
+                                                        </div>
+                                                    </div>
+                                                    <div className="mb-6 pb-6 border-b border-white/10">
+                                                        <p className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Total Value</p>
+                                                        <p className="text-4xl font-bold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">${sampleRequest.admin_response.total}</p>
+                                                    </div>
+                                                    <div className="space-y-3">
+                                                        <button
+                                                            onClick={() => setIsInvoicePreviewOpen(true)}
+                                                            className="w-full py-3 bg-white text-gray-900 rounded-xl font-bold text-sm hover:bg-gray-100 transition-all shadow-lg flex items-center justify-center gap-2"
+                                                        >
+                                                            <Eye size={16} /> Preview Invoice
+                                                        </button>
+                                                        <button
+                                                            onClick={handleDownloadInvoicePDF}
+                                                            className="w-full py-3 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white rounded-xl font-bold text-sm transition-all shadow-lg flex items-center justify-center gap-2"
+                                                        >
+                                                            <Download size={16} /> Download PDF
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setIsSampleResponseModalOpen(true)}
+                                                            className="w-full py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 border-2 border-white/20"
+                                                        >
+                                                            <Edit size={16} /> Edit / Regenerate
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Status Update Card - Enhanced */}
+                                        <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                                            <div className="bg-gradient-to-r from-rose-50 to-pink-50 dark:from-rose-900/20 dark:to-pink-900/20 p-5 border-b border-rose-100 dark:border-rose-800">
+                                                <h4 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                    <Activity size={20} className="text-rose-600 dark:text-rose-400" /> Update Status
+                                                </h4>
+                                                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                                    Manually change the sample request status
+                                                </p>
+                                            </div>
+                                            <div className="p-5">
+                                                <button
+                                                    onClick={() => setIsStatusUpdateOpen(true)}
+                                                    className="w-full py-3.5 bg-gradient-to-r from-[#c20c0b] to-pink-600 text-white rounded-xl font-bold text-sm hover:from-[#a50a09] hover:to-pink-700 transition-all shadow-lg shadow-red-500/30 flex items-center justify-center gap-2"
+                                                >
+                                                    <Edit size={18} /> Change Status
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Package Contents - Enhanced */}
+                                        <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                                            <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 p-5 border-b border-purple-100 dark:border-purple-800">
+                                                <h4 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                    <Package size={20} className="text-purple-600 dark:text-purple-400" /> {sampleRequest.admin_response?.items ? 'Package Contents' : 'Requested Items'}
+                                                </h4>
+                                                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                                    {sampleRequest.admin_response?.items ? 'Items included in the shipment' : 'Products requested for sampling'}
+                                                </p>
+                                            </div>
+
+                                            <div className="p-5 space-y-3 max-h-96 overflow-y-auto">
+                                                {sampleRequest.admin_response?.items ? (
+                                                    sampleRequest.admin_response.items.map((item: any, idx: number) => (
+                                                        <div key={idx} className="bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 border border-purple-200 dark:border-purple-800 rounded-xl p-4 hover:shadow-md transition-shadow">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-500 flex items-center justify-center shrink-0 shadow-lg">
+                                                                    <Shirt size={24} className="text-white" />
+                                                                </div>
+                                                                <div className="flex-1">
+                                                                    <p className="font-bold text-sm text-gray-900 dark:text-white mb-1">{item.category}</p>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-xs text-purple-700 dark:text-purple-300 font-semibold bg-purple-100 dark:bg-purple-900/40 px-2 py-0.5 rounded">{item.sampleQty || 1} unit</span>
+                                                                        <span className="text-xs text-gray-600 dark:text-gray-400">•</span>
+                                                                        <span className="text-xs font-bold text-gray-900 dark:text-white">${item.sampleCost}</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    selectedQuote.order.lineItems
+                                                        .filter((item: any) => sampleRequest.requestedItems.includes(item.id))
+                                                        .map((item: any, idx: number) => (
+                                                            <div key={idx} className="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 hover:shadow-md transition-shadow">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shrink-0">
+                                                                        <Shirt size={20} className="text-white" />
+                                                                    </div>
+                                                                    <div className="flex-1">
+                                                                        <p className="font-bold text-sm text-gray-900 dark:text-white">{item.category}</p>
+                                                                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{item.fabricQuality} • {item.weightGSM} GSM</p>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        ))
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {isResponseModalOpen && (
@@ -2661,6 +3180,213 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                 </form>
                             </div>
                         </div>, document.body)
+                    )}
+
+                    {/* Invoice Preview Modal */}
+                    {isInvoicePreviewOpen && selectedQuote && sampleRequest?.admin_response && createPortal(
+                        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in">
+                            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden border border-gray-200 dark:border-white/10">
+                                {/* Modal Header */}
+                                <div className="bg-gradient-to-r from-blue-600 to-cyan-600 px-6 py-4 flex items-center justify-between">
+                                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                                        <FileText size={24} /> Commercial Invoice Preview
+                                    </h2>
+                                    <button onClick={() => setIsInvoicePreviewOpen(false)} className="text-white/80 hover:text-white transition-colors">
+                                        <X size={24} />
+                                    </button>
+                                </div>
+
+                                {/* Invoice Content */}
+                                <div className="p-6 overflow-y-auto max-h-[calc(90vh-160px)]">
+                                    <div ref={invoicePreviewRef} className="bg-white rounded-xl border-2 border-black p-8" style={{
+                                        backgroundColor: '#ffffff',
+                                        color: '#000000',
+                                        colorScheme: 'light'
+                                    }}>
+                                        {/* Invoice Header */}
+                                        <div className="flex justify-between items-start mb-8 pb-6 border-b-2 border-black">
+                                            <div>
+                                                <h1 className="text-3xl font-bold mb-2" style={{ color: '#000000' }}>COMMERCIAL INVOICE</h1>
+                                                <p className="text-sm" style={{ color: '#374151' }}>Sample Request - Quote #{selectedQuote.id.slice(0, 8)}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-sm" style={{ color: '#374151' }}>Invoice Number</p>
+                                                <p className="text-lg font-bold" style={{ color: '#000000' }}>{sampleRequest.admin_response.invoiceNumber}</p>
+                                                <p className="text-sm mt-2" style={{ color: '#374151' }}>Date: {new Date(sampleRequest.admin_response.createdAt || Date.now()).toLocaleDateString()}</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Shipper & Consignee Info */}
+                                        <div className="grid grid-cols-2 gap-8 mb-6 pb-6 border-b border-black">
+                                            <div>
+                                                <p className="text-xs font-bold uppercase mb-2 border-b pb-1" style={{ color: '#000000', borderColor: '#9ca3af' }}>Shipper / Exporter</p>
+                                                {sampleRequest.admin_response.commercialData?.shipperName && <p className="text-sm font-bold" style={{ color: '#000000' }}>{sampleRequest.admin_response.commercialData.shipperName}</p>}
+                                                {sampleRequest.admin_response.commercialData?.shipperAddress && <p className="text-sm" style={{ color: '#374151' }}>{sampleRequest.admin_response.commercialData.shipperAddress}</p>}
+                                                {(sampleRequest.admin_response.commercialData?.shipperCity || sampleRequest.admin_response.commercialData?.shipperCountry) && (
+                                                    <p className="text-sm" style={{ color: '#374151' }}>
+                                                        {sampleRequest.admin_response.commercialData.shipperCity}{sampleRequest.admin_response.commercialData.shipperCity && sampleRequest.admin_response.commercialData.shipperCountry && ', '}{sampleRequest.admin_response.commercialData.shipperCountry}
+                                                    </p>
+                                                )}
+                                                {sampleRequest.admin_response.commercialData?.shipperPhone && <p className="text-sm" style={{ color: '#374151' }}>Tel: {sampleRequest.admin_response.commercialData.shipperPhone}</p>}
+                                                {sampleRequest.admin_response.commercialData?.shipperEmail && <p className="text-sm" style={{ color: '#374151' }}>Email: {sampleRequest.admin_response.commercialData.shipperEmail}</p>}
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-bold uppercase mb-2 border-b pb-1" style={{ color: '#000000', borderColor: '#9ca3af' }}>Consignee / Buyer</p>
+                                                {sampleRequest.admin_response.commercialData?.consigneeName && <p className="text-sm font-bold" style={{ color: '#000000' }}>{sampleRequest.admin_response.commercialData.consigneeName}</p>}
+                                                {sampleRequest.admin_response.commercialData?.consigneeAddress && <p className="text-sm" style={{ color: '#374151' }}>{sampleRequest.admin_response.commercialData.consigneeAddress}</p>}
+                                                {(sampleRequest.admin_response.commercialData?.consigneeCity || sampleRequest.admin_response.commercialData?.consigneeCountry) && (
+                                                    <p className="text-sm" style={{ color: '#374151' }}>
+                                                        {sampleRequest.admin_response.commercialData.consigneeCity}{sampleRequest.admin_response.commercialData.consigneeCity && sampleRequest.admin_response.commercialData.consigneeCountry && ', '}{sampleRequest.admin_response.commercialData.consigneeCountry}
+                                                    </p>
+                                                )}
+                                                {sampleRequest.admin_response.commercialData?.consigneePhone && <p className="text-sm" style={{ color: '#374151' }}>Tel: {sampleRequest.admin_response.commercialData.consigneePhone}</p>}
+                                                {sampleRequest.admin_response.commercialData?.consigneeEmail && <p className="text-sm" style={{ color: '#374151' }}>Email: {sampleRequest.admin_response.commercialData.consigneeEmail}</p>}
+                                            </div>
+                                        </div>
+
+                                        {/* Shipping Details */}
+                                        <div className="grid grid-cols-2 gap-6 mb-6 pb-6 border-b border-black">
+                                            <div>
+                                                <p className="text-xs font-bold uppercase mb-2" style={{ color: '#000000' }}>Shipping Information</p>
+                                                {sampleRequest.admin_response.commercialData?.portOfLoading && (
+                                                    <p className="text-sm" style={{ color: '#374151' }}><span className="font-semibold">Port of Loading:</span> {sampleRequest.admin_response.commercialData.portOfLoading}</p>
+                                                )}
+                                                {sampleRequest.admin_response.commercialData?.portOfDischarge && (
+                                                    <p className="text-sm" style={{ color: '#374151' }}><span className="font-semibold">Port of Discharge:</span> {sampleRequest.admin_response.commercialData.portOfDischarge}</p>
+                                                )}
+                                                {sampleRequest.admin_response.commercialData?.courierService && (
+                                                    <p className="text-sm" style={{ color: '#374151' }}><span className="font-semibold">Courier:</span> {sampleRequest.admin_response.commercialData.courierService}</p>
+                                                )}
+                                                {sampleRequest.admin_response.commercialData?.trackingNumber && (
+                                                    <p className="text-sm" style={{ color: '#374151' }}><span className="font-semibold">Tracking:</span> {sampleRequest.admin_response.commercialData.trackingNumber}</p>
+                                                )}
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-bold uppercase mb-2" style={{ color: '#000000' }}>Terms & Conditions</p>
+                                                <p className="text-sm" style={{ color: '#374151' }}><span className="font-semibold">Terms of Delivery:</span> {sampleRequest.admin_response.commercialData?.termsOfDelivery || 'DDP'}</p>
+                                                <p className="text-sm" style={{ color: '#374151' }}><span className="font-semibold">Payment Terms:</span> {sampleRequest.admin_response.commercialData?.paymentTerms || 'Prepaid'}</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Items Table */}
+                                        <table className="w-full mb-6">
+                                            <thead>
+                                                <tr className="border-b-2 border-black" style={{ backgroundColor: '#f3f4f6' }}>
+                                                    <th className="text-left py-3 px-2 text-xs font-bold uppercase" style={{ color: '#000000' }}>#</th>
+                                                    <th className="text-left py-3 px-2 text-xs font-bold uppercase" style={{ color: '#000000' }}>Description</th>
+                                                    <th className="text-center py-3 px-2 text-xs font-bold uppercase" style={{ color: '#000000' }}>Quantity</th>
+                                                    <th className="text-right py-3 px-2 text-xs font-bold uppercase" style={{ color: '#000000' }}>Unit Price</th>
+                                                    <th className="text-right py-3 px-2 text-xs font-bold uppercase" style={{ color: '#000000' }}>Amount</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {sampleRequest.admin_response.items?.map((item: any, index: number) => (
+                                                    <tr key={index} className="border-b" style={{ borderColor: '#d1d5db' }}>
+                                                        <td className="py-4 px-2 text-sm" style={{ color: '#000000' }}>{index + 1}</td>
+                                                        <td className="py-4 px-2">
+                                                            <p className="text-sm font-semibold" style={{ color: '#000000' }}>{item.category}</p>
+                                                            <p className="text-xs" style={{ color: '#4b5563' }}>Sample</p>
+                                                        </td>
+                                                        <td className="py-4 px-2 text-center text-sm" style={{ color: '#000000' }}>{item.sampleQty || 1} {(item.sampleQty || 1) === 1 ? 'pc' : 'pcs'}</td>
+                                                        <td className="py-4 px-2 text-right text-sm" style={{ color: '#000000' }}>
+                                                            ${parseFloat(item.sampleCost).toFixed(2)}
+                                                        </td>
+                                                        <td className="py-4 px-2 text-right text-sm font-semibold" style={{ color: '#000000' }}>
+                                                            ${(parseFloat(item.sampleCost) * (item.sampleQty || 1)).toFixed(2)}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                            <tfoot>
+                                                <tr className="border-t-2 border-black">
+                                                    <td colSpan={4} className="py-3 px-2 text-right text-sm font-semibold" style={{ color: '#000000' }}>Subtotal:</td>
+                                                    <td className="py-3 px-2 text-right text-sm font-bold" style={{ color: '#000000' }}>${sampleRequest.admin_response.subtotal}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td colSpan={4} className="py-3 px-2 text-right text-sm font-semibold" style={{ color: '#000000' }}>Shipping & Handling:</td>
+                                                    <td className="py-3 px-2 text-right text-sm font-bold" style={{ color: '#000000' }}>${sampleRequest.admin_response.shippingCost}</td>
+                                                </tr>
+                                                <tr className="border-t-2 border-black" style={{ backgroundColor: '#f3f4f6' }}>
+                                                    <td colSpan={4} className="py-4 px-2 text-right text-lg font-bold" style={{ color: '#000000' }}>TOTAL AMOUNT:</td>
+                                                    <td className="py-4 px-2 text-right text-xl font-bold" style={{ color: '#000000' }}>${sampleRequest.admin_response.total} USD</td>
+                                                </tr>
+                                            </tfoot>
+                                        </table>
+
+                                        {/* Terms & Conditions Footer */}
+                                        <div className="border-t pt-4" style={{ borderColor: '#9ca3af' }}>
+                                            <p className="text-xs" style={{ color: '#374151' }}>
+                                                This invoice represents sample products for evaluation purposes. Payment terms and delivery conditions as specified above.
+                                            </p>
+                                            {sampleRequest.admin_response.notes && (
+                                                <p className="text-xs mt-2" style={{ color: '#374151' }}><strong>Additional Notes:</strong> {sampleRequest.admin_response.notes}</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Modal Footer */}
+                                <div className="bg-gray-50 dark:bg-gray-800 px-6 py-4 flex justify-between items-center border-t border-gray-200 dark:border-gray-700">
+                                    <button
+                                        onClick={() => setIsInvoicePreviewOpen(false)}
+                                        className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-white rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors font-medium"
+                                    >
+                                        Close
+                                    </button>
+                                    <button
+                                        onClick={handleDownloadInvoicePDF}
+                                        className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg hover:from-blue-700 hover:to-cyan-700 transition-all shadow-lg font-bold flex items-center gap-2"
+                                    >
+                                        <Download size={18} /> Download PDF
+                                    </button>
+                                </div>
+                            </div>
+                        </div>, document.body
+                    )}
+
+                    {/* Status Update Modal */}
+                    {isStatusUpdateOpen && selectedQuote && sampleRequest && createPortal(
+                        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in">
+                            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md border border-gray-200 dark:border-white/10 p-6">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                        <Activity size={20} className="text-[#c20c0b]" /> Update Sample Status
+                                    </h3>
+                                    <button onClick={() => setIsStatusUpdateOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                                        <X size={24} />
+                                    </button>
+                                </div>
+
+                                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                                    Current Status: <span className="font-bold text-gray-900 dark:text-white">{sampleRequest.status}</span>
+                                </p>
+
+                                <div className="space-y-2">
+                                    {['requested', 'payment_pending', 'paid', 'sent', 'delivered', 'confirmed'].map((status) => (
+                                        <button
+                                            key={status}
+                                            onClick={() => handleStatusUpdate(status)}
+                                            disabled={sampleRequest.status === status}
+                                            className={`w-full px-4 py-3 rounded-xl text-sm font-semibold transition-all flex items-center justify-between ${
+                                                sampleRequest.status === status
+                                                    ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed'
+                                                    : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-white border-2 border-gray-200 dark:border-gray-700 hover:border-[#c20c0b] dark:hover:border-[#c20c0b]'
+                                            }`}
+                                        >
+                                            <span className="capitalize">{status.replace('_', ' ')}</span>
+                                            {sampleRequest.status === status && <Check size={18} className="text-green-600" />}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                <div className="mt-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
+                                    <p className="text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2">
+                                        <Info size={16} className="flex-shrink-0 mt-0.5" />
+                                        <span>Manually changing the status will update the sample request state. Use the action buttons above for proper workflow.</span>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>, document.body
                     )}
 
                     {/* Price History Modal */}
@@ -3225,7 +3951,8 @@ interface SampleItemData {
     targetPrice: string;
     sampleQty: number;
     sampleCost: string;
-    photos: File[];
+    photos: (File | string)[]; // Support both File objects (new uploads) and URL strings (existing photos)
+    existingPhotoUrls?: string[]; // Track existing photo URLs from database
 }
 
 interface CommercialInvoiceData {
@@ -3273,38 +4000,109 @@ const SampleResponsePage: FC<{
     onClose: () => void;
 }> = ({ requestedLineItems, sampleRequest, quoteName, buyerInfo, supabase, onSubmit, onClose }) => {
     const invoiceRef = useRef<HTMLDivElement>(null);
-    const [notes, setNotes] = useState('');
-    const [shippingCost, setShippingCost] = useState('');
-    const [itemsData, setItemsData] = useState<SampleItemData[]>(
-        requestedLineItems.map(item => ({
+
+    // Check if we're editing an existing invoice
+    const existingResponse = sampleRequest?.admin_response;
+
+    const [notes, setNotes] = useState(existingResponse?.notes || '');
+    const [shippingCost, setShippingCost] = useState(existingResponse?.shippingCost?.toString() || '');
+    const [itemsData, setItemsData] = useState<SampleItemData[]>(() => {
+        // If editing, populate with existing items data
+        if (existingResponse?.items) {
+            return existingResponse.items.map((existingItem: any) => {
+                const lineItem = requestedLineItems.find(item => item.category === existingItem.category);
+                const photoUrls = existingItem.photos || [];
+                return {
+                    lineItemId: existingItem.lineItemId || lineItem?.id || 0,
+                    category: existingItem.category,
+                    qty: lineItem?.qty || 0,
+                    targetPrice: lineItem?.targetPrice || '0',
+                    sampleQty: existingItem.sampleQty || 1,
+                    sampleCost: existingItem.sampleCost?.toString() || '',
+                    photos: photoUrls, // Store existing photo URLs
+                    existingPhotoUrls: photoUrls // Keep track of existing URLs
+                };
+            });
+        }
+        // Otherwise, create new empty items
+        return requestedLineItems.map(item => ({
             lineItemId: item.id,
             category: item.category,
             qty: item.qty,
             targetPrice: item.targetPrice,
             sampleQty: 1,
             sampleCost: '',
-            photos: []
-        }))
-    );
+            photos: [],
+            existingPhotoUrls: []
+        }));
+    });
+    const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
+
+    // Fetch signed URLs for existing photos
+    useEffect(() => {
+        const fetchPhotoUrls = async () => {
+            const urlMap: Record<string, string> = {};
+            for (const item of itemsData) {
+                if (item.existingPhotoUrls) {
+                    for (const photoPath of item.existingPhotoUrls) {
+                        if (typeof photoPath === 'string' && !urlMap[photoPath]) {
+                            const { data } = await supabase.storage
+                                .from('quote-attachments')
+                                .createSignedUrl(photoPath, 3600);
+                            if (data?.signedUrl) {
+                                urlMap[photoPath] = data.signedUrl;
+                            }
+                        }
+                    }
+                }
+            }
+            setPhotoUrls(urlMap);
+        };
+        if (existingResponse?.items) {
+            fetchPhotoUrls();
+        }
+    }, []);
+
+    const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+    const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+    const allLightboxImages = itemsData.flatMap(item => 
+        item.photos.map(photo => {
+            const isFile = photo instanceof File;
+            const url = isFile ? URL.createObjectURL(photo) : (photoUrls[photo as string] || '');
+            return { url, name: isFile ? photo.name : 'Sample Photo' };
+        })
+    ).filter(img => img.url);
+
+    const handleOpenLightbox = (photo: File | string) => {
+        const isFile = photo instanceof File;
+        const url = isFile ? URL.createObjectURL(photo) : (photoUrls[photo as string] || '');
+        const index = allLightboxImages.findIndex(img => img.url === url);
+        if (index !== -1) {
+            setCurrentImageIndex(index);
+            setIsLightboxOpen(true);
+        }
+    };
+
     const [commercialData, setCommercialData] = useState<CommercialInvoiceData>({
-        shipperName: '',
-        shipperAddress: '',
-        shipperCity: '',
-        shipperCountry: '',
-        shipperPhone: '',
-        shipperEmail: '',
-        consigneeName: buyerInfo.name,
-        consigneeAddress: buyerInfo.address,
-        consigneeCity: buyerInfo.city,
-        consigneeCountry: buyerInfo.country,
-        consigneePhone: buyerInfo.phone,
-        consigneeEmail: buyerInfo.email,
-        portOfLoading: '',
-        portOfDischarge: '',
-        termsOfDelivery: 'DDP',
-        paymentTerms: 'Prepaid',
-        courierService: '',
-        trackingNumber: ''
+        shipperName: existingResponse?.commercialData?.shipperName || '',
+        shipperAddress: existingResponse?.commercialData?.shipperAddress || '',
+        shipperCity: existingResponse?.commercialData?.shipperCity || '',
+        shipperCountry: existingResponse?.commercialData?.shipperCountry || '',
+        shipperPhone: existingResponse?.commercialData?.shipperPhone || '',
+        shipperEmail: existingResponse?.commercialData?.shipperEmail || '',
+        consigneeName: existingResponse?.commercialData?.consigneeName || buyerInfo.name,
+        consigneeAddress: existingResponse?.commercialData?.consigneeAddress || buyerInfo.address,
+        consigneeCity: existingResponse?.commercialData?.consigneeCity || buyerInfo.city,
+        consigneeCountry: existingResponse?.commercialData?.consigneeCountry || buyerInfo.country,
+        consigneePhone: existingResponse?.commercialData?.consigneePhone || buyerInfo.phone,
+        consigneeEmail: existingResponse?.commercialData?.consigneeEmail || buyerInfo.email,
+        portOfLoading: existingResponse?.commercialData?.portOfLoading || '',
+        portOfDischarge: existingResponse?.commercialData?.portOfDischarge || '',
+        termsOfDelivery: existingResponse?.commercialData?.termsOfDelivery || 'DDP',
+        paymentTerms: existingResponse?.commercialData?.paymentTerms || 'Prepaid',
+        courierService: existingResponse?.commercialData?.courierService || '',
+        trackingNumber: existingResponse?.commercialData?.trackingNumber || ''
     });
     const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
@@ -3751,23 +4549,47 @@ const SampleResponsePage: FC<{
 
                                     {item.photos.length > 0 && (
                                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mt-3">
-                                            {item.photos.map((photo, photoIndex) => (
-                                                <div key={photoIndex} className="relative group">
-                                                    <img
-                                                        src={URL.createObjectURL(photo)}
-                                                        alt={`${item.category} ${photoIndex + 1}`}
-                                                        className="w-full h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
-                                                    />
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => removePhoto(index, photoIndex)}
-                                                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
-                                                    >
-                                                        <X size={14} />
-                                                    </button>
-                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">{photo.name}</p>
-                                                </div>
-                                            ))}
+                                            {item.photos.map((photo, photoIndex) => {
+                                                // Check if photo is a File object or a URL string
+                                                const isFile = photo instanceof File;
+                                                const photoSrc = isFile ? URL.createObjectURL(photo) : (photoUrls[photo as string] || '');
+                                                const photoName = isFile ? photo.name : `Existing photo ${photoIndex + 1}`;
+
+                                                return (
+                                                    <div key={photoIndex} className="relative group">
+                                                        <img
+                                                            src={photoSrc}
+                                                            alt={`${item.category} ${photoIndex + 1}`}
+                                                            className="w-full h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
+                                                            style={{ cursor: 'pointer' }}
+                                                            onClick={() => handleOpenLightbox(photo)}
+                                                            onError={(e) => {
+                                                                (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23ddd" width="100" height="100"/%3E%3Ctext fill="%23999" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3ENo Image%3C/text%3E%3C/svg%3E';
+                                                            }}
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removePhoto(index, photoIndex)}
+                                                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                                                        >
+                                                            <X size={14} />
+                                                        </button>
+                                                        <a
+                                                            href={photoSrc}
+                                                            download={photoName}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            className="absolute top-1 right-8 bg-white/90 text-gray-700 rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white hover:text-blue-600"
+                                                            title="Download"
+                                                        >
+                                                            <Download size={14} />
+                                                        </a>
+                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">{photoName}</p>
+                                                        {!isFile && (
+                                                            <span className="absolute top-1 left-1 bg-blue-500 text-white text-xs px-2 py-0.5 rounded">Existing</span>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     )}
 
@@ -3953,6 +4775,45 @@ const SampleResponsePage: FC<{
                     </div>
                 </form>
             </div>
+
+            {/* Lightbox Modal */}
+            {isLightboxOpen && createPortal(
+                <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex items-center justify-center p-4 animate-fade-in" onClick={() => setIsLightboxOpen(false)}>
+                    <button onClick={() => setIsLightboxOpen(false)} className="absolute top-6 right-6 text-white/70 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors z-50">
+                        <X size={32} />
+                    </button>
+                    {allLightboxImages[currentImageIndex] && (
+                        <a 
+                            href={allLightboxImages[currentImageIndex].url} 
+                            download={allLightboxImages[currentImageIndex].name}
+                            className="absolute top-6 right-20 text-white/70 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors z-50"
+                            onClick={(e) => e.stopPropagation()}
+                            title="Download"
+                        >
+                            <Download size={32} />
+                        </a>
+                    )}
+                    <div className="relative w-full h-full flex items-center justify-center" onClick={e => e.stopPropagation()}>
+                        {allLightboxImages.length > 1 && (
+                            <>
+                                <button onClick={(e) => { e.stopPropagation(); setCurrentImageIndex((prev) => (prev - 1 + allLightboxImages.length) % allLightboxImages.length); }} className="absolute left-2 md:left-8 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/50 hover:bg-black/70 text-white transition-all border border-white/10 backdrop-blur-sm group cursor-pointer">
+                                    <ChevronLeft size={32} className="group-hover:-translate-x-1 transition-transform" />
+                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); setCurrentImageIndex((prev) => (prev + 1) % allLightboxImages.length); }} className="absolute right-2 md:right-8 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/50 hover:bg-black/70 text-white transition-all border border-white/10 backdrop-blur-sm group cursor-pointer">
+                                    <ChevronRight size={32} className="group-hover:translate-x-1 transition-transform" />
+                                </button>
+                            </>
+                        )}
+                        {allLightboxImages[currentImageIndex] && (
+                            <img src={allLightboxImages[currentImageIndex].url} alt={allLightboxImages[currentImageIndex].name} className="max-h-[85vh] max-w-[90vw] object-contain rounded-lg shadow-2xl select-none" />
+                        )}
+                        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white text-sm bg-black/50 px-3 py-1 rounded-full border border-white/20">
+                            {currentImageIndex + 1} / {allLightboxImages.length}
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
         </div>
     );
 };

@@ -1,16 +1,11 @@
-// Import React and hooks for managing state (data) and side effects (actions on load)
-import React, { useState, useEffect, useMemo, FC, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { crmService } from './crm.service';
 import { factoryService } from './factory.service';
 import { CrmOrder, Factory } from './types';
-import {
-    List, TrendingUp, CheckCircle, Package, PieChart as PieChartIcon,
-    BarChart as BarChartIcon, Info, LayoutDashboard, ClipboardCheck,
-    GanttChartSquare, Bot, Plus, X
-} from 'lucide-react';
-import {
-    DashboardView, ListView, BoardView, GanttChartView, TNAView, OrderDetailsView
-} from './CRMPage';
+import { normalizeOrder } from './utils';
+import { Package, Inbox, CheckCircle2, Search } from 'lucide-react';
+import CrmOrderCard from './CrmOrderCard';
+import CrmOrderDetail from './CrmOrderDetail';
 
 interface CrmDashboardProps {
     callGeminiAPI: (prompt: string) => Promise<string>;
@@ -19,7 +14,11 @@ interface CrmDashboardProps {
     darkMode?: boolean;
 }
 
-// Main Component: The CRM Dashboard Page
+type TopTab = 'active' | 'all' | 'completed';
+
+const ACTIVE_STATUSES = ['Pending', 'In Production', 'Quality Check'];
+const COMPLETED_STATUSES = ['Shipped', 'Completed'];
+
 export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user, darkMode }: CrmDashboardProps) {
     const ORDERS_CACHE_KEY = 'garment_erp_client_orders';
     const FACTORIES_CACHE_KEY = 'garment_erp_crm_factories';
@@ -28,16 +27,14 @@ export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user
         const cached = sessionStorage.getItem(ORDERS_CACHE_KEY);
         return cached ? JSON.parse(cached) : {};
     });
-    const [activeOrderKey, setActiveOrderKey] = useState<string | null>(null);
     const [allFactories, setAllFactories] = useState<Factory[]>(() => {
         const cached = sessionStorage.getItem(FACTORIES_CACHE_KEY);
         return cached ? JSON.parse(cached) : [];
     });
-    const [activeView, setActiveView] = useState('Details');
-    const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
-    const [orderSummary, setOrderSummary] = useState('');
-    const [isSummaryLoading, setIsSummaryLoading] = useState(false);
     const [loading, setLoading] = useState(() => !sessionStorage.getItem(ORDERS_CACHE_KEY));
+    const [topTab, setTopTab] = useState<TopTab>('active');
+    const [selectedOrderKey, setSelectedOrderKey] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
     const abortControllerRef = useRef<AbortController | null>(null);
 
     const showToast = (message: string, type: 'success' | 'error' = 'success') => {
@@ -58,40 +55,31 @@ export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user
                 if (signal.aborted) return;
                 const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 15000));
 
-            if (user && user.id && !signal.aborted) {
-                // Fetch Orders
-                const { data: orders, error: orderError } = await Promise.race([crmService.getOrdersByClient(user.id), timeoutPromise]) as any;
-                if (orderError) {
-                    throw orderError;
-                } else if (orders) {
-                    const mappedData: { [key: string]: CrmOrder } = {};
-                    orders.forEach((order: any) => {
-                        mappedData[order.id] = {
-                            id: order.id,
-                            customer: 'My Order',
-                            product: order.product_name,
-                            factoryId: order.factory_id,
-                            documents: order.documents || [],
-                            tasks: order.tasks || [],
-                            status: order.status
-                        } as CrmOrder;
-                    });
-                    setCrmData(mappedData);
-                    sessionStorage.setItem(ORDERS_CACHE_KEY, JSON.stringify(mappedData));
-                    // Only set active order if none is selected, to preserve selection on re-fetch
-                    setActiveOrderKey(prev => prev || (orders.length > 0 ? orders[0].id : null));
+                if (user && user.id && !signal.aborted) {
+                    const { data: orders, error: orderError } = await Promise.race([crmService.getOrdersByClient(user.id), timeoutPromise]) as any;
+                    if (orderError) throw orderError;
+                    if (orders) {
+                        const mappedData: { [key: string]: CrmOrder } = {};
+                        orders.forEach((order: any) => {
+                            const normalized = normalizeOrder(order);
+                            mappedData[order.id] = {
+                                ...normalized,
+                                customer: 'My Order',
+                            };
+                        });
+                        setCrmData(mappedData);
+                        sessionStorage.setItem(ORDERS_CACHE_KEY, JSON.stringify(mappedData));
+                    }
+
+                    const { data: factories } = await Promise.race([factoryService.getAll(), timeoutPromise]) as any;
+                    if (!signal.aborted) {
+                        setAllFactories(factories || []);
+                        sessionStorage.setItem(FACTORIES_CACHE_KEY, JSON.stringify(factories || []));
+                    }
                 }
 
-                // Fetch Factories (for details view)
-                const { data: factories } = await Promise.race([factoryService.getAll(), timeoutPromise]) as any;
-                if (!signal.aborted) {
-                    setAllFactories(factories || []);
-                    sessionStorage.setItem(FACTORIES_CACHE_KEY, JSON.stringify(factories || []));
-                }
-            }
-            
-            if (!signal.aborted) setLoading(false);
-            return;
+                if (!signal.aborted) setLoading(false);
+                return;
             } catch (err: any) {
                 if (err.name === 'AbortError' || signal.aborted) return;
                 attempts++;
@@ -112,127 +100,173 @@ export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user
         };
     }, [fetchData]);
 
-    const activeOrder = activeOrderKey ? crmData[activeOrderKey] : null;
+    const factoryMap = useMemo(() => {
+        const map = new Map<string, Factory>();
+        allFactories.forEach(f => map.set(f.id, f));
+        return map;
+    }, [allFactories]);
 
-    const generateOrderSummary = async () => {
-        if (!activeOrder) return;
-        setIsSummaryModalOpen(true);
-        setIsSummaryLoading(true);
-        setOrderSummary('');
-        const taskDetails = activeOrder.tasks.map(t => `- ${t.name}: ${t.status} (Due: ${t.plannedEndDate})`).join('\n');
-        const prompt = `
-            Generate a professional project report and order summary for the following garment production order:
-            
-            **Order ID:** ${activeOrderKey}
-            **Product:** ${activeOrder.product}
+    const allOrders = useMemo(() => Object.entries(crmData), [crmData]);
 
-            **Current Task Status:**
-            ${taskDetails}
+    const filteredOrders = useMemo(() => {
+        let orders = allOrders;
 
-            Please structure your response with the following sections:
-            1.  **Overall Status:** A one-sentence overview of the order's health, including the percentage of tasks completed.
-            2.  **Current Focus:** Describe what is actively being worked on (tasks in progress).
-            3.  **Upcoming Milestones:** List the next 2-3 important tasks from the 'TO DO' list.
-            4.  **Potential Risks:** Identify any potential risks based on the task list. If none are apparent, state "No immediate risks identified."
-            
-            Format the response clearly using markdown for headings and lists.
-        `;
-        try {
-            const summary = await callGeminiAPI(prompt);
-            setOrderSummary(summary);
-        } catch (error) {
-            console.error("Failed to generate order summary:", error);
-            setOrderSummary("### Error\nSorry, I was unable to generate a summary at this time. Please try again later.");
-            showToast("Error generating summary.", "error");
-        } finally {
-            setIsSummaryLoading(false);
+        // Filter by tab
+        switch (topTab) {
+            case 'active':
+                orders = orders.filter(([, order]) => {
+                    const s = order.status || 'In Production';
+                    return ACTIVE_STATUSES.includes(s);
+                });
+                break;
+            case 'completed':
+                orders = orders.filter(([, order]) => {
+                    const s = order.status || 'In Production';
+                    return COMPLETED_STATUSES.includes(s);
+                });
+                break;
         }
-    };
 
-    const MarkdownRenderer: FC<{ text: string }> = ({ text }) => {
-        if (!text) return null;
-        const lines = text.split('\n').map((line, i) => {
-            if (line.startsWith('###')) return <h3 key={i} className="text-xl font-bold text-gray-800 dark:text-white mb-4">{line.replace('###', '')}</h3>;
-            if (line.startsWith('**')) return <p key={i} className="font-semibold text-gray-700 dark:text-gray-200 mt-4 mb-1">{line.replace(/\*\*/g, '')}</p>;
-            if (line.startsWith('- ')) return <li key={i} className="flex items-start my-1 text-gray-600 dark:text-gray-300"><span className="mr-3 mt-1.5 text-[#c20c0b]">∙</span><span>{line.substring(2)}</span></li>;
-            return <p key={i} className="text-gray-600 dark:text-gray-300">{line}</p>;
-        });
-        return <div className="space-y-1">{lines}</div>;
-    };
+        // Filter by search
+        if (searchQuery.trim()) {
+            const q = searchQuery.toLowerCase();
+            orders = orders.filter(([id, order]) =>
+                order.product.toLowerCase().includes(q) ||
+                order.customer.toLowerCase().includes(q) ||
+                id.toLowerCase().includes(q) ||
+                order.products?.some(p => p.name.toLowerCase().includes(q))
+            );
+        }
 
-    const AIOrderSummaryModal: FC = () => (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60] p-4 animate-fade-in" onClick={() => setIsSummaryModalOpen(false)}>
-            <div className="bg-white/90 backdrop-blur-xl dark:bg-gray-900/95 dark:backdrop-blur-xl rounded-2xl shadow-2xl p-6 sm:p-8 w-full max-w-2xl relative border border-gray-200 dark:border-white/10" onClick={e => e.stopPropagation()}>
-                <button onClick={() => setIsSummaryModalOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition"> <X size={24} /> </button>
-                <div className="flex items-center gap-3 mb-6">
-                    <div className="p-2 bg-red-100 rounded-lg"> <Bot className="w-6 h-6 text-[var(--color-primary)]" /> </div>
-                    <h2 className="text-2xl font-bold text-gray-800 dark:text-white">AI Order Summary</h2>
-                </div>
-                <div className="min-h-[200px] prose prose-sm max-w-none">
-                    {isSummaryLoading ? ( <div className="flex items-center justify-center h-full flex-col"> <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--color-primary)]"></div> <p className="mt-4 text-gray-500">Analyzing order data...</p> </div> ) : ( <MarkdownRenderer text={orderSummary} /> )}
-                </div>
-            </div>
-        </div>
-    );
+        return orders;
+    }, [allOrders, topTab, searchQuery]);
+
+    const tabCounts = useMemo(() => ({
+        active: allOrders.filter(([, o]) => ACTIVE_STATUSES.includes(o.status || 'In Production')).length,
+        all: allOrders.length,
+        completed: allOrders.filter(([, o]) => COMPLETED_STATUSES.includes(o.status || 'In Production')).length,
+    }), [allOrders]);
+
+    // If selected order exists, show detail view
+    if (selectedOrderKey && crmData[selectedOrderKey]) {
+        return (
+            <CrmOrderDetail
+                orderId={selectedOrderKey}
+                order={crmData[selectedOrderKey]}
+                allFactories={allFactories}
+                handleSetCurrentPage={handleSetCurrentPage}
+                onBack={() => setSelectedOrderKey(null)}
+                callGeminiAPI={callGeminiAPI}
+                darkMode={darkMode}
+            />
+        );
+    }
+
+    const tabs: { key: TopTab; label: string; count: number; icon: React.ReactNode }[] = [
+        { key: 'active', label: 'Active Orders', count: tabCounts.active, icon: <Package size={16} /> },
+        { key: 'all', label: 'All Orders', count: tabCounts.all, icon: <Inbox size={16} /> },
+        { key: 'completed', label: 'Completed', count: tabCounts.completed, icon: <CheckCircle2 size={16} /> },
+    ];
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center mb-6">
-                <h1 className="text-3xl font-bold text-gray-800 dark:text-white">CRM Portal</h1>
-                <button className="bg-[var(--color-primary)] text-white font-semibold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-[var(--color-primary-hover)] transition">
-                    <Plus size={18} /> Add Task
-                </button>
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-white">
+                        CRM Portal
+                    </h1>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        Track orders, manage tasks, and monitor production
+                    </p>
+                </div>
+                {/* Search */}
+                <div className="relative w-full sm:w-72">
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                        type="text"
+                        placeholder="Search orders..."
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        className="w-full pl-9 pr-4 py-2.5 text-sm bg-white dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#c20c0b]/30 focus:border-[#c20c0b] dark:focus:border-red-500 text-gray-700 dark:text-gray-200 placeholder-gray-400 transition-all"
+                    />
+                </div>
             </div>
+
+            {/* Top-level tabs */}
+            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+                {tabs.map(tab => (
+                    <button
+                        key={tab.key}
+                        onClick={() => setTopTab(tab.key)}
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all whitespace-nowrap ${
+                            topTab === tab.key
+                                ? 'bg-gradient-to-r from-[#c20c0b] to-red-600 text-white shadow-lg shadow-red-500/20'
+                                : 'bg-white dark:bg-gray-800/60 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/60 border border-gray-200 dark:border-gray-700'
+                        }`}
+                    >
+                        {tab.icon}
+                        <span>{tab.label}</span>
+                        <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-bold ${
+                            topTab === tab.key
+                                ? 'bg-white/20 text-white'
+                                : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                        }`}>
+                            {tab.count}
+                        </span>
+                    </button>
+                ))}
+            </div>
+
+            {/* Content */}
             {loading ? (
-                <div className="text-center py-12 text-gray-500">Loading your orders...</div>
-            ) : Object.keys(crmData).length === 0 ? (
-                <div className="text-center py-12 bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-sm border border-gray-200 dark:border-white/10">
-                    <h3 className="text-xl font-semibold text-gray-800 mb-2">No Active Orders</h3>
-                    <p className="text-gray-500">You don't have any active orders yet.</p>
+                <div className="flex flex-col items-center justify-center py-20">
+                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#c20c0b] mb-4"></div>
+                    <p className="text-gray-500 dark:text-gray-400 text-sm">Loading your orders...</p>
+                </div>
+            ) : filteredOrders.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl border border-gray-200 dark:border-white/10">
+                    <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
+                        {topTab === 'completed' ? (
+                            <CheckCircle2 size={28} className="text-gray-400" />
+                        ) : (
+                            <Package size={28} className="text-gray-400" />
+                        )}
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-1">
+                        {searchQuery
+                            ? 'No orders found'
+                            : topTab === 'active'
+                                ? 'No Active Orders'
+                                : topTab === 'completed'
+                                    ? 'No Completed Orders'
+                                    : 'No Orders Yet'}
+                    </h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 text-center max-w-sm">
+                        {searchQuery
+                            ? `No orders match "${searchQuery}". Try a different search term.`
+                            : topTab === 'active'
+                                ? 'Orders that are pending, in production, or under quality check will appear here.'
+                                : topTab === 'completed'
+                                    ? 'Orders that have been shipped or completed will appear here.'
+                                    : 'Place an order to get started with production tracking.'}
+                    </p>
                 </div>
             ) : (
-                <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-lg p-4 sm:p-6 border border-gray-200 dark:border-white/10">
-                    <div className="border-b border-gray-200 dark:border-white/10 pb-4">
-                        <div className="flex flex-wrap items-center justify-between gap-y-4 gap-x-2">
-                            {/* Order Tabs */}
-                            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
-                                {Object.keys(crmData).map(orderKey => (
-                                <button key={orderKey} onClick={() => setActiveOrderKey(orderKey)} className={`flex-shrink-0 py-2 px-4 font-semibold text-sm rounded-t-lg transition-colors ${activeOrderKey === orderKey ? 'border-b-2 border-[var(--color-primary)] text-[var(--color-primary)]' : 'text-gray-500 dark:text-gray-200 hover:text-gray-700 dark:hover:text-white'}`}>
-                                        {crmData[orderKey].product}
-                                    </button>
-                                ))}
-                            </div>
-                            {/* View Tabs & AI Button */}
-                            <div className="flex items-center gap-2">
-                                <div className="flex items-center border border-gray-200 dark:border-gray-700 rounded-lg p-1 bg-gray-50 dark:bg-gray-700">
-                                    {[
-                                        {name: 'Details', icon: <Info size={16}/>},
-                                        {name: 'List', icon: <List size={16}/>},
-                                        {name: 'Board', icon: <LayoutDashboard size={16}/>},
-                                        {name: 'TNA', icon: <ClipboardCheck size={16}/>},
-                                        {name: 'Dashboard', icon: <PieChartIcon size={16}/>},
-                                        {name: 'Gantt', icon: <GanttChartSquare size={16}/>}
-                                    ].map(view => (
-                                        <button key={view.name} onClick={() => setActiveView(view.name)} className={`flex items-center gap-2 py-1.5 px-3 text-sm font-semibold rounded-md transition-colors ${activeView === view.name ? 'bg-white dark:bg-gray-600 text-[var(--color-primary)] dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>
-                                            {view.icon} <span className="hidden sm:inline">{view.name}</span>
-                                        </button>
-                                    ))}
-                                </div>
-                                <button onClick={generateOrderSummary} className="p-2.5 bg-red-100 text-[var(--color-primary)] rounded-lg hover:bg-red-200 transition-colors" title="Generate AI Summary">
-                                    <Bot size={18}/>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    {activeOrder && activeView === 'Details' && <OrderDetailsView order={activeOrder} allFactories={allFactories} handleSetCurrentPage={handleSetCurrentPage} />}
-                    {activeOrder && activeView === 'List' && <ListView tasks={activeOrder.tasks} />}
-                    {activeOrder && activeView === 'Board' && <BoardView tasks={activeOrder.tasks} />}
-                    {activeOrder && activeView === 'TNA' && <TNAView tasks={activeOrder.tasks} />}
-                    {activeOrder && activeView === 'Dashboard' && <DashboardView tasks={activeOrder.tasks} orderKey={activeOrderKey || ''} orderDetails={activeOrder} darkMode={darkMode} />}
-                    {activeOrder && activeView === 'Gantt' && <GanttChartView tasks={activeOrder.tasks} />}
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {filteredOrders.map(([orderId, order], index) => (
+                        <CrmOrderCard
+                            key={orderId}
+                            orderId={orderId}
+                            order={order}
+                            factory={factoryMap.get(order.factoryId)}
+                            index={index}
+                            onClick={() => setSelectedOrderKey(orderId)}
+                            onAISummary={() => setSelectedOrderKey(orderId)}
+                        />
+                    ))}
                 </div>
             )}
-            {isSummaryModalOpen && <AIOrderSummaryModal />}
         </div>
     );
 }
