@@ -92,6 +92,88 @@ const EmptyState: FC<{ filterStatus: string; searchTerm?: string; onClearFilter:
     );
 };
 
+const STATUS_THEMES: Record<string, { cardBg: string; border: string; glow: string; glowHover: string; meshGradient: string; progressColor: string }> = {
+    'Pending': {
+        cardBg: 'bg-amber-50/70 dark:bg-amber-950/25',
+        border: 'border-amber-200/80 dark:border-amber-800/40',
+        glow: 'rgba(245,158,11,0.12)', glowHover: 'rgba(245,158,11,0.30)',
+        meshGradient: 'radial-gradient(ellipse at 85% 10%, rgba(251,191,36,0.12) 0%, transparent 55%)',
+        progressColor: '#f59e0b',
+    },
+    'Responded': {
+        cardBg: 'bg-blue-50/70 dark:bg-blue-950/25',
+        border: 'border-blue-200/80 dark:border-blue-800/40',
+        glow: 'rgba(59,130,246,0.12)', glowHover: 'rgba(59,130,246,0.30)',
+        meshGradient: 'radial-gradient(ellipse at 85% 10%, rgba(96,165,250,0.12) 0%, transparent 55%)',
+        progressColor: '#3b82f6',
+    },
+    'In Negotiation': {
+        cardBg: 'bg-violet-50/70 dark:bg-violet-950/25',
+        border: 'border-violet-200/80 dark:border-violet-800/40',
+        glow: 'rgba(139,92,246,0.12)', glowHover: 'rgba(139,92,246,0.30)',
+        meshGradient: 'radial-gradient(ellipse at 85% 10%, rgba(167,139,250,0.12) 0%, transparent 55%)',
+        progressColor: '#8b5cf6',
+    },
+    'Accepted': {
+        cardBg: 'bg-emerald-50/70 dark:bg-emerald-950/25',
+        border: 'border-emerald-200/80 dark:border-emerald-800/40',
+        glow: 'rgba(16,185,129,0.14)', glowHover: 'rgba(16,185,129,0.32)',
+        meshGradient: 'radial-gradient(ellipse at 85% 10%, rgba(52,211,153,0.12) 0%, transparent 55%)',
+        progressColor: '#10b981',
+    },
+    'Admin Accepted': {
+        cardBg: 'bg-teal-50/70 dark:bg-teal-950/25',
+        border: 'border-teal-200/80 dark:border-teal-800/40',
+        glow: 'rgba(20,184,166,0.12)', glowHover: 'rgba(20,184,166,0.30)',
+        meshGradient: 'radial-gradient(ellipse at 85% 10%, rgba(45,212,191,0.12) 0%, transparent 55%)',
+        progressColor: '#14b8a6',
+    },
+    'Client Accepted': {
+        cardBg: 'bg-cyan-50/70 dark:bg-cyan-950/25',
+        border: 'border-cyan-200/80 dark:border-cyan-800/40',
+        glow: 'rgba(6,182,212,0.12)', glowHover: 'rgba(6,182,212,0.30)',
+        meshGradient: 'radial-gradient(ellipse at 85% 10%, rgba(34,211,238,0.12) 0%, transparent 55%)',
+        progressColor: '#06b6d4',
+    },
+    'Declined': {
+        cardBg: 'bg-red-50/50 dark:bg-red-950/20',
+        border: 'border-red-200/60 dark:border-red-800/30',
+        glow: 'rgba(239,68,68,0.08)', glowHover: 'rgba(239,68,68,0.22)',
+        meshGradient: 'radial-gradient(ellipse at 85% 10%, rgba(252,165,165,0.10) 0%, transparent 55%)',
+        progressColor: '#ef4444',
+    },
+    'Draft': {
+        cardBg: 'bg-gray-50/70 dark:bg-gray-800/30',
+        border: 'border-gray-200/80 dark:border-gray-700/40',
+        glow: 'rgba(156,163,175,0.08)', glowHover: 'rgba(156,163,175,0.20)',
+        meshGradient: 'radial-gradient(ellipse at 85% 10%, rgba(209,213,219,0.10) 0%, transparent 55%)',
+        progressColor: '#9ca3af',
+    },
+};
+
+const DEFAULT_THEME = {
+    cardBg: 'bg-white dark:bg-gray-900/40', border: 'border-gray-200 dark:border-white/10',
+    glow: 'rgba(156,163,175,0.08)', glowHover: 'rgba(156,163,175,0.18)',
+    meshGradient: 'none', progressColor: '#9ca3af',
+};
+
+const QUOTE_PROGRESS_STEPS = [
+    { label: 'Submitted',   short: 'Sub'   },
+    { label: 'Pending',     short: 'Pend'  },
+    { label: 'Responded',   short: 'Resp'  },
+    { label: 'Negotiating', short: 'Neg'   },
+    { label: 'Finalized',   short: 'Final' },
+];
+
+const getProgressStep = (status: string): number => {
+    const map: Record<string, number> = {
+        'Draft': 0, 'Pending': 1, 'Responded': 2,
+        'In Negotiation': 3, 'Client Accepted': 4,
+        'Admin Accepted': 4, 'Accepted': 4, 'Declined': 2,
+    };
+    return map[status] ?? 0;
+};
+
 export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCurrentPage, layoutProps, isLoading, onRefresh, initialFilterStatus }) => {
     const [filterStatus, setFilterStatus] = useState(initialFilterStatus || 'All');
     const [dateFilter, setDateFilter] = useState('All Time');
@@ -100,6 +182,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
     const [customEndDate, setCustomEndDate] = useState('');
     const [isDateModalOpen, setIsDateModalOpen] = useState(false);
     const [previewQuote, setPreviewQuote] = useState<QuoteRequest | null>(null);
+    const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
     const todayString = new Date().toISOString().split('T')[0];
     const [draftQuotes, setDraftQuotes] = useState<QuoteRequest[]>([]);
     const { showToast } = useToast();
@@ -131,7 +214,8 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
     const getDisplayDateInfo = (quote: QuoteRequest) => {
         const date = getQuoteTimestamp(quote);
         let label = 'Submitted';
-        if (quote.modified_at) label = 'Modified';
+        // "Modified" only when the user explicitly added items to an existing quote
+        if ((quote.modification_count || 0) > 0) label = 'Modified';
         else if (quote.status === 'Accepted') label = 'Accepted';
         else if (quote.status === 'In Negotiation') label = 'Updated';
         else if (quote.status === 'Responded') label = 'Received';
@@ -264,161 +348,265 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
         ? filteredQuotes.filter(q => !['Responded', 'In Negotiation'].includes(q.status))
         : filteredQuotes;
 
-    const renderCard = (quote: QuoteRequest, index: number) => (
-        <div
-            key={quote.id} 
-            onClick={() => quote.status === 'Draft' ? handleResumeDraft(quote) : handleCardClick(quote)}
-            className={`bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl p-6 shadow-md ${getStatusHoverShadow(quote.status)} border border-gray-200 dark:border-white/10 transition-all duration-300 cursor-pointer group relative overflow-hidden flex flex-col hover:-translate-y-1`}
-            style={{ animationDelay: `${index * 50}ms` }}
-        >
-            <div className={`absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r ${getStatusGradientBorder(quote.status)}`} />
-            {/* Card Header */}
-            <div className="flex items-center justify-between mb-4">
-                <span className="px-2.5 py-1 text-xs font-bold rounded-md bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
-                    #{quote.id.slice(0, 8)}
-                </span>
-                <div className="flex items-center gap-1.5">
-                    {(quote.modification_count || 0) > 0 && (
-                        <span className="px-2.5 py-1.5 text-xs font-bold uppercase tracking-wide rounded-full border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center gap-1 shadow-sm">
-                            <Pencil size={12} />
-                            Modified
-                        </span>
-                    )}
-                    <span className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wide rounded-full border ${getStatusColor(quote.status)} flex items-center gap-1.5 shadow-sm`}>
-                        {quote.status === 'Accepted' && <CheckCheck size={14} />}
-                        {(quote.status === 'Admin Accepted' || quote.status === 'Client Accepted') && <Check size={14} />}
-                        {quote.status === 'Admin Accepted' ? 'Admin Accepted' : quote.status === 'Client Accepted' ? 'You Accepted' : quote.status}
-                    </span>
-                </div>
-            </div>
+    const renderCard = (quote: QuoteRequest, index: number) => {
+        const theme = STATUS_THEMES[quote.status] ?? DEFAULT_THEME;
+        const isHovered = hoveredCardId === quote.id;
+        const progressStep = getProgressStep(quote.status);
+        const isUnreadCard = quote.status !== 'Draft' && isUnread(quote);
 
-            {quote.status === 'Draft' ? (
-                <div className="flex items-center gap-3 mb-5">
-                    <div className="h-9 w-9 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center border border-gray-200 dark:border-gray-700 shadow-sm">
-                        <FileText size={16} className="text-gray-500 dark:text-gray-400" />
-                    </div>
-                    <p className="font-bold text-gray-900 dark:text-white text-sm leading-tight">Draft Order</p>
-                </div>
-            ) : quote.factory && (
-                <div className="flex items-center gap-3 mb-5">
-                    <img className="h-9 w-9 rounded-full object-cover border border-gray-100 dark:border-gray-700 shadow-sm" src={quote.factory.imageUrl} alt={quote.factory.name} />
-                    <div>
-                        <p className="font-bold text-gray-900 dark:text-white text-sm leading-tight group-hover:text-[#c20c0b] transition-colors">{quote.factory.name}</p>
-                        <p className="text-[10px] text-gray-500 dark:text-gray-200 flex items-center mt-0.5"><MapPin size={10} className="mr-1"/>{quote.factory.location}</p>
-                    </div>
-                </div>
-            )}
+        return (
+            <div
+                key={quote.id}
+                onClick={() => quote.status === 'Draft' ? handleResumeDraft(quote) : handleCardClick(quote)}
+                onMouseEnter={() => setHoveredCardId(quote.id)}
+                onMouseLeave={() => setHoveredCardId(null)}
+                className={`${theme.cardBg} backdrop-blur-sm rounded-2xl border ${theme.border} transition-all duration-300 cursor-pointer group relative overflow-hidden flex flex-col hover:-translate-y-1.5`}
+                style={{
+                    boxShadow: isHovered
+                        ? `0 20px 40px -8px ${theme.glowHover}, 0 8px 16px -4px ${theme.glow}, 0 1px 4px rgba(0,0,0,0.08)`
+                        : `0 4px 20px -4px ${theme.glow}, 0 1px 3px rgba(0,0,0,0.06)`,
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    animationDelay: `${index * 50}ms`,
+                }}
+            >
+                {/* Status gradient top bar */}
+                <div className={`h-[3px] w-full bg-gradient-to-r ${getStatusGradientBorder(quote.status)} flex-shrink-0`} />
 
-            {/* Card Body */}
-            <div className="flex-grow">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1 group-hover:text-[#c20c0b] transition-colors">
-                    {quote.order?.lineItems?.length > 1 ? `${quote.order.lineItems.length} Product Types` : (quote.order?.lineItems?.[0]?.category || 'Unknown Product')}
-                </h3>
-                <p className="text-xs text-gray-400 dark:text-gray-200 mb-6">
-                    {getDisplayDateInfo(quote).label} {getDisplayDateInfo(quote).date}
-                </p>
+                {/* Mesh gradient ambient overlay */}
+                <div
+                    className="absolute inset-0 pointer-events-none"
+                    style={{ background: theme.meshGradient, top: '3px' }}
+                />
 
-                <div className="flex items-center gap-8 mb-6">
-                    <div>
-                        <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 dark:text-gray-200 mb-1">Quantity</p>
-                        <div className="flex items-center gap-1.5 text-gray-700 dark:text-gray-200 font-medium text-sm">
-                            <Package size={14} className="text-gray-300 dark:text-gray-600" />
-                            {(() => {
-                                const items = quote.order?.lineItems || [];
-                                if (items.length === 0) return '0 units';
-                                if (items.length === 1) {
-                                    const item = items[0];
-                                    return item.quantityType === 'container' ? item.containerType : `${item.qty} units`;
-                                }
-                                const allUnits = items.every(i => !i.quantityType || i.quantityType === 'units');
-                                if (allUnits) {
-                                    const total = items.reduce((acc, i) => acc + (i.qty || 0), 0);
-                                    return `${total} total units`;
-                                }
-                                return 'Multiple quantities';
-                            })()}
+                <div className="p-5 flex flex-col flex-grow relative">
+                    {/* Card Header */}
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                            <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-white/80 dark:bg-gray-800/80 text-gray-500 dark:text-gray-400 border border-gray-200/70 dark:border-gray-700/70 backdrop-blur-sm font-mono tracking-tight">
+                                #{quote.id.slice(0, 8)}
+                            </span>
+                            {isUnreadCard && (
+                                <span
+                                    className="h-2 w-2 rounded-full animate-pulse"
+                                    style={{ backgroundColor: theme.progressColor, boxShadow: `0 0 0 3px ${theme.glow}` }}
+                                    title="New activity"
+                                />
+                            )}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                            {(quote.modification_count || 0) > 0 && (
+                                <span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full border border-amber-300/70 dark:border-amber-600/50 bg-amber-50/90 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center gap-1 backdrop-blur-sm">
+                                    <Pencil size={10} /> Mod
+                                </span>
+                            )}
+                            <span className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full border ${getStatusColor(quote.status)} flex items-center gap-1 backdrop-blur-sm`}>
+                                {quote.status === 'Accepted' && <CheckCheck size={12} />}
+                                {(quote.status === 'Admin Accepted' || quote.status === 'Client Accepted') && <Check size={12} />}
+                                {quote.status === 'Admin Accepted' ? 'Admin Acc.' : quote.status === 'Client Accepted' ? 'You Accepted' : quote.status}
+                            </span>
                         </div>
                     </div>
-                    <div>
-                        <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 dark:text-gray-200 mb-1">{quote.status === 'Accepted' ? 'Agreed Price' : 'Target Price'}</p>
-                        <div className={`flex items-center gap-1.5 font-medium text-sm ${quote.status === 'Accepted' ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-700 dark:text-gray-200'}`}>
-                            <DollarSign size={14} className={quote.status === 'Accepted' ? 'text-emerald-400' : 'text-gray-300 dark:text-gray-600'} />
-                            {(() => {
-                                const isAccepted = quote.status === 'Accepted';
-                                let priceValue = 'N/A';
 
-                                if (isAccepted) {
-                                    if (quote.response_details?.price) priceValue = `$${quote.response_details.price}`;
-                                    else if (quote.order?.lineItems?.length === 1) {
-                                        const itemId = quote.order.lineItems[0].id;
-                                        const itemResponse = quote.response_details?.lineItemResponses?.find(r => r.lineItemId === itemId);
-                                        if (itemResponse?.price) priceValue = `$${itemResponse.price}`;
-                                    } else {
-                                        priceValue = 'See Details';
+                    {/* Factory / Draft info */}
+                    {quote.status === 'Draft' ? (
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="h-10 w-10 rounded-xl bg-white/80 dark:bg-gray-800/70 flex items-center justify-center border border-gray-200/70 dark:border-gray-700 shadow-sm backdrop-blur-sm flex-shrink-0">
+                                <FileText size={17} className="text-gray-400 dark:text-gray-500" />
+                            </div>
+                            <div>
+                                <p className="font-bold text-gray-800 dark:text-white text-sm">Draft Order</p>
+                                <p className="text-[10px] text-gray-400 mt-0.5">Unsaved — tap to continue editing</p>
+                            </div>
+                        </div>
+                    ) : quote.factory && (
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="relative flex-shrink-0">
+                                <img
+                                    className="h-10 w-10 rounded-xl object-cover shadow-md"
+                                    style={{ border: `2px solid ${theme.progressColor}40` }}
+                                    src={quote.factory.imageUrl}
+                                    alt={quote.factory.name}
+                                />
+                                <span
+                                    className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white dark:border-gray-900"
+                                    style={{ backgroundColor: theme.progressColor }}
+                                />
+                            </div>
+                            <div className="min-w-0">
+                                <p className="font-bold text-gray-900 dark:text-white text-sm leading-tight group-hover:text-[#c20c0b] transition-colors truncate">
+                                    {quote.factory.name}
+                                </p>
+                                <p className="text-[10px] text-gray-400 dark:text-gray-500 flex items-center gap-1 mt-0.5">
+                                    <MapPin size={9} />{quote.factory.location}
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Product name + date */}
+                    <div className="mb-4">
+                        <h3 className="text-base font-bold text-gray-900 dark:text-white mb-1 leading-snug group-hover:text-[#c20c0b] transition-colors">
+                            {quote.order?.lineItems?.length > 1
+                                ? `${quote.order.lineItems.length} Product Types`
+                                : (quote.order?.lineItems?.[0]?.category || 'Unknown Product')}
+                        </h3>
+                        <p className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1.5">
+                            <Clock size={11} />
+                            {getDisplayDateInfo(quote).label} · {getDisplayDateInfo(quote).date}
+                        </p>
+                    </div>
+
+                    {/* Stats chips */}
+                    <div className="grid grid-cols-2 gap-2.5 mb-4">
+                        <div className="bg-white/70 dark:bg-gray-800/50 rounded-xl p-3 border border-white/90 dark:border-gray-700/50 backdrop-blur-sm">
+                            <p className="text-[9px] uppercase tracking-wider font-bold text-gray-400 dark:text-gray-500 mb-1.5 flex items-center gap-1">
+                                <Package size={9} /> Quantity
+                            </p>
+                            <p className="text-sm font-bold text-gray-800 dark:text-gray-100 truncate">
+                                {(() => {
+                                    const items = quote.order?.lineItems || [];
+                                    if (items.length === 0) return '0 units';
+                                    if (items.length === 1) {
+                                        const item = items[0];
+                                        return item.quantityType === 'container' ? item.containerType : `${item.qty} units`;
                                     }
-                                } else {
-                                    if (quote.order?.lineItems?.length === 1) priceValue = `$${quote.order.lineItems[0].targetPrice}`;
-                                    else priceValue = 'See Details';
-                                }
-                                return priceValue;
-                            })()}
+                                    const allUnits = items.every((i: any) => !i.quantityType || i.quantityType === 'units');
+                                    if (allUnits) return `${items.reduce((a: number, i: any) => a + (i.qty || 0), 0)} units`;
+                                    return 'Multiple';
+                                })()}
+                            </p>
+                        </div>
+                        <div className={`rounded-xl p-3 border backdrop-blur-sm ${
+                            quote.status === 'Accepted'
+                                ? 'bg-emerald-50/80 dark:bg-emerald-900/25 border-emerald-200/70 dark:border-emerald-700/40'
+                                : 'bg-white/70 dark:bg-gray-800/50 border-white/90 dark:border-gray-700/50'
+                        }`}>
+                            <p className="text-[9px] uppercase tracking-wider font-bold text-gray-400 dark:text-gray-500 mb-1.5 flex items-center gap-1">
+                                <DollarSign size={9} /> {quote.status === 'Accepted' ? 'Agreed' : 'Target'}
+                            </p>
+                            <p className={`text-sm font-bold truncate ${quote.status === 'Accepted' ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-800 dark:text-gray-100'}`}>
+                                {(() => {
+                                    const isAcc = quote.status === 'Accepted';
+                                    if (isAcc) {
+                                        if (quote.response_details?.price) return `$${quote.response_details.price}`;
+                                        if (quote.order?.lineItems?.length === 1) {
+                                            const itemId = quote.order.lineItems[0].id;
+                                            const r = quote.response_details?.lineItemResponses?.find((r: any) => r.lineItemId === itemId);
+                                            if (r?.price) return `$${r.price}`;
+                                        }
+                                        return 'See Details';
+                                    }
+                                    if (quote.order?.lineItems?.length === 1) return `$${quote.order.lineItems[0].targetPrice}`;
+                                    return 'See Details';
+                                })()}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Progress tracker */}
+                    {quote.status !== 'Draft' && (
+                        <div className="mb-4 bg-white/50 dark:bg-gray-800/30 rounded-xl px-3 py-2.5 border border-white/70 dark:border-gray-700/30 backdrop-blur-sm">
+                            <div className="flex items-center">
+                                {QUOTE_PROGRESS_STEPS.map((step, i) => {
+                                    const isCompleted = progressStep > i;
+                                    const isCurrent = progressStep === i;
+                                    return (
+                                        <React.Fragment key={step.label}>
+                                            <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                                                <div
+                                                    className="rounded-full transition-all duration-300"
+                                                    style={{
+                                                        width: isCurrent ? 10 : 7,
+                                                        height: isCurrent ? 10 : 7,
+                                                        backgroundColor: (isCompleted || isCurrent) ? theme.progressColor : '#d1d5db',
+                                                        boxShadow: isCurrent ? `0 0 0 2.5px white, 0 0 0 4px ${theme.progressColor}` : 'none',
+                                                    }}
+                                                />
+                                                <span
+                                                    className="text-[8px] font-semibold leading-none"
+                                                    style={{ color: (isCompleted || isCurrent) ? theme.progressColor : '#9ca3af', opacity: (isCompleted || isCurrent) ? 1 : 0.6 }}
+                                                >
+                                                    {step.short}
+                                                </span>
+                                            </div>
+                                            {i < QUOTE_PROGRESS_STEPS.length - 1 && (
+                                                <div
+                                                    className="flex-1 h-[2px] mx-1 rounded-full transition-all duration-500"
+                                                    style={{
+                                                        backgroundColor: progressStep > i ? theme.progressColor : '#e5e7eb',
+                                                        opacity: progressStep > i ? 0.6 : 1,
+                                                    }}
+                                                />
+                                            )}
+                                        </React.Fragment>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Card Footer */}
+                    <div className="mt-auto pt-3.5 border-t border-white/60 dark:border-white/5 flex items-center justify-between">
+                        {isResponseAwaited(quote) ? (
+                            <div className="flex items-center text-xs text-amber-600 dark:text-amber-500 font-semibold">
+                                <Clock size={13} className="mr-1.5" /> Awaiting response
+                            </div>
+                        ) : quote.status === 'Draft' ? (
+                            <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 font-medium">
+                                <FileText size={13} className="mr-1.5" /> Resume Editing
+                            </div>
+                        ) : (quote.status === 'Responded' || isNewReply(quote)) && isUnread(quote) ? (
+                            <div className="flex items-center text-xs text-blue-600 dark:text-blue-400 font-semibold">
+                                <MessageSquare size={13} className="mr-1.5" /> New response
+                            </div>
+                        ) : quote.status === 'Accepted' && isUnread(quote) ? (
+                            <div className="flex items-center text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
+                                <CheckCircle size={13} className="mr-1.5" /> Quote Accepted
+                            </div>
+                        ) : quote.status === 'Client Accepted' ? (
+                            <div className="flex items-center text-xs text-cyan-600 dark:text-cyan-400 font-semibold">
+                                <Check size={13} className="mr-1.5" /> You Accepted
+                            </div>
+                        ) : quote.status === 'Admin Accepted' ? (
+                            <div className="flex items-center text-xs text-teal-600 dark:text-teal-400 font-semibold">
+                                <Check size={13} className="mr-1.5" /> Action Required
+                            </div>
+                        ) : (
+                            <div className="text-xs text-gray-400 dark:text-gray-500 font-medium">View Details</div>
+                        )}
+
+                        <div className="flex items-center gap-1 ml-auto">
+                            {quote.status === 'Draft' && (
+                                <button
+                                    onClick={(e) => handleDeleteDraft(e, quote.id)}
+                                    className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50/80 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                    title="Delete Draft"
+                                >
+                                    <Trash2 size={15} />
+                                </button>
+                            )}
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setPreviewQuote(quote); }}
+                                className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-white/80 dark:hover:bg-gray-700/60 rounded-lg transition-colors"
+                                title="Preview Details"
+                            >
+                                <Eye size={15} />
+                            </button>
+                            <div
+                                className="h-7 w-7 rounded-lg flex items-center justify-center transition-all duration-300 ml-1 shadow-sm"
+                                style={{
+                                    backgroundColor: isHovered ? theme.progressColor : '#f3f4f6',
+                                    color: isHovered ? 'white' : '#9ca3af',
+                                }}
+                            >
+                                <ChevronRight size={14} />
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-
-            {/* Card Footer */}
-            <div className="mt-auto pt-4 border-t border-gray-50 dark:border-white/5 flex items-center justify-between">
-                {isResponseAwaited(quote) ? (
-                    <div className="flex items-center text-xs text-amber-600 dark:text-amber-500 font-medium">
-                        <Clock size={14} className="mr-1.5" /> Awaiting response
-                    </div>
-                ) : quote.status === 'Draft' ? (
-                    <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 font-medium">
-                        <FileText size={14} className="mr-1.5" /> Resume Editing
-                    </div>
-                ) : (quote.status === 'Responded' || isNewReply(quote)) && isUnread(quote) ? (
-                    <div className="flex items-center text-xs text-blue-600 dark:text-blue-400 font-medium">
-                        <MessageSquare size={14} className="mr-1.5" /> New response
-                    </div>
-                ) : quote.status === 'Accepted' && isUnread(quote) ? (
-                    <div className="flex items-center text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                        <CheckCircle size={14} className="mr-1.5" /> Quote Accepted
-                    </div>
-                ) : quote.status === 'Client Accepted' ? (
-                    <div className="flex items-center text-xs text-cyan-600 dark:text-cyan-400 font-medium">
-                        <Check size={14} className="mr-1.5" /> You Accepted
-                    </div>
-                ) : quote.status === 'Admin Accepted' ? (
-                    <div className="flex items-center text-xs text-teal-600 dark:text-teal-400 font-medium">
-                        <Check size={14} className="mr-1.5" /> Action Required: Finalize
-                    </div>
-                ) : (
-                    <div className="text-xs text-gray-400 dark:text-gray-200 font-medium">View Details</div>
-                )}
-                
-                <div className="flex items-center gap-1 ml-auto">
-                    {quote.status === 'Draft' && (
-                        <button onClick={(e) => handleDeleteDraft(e, quote.id)} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors" title="Delete Draft">
-                            <Trash2 size={16} />
-                        </button>
-                    )}
-                    
-                    <button 
-                        onClick={(e) => { e.stopPropagation(); setPreviewQuote(quote); }}
-                        className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
-                        title="Preview Details"
-                    >
-                        <Eye size={16} />
-                    </button>
-                    
-                    <div className="h-8 w-8 rounded-full bg-gray-50 dark:bg-gray-800 group-hover:bg-[#c20c0b] flex items-center justify-center text-gray-400 dark:text-gray-200 group-hover:text-white transition-all duration-300 ml-1">
-                        <ChevronRight size={16} />
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
+        );
+    };
 
     const filterOptions = ['All', 'Drafts', 'Pending', 'Responded', 'In Negotiation', 'Accepted', 'Declined', 'Admin Accepted', 'Client Accepted'];
 

@@ -147,6 +147,87 @@ const StatusTimeline: FC<{ status: string }> = ({ status }) => {
     );
 };
 
+const STATUS_THEMES: Record<string, { cardBg: string; border: string; glow: string; glowHover: string; meshGradient: string; progressColor: string }> = {
+    'Pending': {
+        cardBg: 'bg-amber-50/70 dark:bg-amber-950/25',
+        border: 'border-amber-200/80 dark:border-amber-800/40',
+        glow: 'rgba(245,158,11,0.12)', glowHover: 'rgba(245,158,11,0.30)',
+        meshGradient: 'radial-gradient(ellipse at 85% 10%, rgba(251,191,36,0.12) 0%, transparent 55%)',
+        progressColor: '#f59e0b',
+    },
+    'Responded': {
+        cardBg: 'bg-blue-50/70 dark:bg-blue-950/25',
+        border: 'border-blue-200/80 dark:border-blue-800/40',
+        glow: 'rgba(59,130,246,0.12)', glowHover: 'rgba(59,130,246,0.30)',
+        meshGradient: 'radial-gradient(ellipse at 85% 10%, rgba(96,165,250,0.12) 0%, transparent 55%)',
+        progressColor: '#3b82f6',
+    },
+    'In Negotiation': {
+        cardBg: 'bg-violet-50/70 dark:bg-violet-950/25',
+        border: 'border-violet-200/80 dark:border-violet-800/40',
+        glow: 'rgba(139,92,246,0.12)', glowHover: 'rgba(139,92,246,0.30)',
+        meshGradient: 'radial-gradient(ellipse at 85% 10%, rgba(167,139,250,0.12) 0%, transparent 55%)',
+        progressColor: '#8b5cf6',
+    },
+    'Accepted': {
+        cardBg: 'bg-emerald-50/70 dark:bg-emerald-950/25',
+        border: 'border-emerald-200/80 dark:border-emerald-800/40',
+        glow: 'rgba(16,185,129,0.14)', glowHover: 'rgba(16,185,129,0.32)',
+        meshGradient: 'radial-gradient(ellipse at 85% 10%, rgba(52,211,153,0.12) 0%, transparent 55%)',
+        progressColor: '#10b981',
+    },
+    'Admin Accepted': {
+        cardBg: 'bg-teal-50/70 dark:bg-teal-950/25',
+        border: 'border-teal-200/80 dark:border-teal-800/40',
+        glow: 'rgba(20,184,166,0.12)', glowHover: 'rgba(20,184,166,0.30)',
+        meshGradient: 'radial-gradient(ellipse at 85% 10%, rgba(45,212,191,0.12) 0%, transparent 55%)',
+        progressColor: '#14b8a6',
+    },
+    'Client Accepted': {
+        cardBg: 'bg-cyan-50/70 dark:bg-cyan-950/25',
+        border: 'border-cyan-200/80 dark:border-cyan-800/40',
+        glow: 'rgba(6,182,212,0.12)', glowHover: 'rgba(6,182,212,0.30)',
+        meshGradient: 'radial-gradient(ellipse at 85% 10%, rgba(34,211,238,0.12) 0%, transparent 55%)',
+        progressColor: '#06b6d4',
+    },
+    'Declined': {
+        cardBg: 'bg-red-50/50 dark:bg-red-950/20',
+        border: 'border-red-200/60 dark:border-red-800/30',
+        glow: 'rgba(239,68,68,0.08)', glowHover: 'rgba(239,68,68,0.22)',
+        meshGradient: 'radial-gradient(ellipse at 85% 10%, rgba(252,165,165,0.10) 0%, transparent 55%)',
+        progressColor: '#ef4444',
+    },
+    'Trashed': {
+        cardBg: 'bg-gray-50/60 dark:bg-gray-800/25',
+        border: 'border-gray-200/60 dark:border-gray-700/30',
+        glow: 'rgba(156,163,175,0.06)', glowHover: 'rgba(156,163,175,0.16)',
+        meshGradient: 'none',
+        progressColor: '#9ca3af',
+    },
+};
+
+const DEFAULT_THEME = {
+    cardBg: 'bg-white dark:bg-gray-900/40', border: 'border-gray-200 dark:border-white/10',
+    glow: 'rgba(156,163,175,0.08)', glowHover: 'rgba(156,163,175,0.18)',
+    meshGradient: 'none', progressColor: '#9ca3af',
+};
+
+const QUOTE_PROGRESS_STEPS = [
+    { label: 'Submitted',   short: 'Sub'   },
+    { label: 'Pending',     short: 'Pend'  },
+    { label: 'Responded',   short: 'Resp'  },
+    { label: 'Negotiating', short: 'Neg'   },
+    { label: 'Finalized',   short: 'Final' },
+];
+
+const getProgressStep = (status: string): number => {
+    const map: Record<string, number> = {
+        'Pending': 1, 'Responded': 2, 'In Negotiation': 3,
+        'Client Accepted': 4, 'Admin Accepted': 4, 'Accepted': 4, 'Declined': 2,
+    };
+    return map[status] ?? 0;
+};
+
 export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
     const CACHE_KEY = 'garment_erp_admin_quotes';
     const [quotes, setQuotes] = useState<QuoteRequest[]>(() => {
@@ -227,11 +308,12 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
     const cancellationRefs = useRef<Record<number, boolean>>({});
     const [isBulkActionModalOpen, setIsBulkActionModalOpen] = useState(false);
     const [isSampleResponseModalOpen, setIsSampleResponseModalOpen] = useState(false);
-    const [bulkActionType, setBulkActionType] = useState<'hide' | 'unhide' | 'delete' | 'restore' | null>(null);
+    const [bulkActionType, setBulkActionType] = useState<'hide' | 'unhide' | 'delete' | 'restore' | 'trash' | null>(null);
     const [isShippingModalOpen, setIsShippingModalOpen] = useState(false);
     const [shippingForm, setShippingForm] = useState({ trackingNumber: '', trackingLink: '', courier: '' });
     const [isInvoicePreviewOpen, setIsInvoicePreviewOpen] = useState(false);
     const [isStatusUpdateOpen, setIsStatusUpdateOpen] = useState(false);
+    const [showBulkAcceptModal, setShowBulkAcceptModal] = useState(false);
     const invoicePreviewRef = useRef<HTMLDivElement>(null);
     const { showToast } = useToast();
 
@@ -610,7 +692,8 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
     const getDisplayDateInfo = (quote: QuoteRequest) => {
         const date = getQuoteTimestamp(quote);
         let label = 'Submitted';
-        if (quote.modified_at) label = 'Modified';
+        // "Modified" only when the client explicitly added items to an existing quote
+        if ((quote.modification_count || 0) > 0) label = 'Modified';
         else if (quote.status === 'Accepted') label = 'Accepted';
         else if (quote.status === 'In Negotiation') label = 'Updated';
         else if (quote.status === 'Responded') label = 'Responded';
@@ -927,7 +1010,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
         }
     };
 
-    const openBulkActionModal = (type: 'hide' | 'unhide' | 'delete' | 'restore') => {
+    const openBulkActionModal = (type: 'hide' | 'unhide' | 'delete' | 'restore' | 'trash') => {
         setBulkActionType(type);
         setIsBulkActionModalOpen(true);
     };
@@ -978,6 +1061,32 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
             }
 
             fetchQuotes();
+            setSelectedQuoteIds([]);
+        } else if (bulkActionType === 'trash') {
+            const results = await Promise.all(selectedQuoteIds.map(async (id) => {
+                const quote = quotes.find(q => q.id === id);
+                if (!quote) return { id, error: { message: 'Quote not found' } };
+
+                const updatedNegotiationDetails = {
+                    ...(quote.negotiation_details || {}),
+                    previousStatus: quote.status
+                };
+
+                const { error } = await quoteService.update(id, { status: 'Trashed', negotiation_details: updatedNegotiationDetails });
+                return { id, error };
+            }));
+
+            const failures = results.filter(r => r.error);
+            const successCount = results.length - failures.length;
+
+            if (failures.length > 0) {
+                console.error('Bulk trash failures:', failures);
+                showToast(`Moved ${successCount} quotes to trash. Failed to move ${failures.length} quotes.`, 'error');
+            } else {
+                showToast(`${successCount} quotes moved to trash.`);
+            }
+            
+            setQuotes(prev => prev.map(q => selectedQuoteIds.includes(q.id) ? { ...q, status: 'Trashed', negotiation_details: { ...(q.negotiation_details || {}), previousStatus: q.status } } : q));
             setSelectedQuoteIds([]);
         } else if (bulkActionType === 'delete') {
             const { error, count } = await props.supabase
@@ -1334,6 +1443,57 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
 
         if (newStatus === 'Accepted' && selectedQuote.status !== 'Accepted') {
              createCrmOrderFromQuote(updatedQuote);
+        }
+    };
+
+    const handleBulkAcceptItems = async (selectedIds: number[]) => {
+        if (!selectedQuote) return;
+
+        const currentApprovals = selectedQuote.negotiation_details?.adminApprovedLineItems || [];
+        const newApprovals = Array.from(new Set([...currentApprovals, ...selectedIds]));
+
+        const updatedNegotiationDetails = {
+            ...(selectedQuote.negotiation_details || {}),
+            adminApprovedLineItems: newApprovals
+        };
+
+        const allLineItems = selectedQuote.order.lineItems;
+        const allAdminApproved = allLineItems.every(item => newApprovals.includes(item.id));
+        const clientApprovals = selectedQuote.negotiation_details?.clientApprovedLineItems || [];
+        const allClientApproved = allLineItems.every(item => clientApprovals.includes(item.id));
+
+        let newStatus = selectedQuote.status;
+        let toastMessage = '';
+
+        if (allAdminApproved && allClientApproved) {
+            newStatus = 'Accepted';
+            toastMessage = 'All items approved by both parties. Quote Accepted!';
+            runCelebration();
+        } else if (allAdminApproved) {
+            newStatus = 'Admin Accepted';
+            toastMessage = 'All items approved. Quote marked as Admin Accepted.';
+            runCelebration();
+        } else if (allClientApproved) {
+            newStatus = 'Client Accepted';
+        } else {
+            newStatus = 'In Negotiation';
+        }
+
+        const updates: any = { status: newStatus, negotiation_details: updatedNegotiationDetails };
+        if (newStatus === 'Accepted' && selectedQuote.status !== 'Accepted') {
+            updates.response_details = { ...(selectedQuote.response_details || {}), acceptedAt: new Date().toISOString() };
+        }
+
+        const updatedQuote = { ...selectedQuote, ...updates };
+        setSelectedQuote(updatedQuote);
+        setQuotes(prev => prev.map(q => q.id === selectedQuote.id ? updatedQuote : q));
+        await quoteService.update(selectedQuote.id, updates);
+
+        setShowBulkAcceptModal(false);
+        if (toastMessage) showToast(toastMessage);
+
+        if (newStatus === 'Accepted' && selectedQuote.status !== 'Accepted') {
+            createCrmOrderFromQuote(updatedQuote);
         }
     };
 
@@ -2025,11 +2185,21 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                         {activeQuoteTab === 'products' && (
                             <div className="animate-fade-in">
                                 <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
-                                    <div className="p-5 border-b border-gray-100 dark:border-gray-800">
-                                        <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                            <Package size={20} className="text-[#c20c0b]" /> Product Specifications
-                                        </h3>
-                                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Click on any product to view details or set pricing</p>
+                                    <div className="p-5 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between gap-4">
+                                        <div>
+                                            <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                <Package size={20} className="text-[#c20c0b]" /> Product Specifications
+                                            </h3>
+                                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Click on any product to view details or set pricing</p>
+                                        </div>
+                                        {selectedQuote.status !== 'Pending' && selectedQuote.status !== 'Trashed' && selectedQuote.status !== 'Accepted' && selectedQuote.status !== 'Declined' && selectedQuote.response_details && (
+                                            <button
+                                                onClick={() => setShowBulkAcceptModal(true)}
+                                                className="shrink-0 flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors"
+                                            >
+                                                <CheckCheck size={15} /> Accept Prices
+                                            </button>
+                                        )}
                                     </div>
 
                                     {/* Product Header - Desktop */}
@@ -3397,6 +3567,17 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                         />
                     )}
 
+                    {/* Bulk Accept Modal */}
+                    {showBulkAcceptModal && selectedQuote && (
+                        <BulkAcceptAdminModal
+                            items={selectedQuote.order?.lineItems || []}
+                            lineItemResponses={selectedQuote.response_details?.lineItemResponses || []}
+                            alreadyAccepted={selectedQuote.negotiation_details?.adminApprovedLineItems || []}
+                            onConfirm={handleBulkAcceptItems}
+                            onClose={() => setShowBulkAcceptModal(false)}
+                        />
+                    )}
+
                     {/* Lightbox Modal */}
                     {isLightboxOpen && createPortal(
                         <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex items-center justify-center p-4 animate-fade-in" onClick={() => setIsLightboxOpen(false)}>
@@ -3437,14 +3618,20 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                     {isBulkActionModalOpen && createPortal(
                         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4 animate-fade-in">
                             <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-md border border-gray-200 dark:border-gray-700 p-6 flex flex-col max-h-[80vh]">
-                                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                                <h3 className={`text-xl font-bold mb-2 ${bulkActionType === 'delete' ? 'text-red-600 dark:text-red-500' : 'text-gray-900 dark:text-white'}`}>
                                     {bulkActionType === 'hide' ? 'Hide Quotes' : 
                                      bulkActionType === 'unhide' ? 'Unhide Quotes' : 
                                      bulkActionType === 'restore' ? 'Restore Quotes' : 
-                                     'Delete Quotes'}
+                                     bulkActionType === 'trash' ? 'Move to Trash' :
+                                     'Permanently Delete Quotes'}
                                 </h3>
                                 <p className="text-gray-600 dark:text-gray-300 mb-4">
-                                    Are you sure you want to {bulkActionType} the following {selectedQuoteIds.length} quotes?
+                                    {bulkActionType === 'delete' 
+                                        ? `Are you sure you want to permanently delete ${selectedQuoteIds.length} quotes? This action cannot be undone.`
+                                        : bulkActionType === 'trash'
+                                            ? `Are you sure you want to move ${selectedQuoteIds.length} quotes to trash? You can restore them later.`
+                                            : `Are you sure you want to ${bulkActionType} the following ${selectedQuoteIds.length} quotes?`
+                                    }
                                 </p>
                                 
                                 <div className="flex-1 overflow-y-auto border border-gray-100 dark:border-gray-800 rounded-lg mb-6 bg-gray-50 dark:bg-gray-800/50 p-2 custom-scrollbar">
@@ -3465,9 +3652,9 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                     </button>
                                     <button 
                                         onClick={performBulkAction}
-                                        className={`px-4 py-2 text-white rounded-lg transition-colors ${bulkActionType === 'delete' ? 'bg-red-600 hover:bg-red-700' : 'bg-[#c20c0b] hover:bg-[#a50a09]'}`}
+                                        className={`px-4 py-2 text-white rounded-lg transition-colors ${bulkActionType === 'delete' || bulkActionType === 'trash' ? 'bg-red-600 hover:bg-red-700' : 'bg-[#c20c0b] hover:bg-[#a50a09]'}`}
                                     >
-                                        Confirm {bulkActionType === 'hide' ? 'Hide' : bulkActionType === 'unhide' ? 'Unhide' : bulkActionType === 'restore' ? 'Restore' : 'Delete'}
+                                        Confirm {bulkActionType === 'hide' ? 'Hide' : bulkActionType === 'unhide' ? 'Unhide' : bulkActionType === 'restore' ? 'Restore' : bulkActionType === 'trash' ? 'Move to Trash' : 'Delete'}
                                     </button>
                                 </div>
                             </div>
@@ -3622,7 +3809,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
 
             {/* Bulk Actions Toolbar */}
             {!isLoading && filteredQuotes.length > 0 && isSelectionMode && (
-                <div className="flex justify-between items-center mb-4 bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md p-3 rounded-lg border border-gray-200 dark:border-white/10 animate-fade-in">
+                <div className="sticky top-0 z-20 flex justify-between items-center mb-4 bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md p-3 rounded-lg border border-gray-200 dark:border-white/10 animate-fade-in shadow-sm">
                     <div className="flex items-center gap-3">
                         <input 
                             type="checkbox" 
@@ -3650,9 +3837,14 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                         <Eye size={14} /> Unhide Selected
                                     </button>
                                 ) : (
-                                    <button onClick={() => openBulkActionModal('hide')} className="flex items-center gap-1 px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-white text-sm font-medium rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
-                                        <EyeOff size={14} /> Hide Selected
-                                    </button>
+                                    <>
+                                        <button onClick={() => openBulkActionModal('hide')} className="flex items-center gap-1 px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-white text-sm font-medium rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
+                                            <EyeOff size={14} /> Hide Selected
+                                        </button>
+                                        <button onClick={() => openBulkActionModal('trash')} className="flex items-center gap-1 px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-red-600 dark:text-red-400 text-sm font-medium rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
+                                            <Trash2 size={14} /> Move to Trash
+                                        </button>
+                                    </>
                                 )
                             )}
                         </div>
@@ -3665,131 +3857,227 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
             ) : filteredQuotes.length > 0 ? (
                 <>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
-                    {displayedQuotes.map((quote, index) => (
-                        <div 
-                            key={quote.id} 
-                            onClick={() => setSelectedQuote(quote)} 
+                    {displayedQuotes.map((quote, index) => {
+                        const theme = STATUS_THEMES[quote.status] ?? DEFAULT_THEME;
+                        const isHovered = hoveredQuoteId === quote.id;
+                        const progressStep = getProgressStep(quote.status);
+                        const initials = (quote.clientName || 'U').slice(0, 2).toUpperCase();
+                        return (
+                        <div
+                            key={quote.id}
+                            onClick={() => setSelectedQuote(quote)}
                             onMouseEnter={() => setHoveredQuoteId(quote.id)}
                             onMouseLeave={() => setHoveredQuoteId(null)}
-                            className={`bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl p-6 shadow-md ${getStatusHoverShadow(quote.status)} border border-gray-200 dark:border-white/10 transition-all duration-300 cursor-pointer group relative overflow-hidden flex flex-col hover:-translate-y-1`}
-                            style={{ animationDelay: `${index * 50}ms` }}
+                            className={`${theme.cardBg} backdrop-blur-sm rounded-2xl border ${theme.border} transition-all duration-300 cursor-pointer group relative overflow-hidden flex flex-col hover:-translate-y-1.5`}
+                            style={{
+                                boxShadow: isHovered
+                                    ? `0 20px 40px -8px ${theme.glowHover}, 0 8px 16px -4px ${theme.glow}, 0 1px 4px rgba(0,0,0,0.08)`
+                                    : `0 4px 20px -4px ${theme.glow}, 0 1px 3px rgba(0,0,0,0.06)`,
+                                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                animationDelay: `${index * 50}ms`,
+                            }}
                         >
-                            <div className={`absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r ${getStatusGradientBorder(quote.status)}`} />
-                            
-                            {/* Card Header */}
-                            <div className="flex items-center justify-between mb-4">
-                                <div className="flex items-center gap-2">
-                                    {isSelectionMode && (
-                                        <input 
-                                            type="checkbox" 
-                                            checked={selectedQuoteIds.includes(quote.id)}
-                                            onChange={(e) => { e.stopPropagation(); toggleSelectQuote(quote.id); }}
-                                            className="rounded text-[#c20c0b] focus:ring-[#c20c0b] h-4 w-4 cursor-pointer mr-1"
-                                        />
-                                    )}
-                                    <span className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800">
-                                        #{quote.id.slice(0, 8)}
-                                    </span>
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                    {(quote.modification_count || 0) > 0 && (
-                                        <span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                                            <Edit size={10} />
-                                            Modified
+                            {/* Status gradient top bar */}
+                            <div className={`h-[3px] w-full bg-gradient-to-r ${getStatusGradientBorder(quote.status)} flex-shrink-0`} />
+
+                            {/* Mesh gradient ambient overlay */}
+                            <div
+                                className="absolute inset-0 pointer-events-none"
+                                style={{ background: theme.meshGradient, top: '3px' }}
+                            />
+
+                            <div className="p-5 flex flex-col flex-grow relative">
+                                {/* Card Header */}
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="flex items-center gap-2">
+                                        {isSelectionMode && (
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedQuoteIds.includes(quote.id)}
+                                                onChange={() => toggleSelectQuote(quote.id)}
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="rounded text-[#c20c0b] focus:ring-[#c20c0b] h-4 w-4 cursor-pointer"
+                                            />
+                                        )}
+                                        <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-white/80 dark:bg-gray-800/80 text-gray-500 dark:text-gray-400 border border-gray-200/70 dark:border-gray-700/70 backdrop-blur-sm font-mono tracking-tight">
+                                            #{quote.id.slice(0, 8)}
                                         </span>
-                                    )}
-                                    <span className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full border ${getStatusColor(quote.status)} flex items-center gap-1`}>
-                                        {quote.status === 'Accepted' && <CheckCheck size={12} />}
-                                        {(quote.status === 'Admin Accepted' || quote.status === 'Client Accepted') && <Check size={12} />}
-                                        {quote.status === 'Admin Accepted' ? 'Admin Accepted' : quote.status === 'Client Accepted' ? 'Client Accepted' : quote.status}
-                                    </span>
-                                </div>
-                            </div>
-
-                            {/* Client Info (Replaces Factory Info from MyQuotesPage) */}
-                            <div className="flex items-center gap-3 mb-5">
-                                <div className="h-9 w-9 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-[#c20c0b] dark:text-red-400 font-bold border border-red-200 dark:border-red-800 shadow-sm">
-                                    {(quote.clientName || 'U').charAt(0)}
-                                </div>
-                                <div>
-                                    <p className="font-bold text-gray-900 dark:text-white text-sm leading-tight group-hover:text-[#c20c0b] transition-colors">{quote.clientName || 'Unknown Client'}</p>
-                                    <p className="text-[10px] text-gray-500 dark:text-white flex items-center mt-0.5"><Building size={10} className="mr-1"/>{quote.companyName || 'Unknown Company'}</p>
-                                </div>
-                            </div>
-
-                            {/* Card Body */}
-                            <div className="flex-grow">
-                                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1 group-hover:text-[#c20c0b] transition-colors">
-                                    {quote.order?.lineItems?.length > 1 ? `${quote.order.lineItems.length} Product Types` : (quote.order?.lineItems?.[0]?.category || 'Unknown Product')}
-                                </h3>
-                                <p className="text-xs text-gray-400 dark:text-white mb-6">
-                                    {getDisplayDateInfo(quote).label} {getDisplayDateInfo(quote).date}
-                                </p>
-
-                                <div className="flex items-center gap-8 mb-6">
-                                    <div>
-                                        <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 dark:text-white mb-1">Quantity</p>
-                                        <div className="flex items-center gap-1.5 text-gray-700 dark:text-white font-medium text-sm">
-                                            <Package size={14} className="text-gray-300 dark:text-white" />
-                                        {(() => {
-                                            const items = quote.order?.lineItems || [];
-                                            if (items.length === 0) return '0 units';
-                                            if (items.length === 1) {
-                                                const item = items[0];
-                                                return item.quantityType === 'container' ? item.containerType : `${item.qty} units`;
-                                            }
-                                            const allUnits = items.every(i => !i.quantityType || i.quantityType === 'units');
-                                            if (allUnits) {
-                                                const total = items.reduce((acc, i) => acc + (i.qty || 0), 0);
-                                                return `${total} units`;
-                                            }
-                                            return 'Various';
-                                        })()}
-                                        </div>
                                     </div>
-                                    <div>
-                                        <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 dark:text-white mb-1">{quote.status === 'Accepted' ? 'Agreed Price' : 'Target Price'}</p>
-                                        <div className={`flex items-center gap-1.5 font-medium text-sm ${quote.status === 'Accepted' ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-700 dark:text-white'}`}>
-                                            <DollarSign size={14} className={quote.status === 'Accepted' ? 'text-emerald-400' : 'text-gray-300 dark:text-white'} />
+                                    <div className="flex items-center gap-1.5">
+                                        {(quote.modification_count || 0) > 0 && (
+                                            <span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full border border-amber-300/70 dark:border-amber-600/50 bg-amber-50/90 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center gap-1 backdrop-blur-sm">
+                                                <Edit size={10} /> Mod
+                                            </span>
+                                        )}
+                                        <span className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full border ${getStatusColor(quote.status)} flex items-center gap-1 backdrop-blur-sm`}>
+                                            {quote.status === 'Accepted' && <CheckCheck size={12} />}
+                                            {(quote.status === 'Admin Accepted' || quote.status === 'Client Accepted') && <Check size={12} />}
+                                            {quote.status === 'Admin Accepted' ? 'Admin Acc.' : quote.status === 'Client Accepted' ? 'Client Acc.' : quote.status}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Client info */}
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div
+                                        className="h-10 w-10 rounded-xl flex items-center justify-center font-bold text-white text-sm shadow-md flex-shrink-0"
+                                        style={{ backgroundColor: theme.progressColor, boxShadow: `0 4px 12px -2px ${theme.glow}` }}
+                                    >
+                                        {initials}
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="font-bold text-gray-900 dark:text-white text-sm leading-tight group-hover:text-[#c20c0b] transition-colors truncate">
+                                            {quote.clientName || 'Unknown Client'}
+                                        </p>
+                                        <p className="text-[10px] text-gray-400 dark:text-gray-500 flex items-center gap-1 mt-0.5">
+                                            <Building size={9} />{quote.companyName || 'Unknown Company'}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Product name + date */}
+                                <div className="mb-4">
+                                    <h3 className="text-base font-bold text-gray-900 dark:text-white mb-1 leading-snug group-hover:text-[#c20c0b] transition-colors">
+                                        {quote.order?.lineItems?.length > 1
+                                            ? `${quote.order.lineItems.length} Product Types`
+                                            : (quote.order?.lineItems?.[0]?.category || 'Unknown Product')}
+                                    </h3>
+                                    <p className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1.5">
+                                        <Clock size={11} />
+                                        {getDisplayDateInfo(quote).label} · {getDisplayDateInfo(quote).date}
+                                    </p>
+                                </div>
+
+                                {/* Stats chips */}
+                                <div className="grid grid-cols-2 gap-2.5 mb-4">
+                                    <div className="bg-white/70 dark:bg-gray-800/50 rounded-xl p-3 border border-white/90 dark:border-gray-700/50 backdrop-blur-sm">
+                                        <p className="text-[9px] uppercase tracking-wider font-bold text-gray-400 dark:text-gray-500 mb-1.5 flex items-center gap-1">
+                                            <Package size={9} /> Quantity
+                                        </p>
+                                        <p className="text-sm font-bold text-gray-800 dark:text-gray-100 truncate">
                                             {(() => {
-                                                const isAccepted = quote.status === 'Accepted';
-                                                let priceValue = 'N/A';
-                                                if (isAccepted) {
-                                                    if (quote.response_details?.price) priceValue = `$${quote.response_details.price}`;
-                                                    else priceValue = 'See Details';
-                                                } else {
-                                                    if (quote.order?.lineItems?.length === 1) priceValue = `$${quote.order.lineItems[0].targetPrice}`;
-                                                    else priceValue = 'See Details';
+                                                const items = quote.order?.lineItems || [];
+                                                if (items.length === 0) return '0 units';
+                                                if (items.length === 1) {
+                                                    const item = items[0];
+                                                    return item.quantityType === 'container' ? item.containerType : `${item.qty} units`;
                                                 }
-                                                return priceValue;
+                                                const allUnits = items.every((i: any) => !i.quantityType || i.quantityType === 'units');
+                                                if (allUnits) return `${items.reduce((a: number, i: any) => a + (i.qty || 0), 0)} units`;
+                                                return 'Various';
                                             })()}
-                                        </div>
+                                        </p>
+                                    </div>
+                                    <div className={`rounded-xl p-3 border backdrop-blur-sm ${
+                                        quote.status === 'Accepted'
+                                            ? 'bg-emerald-50/80 dark:bg-emerald-900/25 border-emerald-200/70 dark:border-emerald-700/40'
+                                            : 'bg-white/70 dark:bg-gray-800/50 border-white/90 dark:border-gray-700/50'
+                                    }`}>
+                                        <p className="text-[9px] uppercase tracking-wider font-bold text-gray-400 dark:text-gray-500 mb-1.5 flex items-center gap-1">
+                                            <DollarSign size={9} /> {quote.status === 'Accepted' ? 'Agreed' : 'Target'}
+                                        </p>
+                                        <p className={`text-sm font-bold truncate ${quote.status === 'Accepted' ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-800 dark:text-gray-100'}`}>
+                                            {(() => {
+                                                const isAcc = quote.status === 'Accepted';
+                                                if (isAcc) {
+                                                    if (quote.response_details?.price) return `$${quote.response_details.price}`;
+                                                    return 'See Details';
+                                                }
+                                                if (quote.order?.lineItems?.length === 1) return `$${quote.order.lineItems[0].targetPrice}`;
+                                                return 'See Details';
+                                            })()}
+                                        </p>
                                     </div>
                                 </div>
-                            </div>
 
-                            {/* Card Footer */}
-                            <div className="mt-auto pt-4 border-t border-gray-50 dark:border-white/5 flex items-center justify-between">
-                                {viewMode === 'active' ? (
-                                    <div className="flex gap-2">
-                                        <button onClick={(e) => toggleHideQuote(quote.id, e)} className="text-gray-400 dark:text-white hover:text-gray-600 dark:hover:text-gray-300 p-1" title={showHidden ? "Unhide Quote" : "Hide Quote"}>{showHidden ? <Eye size={16} /> : <EyeOff size={16} />}</button>
-                                        <button onClick={(e) => handleSoftDelete(quote.id, e)} className="text-gray-400 dark:text-white hover:text-red-600 dark:hover:text-red-400 p-1" title="Move to Trash"><Trash2 size={16} /></button>
-                                    </div>
-                                ) : (
-                                    <div className="flex gap-2">
-                                        <button onClick={(e) => handleRestore(quote, e)} className="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 p-1 flex items-center gap-1 text-xs font-medium" title="Restore Quote"><RotateCcw size={14} /> Restore</button>
-                                        <button onClick={(e) => handlePermanentDelete(quote.id, e)} className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 p-1 flex items-center gap-1 text-xs font-medium" title="Delete Permanently"><Trash2 size={14} /> Delete</button>
+                                {/* Progress tracker */}
+                                {quote.status !== 'Trashed' && (
+                                    <div className="mb-4 bg-white/50 dark:bg-gray-800/30 rounded-xl px-3 py-2.5 border border-white/70 dark:border-gray-700/30 backdrop-blur-sm">
+                                        <div className="flex items-center">
+                                            {QUOTE_PROGRESS_STEPS.map((step, i) => {
+                                                const isCompleted = progressStep > i;
+                                                const isCurrent = progressStep === i;
+                                                return (
+                                                    <React.Fragment key={step.label}>
+                                                        <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                                                            <div
+                                                                className="rounded-full transition-all duration-300"
+                                                                style={{
+                                                                    width: isCurrent ? 10 : 7,
+                                                                    height: isCurrent ? 10 : 7,
+                                                                    backgroundColor: (isCompleted || isCurrent) ? theme.progressColor : '#d1d5db',
+                                                                    boxShadow: isCurrent ? `0 0 0 2.5px white, 0 0 0 4px ${theme.progressColor}` : 'none',
+                                                                }}
+                                                            />
+                                                            <span
+                                                                className="text-[8px] font-semibold leading-none"
+                                                                style={{ color: (isCompleted || isCurrent) ? theme.progressColor : '#9ca3af', opacity: (isCompleted || isCurrent) ? 1 : 0.6 }}
+                                                            >
+                                                                {step.short}
+                                                            </span>
+                                                        </div>
+                                                        {i < QUOTE_PROGRESS_STEPS.length - 1 && (
+                                                            <div
+                                                                className="flex-1 h-[2px] mx-1 rounded-full transition-all duration-500"
+                                                                style={{
+                                                                    backgroundColor: progressStep > i ? theme.progressColor : '#e5e7eb',
+                                                                    opacity: progressStep > i ? 0.6 : 1,
+                                                                }}
+                                                            />
+                                                        )}
+                                                    </React.Fragment>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
                                 )}
-                                
-                                {viewMode === 'active' && (
-                                    <div className="h-8 w-8 rounded-full bg-gray-50 dark:bg-gray-800 group-hover:bg-[#c20c0b] flex items-center justify-center text-gray-400 dark:text-white group-hover:text-white transition-all duration-300">
-                                        <ChevronRight size={16} />
-                                    </div>
-                                )}
+
+                                {/* Card Footer */}
+                                <div className="mt-auto pt-3.5 border-t border-white/60 dark:border-white/5 flex items-center justify-between">
+                                    {viewMode === 'active' ? (
+                                        <div className="flex gap-1">
+                                            <button
+                                                onClick={(e) => toggleHideQuote(quote.id, e)}
+                                                className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-white/80 dark:hover:bg-gray-700/60 rounded-lg transition-colors"
+                                                title={showHidden ? 'Unhide Quote' : 'Hide Quote'}
+                                            >
+                                                {showHidden ? <Eye size={15} /> : <EyeOff size={15} />}
+                                            </button>
+                                            <button
+                                                onClick={(e) => handleSoftDelete(quote.id, e)}
+                                                className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50/80 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                                title="Move to Trash"
+                                            >
+                                                <Trash2 size={15} />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="flex gap-2">
+                                            <button onClick={(e) => handleRestore(quote, e)} className="text-green-600 dark:text-green-400 hover:text-green-800 p-1.5 flex items-center gap-1 text-xs font-semibold hover:bg-green-50/80 dark:hover:bg-green-900/20 rounded-lg transition-colors" title="Restore Quote">
+                                                <RotateCcw size={13} /> Restore
+                                            </button>
+                                            <button onClick={(e) => handlePermanentDelete(quote.id, e)} className="text-red-500 hover:text-red-700 p-1.5 flex items-center gap-1 text-xs font-semibold hover:bg-red-50/80 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Delete Permanently">
+                                                <Trash2 size={13} /> Delete
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {viewMode === 'active' && (
+                                        <div
+                                            className="h-7 w-7 rounded-lg flex items-center justify-center transition-all duration-300 ml-auto shadow-sm"
+                                            style={{
+                                                backgroundColor: isHovered ? theme.progressColor : '#f3f4f6',
+                                                color: isHovered ? 'white' : '#9ca3af',
+                                            }}
+                                        >
+                                            <ChevronRight size={14} />
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
-                    ))}
+                        );
+                    })}
                 </div>
                 <div className="flex flex-col sm:flex-row justify-between items-center mt-8 pb-8 gap-4">
                     <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
@@ -3840,9 +4128,128 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
     );
 };
 
-const PriceHistoryModal: FC<{ 
-    data: { item: any, history: any[], itemResponse: any, response_details: any, isAccepted: boolean, agreedPrice: string }; 
-    onClose: () => void 
+const BulkAcceptAdminModal: FC<{
+    items: any[];
+    lineItemResponses: any[];
+    alreadyAccepted: number[];
+    onConfirm: (selectedIds: number[]) => void;
+    onClose: () => void;
+}> = ({ items, lineItemResponses, alreadyAccepted, onConfirm, onClose }) => {
+    const pendingItems = items.filter(item => !alreadyAccepted.includes(item.id));
+    const [selected, setSelected] = useState<number[]>(pendingItems.map(item => item.id));
+
+    const allSelected = pendingItems.length > 0 && pendingItems.every(item => selected.includes(item.id));
+
+    const toggleItem = (id: number) => {
+        setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+    };
+
+    const toggleAll = () => {
+        setSelected(allSelected ? [] : pendingItems.map(item => item.id));
+    };
+
+    return createPortal(
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-fade-in">
+            <div className="bg-white dark:bg-gray-900/95 dark:backdrop-blur-xl rounded-2xl shadow-2xl w-full max-w-lg border border-gray-200 dark:border-white/10">
+                {/* Header */}
+                <div className="flex items-start justify-between p-6 border-b border-gray-100 dark:border-gray-800">
+                    <div>
+                        <h2 className="text-xl font-bold text-gray-900 dark:text-white">Accept Item Prices</h2>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Select the items you want to approve at their quoted prices</p>
+                    </div>
+                    <button onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                        <X size={20} />
+                    </button>
+                </div>
+
+                {/* Item list */}
+                <div className="p-6">
+                    {pendingItems.length === 0 ? (
+                        <div className="text-center py-6">
+                            <CheckCheck size={32} className="mx-auto text-green-500 mb-2" />
+                            <p className="text-gray-600 dark:text-gray-300 font-medium">All items have already been approved.</p>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="flex items-center justify-between mb-3">
+                                <span className="text-sm text-gray-500 dark:text-gray-400">{selected.length} of {pendingItems.length} item{pendingItems.length !== 1 ? 's' : ''} selected</span>
+                                <button onClick={toggleAll} className="text-sm text-[#c20c0b] dark:text-red-400 font-medium hover:underline">
+                                    {allSelected ? 'Deselect All' : 'Select All'}
+                                </button>
+                            </div>
+                            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                                {items.map((item) => {
+                                    const itemResponse = lineItemResponses.find((r: any) => r.lineItemId === item.id);
+                                    const isAlreadyAccepted = alreadyAccepted.includes(item.id);
+                                    const isSelected = selected.includes(item.id);
+                                    return (
+                                        <label
+                                            key={item.id}
+                                            className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${
+                                                isAlreadyAccepted
+                                                    ? 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800 opacity-70 cursor-default'
+                                                    : isSelected
+                                                        ? 'bg-green-50 dark:bg-green-900/10 border-green-300 dark:border-green-700 cursor-pointer'
+                                                        : 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20 cursor-pointer'
+                                            }`}
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={isAlreadyAccepted || isSelected}
+                                                disabled={isAlreadyAccepted}
+                                                onChange={() => !isAlreadyAccepted && toggleItem(item.id)}
+                                                className="w-4 h-4 accent-green-600 rounded shrink-0"
+                                            />
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{item.category}</p>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400">{item.fabricQuality} • Qty: {item.qty}</p>
+                                            </div>
+                                            <div className="text-right shrink-0">
+                                                {isAlreadyAccepted ? (
+                                                    <span className="text-xs font-bold text-green-600 dark:text-green-400 flex items-center gap-1"><CheckCheck size={12} /> Approved</span>
+                                                ) : itemResponse?.price ? (
+                                                    <>
+                                                        <p className="text-sm font-bold text-[#c20c0b] dark:text-red-400">${itemResponse.price}</p>
+                                                        <p className="text-xs text-gray-400">Target: ${item.targetPrice}</p>
+                                                    </>
+                                                ) : (
+                                                    <p className="text-xs text-gray-400 italic">No price set</p>
+                                                )}
+                                            </div>
+                                        </label>
+                                    );
+                                })}
+                            </div>
+                        </>
+                    )}
+                </div>
+
+                {/* Footer */}
+                <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-100 dark:border-gray-800">
+                    <button
+                        onClick={onClose}
+                        className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={() => selected.length > 0 && onConfirm(selected)}
+                        disabled={selected.length === 0}
+                        className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center gap-2"
+                    >
+                        <Check size={15} />
+                        Approve {selected.length > 0 ? `${selected.length} Item${selected.length !== 1 ? 's' : ''}` : 'Selected'}
+                    </button>
+                </div>
+            </div>
+        </div>,
+        document.body
+    );
+};
+
+const PriceHistoryModal: FC<{
+    data: { item: any, history: any[], itemResponse: any, response_details: any, isAccepted: boolean, agreedPrice: string };
+    onClose: () => void
 }> = ({ data, onClose }) => {
     const { item, history, itemResponse, response_details, isAccepted, agreedPrice } = data;
     

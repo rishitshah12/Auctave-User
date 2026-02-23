@@ -158,13 +158,24 @@ export interface CrmTask {
     progress?: number;
 }
 
+export interface CrmDocument {
+    name: string;
+    type: string;
+    lastUpdated: string;
+    path?: string;
+}
+
 export interface CrmOrder {
     id?: string;
     customer: string;
     product: string;
     factoryId: string;
     status?: 'Pending' | 'In Production' | 'Quality Check' | 'Shipped' | 'Completed';
-    documents: { name: string; type: string; lastUpdated: string }[];
+    createdAt?: string;
+    destinationCountry?: string;
+    shippingPort?: string;
+    portOfDischarge?: string;
+    documents: CrmDocument[];
     tasks: CrmTask[];
     products?: CrmProduct[];
 }

@@ -1,9 +1,10 @@
-import React, { FC, useState, useEffect, useMemo, ReactNode, useCallback } from 'react';
+import React, { FC, useState, useEffect, useMemo, useRef, ReactNode, useCallback } from 'react';
 import {
     List, TrendingUp, CheckCircle, Package, PieChart as PieChartIcon,
     BarChart as BarChartIcon, Info, LayoutDashboard, ClipboardCheck,
     GanttChartSquare, Bot, FileText, Ship, DollarSign, Download, MapPin, Plus, ChevronDown, X,
-    Star, AlertCircle, ArrowRight, ArrowLeft, Building, Clock, Flag
+    Star, AlertCircle, ArrowRight, ArrowLeft, Building, Clock, Flag,
+    Activity, Scissors, Target, Zap, ChevronRight
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Pie, Cell, PieChart
@@ -11,7 +12,7 @@ import {
 import { MainLayout } from '../src/MainLayout';
 import { CrmOrder, CrmProduct, CrmTask, Factory } from '../src/types';
 import { crmService } from './crm.service';
-import { normalizeOrder, getProductProgress, getOrderStatusColor } from './utils';
+import { normalizeOrder, getOrderStatusColor } from './utils';
 
 interface CRMPageProps {
     pageKey: number;
@@ -48,45 +49,448 @@ export function DashboardCard({ icon, title, value, colorClass, index = 0 }: { i
     );
 }
 
+// ─── Helpers shared within DashboardView ──────────────────────────────────────
+
+function _AnimatedNumber({ value, inView }: { value: number; inView: boolean }) {
+    const [display, setDisplay] = useState(0);
+    useEffect(() => {
+        if (!inView) { setDisplay(0); return; }
+        if (value === 0) { setDisplay(0); return; }
+        const duration = 900;
+        const startTime = performance.now();
+        const animate = (now: number) => {
+            const progress = Math.min((now - startTime) / duration, 1);
+            const eased = 1 - Math.pow(1 - progress, 3);
+            setDisplay(Math.round(eased * value));
+            if (progress < 1) requestAnimationFrame(animate);
+        };
+        requestAnimationFrame(animate);
+    }, [value, inView]);
+    return <>{display}</>;
+}
+
+function _getWovenBg(color = 'rgba(255,255,255,0.13)'): React.CSSProperties {
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14'><path d='M0 7 L7 0 L14 7 L7 14 Z' fill='none' stroke='${color}' stroke-width='0.9'/></svg>`;
+    return { backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(svg)}")`, backgroundRepeat: 'repeat', backgroundSize: '14px 14px' };
+}
+
+function _getHerringboneBg(color = 'rgba(0,0,0,0.04)'): React.CSSProperties {
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20'><path d='M0 10 L10 0 M10 20 L20 10' stroke='${color}' stroke-width='1' fill='none'/></svg>`;
+    return { backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(svg)}")`, backgroundRepeat: 'repeat', backgroundSize: '20px 20px' };
+}
+
+// Coloured gradient stat card with woven texture & selvedge dots
+function _StatCard({ title, value, subtitle, icon, gradient, shadowColor, inView, badge, suffix }: {
+    title: string; value: number; subtitle?: string; icon: React.ReactNode;
+    gradient: string; shadowColor: string; inView: boolean;
+    badge?: { label: string }; suffix?: string;
+}) {
+    const [hovered, setHovered] = useState(false);
+    return (
+        <div
+            className={`relative overflow-hidden rounded-2xl transition-all duration-300 ${gradient} ${hovered ? 'scale-[1.02] -translate-y-0.5' : ''}`}
+            style={{ boxShadow: hovered ? `0 18px 40px -8px ${shadowColor}` : `0 6px 20px -4px ${shadowColor}` }}
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+        >
+            {/* Woven texture */}
+            <div className="absolute inset-0 pointer-events-none" style={_getWovenBg()} />
+            {/* Selvedge holes */}
+            <div className="absolute right-2 top-0 bottom-0 flex flex-col items-center justify-evenly pointer-events-none">
+                {Array.from({ length: 7 }).map((_, i) => <div key={i} className="w-1.5 h-1.5 rounded-full bg-white/20" />)}
+            </div>
+            <div className="relative p-5 pr-7">
+                <div className="flex items-start justify-between mb-3">
+                    <div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center text-white shadow-inner">
+                        {icon}
+                    </div>
+                    {badge && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/20 text-white">{badge.label}</span>
+                    )}
+                </div>
+                <div className="text-4xl font-black text-white leading-none mb-1 tabular-nums">
+                    <_AnimatedNumber value={value} inView={inView} />
+                    {suffix && <span className="text-2xl ml-0.5">{suffix}</span>}
+                </div>
+                <div className="text-[11px] font-bold text-white/70 uppercase tracking-widest">{title}</div>
+                {subtitle && (
+                    <div className="mt-2.5 pt-2.5 border-t border-white/15 text-xs text-white/55">{subtitle}</div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+// 3-stage task pipeline: TO DO → IN PROGRESS → COMPLETE
+function _TaskPipeline({ toDoCount, inProgressCount, completedCount, inView }: {
+    toDoCount: number; inProgressCount: number; completedCount: number; inView: boolean;
+}) {
+    const stages = [
+        { label: 'To Do',       count: toDoCount,       grad: 'from-gray-400 to-gray-500',     ring: 'rgba(107,114,128,0.3)', text: 'text-gray-500 dark:text-gray-400', Icon: Clock },
+        { label: 'In Progress', count: inProgressCount, grad: 'from-blue-500 to-indigo-600',   ring: 'rgba(59,130,246,0.35)', text: 'text-blue-600 dark:text-blue-400', Icon: Activity },
+        { label: 'Complete',    count: completedCount,  grad: 'from-emerald-500 to-green-500', ring: 'rgba(16,185,129,0.35)', text: 'text-emerald-600 dark:text-emerald-400', Icon: CheckCircle },
+    ];
+    return (
+        <div className="relative bg-white/80 dark:bg-gray-800/60 backdrop-blur-md rounded-2xl border border-gray-200/80 dark:border-white/10 p-5 overflow-hidden">
+            <div className="absolute inset-0 pointer-events-none rounded-2xl" style={_getHerringboneBg()} />
+            <div className="relative">
+                <h3 className="text-sm font-bold text-gray-800 dark:text-white flex items-center gap-2 mb-5">
+                    <Scissors size={13} className="text-[#c20c0b]" />
+                    Task Flow
+                    <span className="ml-auto text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                        {toDoCount + inProgressCount + completedCount} total threads
+                    </span>
+                </h3>
+                <div className="flex items-start">
+                    {stages.map((stage, i) => {
+                        const active = stage.count > 0;
+                        const StageIcon = stage.Icon;
+                        return (
+                            <React.Fragment key={stage.label}>
+                                <div className="flex flex-col items-center flex-shrink-0" style={{ minWidth: 72 }}>
+                                    <div
+                                        className={`relative w-14 h-14 rounded-full flex items-center justify-center transition-all duration-500 ${active ? `bg-gradient-to-br ${stage.grad} shadow-lg` : 'bg-gray-100 dark:bg-gray-700/60'}`}
+                                        style={active ? { boxShadow: `0 0 0 4px ${stage.ring}` } : {}}
+                                    >
+                                        {active && (
+                                            <div className={`absolute inset-0 rounded-full bg-gradient-to-br ${stage.grad} opacity-35 animate-ping`} style={{ animationDuration: '2.5s' }} />
+                                        )}
+                                        <span className={`relative text-xl font-black tabular-nums ${active ? 'text-white' : 'text-gray-400 dark:text-gray-500'}`}>
+                                            <_AnimatedNumber value={stage.count} inView={inView} />
+                                        </span>
+                                    </div>
+                                    <div className="mt-2 flex flex-col items-center gap-0.5">
+                                        <StageIcon size={11} className={active ? stage.text : 'text-gray-400 dark:text-gray-600'} />
+                                        <span className={`text-[10px] font-semibold text-center leading-tight ${active ? stage.text : 'text-gray-400 dark:text-gray-500'}`}>
+                                            {stage.label}
+                                        </span>
+                                    </div>
+                                </div>
+                                {i < stages.length - 1 && (
+                                    <div className="flex-1 flex items-center mt-7 mx-1">
+                                        <div className={`flex-1 h-px transition-all duration-700 ${active ? `bg-gradient-to-r ${stage.grad}` : 'bg-gray-200 dark:bg-gray-700'}`} />
+                                        <ChevronRight size={10} className={`flex-shrink-0 transition-colors ${active ? stage.text : 'text-gray-300 dark:text-gray-600'}`} />
+                                    </div>
+                                )}
+                            </React.Fragment>
+                        );
+                    })}
+                </div>
+                {/* Distribution bar */}
+                {(toDoCount + inProgressCount + completedCount) > 0 && (
+                    <div className="mt-4 pt-3 border-t border-gray-100 dark:border-white/5">
+                        <div className="flex h-2 rounded-full overflow-hidden gap-px">
+                            {[
+                                { count: completedCount,  grad: 'from-emerald-500 to-green-500' },
+                                { count: inProgressCount, grad: 'from-blue-500 to-indigo-600' },
+                                { count: toDoCount,       grad: 'from-gray-300 to-gray-400' },
+                            ].map((s, i) => {
+                                const total = toDoCount + inProgressCount + completedCount;
+                                const pct = (s.count / total) * 100;
+                                if (pct === 0) return null;
+                                return <div key={i} className={`bg-gradient-to-r ${s.grad} transition-all duration-1000`} style={{ width: `${pct}%` }} />;
+                            })}
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+// Task velocity progress bar with stitch marks and woven texture
+function _VelocityBar({ completedTasks, inProgressTasks, totalTasks, overdueCount, inView }: {
+    completedTasks: number; inProgressTasks: number; totalTasks: number; overdueCount: number; inView: boolean;
+}) {
+    const taskRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+    const [barW, setBarW] = useState(0);
+    useEffect(() => {
+        if (inView) { const t = setTimeout(() => setBarW(taskRate), 200); return () => clearTimeout(t); }
+        else setBarW(0);
+    }, [taskRate, inView]);
+    const toDoCount = Math.max(0, totalTasks - completedTasks - inProgressTasks);
+
+    return (
+        <div className="relative bg-white/80 dark:bg-gray-800/60 backdrop-blur-md rounded-2xl border border-gray-200/80 dark:border-white/10 p-5 overflow-hidden">
+            <div className="absolute inset-0 pointer-events-none rounded-2xl" style={_getHerringboneBg()} />
+            <div className="relative">
+                <div className="flex items-start justify-between mb-3">
+                    <div>
+                        <h3 className="text-sm font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                            <Zap size={13} className="text-[#c20c0b]" />
+                            Task Velocity
+                        </h3>
+                        <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">Order completion momentum</p>
+                    </div>
+                    <div className="text-right">
+                        <span className="text-3xl font-black text-gray-800 dark:text-white tabular-nums">
+                            <_AnimatedNumber value={taskRate} inView={inView} />%
+                        </span>
+                        <p className="text-[10px] text-gray-400">woven</p>
+                    </div>
+                </div>
+                {/* Woven-fill bar */}
+                <div className="relative h-5 bg-gray-100 dark:bg-gray-700/40 rounded-full overflow-hidden mb-3">
+                    <div className="absolute inset-0 pointer-events-none" style={_getHerringboneBg('rgba(0,0,0,0.06)')} />
+                    <div
+                        className="absolute left-0 top-0 bottom-0 bg-gradient-to-r from-[#c20c0b] via-red-500 to-orange-400 rounded-full transition-all duration-1000 ease-out"
+                        style={{ width: `${barW}%` }}
+                    >
+                        <div className="absolute inset-0 bg-gradient-to-b from-white/25 to-transparent rounded-full" />
+                        <div className="absolute inset-0 flex items-center pl-2 gap-2.5 overflow-hidden">
+                            {Array.from({ length: Math.floor(barW / 7) }).map((_, i) => (
+                                <div key={i} className="w-0.5 h-3 bg-white/30 rounded-full flex-shrink-0" />
+                            ))}
+                        </div>
+                    </div>
+                    {totalTasks > 0 && (
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-500 dark:text-gray-400">
+                            {completedTasks}/{totalTasks}
+                        </span>
+                    )}
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg px-2.5 py-1.5">
+                        <CheckCircle size={11} className="text-emerald-500" />
+                        <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                            <_AnimatedNumber value={completedTasks} inView={inView} />
+                        </span>
+                        <span className="text-[10px] text-emerald-500/80">done</span>
+                    </div>
+                    <div className="flex items-center gap-1 bg-blue-50 dark:bg-blue-900/20 rounded-lg px-2.5 py-1.5">
+                        <Activity size={11} className="text-blue-500" />
+                        <span className="text-xs font-bold text-blue-700 dark:text-blue-400">
+                            <_AnimatedNumber value={inProgressTasks} inView={inView} />
+                        </span>
+                        <span className="text-[10px] text-blue-500/80">active</span>
+                    </div>
+                    <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-700/40 rounded-lg px-2.5 py-1.5">
+                        <Clock size={11} className="text-gray-400" />
+                        <span className="text-xs font-bold text-gray-600 dark:text-gray-300">
+                            <_AnimatedNumber value={toDoCount} inView={inView} />
+                        </span>
+                        <span className="text-[10px] text-gray-400">to do</span>
+                    </div>
+                    {overdueCount > 0 && (
+                        <div className="flex items-center gap-1 bg-red-50 dark:bg-red-900/20 rounded-lg px-2.5 py-1.5 ml-auto">
+                            <AlertCircle size={11} className="text-red-500" />
+                            <span className="text-xs font-bold text-red-700 dark:text-red-400">
+                                <_AnimatedNumber value={overdueCount} inView={inView} />
+                            </span>
+                            <span className="text-[10px] text-red-500/80">overdue</span>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// Single product row — needs own component so hooks aren't called inside .map()
+const PRODUCT_GRADS = [
+    'from-blue-500 to-cyan-500', 'from-purple-500 to-pink-500',
+    'from-emerald-500 to-green-500', 'from-amber-500 to-orange-500',
+    'from-rose-500 to-red-500', 'from-indigo-500 to-violet-500',
+];
+
+function _ProductRow({ product, tasks, inView, idx }: { product: any; tasks: any[]; inView: boolean; idx: number }) {
+    const ptasks = tasks.filter(t => t.productId === product.id);
+    const done = ptasks.filter(t => t.status === 'COMPLETE').length;
+    const pct = ptasks.length > 0 ? Math.round((done / ptasks.length) * 100) : 0;
+    const grad = PRODUCT_GRADS[idx % PRODUCT_GRADS.length];
+    const [barW, setBarW] = useState(0);
+    useEffect(() => {
+        if (inView) { const t = setTimeout(() => setBarW(pct), 150 + idx * 80); return () => clearTimeout(t); }
+        else setBarW(0);
+    }, [pct, inView]);
+    return (
+        <div>
+            <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-semibold text-gray-700 dark:text-gray-200 truncate max-w-[160px]">{product.name}</span>
+                <span className="text-xs font-bold text-gray-500 dark:text-gray-400 tabular-nums">{done}/{ptasks.length}</span>
+            </div>
+            <div className="relative h-3 bg-gray-100 dark:bg-gray-700/40 rounded-full overflow-hidden">
+                <div className="absolute inset-0 pointer-events-none" style={_getHerringboneBg('rgba(0,0,0,0.05)')} />
+                <div
+                    className={`absolute left-0 top-0 bottom-0 bg-gradient-to-r ${grad} rounded-full transition-all duration-1000 ease-out`}
+                    style={{ width: `${barW}%` }}
+                >
+                    <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent rounded-full" />
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// Per-product progress breakdown
+function _ProductBreakdown({ tasks, products, inView }: { tasks: any[]; products: any[]; inView: boolean }) {
+    if (!products || products.length <= 1) return null;
+    return (
+        <div className="relative bg-white/80 dark:bg-gray-800/60 backdrop-blur-md rounded-2xl border border-gray-200/80 dark:border-white/10 p-5 overflow-hidden">
+            <div className="absolute inset-0 pointer-events-none rounded-2xl" style={_getHerringboneBg()} />
+            <div className="relative">
+                <h3 className="text-sm font-bold text-gray-800 dark:text-white flex items-center gap-2 mb-4">
+                    <Target size={13} className="text-[#c20c0b]" />
+                    Per-Product Progress
+                    <span className="ml-auto text-[10px] font-semibold text-gray-400 uppercase tracking-wider">{products.length} items</span>
+                </h3>
+                <div className="space-y-3">
+                    {products.map((product, idx) => (
+                        <_ProductRow key={product.id || idx} product={product} tasks={tasks} inView={inView} idx={idx} />
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export const DashboardView: FC<{ tasks: any[]; orderKey: string; orderDetails: any; darkMode?: boolean }> = ({ tasks, orderKey, orderDetails, darkMode }) => {
-        const statusData = useMemo(() => {
-            const statuses: { [key: string]: number } = { 'TO DO': 0, 'IN PROGRESS': 0, 'COMPLETE': 0 };
-            tasks.forEach(task => {
-                if(statuses[task.status] !== undefined) statuses[task.status]++;
-            });
-            return Object.entries(statuses).map(([name, value]) => ({ name, value }));
-        }, [tasks]);
+        const statsRef = useRef<HTMLDivElement>(null);
+        const [inView, setInView] = useState(false);
+        useEffect(() => {
+            const el = statsRef.current;
+            if (!el) return;
+            const observer = new IntersectionObserver(
+                ([entry]) => { if (entry.isIntersecting) { setInView(true); observer.unobserve(el); } },
+                { threshold: 0.1 }
+            );
+            observer.observe(el);
+            return () => observer.disconnect();
+        }, []);
 
         const totalTasks = tasks.length;
         const completedTasks = tasks.filter(t => t.status === 'COMPLETE').length;
         const inProgressTasks = tasks.filter(t => t.status === 'IN PROGRESS').length;
+        const toDoTasks = tasks.filter(t => t.status === 'TO DO').length;
+        const taskRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const overdueCount = tasks.filter(t =>
+            t.status !== 'COMPLETE' && t.plannedEndDate && new Date(t.plannedEndDate) < today
+        ).length;
+
         const totalQuantity = parseInt((orderDetails.product || '').split(' ')[0], 10) || 0;
-        
+
+        const statusData = useMemo(() => {
+            const statuses: { [key: string]: number } = { 'TO DO': 0, 'IN PROGRESS': 0, 'COMPLETE': 0 };
+            tasks.forEach(task => { if (statuses[task.status] !== undefined) statuses[task.status]++; });
+            return Object.entries(statuses).map(([name, value]) => ({ name, value }));
+        }, [tasks]);
+
         const COLORS = darkMode ? ['#4B5563', '#F59E0B', '#10B981'] : ['#D1D5DB', '#FBBF24', '#34D399'];
         const axisColor = darkMode ? '#9CA3AF' : '#6B7280';
         const gridColor = darkMode ? '#374151' : '#E5E7EB';
-        const tooltipStyle = darkMode ? { backgroundColor: '#1F2937', borderColor: '#374151', color: '#F3F4F6' } : { backgroundColor: '#FFFFFF', borderColor: '#E5E7EB', color: '#111827' };
+        const tooltipStyle = darkMode
+            ? { backgroundColor: '#1F2937', borderColor: '#374151', color: '#F3F4F6' }
+            : { backgroundColor: '#FFFFFF', borderColor: '#E5E7EB', color: '#111827' };
+
+        // Products from orderDetails
+        const products = orderDetails.products && orderDetails.products.length > 0
+            ? orderDetails.products
+            : [{ id: 'default', name: orderDetails.product }];
+
+        // Health label
+        const healthLabel = overdueCount === 0
+            ? { text: 'All threads intact', dot: 'bg-emerald-500', color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-900/20' }
+            : { text: `${overdueCount} thread${overdueCount > 1 ? 's' : ''} fraying`, dot: 'bg-amber-500', color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/20' };
 
         return (
-            <div className="mt-6 space-y-6 animate-fade-in">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <DashboardCard title="Total Tasks" value={totalTasks} icon={<List size={22}/>} colorClass="from-[#c20c0b] to-red-500" index={0} />
-                    <DashboardCard title="In Progress" value={inProgressTasks} icon={<TrendingUp size={22}/>} colorClass="from-orange-500 to-amber-500" index={1} />
-                    <DashboardCard title="Completed" value={completedTasks} icon={<CheckCircle size={22}/>} colorClass="from-green-500 to-emerald-500" index={2} />
-                    <DashboardCard title="Total Quantity" value={totalQuantity.toLocaleString()} icon={<Package size={22}/>} colorClass="from-blue-500 to-cyan-500" index={3} />
+            <div className="mt-4 space-y-5 animate-fade-in">
+                {/* ── Textile infographic section ────────────────────────── */}
+                <div ref={statsRef}>
+                    {/* Health badge */}
+                    <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full ${healthLabel.bg} mb-4`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${healthLabel.dot} animate-pulse`} />
+                        <span className={`text-[11px] font-semibold ${healthLabel.color}`}>{healthLabel.text}</span>
+                    </div>
+
+                    {/* 4 stat cards */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                        <_StatCard
+                            title="Total Threads"
+                            value={totalTasks}
+                            subtitle="tasks in order"
+                            icon={<List size={18} className="text-white" />}
+                            gradient="bg-gradient-to-br from-slate-700 via-slate-800 to-gray-900"
+                            shadowColor="rgba(15,23,42,0.4)"
+                            inView={inView}
+                        />
+                        <_StatCard
+                            title="On the Loom"
+                            value={inProgressTasks}
+                            subtitle="tasks running now"
+                            icon={<Activity size={18} className="text-white" />}
+                            gradient="bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-700"
+                            shadowColor="rgba(59,130,246,0.4)"
+                            inView={inView}
+                        />
+                        <_StatCard
+                            title="Woven"
+                            value={completedTasks}
+                            subtitle="tasks finished"
+                            icon={<CheckCircle size={18} className="text-white" />}
+                            gradient="bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-700"
+                            shadowColor="rgba(16,185,129,0.4)"
+                            inView={inView}
+                        />
+                        <_StatCard
+                            title={overdueCount > 0 ? 'Fraying' : 'Completion'}
+                            value={overdueCount > 0 ? overdueCount : taskRate}
+                            suffix={overdueCount === 0 ? '%' : undefined}
+                            subtitle={overdueCount > 0 ? 'tasks overdue' : 'of order complete'}
+                            icon={overdueCount > 0
+                                ? <AlertCircle size={18} className="text-white" />
+                                : <Target size={18} className="text-white" />}
+                            gradient={overdueCount > 0
+                                ? 'bg-gradient-to-br from-amber-500 via-orange-500 to-red-600'
+                                : 'bg-gradient-to-br from-violet-500 via-purple-600 to-indigo-700'}
+                            shadowColor={overdueCount > 0 ? 'rgba(245,158,11,0.4)' : 'rgba(139,92,246,0.4)'}
+                            inView={inView}
+                            badge={overdueCount > 0 ? { label: 'Attention' } : undefined}
+                        />
+                    </div>
+
+                    {/* Pipeline + velocity row */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+                        <div className="lg:col-span-2">
+                            <_TaskPipeline
+                                toDoCount={toDoTasks}
+                                inProgressCount={inProgressTasks}
+                                completedCount={completedTasks}
+                                inView={inView}
+                            />
+                        </div>
+                        <_VelocityBar
+                            completedTasks={completedTasks}
+                            inProgressTasks={inProgressTasks}
+                            totalTasks={totalTasks}
+                            overdueCount={overdueCount}
+                            inView={inView}
+                        />
+                    </div>
+
+                    {/* Per-product breakdown (only shown when multiple products) */}
+                    <_ProductBreakdown tasks={tasks} products={products} inView={inView} />
                 </div>
+
+                {/* ── Existing charts ────────────────────────────────────── */}
                 <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                     <div className="lg:col-span-2 bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 transition-all duration-300 hover:shadow-xl">
                         <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
                             <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg shadow-md">
-                                <PieChartIcon size={16} className="text-white"/>
+                                <PieChartIcon size={16} className="text-white" />
                             </div>
                             Task Status Distribution
                         </h3>
-                        <ResponsiveContainer width="100%" height={300}>
+                        <ResponsiveContainer width="100%" height={280}>
                             <PieChart>
-                                <Pie data={statusData} cx="50%" cy="50%" labelLine={false} innerRadius={70} outerRadius={110} fill="#8884d8" dataKey="value" nameKey="name" label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}>
-                                    {statusData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} className="focus:outline-none" />)}
+                                <Pie
+                                    data={statusData} cx="50%" cy="50%"
+                                    labelLine={false} innerRadius={65} outerRadius={105}
+                                    dataKey="value" nameKey="name"
+                                    label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}
+                                >
+                                    {statusData.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} className="focus:outline-none" />)}
                                 </Pie>
                                 <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: tooltipStyle.color }} />
                                 <Legend />
@@ -96,29 +500,29 @@ export const DashboardView: FC<{ tasks: any[]; orderKey: string; orderDetails: a
                     <div className="lg:col-span-3 bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 transition-all duration-300 hover:shadow-xl">
                         <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
                             <div className="p-2 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg shadow-md">
-                                <BarChartIcon size={16} className="text-white"/>
+                                <BarChartIcon size={16} className="text-white" />
                             </div>
                             Units Per Task
                         </h3>
-                        <ResponsiveContainer width="100%" height={300}>
+                        <ResponsiveContainer width="100%" height={280}>
                             <BarChart data={tasks.filter(t => t.quantity > 0)} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
                                 <defs>
                                     <linearGradient id="colorUv" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8}/>
-                                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0.8}/>
+                                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8} />
+                                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0.8} />
                                     </linearGradient>
                                 </defs>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridColor} />
-                                <XAxis dataKey="name" tick={{fontSize: 12, fill: axisColor}} axisLine={{stroke: axisColor}} tickLine={{stroke: axisColor}} />
-                                <YAxis tick={{fontSize: 12, fill: axisColor}} axisLine={{stroke: axisColor}} tickLine={{stroke: axisColor}} />
-                                <Tooltip contentStyle={tooltipStyle} cursor={{fill: darkMode ? '#374151' : '#f3f4f6'}} />
+                                <XAxis dataKey="name" tick={{ fontSize: 12, fill: axisColor }} axisLine={{ stroke: axisColor }} tickLine={{ stroke: axisColor }} />
+                                <YAxis tick={{ fontSize: 12, fill: axisColor }} axisLine={{ stroke: axisColor }} tickLine={{ stroke: axisColor }} />
+                                <Tooltip contentStyle={tooltipStyle} cursor={{ fill: darkMode ? '#374151' : '#f3f4f6' }} />
                                 <Bar dataKey="quantity" fill="url(#colorUv)" radius={[4, 4, 0, 0]} />
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
                 </div>
             </div>
-        )
+        );
     };
 
 export const ListView: FC<{ tasks: any[] }> = ({ tasks }) => {

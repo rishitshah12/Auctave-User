@@ -181,6 +181,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
     const [expandedExecutionSteps, setExpandedExecutionSteps] = useState<number[]>([]);
     const [isExecutionPlanExpanded, setIsExecutionPlanExpanded] = useState(false);
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+    const [showBulkAcceptModal, setShowBulkAcceptModal] = useState(false);
     const { showToast } = useToast();
 
     // New Zomato-style UI states
@@ -736,6 +737,58 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         } else {
             runCelebration();
             showToast('Quote approved. Waiting for admin confirmation.');
+        }
+    };
+
+    const handleBulkAcceptItems = async (selectedIds: number[]) => {
+        if (!quote) return;
+
+        const currentApprovals = quote.negotiation_details?.clientApprovedLineItems || [];
+        const newApprovals = Array.from(new Set([...currentApprovals, ...selectedIds]));
+
+        const updatedNegotiationDetails = {
+            ...(quote.negotiation_details || {}),
+            clientApprovedLineItems: newApprovals
+        };
+
+        const allLineItems = quote.order.lineItems;
+        const allClientApproved = allLineItems.every(item => newApprovals.includes(item.id));
+        const adminApprovals = quote.negotiation_details?.adminApprovedLineItems || [];
+        const allAdminApproved = allLineItems.every(item => adminApprovals.includes(item.id));
+
+        let newStatus = quote.status;
+        let toastMessage = '';
+
+        if (allClientApproved && allAdminApproved) {
+            newStatus = 'Accepted';
+            toastMessage = 'All items approved by both parties. Quote Accepted!';
+            runCelebration();
+        } else if (allClientApproved) {
+            newStatus = 'Client Accepted';
+            toastMessage = 'All items approved. Quote marked as Client Approved.';
+            runCelebration();
+        } else if (allAdminApproved) {
+            newStatus = 'Admin Accepted';
+        } else {
+            newStatus = 'In Negotiation';
+        }
+
+        const updates: any = { status: newStatus, negotiation_details: updatedNegotiationDetails };
+        if (newStatus === 'Accepted' && quote.status !== 'Accepted') {
+            updates.response_details = { ...(quote.response_details || {}), acceptedAt: new Date().toISOString() };
+        }
+
+        const updatedQuote = { ...quote, ...updates };
+        setQuote(updatedQuote);
+        updateQuoteStatus(quote.id, newStatus, updates);
+        await quoteService.update(quote.id, updates);
+
+        setShowBulkAcceptModal(false);
+        if (toastMessage) showToast(toastMessage);
+
+        if (newStatus === 'Accepted' && quote.status !== 'Accepted') {
+            createCrmOrder(updatedQuote);
+            handleSetCurrentPage('crm');
         }
     };
 
@@ -1477,11 +1530,21 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                     {activeTab === 'products' && (
                         <div className="animate-fade-in">
                             <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
-                                <div className="p-5 border-b border-gray-100 dark:border-gray-800">
-                                    <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                        <Package size={20} className="text-[#c20c0b]" /> Product Specifications
-                                    </h3>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Click on any product to view details or chat with factory</p>
+                                <div className="p-5 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between gap-4">
+                                    <div>
+                                        <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                            <Package size={20} className="text-[#c20c0b]" /> Product Specifications
+                                        </h3>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Click on any product to view details or chat with factory</p>
+                                    </div>
+                                    {(status === 'Responded' || status === 'In Negotiation' || status === 'Admin Accepted' || status === 'Client Accepted') && response_details && (
+                                        <button
+                                            onClick={() => setShowBulkAcceptModal(true)}
+                                            className="shrink-0 flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors"
+                                        >
+                                            <CheckCheck size={15} /> Accept Prices
+                                        </button>
+                                    )}
                                 </div>
 
                                 {/* Product Header - Desktop */}
@@ -2602,6 +2665,17 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                 />
             )}
 
+            {/* Bulk Accept Modal */}
+            {showBulkAcceptModal && (
+                <BulkAcceptModal
+                    items={order.lineItems}
+                    lineItemResponses={response_details?.lineItemResponses || []}
+                    alreadyAccepted={quote.negotiation_details?.clientApprovedLineItems || []}
+                    onConfirm={handleBulkAcceptItems}
+                    onClose={() => setShowBulkAcceptModal(false)}
+                />
+            )}
+
             {/* Hidden Invoice Template for PDF Generation */}
             {sampleRequest?.admin_response && (
                 <div
@@ -2763,6 +2837,125 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                 </div>
             )}
         </MainLayout>
+    );
+};
+
+const BulkAcceptModal: FC<{
+    items: any[];
+    lineItemResponses: any[];
+    alreadyAccepted: number[];
+    onConfirm: (selectedIds: number[]) => void;
+    onClose: () => void;
+}> = ({ items, lineItemResponses, alreadyAccepted, onConfirm, onClose }) => {
+    const pendingItems = items.filter(item => !alreadyAccepted.includes(item.id));
+    const [selected, setSelected] = useState<number[]>(pendingItems.map(item => item.id));
+
+    const allSelected = pendingItems.length > 0 && pendingItems.every(item => selected.includes(item.id));
+
+    const toggleItem = (id: number) => {
+        setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+    };
+
+    const toggleAll = () => {
+        setSelected(allSelected ? [] : pendingItems.map(item => item.id));
+    };
+
+    return createPortal(
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-fade-in">
+            <div className="bg-white dark:bg-gray-900/95 dark:backdrop-blur-xl rounded-2xl shadow-2xl w-full max-w-lg border border-gray-200 dark:border-white/10">
+                {/* Header */}
+                <div className="flex items-start justify-between p-6 border-b border-gray-100 dark:border-gray-800">
+                    <div>
+                        <h2 className="text-xl font-bold text-gray-900 dark:text-white">Accept Item Prices</h2>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Select the items you want to accept at their quoted prices</p>
+                    </div>
+                    <button onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                        <X size={20} />
+                    </button>
+                </div>
+
+                {/* Item list */}
+                <div className="p-6">
+                    {pendingItems.length === 0 ? (
+                        <div className="text-center py-6">
+                            <CheckCheck size={32} className="mx-auto text-green-500 mb-2" />
+                            <p className="text-gray-600 dark:text-gray-300 font-medium">All items have already been accepted.</p>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="flex items-center justify-between mb-3">
+                                <span className="text-sm text-gray-500 dark:text-gray-400">{selected.length} of {pendingItems.length} item{pendingItems.length !== 1 ? 's' : ''} selected</span>
+                                <button onClick={toggleAll} className="text-sm text-[#c20c0b] dark:text-red-400 font-medium hover:underline">
+                                    {allSelected ? 'Deselect All' : 'Select All'}
+                                </button>
+                            </div>
+                            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                                {items.map((item) => {
+                                    const itemResponse = lineItemResponses.find(r => r.lineItemId === item.id);
+                                    const isAlreadyAccepted = alreadyAccepted.includes(item.id);
+                                    const isSelected = selected.includes(item.id);
+                                    return (
+                                        <label
+                                            key={item.id}
+                                            className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${
+                                                isAlreadyAccepted
+                                                    ? 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800 opacity-70 cursor-default'
+                                                    : isSelected
+                                                        ? 'bg-green-50 dark:bg-green-900/10 border-green-300 dark:border-green-700 cursor-pointer'
+                                                        : 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20 cursor-pointer'
+                                            }`}
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={isAlreadyAccepted || isSelected}
+                                                disabled={isAlreadyAccepted}
+                                                onChange={() => !isAlreadyAccepted && toggleItem(item.id)}
+                                                className="w-4 h-4 accent-green-600 rounded shrink-0"
+                                            />
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{item.category}</p>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400">{item.fabricQuality} • Qty: {item.qty}</p>
+                                            </div>
+                                            <div className="text-right shrink-0">
+                                                {isAlreadyAccepted ? (
+                                                    <span className="text-xs font-bold text-green-600 dark:text-green-400 flex items-center gap-1"><CheckCheck size={12} /> Accepted</span>
+                                                ) : itemResponse?.price ? (
+                                                    <>
+                                                        <p className="text-sm font-bold text-[#c20c0b] dark:text-red-400">${itemResponse.price}</p>
+                                                        <p className="text-xs text-gray-400">Target: ${item.targetPrice}</p>
+                                                    </>
+                                                ) : (
+                                                    <p className="text-xs text-gray-400 italic">No quote yet</p>
+                                                )}
+                                            </div>
+                                        </label>
+                                    );
+                                })}
+                            </div>
+                        </>
+                    )}
+                </div>
+
+                {/* Footer */}
+                <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-100 dark:border-gray-800">
+                    <button
+                        onClick={onClose}
+                        className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={() => selected.length > 0 && onConfirm(selected)}
+                        disabled={selected.length === 0}
+                        className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center gap-2"
+                    >
+                        <Check size={15} />
+                        Accept {selected.length > 0 ? `${selected.length} Item${selected.length !== 1 ? 's' : ''}` : 'Selected'}
+                    </button>
+                </div>
+            </div>
+        </div>,
+        document.body
     );
 };
 

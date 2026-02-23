@@ -1638,14 +1638,15 @@ const AppContent: FC = () => {
     };
 
     const updateQuoteStatus = (id: string, status: string, additionalData?: Partial<QuoteRequest>) => {
+        const now = new Date().toISOString();
         const updatedQuotes = quoteRequests.map(q =>
-            q.id === id ? { ...q, status: status as any, ...additionalData } : q
+            q.id === id ? { ...q, status: status as any, modified_at: now, ...additionalData } : q
         );
         setQuoteRequests(updatedQuotes);
         // Update sessionStorage cache to keep it in sync
         sessionStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify(updatedQuotes));
         if (selectedQuote && selectedQuote.id === id) {
-            setSelectedQuote(prev => prev ? { ...prev, status: status as any, ...additionalData } : null);
+            setSelectedQuote(prev => prev ? { ...prev, status: status as any, modified_at: now, ...additionalData } : null);
         }
     };
 

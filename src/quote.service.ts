@@ -41,10 +41,13 @@ export class QuoteService extends BaseService<any> {
     // Method to update an existing quote by its ID
     async update(id: string, updates: any): Promise<ServiceResponse<any>> {
         try {
+            // Always stamp modified_at so timestamps reflect the latest activity
+            const payload = { ...updates, modified_at: new Date().toISOString() };
+
             // Perform the update operation using Supabase client
             const { data, error } = await supabase
                 .from(this.config.tableName) // Target the configured table
-                .update(updates)             // Apply the updates
+                .update(payload)             // Apply the updates
                 .eq('id', id)                // Filter by the quote ID
                 .select()                    // Select the updated record
                 .single();                   // Expect a single result
