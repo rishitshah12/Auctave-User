@@ -1000,7 +1000,8 @@ export const TNAView: FC<{ tasks: any[] }> = ({ tasks }) => {
     };
 
 export const OrderDetailsView: FC<{ order: any; allFactories: Factory[]; handleSetCurrentPage: (page: string, data?: any) => void; onSelectProduct?: (productId: string) => void }> = ({ order, allFactories, handleSetCurrentPage, onSelectProduct }) => {
-        const factory = allFactories.find(f => f.id === order.factoryId);
+        const factory = allFactories.find(f => f.id === order.factoryId || f.id === (order as any).factory_id);
+        const hasCustomFactory = !factory && !!((order as any).custom_factory_name);
         const products: CrmProduct[] = order.products && order.products.length > 0
             ? order.products
             : [{ id: 'default', name: order.product || 'Product', status: order.status }];
@@ -1209,6 +1210,25 @@ export const OrderDetailsView: FC<{ order: any; allFactories: Factory[]; handleS
                                     View Factory Profile
                                     <ArrowRight size={16} />
                                 </button>
+                            </div>
+                        ) : hasCustomFactory ? (
+                            <div className="space-y-4">
+                                <div className="flex items-center gap-4 p-4 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50 rounded-xl">
+                                    <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-gray-400 to-gray-600 flex items-center justify-center shadow-md flex-shrink-0">
+                                        <Building size={28} className="text-white" />
+                                    </div>
+                                    <div>
+                                        <p className="font-bold text-gray-900 dark:text-white text-base">{(order as any).custom_factory_name}</p>
+                                        {(order as any).custom_factory_location && (
+                                            <p className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-1 mt-1">
+                                                <MapPin size={14} />{(order as any).custom_factory_location}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-700/30 flex items-center gap-2">
+                                    <span className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide">Manually entered</span>
+                                </div>
                             </div>
                         ) : <p className="text-gray-500 dark:text-gray-400 text-center py-8">No factory assigned.</p>}
                     </div>

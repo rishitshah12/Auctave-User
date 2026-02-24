@@ -277,26 +277,48 @@ const AppContent: FC = () => {
                 setIsAdmin(isUserAdmin);
 
                 if (session?.user) {
+                    // TOKEN_REFRESHED just rotates the JWT — profile and page state are already set,
+                    // so skip the expensive re-fetch and redirect logic entirely.
+                    if (event === 'TOKEN_REFRESHED') {
+                        clearTimeout(safetyTimer);
+                        setIsAuthReady(true);
+                        return;
+                    }
+
                     let currentProfile: UserProfile | null = null;
                     let profileFetchFailed = false; // Track if fetch failed due to network/timeout
 
                     try {
                         // Fetch profile from Supabase (admins or clients table) with timeout
                         const tableName = isUserAdmin ? 'admins' : 'clients';
-                        console.log(`Fetching profile from ${tableName} table for user ${session.user.id}`);
 
-                        // Add timeout to prevent hanging
-                        const profileFetchPromise = supabase
-                            .from(tableName)
-                            .select('*')
-                            .eq('id', session.user.id)
-                            .single();
+                        let data, error;
+                        // Retry mechanism for profile fetch
+                        for (let attempt = 0; attempt < 3; attempt++) {
+                            try {
+                                const profileFetchPromise = supabase
+                                    .from(tableName)
+                                    .select('*')
+                                    .eq('id', session.user.id)
+                                    .single();
 
-                        const profileTimeoutPromise = new Promise((_, reject) => {
-                            setTimeout(() => reject(new Error('Profile fetch timeout (10s)')), 10000);
-                        });
+                                const timeoutDuration = attempt === 0 ? 8000 : 5000; // 8s for 1st attempt, 5s for retries
 
-                        const { data, error } = await Promise.race([profileFetchPromise, profileTimeoutPromise]) as any;
+                                const profileTimeoutPromise = new Promise((_, reject) => {
+                                    setTimeout(() => reject(new Error(`Profile fetch timeout (attempt ${attempt + 1})`)), timeoutDuration);
+                                });
+
+                                const result = await Promise.race([profileFetchPromise, profileTimeoutPromise]) as any;
+                                data = result.data;
+                                error = result.error;
+                                break; // If we get here, we got a response (success or API error)
+                            } catch (err) {
+                                const error = err instanceof Error ? err : new Error(String(err));
+                                console.warn(`${error.message}. Retrying...`);
+                                if (attempt === 2) throw error; // Throw on last attempt
+                                await new Promise(r => setTimeout(r, 1000 * (attempt + 1))); // Backoff
+                            }
+                        }
 
                         if (data) {
                             // Map database fields to UserProfile interface

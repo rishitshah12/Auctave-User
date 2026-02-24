@@ -178,6 +178,8 @@ export interface CrmOrder {
     documents: CrmDocument[];
     tasks: CrmTask[];
     products?: CrmProduct[];
+    custom_factory_name?: string;
+    custom_factory_location?: string;
 }
 
 

@@ -1,17 +1,20 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
     X, Save, Plus, Trash2, Package, FileText, CheckCircle, Clock,
     ChevronDown, ChevronRight, ChevronUp, Search, AlertTriangle,
     CalendarDays, User, Flag, MessageSquare, Zap, Layers, Target,
-    TrendingUp, List
+    TrendingUp, List, Building2, MapPin, PencilLine, Download
 } from 'lucide-react';
 import { CrmProduct } from './types';
+import { crmService } from './crm.service';
 
 interface ManageOrderModalProps {
     editingOrder: any;
     setEditingOrder: (order: any) => void;
     onSave: () => void;
     onClose: () => void;
+    factories?: any[];
+    supabase?: any;
 }
 
 const TASK_TEMPLATES = [
@@ -59,8 +62,13 @@ export const ManageOrderModal: React.FC<ManageOrderModalProps> = ({
     setEditingOrder,
     onSave,
     onClose,
+    factories,
+    supabase,
 }) => {
     const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'tasks' | 'documents'>('overview');
+    const [factoryMode, setFactoryMode] = useState<'list' | 'manual'>(() =>
+        editingOrder.custom_factory_name ? 'manual' : 'list'
+    );
     const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null);
     const [taskSearch, setTaskSearch] = useState('');
     const [taskStatusFilter, setTaskStatusFilter] = useState('ALL');
@@ -69,6 +77,8 @@ export const ManageOrderModal: React.FC<ManageOrderModalProps> = ({
     const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
     const [hasChanges, setHasChanges] = useState(false);
     const [originalOrder] = useState(() => JSON.stringify(editingOrder));
+    const [isUploading, setIsUploading] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         setHasChanges(JSON.stringify(editingOrder) !== originalOrder);
@@ -201,10 +211,60 @@ export const ManageOrderModal: React.FC<ManageOrderModalProps> = ({
     }, [editingOrder, products, tasks, setEditingOrder]);
 
     // --- Document operations ---
-    const addDocument = useCallback(() => {
-        const newDoc = { name: 'New Document', type: 'General', lastUpdated: new Date().toISOString().split('T')[0] };
-        setEditingOrder({ ...editingOrder, documents: [...documents, newDoc] });
-    }, [editingOrder, documents, setEditingOrder]);
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || e.target.files.length === 0) return;
+        const file = e.target.files[0];
+
+        if (!supabase) {
+            alert("File upload service not available");
+            return;
+        }
+
+        setIsUploading(true);
+        try {
+            const fileName = `crm/${editingOrder.id || 'temp'}/${Date.now()}_${file.name}`;
+            const { data, error } = await supabase.storage.from('quote-attachments').upload(fileName, file);
+
+            if (error) throw error;
+
+            const newDoc = {
+                name: file.name,
+                type: 'General',
+                lastUpdated: new Date().toISOString().split('T')[0],
+                path: data.path,
+                source: 'company'
+            };
+
+            const updatedDocuments = [...(editingOrder.documents || []), newDoc];
+
+            // Immediately persist to DB so the document is never lost
+            if (editingOrder.id) {
+                const { error: updateError } = await crmService.update(editingOrder.id, { documents: updatedDocuments } as any);
+                if (updateError) throw updateError;
+            }
+
+            // Update local state to reflect the new document
+            setEditingOrder({ ...editingOrder, documents: updatedDocuments });
+        } catch (err: any) {
+            console.error("Upload failed", err);
+            alert("Failed to upload file: " + (err.message || 'Unknown error'));
+        } finally {
+            setIsUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    const handlePreview = async (path: string) => {
+        if (!supabase || !path) return;
+        try {
+            const { data, error } = await supabase.storage.from('quote-attachments').createSignedUrl(path, 60);
+            if (error) throw error;
+            if (data?.signedUrl) window.open(data.signedUrl, '_blank');
+        } catch (err: any) {
+            console.error("Preview failed", err);
+            alert("Failed to preview file");
+        }
+    };
 
     const updateDocument = useCallback((index: number, field: string, value: any) => {
         const newDocs = [...documents];
@@ -253,8 +313,8 @@ export const ManageOrderModal: React.FC<ManageOrderModalProps> = ({
                             <Layers size={20} className="text-white" />
                         </div>
                         <div>
-                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Manage Order</h2>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">{editingOrder.product_name || 'Order'}</p>
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">{editingOrder.id ? 'Manage Order' : 'New Order'}</h2>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">{editingOrder.product_name || (editingOrder.id ? 'Order' : 'Fill in details below')}</p>
                         </div>
                         {hasChanges && (
                             <span className="ml-3 px-2.5 py-0.5 text-xs font-semibold rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 animate-pulse">
@@ -322,6 +382,105 @@ export const ManageOrderModal: React.FC<ManageOrderModalProps> = ({
                                         );
                                     })}
                                 </div>
+                            </div>
+
+                            {/* Factory assignment */}
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                                    Assigned Factory
+                                </label>
+
+                                {/* Mode toggle */}
+                                <div className="flex gap-2 mb-3 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl w-fit">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setFactoryMode('list');
+                                            setEditingOrder({ ...editingOrder, custom_factory_name: '', custom_factory_location: '' });
+                                        }}
+                                        className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                                            factoryMode === 'list'
+                                                ? 'bg-white dark:bg-gray-700 text-gray-800 dark:text-white shadow-sm'
+                                                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                                        }`}
+                                    >
+                                        <Building2 size={14} /> Select from List
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setFactoryMode('manual');
+                                            setEditingOrder({ ...editingOrder, factory_id: '' });
+                                        }}
+                                        className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                                            factoryMode === 'manual'
+                                                ? 'bg-white dark:bg-gray-700 text-gray-800 dark:text-white shadow-sm'
+                                                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                                        }`}
+                                    >
+                                        <PencilLine size={14} /> Enter Manually
+                                    </button>
+                                </div>
+
+                                {factoryMode === 'list' ? (
+                                    factories && factories.length > 0 ? (
+                                        <select
+                                            value={editingOrder.factory_id || ''}
+                                            onChange={(e) => setEditingOrder({ ...editingOrder, factory_id: e.target.value })}
+                                            className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-white text-sm focus:ring-2 focus:ring-[#c20c0b]/20 focus:border-[#c20c0b] focus:outline-none"
+                                        >
+                                            <option value="">— Select Factory —</option>
+                                            {factories.map((f: any) => (
+                                                <option key={f.id} value={f.id}>{f.name}{f.location ? ` · ${f.location}` : ''}</option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <p className="text-sm text-gray-400 dark:text-gray-500 italic p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
+                                            No factories available in the system. Use "Enter Manually" instead.
+                                        </p>
+                                    )
+                                ) : (
+                                    <div className="space-y-3">
+                                        <div className="relative">
+                                            <Building2 size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                                            <input
+                                                type="text"
+                                                value={editingOrder.custom_factory_name || ''}
+                                                onChange={(e) => setEditingOrder({ ...editingOrder, custom_factory_name: e.target.value })}
+                                                placeholder="Factory name (e.g. Sunrise Garments)"
+                                                className="w-full pl-9 pr-3 p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-white text-sm focus:ring-2 focus:ring-[#c20c0b]/20 focus:border-[#c20c0b] focus:outline-none"
+                                            />
+                                        </div>
+                                        <div className="relative">
+                                            <MapPin size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                                            <input
+                                                type="text"
+                                                value={editingOrder.custom_factory_location || ''}
+                                                onChange={(e) => setEditingOrder({ ...editingOrder, custom_factory_location: e.target.value })}
+                                                placeholder="Location (e.g. Dhaka, Bangladesh)"
+                                                className="w-full pl-9 pr-3 p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-white text-sm focus:ring-2 focus:ring-[#c20c0b]/20 focus:border-[#c20c0b] focus:outline-none"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Current assignment preview */}
+                                {(factoryMode === 'list' && editingOrder.factory_id && factories?.find((f: any) => f.id === editingOrder.factory_id)) && (
+                                    <div className="mt-3 flex items-center gap-2 p-2.5 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                                        <CheckCircle size={14} className="text-emerald-500 flex-shrink-0" />
+                                        <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                                            Assigned: {factories.find((f: any) => f.id === editingOrder.factory_id)?.name}
+                                        </span>
+                                    </div>
+                                )}
+                                {(factoryMode === 'manual' && editingOrder.custom_factory_name) && (
+                                    <div className="mt-3 flex items-center gap-2 p-2.5 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                                        <CheckCircle size={14} className="text-blue-500 flex-shrink-0" />
+                                        <span className="text-xs font-semibold text-blue-700 dark:text-blue-400">
+                                            Manual entry: {editingOrder.custom_factory_name}
+                                        </span>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Progress bar */}
@@ -917,40 +1076,91 @@ export const ManageOrderModal: React.FC<ManageOrderModalProps> = ({
                     {/* ===== DOCUMENTS TAB ===== */}
                     {activeTab === 'documents' && (
                         <div className="p-6 space-y-4">
-                            <div className="flex justify-between items-center">
-                                <p className="text-sm text-gray-500 dark:text-gray-400">Manage documents associated with this order.</p>
-                                <button
-                                    onClick={addDocument}
-                                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#c20c0b] to-red-600 text-white rounded-xl text-sm font-semibold hover:shadow-lg hover:scale-105 transition-all duration-200"
-                                >
-                                    <Plus size={16} /> Add Document
-                                </button>
+                            <div className="flex justify-between items-center mb-4">
+                                <p className="text-sm text-gray-500 dark:text-gray-400">Manage documents associated with this order. Documents uploaded here will be visible to the client as "Company Documents".</p>
                             </div>
-                            <div className="space-y-3">
-                                {documents.map((doc: any, idx: number) => (
-                                    <div key={idx} className="bg-white dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition-all duration-200">
-                                        <div className="flex items-start gap-4">
-                                            <div className="p-2.5 bg-purple-50 dark:bg-purple-900/20 rounded-lg flex-shrink-0">
-                                                <FileText size={20} className="text-purple-500" />
-                                            </div>
-                                            <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                <div>
-                                                    <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1 block">Name</label>
-                                                    <input
-                                                        type="text"
-                                                        value={doc.name}
-                                                        onChange={(e) => updateDocument(idx, 'name', e.target.value)}
-                                                        className="w-full p-2 bg-transparent border border-gray-200 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-[#c20c0b]/20 focus:border-[#c20c0b] focus:outline-none text-gray-800 dark:text-white"
-                                                        placeholder="Document Name"
-                                                    />
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* Client Documents Column */}
+                                <div className="space-y-3">
+                                    <h3 className="text-sm font-bold text-gray-800 dark:text-white uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 pb-2">Client Documents</h3>
+                                    {documents.filter((d: any) => d.source === 'client' || !d.source).length === 0 ? (
+                                        <p className="text-sm text-gray-400 italic py-4">No documents from client.</p>
+                                    ) : (
+                                        documents.map((doc: any, idx: number) => {
+                                            if (doc.source === 'company') return null;
+                                            return (
+                                                <div key={idx} className="bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700 p-3 flex items-center gap-3">
+                                                    <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-blue-500">
+                                                        <FileText size={18} />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{doc.name}</p>
+                                                        <p className="text-xs text-gray-500">{doc.lastUpdated}</p>
+                                                    </div>
+                                                    {/* Admin can delete client docs if needed, or maybe just view */}
+                                                    <button onClick={() => removeDocument(idx)} className="text-gray-400 hover:text-red-500 p-1">
+                                                        <Trash2 size={14} />
+                                                    </button>
                                                 </div>
-                                                <div>
-                                                    <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1 block">Type</label>
-                                                    <select
-                                                        value={doc.type}
-                                                        onChange={(e) => updateDocument(idx, 'type', e.target.value)}
-                                                        className="w-full p-2 bg-transparent border border-gray-200 dark:border-gray-600 rounded-lg text-sm cursor-pointer text-gray-800 dark:text-white"
-                                                    >
+                                            );
+                                        })
+                                    )}
+                                </div>
+
+                                {/* Company Documents Column */}
+                                <div className="space-y-3">
+                                    <div className="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 pb-2">
+                                        <h3 className="text-sm font-bold text-gray-800 dark:text-white uppercase tracking-wider">Company Documents</h3>
+                                        <label className={`cursor-pointer flex items-center gap-1 text-xs font-bold text-[#c20c0b] hover:underline ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                            <Plus size={14} />
+                                            {isUploading ? 'Uploading...' : 'Add Document'}
+                                            <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} disabled={isUploading} />
+                                        </label>
+                                    </div>
+                                    
+                                    {documents.filter((d: any) => d.source === 'company').length === 0 ? (
+                                        <p className="text-sm text-gray-400 italic py-4">No documents uploaded by Auctave.</p>
+                                    ) : (
+                                        documents.map((doc: any, idx: number) => {
+                                            if (doc.source !== 'company') return null;
+                                            return (
+                                                <div key={idx} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-3 shadow-sm">
+                                                    <div className="flex items-start gap-3 mb-2">
+                                                        <div className="p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg text-purple-500">
+                                                            <FileText size={18} />
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <input
+                                                                type="text"
+                                                                value={doc.name}
+                                                                onChange={(e) => updateDocument(idx, 'name', e.target.value)}
+                                                                className="w-full bg-transparent border-none p-0 text-sm font-medium text-gray-900 dark:text-white focus:ring-0"
+                                                                placeholder="Document Name"
+                                                            />
+                                                            <div className="flex items-center gap-2 mt-0.5">
+                                                                <p className="text-xs text-gray-500">{doc.lastUpdated}</p>
+                                                                {doc.path && (
+                                                                    <button 
+                                                                        onClick={() => handlePreview(doc.path)}
+                                                                        className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                                                                        title="Preview/Download"
+                                                                    >
+                                                                        <Download size={10} /> Preview
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <button onClick={() => removeDocument(idx)} className="text-gray-400 hover:text-red-500 p-1">
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    </div>
+                                                    <div className="pl-11">
+                                                        <select
+                                                            value={doc.type}
+                                                            onChange={(e) => updateDocument(idx, 'type', e.target.value)}
+                                                            className="w-full py-1 px-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded text-xs text-gray-700 dark:text-gray-300 focus:outline-none focus:border-[#c20c0b]"
+                                                        >
                                                         <option>General</option>
                                                         <option>Invoice</option>
                                                         <option>Packing List</option>
@@ -961,24 +1171,13 @@ export const ManageOrderModal: React.FC<ManageOrderModalProps> = ({
                                                         <option>Purchase Order</option>
                                                         <option>Tech Pack</option>
                                                         <option>Sample Approval</option>
-                                                    </select>
+                                                        </select>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                            <button
-                                                onClick={() => removeDocument(idx)}
-                                                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex-shrink-0"
-                                            >
-                                                <Trash2 size={16} />
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
-                                {documents.length === 0 && (
-                                    <div className="text-center py-12">
-                                        <FileText size={48} className="text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-                                        <p className="text-gray-500 dark:text-gray-400">No documents yet. Add one to track order files.</p>
-                                    </div>
-                                )}
+                                            );
+                                        })
+                                    )}
+                                </div>
                             </div>
                         </div>
                     )}

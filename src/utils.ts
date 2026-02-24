@@ -122,6 +122,8 @@ export function normalizeOrder(raw: any): CrmOrder {
         documents: raw.documents || [],
         tasks,
         products,
+        custom_factory_name: raw.custom_factory_name || '',
+        custom_factory_location: raw.custom_factory_location || '',
     };
 }
 
