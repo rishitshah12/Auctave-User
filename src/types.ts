@@ -137,6 +137,7 @@ export interface QuoteRequest {
 export interface CrmProduct {
     id: string;
     name: string;
+    category?: string;
     status?: 'Pending' | 'In Production' | 'Quality Check' | 'Shipped' | 'Completed';
     quantity?: number;
 }

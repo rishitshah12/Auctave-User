@@ -4,7 +4,7 @@ import {
     BarChart as BarChartIcon, Info, LayoutDashboard, ClipboardCheck,
     GanttChartSquare, Bot, FileText, Ship, DollarSign, Download, MapPin, Plus, ChevronDown, X,
     Star, AlertCircle, ArrowRight, ArrowLeft, Building, Clock, Flag,
-    Activity, Scissors, Target, Zap, ChevronRight
+    Activity, Scissors, Target, Zap, ChevronRight, Pencil, Save, ChevronUp, Trash2
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Pie, Cell, PieChart
@@ -547,9 +547,6 @@ export const ListView: FC<{ tasks: any[] }> = ({ tasks }) => {
                         <ChevronDown size={20} className={`mr-2 ${groupHeaderColor}`} />
                         <span className={`mr-2 ${groupHeaderColor}`}>{title}</span>
                         <span className={`${badgeColor} text-xs font-bold px-2.5 py-1 rounded-full shadow-sm`}>{tasks.length}</span>
-                        <button className="ml-4 text-gray-500 dark:text-gray-400 hover:text-[var(--color-primary)] dark:hover:text-red-400 flex items-center gap-1.5 text-xs font-semibold hover:scale-105 transition-all duration-200">
-                            <Plus size={14} /> Add Task
-                        </button>
                     </div>
                     <div className="overflow-x-auto bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10">
                         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
@@ -690,9 +687,6 @@ export const BoardView: FC<{ tasks: any[] }> = ({ tasks }) => {
                             </h3>
                             <div className="space-y-3">
                                 {tasksInColumn.map(task => <TaskCard key={task.id} task={task} />)}
-                                <button className="w-full text-left text-sm font-semibold text-gray-600 dark:text-gray-300 hover:bg-white/50 dark:hover:bg-gray-800/50 p-3 rounded-xl flex items-center gap-2 transition-all duration-200 hover:shadow-md border border-dashed border-gray-300 dark:border-gray-600">
-                                    <Plus size={16} /> Add Task
-                                </button>
                             </div>
                         </div>
                     );
@@ -892,15 +886,37 @@ export const GanttChartView: FC<{ tasks: any[]; onTaskUpdate?: (taskId: number, 
         )
     }
 
-export const TNAView: FC<{ tasks: any[] }> = ({ tasks }) => {
+export const TNAView: FC<{
+        tasks: any[];
+        products?: CrmProduct[];
+        onSaveTask?: (updatedTask: CrmTask) => Promise<void>;
+        onSaveBulkTasks?: (tasks: CrmTask[]) => Promise<void>;
+    }> = ({ tasks, products, onSaveTask, onSaveBulkTasks }) => {
         const parseDate = (str: string | null) => str ? new Date(str) : null;
         const today = new Date();
-        today.setHours(0, 0, 0, 0); // Normalize today's date
+        today.setHours(0, 0, 0, 0);
+
+        const [editingTask, setEditingTask] = useState<CrmTask | null>(null);
+        const [isSaving, setIsSaving] = useState(false);
+        const [collapsedProducts, setCollapsedProducts] = useState<Set<string>>(new Set());
+
+        // ── Bulk edit state ───────────────────────────────
+        const [isEditMode, setIsEditMode] = useState(false);
+        const [editingTasks, setEditingTasks] = useState<CrmTask[]>([]);
+        const [isSavingBulk, setIsSavingBulk] = useState(false);
+
+        const toggleProduct = (key: string) => {
+            setCollapsedProducts(prev => {
+                const next = new Set(prev);
+                if (next.has(key)) next.delete(key);
+                else next.add(key);
+                return next;
+            });
+        };
 
         const calculateDelay = (task: any) => {
             const plannedEnd = parseDate(task.plannedEndDate);
             if (!plannedEnd) return { days: 0, status: 'ontime' };
-
             if (task.status === 'COMPLETE') {
                 const actualEnd = parseDate(task.actualEndDate);
                 if (!actualEnd) return { days: 0, status: 'ontime' };
@@ -929,74 +945,575 @@ export const TNAView: FC<{ tasks: any[] }> = ({ tasks }) => {
                 case 'TO DO': return `${baseClasses} bg-gray-100 text-gray-800`;
                 default: return `${baseClasses} bg-gray-100 text-gray-800`;
             }
-        }
+        };
+
+        const priorityColors: Record<string, string> = {
+            'Urgent': 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400',
+            'High': 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400',
+            'Medium': 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400',
+            'Low': 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400',
+        };
+
+        const PRODUCT_COLORS = [
+            { border: 'border-l-blue-500', bg: 'from-blue-500 to-cyan-500', light: 'bg-blue-50 dark:bg-blue-900/20', text: 'text-blue-700 dark:text-blue-300' },
+            { border: 'border-l-purple-500', bg: 'from-purple-500 to-pink-500', light: 'bg-purple-50 dark:bg-purple-900/20', text: 'text-purple-700 dark:text-purple-300' },
+            { border: 'border-l-emerald-500', bg: 'from-emerald-500 to-green-500', light: 'bg-emerald-50 dark:bg-emerald-900/20', text: 'text-emerald-700 dark:text-emerald-300' },
+            { border: 'border-l-amber-500', bg: 'from-amber-500 to-orange-500', light: 'bg-amber-50 dark:bg-amber-900/20', text: 'text-amber-700 dark:text-amber-300' },
+            { border: 'border-l-rose-500', bg: 'from-rose-500 to-red-500', light: 'bg-rose-50 dark:bg-rose-900/20', text: 'text-rose-700 dark:text-rose-300' },
+            { border: 'border-l-indigo-500', bg: 'from-indigo-500 to-violet-500', light: 'bg-indigo-50 dark:bg-indigo-900/20', text: 'text-indigo-700 dark:text-indigo-300' },
+        ];
+
+        // ── Category-based grouping ──────────────────────
+        const allProductIds = useMemo(() => new Set((products || []).map(p => p.id)), [products]);
+
+        const groupedStructure = useMemo(() => {
+            if (!products || products.length === 0) {
+                return [{ key: 'ungrouped', category: 'General Tasks', categoryProducts: [] as CrmProduct[], colorIdx: 0, isMultiProduct: false }];
+            }
+            const categoryMap = new Map<string, CrmProduct[]>();
+            products.forEach(p => {
+                const cat = p.category || p.name;
+                if (!categoryMap.has(cat)) categoryMap.set(cat, []);
+                categoryMap.get(cat)!.push(p);
+            });
+            const result: { key: string; category: string; categoryProducts: CrmProduct[]; colorIdx: number; isMultiProduct: boolean }[] = [];
+            let idx = 0;
+            categoryMap.forEach((prods, cat) => {
+                result.push({ key: cat, category: cat, categoryProducts: prods, colorIdx: idx++, isMultiProduct: prods.length > 1 });
+            });
+            // Ungrouped slot — only rendered if there are unmatched tasks
+            result.push({ key: 'ungrouped', category: 'General Tasks', categoryProducts: [], colorIdx: idx, isMultiProduct: false });
+            return result;
+        }, [products]);
+
+        // ── Bulk edit handlers ────────────────────────────
+        const enterEditMode = () => {
+            setEditingTasks(tasks.map(t => ({ ...t })));
+            setIsEditMode(true);
+        };
+        const cancelEditMode = () => {
+            setEditingTasks([]);
+            setIsEditMode(false);
+        };
+        const handleBulkSave = async () => {
+            if (!onSaveBulkTasks) return;
+            setIsSavingBulk(true);
+            try {
+                await onSaveBulkTasks(editingTasks);
+                setIsEditMode(false);
+                setEditingTasks([]);
+            } catch (e) {
+                console.error(e);
+            } finally {
+                setIsSavingBulk(false);
+            }
+        };
+        const updateEditingTask = (taskId: number, field: string, value: any) => {
+            setEditingTasks(prev => prev.map(t => t.id === taskId ? { ...t, [field]: value } : t));
+        };
+        const deleteEditingTask = (taskId: number) => {
+            setEditingTasks(prev => prev.filter(t => t.id !== taskId));
+        };
+        const addEditingTask = (defaultProductId?: string) => {
+            const newTask: CrmTask = {
+                id: Date.now(),
+                name: 'New Task',
+                responsible: '',
+                plannedStartDate: '',
+                plannedEndDate: '',
+                actualStartDate: null,
+                actualEndDate: null,
+                status: 'TO DO',
+                productId: defaultProductId,
+                priority: 'Medium',
+                progress: 0,
+            };
+            setEditingTasks(prev => [...prev, newTask]);
+        };
+
+        const handleSave = async () => {
+            if (!editingTask || !onSaveTask) return;
+            setIsSaving(true);
+            try {
+                await onSaveTask(editingTask);
+                setEditingTask(null);
+            } catch (e) {
+                console.error(e);
+            } finally {
+                setIsSaving(false);
+            }
+        };
+
+        const sourceTasks = isEditMode ? editingTasks : tasks;
+        const inputCls = "px-2 py-1 text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 w-full";
+
+        // ── Editable row (bulk edit mode) ─────────────────
+        const renderEditableRow = (task: CrmTask, isMultiProduct: boolean, categoryProducts: CrmProduct[]) => {
+            const delayInfo = calculateDelay(task);
+            const progress = task.status === 'COMPLETE' ? 100 : (task.progress || 0);
+            return (
+                <tr key={task.id} className="bg-blue-50/20 dark:bg-blue-900/5 hover:bg-blue-50/40 dark:hover:bg-blue-900/10 transition-colors">
+                    {isMultiProduct && (
+                        <td className="px-3 py-2 min-w-[120px]">
+                            <select value={task.productId || ''} onChange={e => updateEditingTask(task.id, 'productId', e.target.value)} className={inputCls}>
+                                {categoryProducts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                            </select>
+                        </td>
+                    )}
+                    <td className="px-3 py-2 min-w-[150px]">
+                        <input type="text" value={task.name} onChange={e => updateEditingTask(task.id, 'name', e.target.value)} className={inputCls} placeholder="Task name" />
+                    </td>
+                    <td className="px-3 py-2">
+                        <select value={task.priority || 'Medium'} onChange={e => updateEditingTask(task.id, 'priority', e.target.value as any)} className={inputCls}>
+                            <option value="Low">Low</option>
+                            <option value="Medium">Medium</option>
+                            <option value="High">High</option>
+                            <option value="Urgent">Urgent</option>
+                        </select>
+                    </td>
+                    <td className="px-3 py-2 min-w-[110px]">
+                        <input type="text" value={task.responsible || ''} onChange={e => updateEditingTask(task.id, 'responsible', e.target.value)} className={inputCls} placeholder="Responsible" />
+                    </td>
+                    <td className="px-3 py-2">
+                        <input type="date" value={task.plannedStartDate || ''} onChange={e => updateEditingTask(task.id, 'plannedStartDate', e.target.value)} className={inputCls} />
+                    </td>
+                    <td className="px-3 py-2">
+                        <input type="date" value={task.plannedEndDate || ''} onChange={e => updateEditingTask(task.id, 'plannedEndDate', e.target.value)} className={inputCls} />
+                    </td>
+                    <td className="px-3 py-2">
+                        <input type="date" value={task.actualStartDate || ''} onChange={e => updateEditingTask(task.id, 'actualStartDate', e.target.value || null as any)} className={inputCls} />
+                    </td>
+                    <td className="px-3 py-2">
+                        <input type="date" value={task.actualEndDate || ''} onChange={e => updateEditingTask(task.id, 'actualEndDate', e.target.value || null as any)} className={inputCls} />
+                    </td>
+                    <td className="px-3 py-2 min-w-[80px]">
+                        <div className="flex items-center gap-1">
+                            <input type="number" min="0" max="100" step="5" value={progress} onChange={e => updateEditingTask(task.id, 'progress', parseInt(e.target.value) || 0)} disabled={task.status === 'COMPLETE'} className={`${inputCls} w-14`} />
+                            <span className="text-xs text-gray-400 flex-shrink-0">%</span>
+                        </div>
+                    </td>
+                    <td className="px-3 py-2">
+                        <select value={task.status} onChange={e => updateEditingTask(task.id, 'status', e.target.value as any)} className={inputCls}>
+                            <option value="TO DO">TO DO</option>
+                            <option value="IN PROGRESS">IN PROGRESS</option>
+                            <option value="COMPLETE">COMPLETE</option>
+                        </select>
+                    </td>
+                    <td className={`px-3 py-2 text-xs font-bold ${getDelayColor(delayInfo.status)}`}>
+                        {delayInfo.days > 0 ? `+${delayInfo.days}d` : '—'}
+                    </td>
+                    <td className="px-3 py-2">
+                        <button onClick={() => deleteEditingTask(task.id)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all" title="Delete task">
+                            <Trash2 size={14} />
+                        </button>
+                    </td>
+                </tr>
+            );
+        };
+
+        // ── Read-only row ─────────────────────────────────
+        const renderTaskRows = (groupTasks: any[], isMultiProduct: boolean, categoryProducts: CrmProduct[]) => groupTasks.map((task) => {
+            const delayInfo = calculateDelay(task);
+            const progress = task.status === 'COMPLETE' ? 100 : (task.progress || 0);
+            const itemProduct = isMultiProduct ? categoryProducts.find(p => p.id === task.productId) : undefined;
+            return (
+                <tr key={task.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors duration-200 group">
+                    {isMultiProduct && (
+                        <td className="px-5 py-4 whitespace-nowrap">
+                            <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">
+                                {itemProduct?.name || '—'}
+                            </span>
+                        </td>
+                    )}
+                    <td className="px-5 py-4 whitespace-nowrap font-semibold text-gray-900 dark:text-white">{task.name}</td>
+                    <td className="px-5 py-4 whitespace-nowrap">
+                        {task.priority ? (
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold ${priorityColors[task.priority] || priorityColors['Medium']}`}>
+                                <Flag size={10} /> {task.priority}
+                            </span>
+                        ) : <span className="text-gray-400 text-xs">—</span>}
+                    </td>
+                    <td className="px-5 py-4 whitespace-nowrap text-gray-600 dark:text-gray-300">
+                        <div className="flex items-center gap-2">
+                            <img className="w-6 h-6 rounded-full border border-gray-200 dark:border-gray-700" src={`https://i.pravatar.cc/150?u=${task.responsible}`} alt="user"/>
+                            {task.responsible}
+                        </div>
+                    </td>
+                    <td className="px-5 py-4 whitespace-nowrap text-gray-600 dark:text-gray-300">{task.plannedStartDate}</td>
+                    <td className="px-5 py-4 whitespace-nowrap text-gray-600 dark:text-gray-300">{task.plannedEndDate}</td>
+                    <td className="px-5 py-4 whitespace-nowrap text-gray-600 dark:text-gray-300">{task.actualStartDate || '—'}</td>
+                    <td className="px-5 py-4 whitespace-nowrap text-gray-600 dark:text-gray-300">{task.actualEndDate || '—'}</td>
+                    <td className="px-5 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2 min-w-[80px]">
+                            <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                <div className={`h-full rounded-full transition-all duration-500 ${progress === 100 ? 'bg-green-500' : progress > 50 ? 'bg-blue-500' : 'bg-amber-500'}`} style={{ width: `${progress}%` }} />
+                            </div>
+                            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 w-7 text-right">{progress}%</span>
+                        </div>
+                    </td>
+                    <td className="px-5 py-4 whitespace-nowrap"><span className={getStatusPill(task.status)}>{task.status}</span></td>
+                    <td className={`px-5 py-4 whitespace-nowrap font-bold ${getDelayColor(delayInfo.status)}`}>
+                        {delayInfo.days > 0 ? (
+                            <span className="flex items-center gap-1"><AlertCircle size={14} />+{delayInfo.days}d</span>
+                        ) : '—'}
+                    </td>
+                    {onSaveTask && !isEditMode && (
+                        <td className="px-3 py-4 whitespace-nowrap">
+                            <button
+                                onClick={() => setEditingTask({ ...task })}
+                                className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200"
+                                title="Edit task"
+                            >
+                                <Pencil size={14} />
+                            </button>
+                        </td>
+                    )}
+                </tr>
+            );
+        });
 
         return (
-            <div className="mt-6 overflow-x-auto animate-fade-in">
-                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10">
-                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                        <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50">
-                            <tr>
-                                {['Task', 'Priority', 'Responsible', 'Planned Start', 'Planned End', 'Actual Start', 'Actual End', 'Progress', 'Status', 'Delay (Days)'].map(header => (
-                                    <th key={header} scope="col" className="px-5 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">{header}</th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white dark:bg-gray-900/40 divide-y divide-gray-100 dark:divide-gray-800 text-sm">
-                            {tasks.map((task, index) => {
-                                const delayInfo = calculateDelay(task);
-                                const priorityColors: Record<string, string> = {
-                                    'Urgent': 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400',
-                                    'High': 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400',
-                                    'Medium': 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400',
-                                    'Low': 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400',
-                                };
-                                const progress = task.status === 'COMPLETE' ? 100 : (task.progress || 0);
-                                return (
-                                    <tr key={task.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors duration-200">
-                                        <td className="px-5 py-4 whitespace-nowrap font-semibold text-gray-900 dark:text-white">{task.name}</td>
-                                        <td className="px-5 py-4 whitespace-nowrap">
-                                            {task.priority ? (
-                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold ${priorityColors[task.priority] || priorityColors['Medium']}`}>
-                                                    <Flag size={10} /> {task.priority}
-                                                </span>
-                                            ) : <span className="text-gray-400 text-xs">—</span>}
-                                        </td>
-                                        <td className="px-5 py-4 whitespace-nowrap text-gray-600 dark:text-gray-300">
-                                            <div className="flex items-center gap-2">
-                                                <img className="w-6 h-6 rounded-full border border-gray-200 dark:border-gray-700" src={`https://i.pravatar.cc/150?u=${task.responsible}`} alt="user"/>
-                                                {task.responsible}
-                                            </div>
-                                        </td>
-                                        <td className="px-5 py-4 whitespace-nowrap text-gray-600 dark:text-gray-300">{task.plannedStartDate}</td>
-                                        <td className="px-5 py-4 whitespace-nowrap text-gray-600 dark:text-gray-300">{task.plannedEndDate}</td>
-                                        <td className="px-5 py-4 whitespace-nowrap text-gray-600 dark:text-gray-300">{task.actualStartDate || '—'}</td>
-                                        <td className="px-5 py-4 whitespace-nowrap text-gray-600 dark:text-gray-300">{task.actualEndDate || '—'}</td>
-                                        <td className="px-5 py-4 whitespace-nowrap">
-                                            <div className="flex items-center gap-2 min-w-[80px]">
-                                                <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                                                    <div className={`h-full rounded-full transition-all duration-500 ${progress === 100 ? 'bg-green-500' : progress > 50 ? 'bg-blue-500' : 'bg-amber-500'}`} style={{ width: `${progress}%` }} />
-                                                </div>
-                                                <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 w-7 text-right">{progress}%</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-5 py-4 whitespace-nowrap"><span className={getStatusPill(task.status)}>{task.status}</span></td>
-                                        <td className={`px-5 py-4 whitespace-nowrap font-bold ${getDelayColor(delayInfo.status)}`}>
-                                            {delayInfo.days > 0 ? (
-                                                <span className="flex items-center gap-1">
-                                                    <AlertCircle size={14} />
-                                                    +{delayInfo.days}d
-                                                </span>
-                                            ) : '—'}
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
+            <div className="mt-6 space-y-3 animate-fade-in">
+                {/* ── Bulk Edit Toolbar ─────────────────────────── */}
+                {onSaveBulkTasks && (
+                    <div className={`flex items-center justify-between px-4 py-3 rounded-xl border transition-all duration-200 ${
+                        isEditMode
+                            ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700'
+                            : 'bg-white dark:bg-gray-900/40 border-gray-200 dark:border-white/10'
+                    }`}>
+                        {isEditMode ? (
+                            <>
+                                <div className="flex items-center gap-2">
+                                    <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                                    <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">Bulk Editing TNA</span>
+                                    <span className="text-xs text-blue-500 dark:text-blue-400">— {editingTasks.length} tasks</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button onClick={cancelEditMode} className="px-3 py-1.5 text-sm font-semibold text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all">
+                                        Cancel
+                                    </button>
+                                    <button onClick={handleBulkSave} disabled={isSavingBulk} className="flex items-center gap-2 px-4 py-1.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-sm font-semibold rounded-lg hover:from-blue-600 hover:to-indigo-600 transition-all shadow-md disabled:opacity-60 disabled:cursor-not-allowed">
+                                        {isSavingBulk ? <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save size={13} />}
+                                        {isSavingBulk ? 'Saving...' : 'Save All Changes'}
+                                    </button>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <span className="text-sm text-gray-500 dark:text-gray-400">Manage all tasks at once</span>
+                                <button onClick={enterEditMode} className="flex items-center gap-2 px-4 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-sm font-semibold rounded-lg hover:border-blue-400 hover:text-blue-600 dark:hover:border-blue-500 dark:hover:text-blue-400 transition-all shadow-sm">
+                                    <Pencil size={13} />
+                                    Edit TNA
+                                </button>
+                            </>
+                        )}
+                    </div>
+                )}
+
+                {/* ── Category Sections ─────────────────────────── */}
+                {groupedStructure.map(({ key, category, categoryProducts, colorIdx, isMultiProduct }) => {
+                    const productIds = new Set(categoryProducts.map(p => p.id));
+                    const groupTasks = categoryProducts.length === 0
+                        ? sourceTasks.filter((t: any) => !t.productId || !allProductIds.has(t.productId))
+                        : sourceTasks.filter((t: any) => productIds.has(t.productId));
+
+                    // Hide empty ungrouped section when products exist
+                    if (key === 'ungrouped' && groupTasks.length === 0 && products && products.length > 0) return null;
+
+                    const color = PRODUCT_COLORS[colorIdx % PRODUCT_COLORS.length];
+                    const completedCount = groupTasks.filter((t: any) => t.status === 'COMPLETE').length;
+                    const atRiskCount = groupTasks.filter((t: any) => {
+                        const pd = parseDate(t.plannedEndDate);
+                        return t.status !== 'COMPLETE' && pd && today > pd;
+                    }).length;
+                    const sectionProgress = groupTasks.length > 0 ? Math.round((completedCount / groupTasks.length) * 100) : 0;
+                    const isCollapsed = collapsedProducts.has(key);
+                    const totalQty = categoryProducts.reduce((sum, p) => sum + (p.quantity || 0), 0);
+
+                    const sectionHeaders = isEditMode
+                        ? [...(isMultiProduct ? ['Item'] : []), 'Task', 'Priority', 'Responsible', 'Planned Start', 'Planned End', 'Actual Start', 'Actual End', 'Progress', 'Status', 'Delay', '']
+                        : [...(isMultiProduct ? ['Item'] : []), 'Task', 'Priority', 'Responsible', 'Planned Start', 'Planned End', 'Actual Start', 'Actual End', 'Progress', 'Status', 'Delay', ...(onSaveTask && !isEditMode ? [''] : [])];
+
+                    return (
+                        <div key={key} className={`bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden border-l-4 ${color.border} transition-all duration-200`}>
+                            {/* Section Header */}
+                            <button
+                                type="button"
+                                onClick={() => toggleProduct(key)}
+                                className={`w-full px-6 py-4 ${color.light} ${!isCollapsed ? 'border-b border-gray-200 dark:border-white/10' : ''} flex flex-wrap items-center justify-between gap-3 hover:brightness-[0.97] dark:hover:brightness-110 transition-all duration-150 text-left`}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className={`p-2 bg-gradient-to-br ${color.bg} rounded-lg shadow-sm flex-shrink-0`}>
+                                        <Package size={14} className="text-white" />
+                                    </div>
+                                    <div>
+                                        <h3 className={`font-bold text-base ${color.text}`}>{category}</h3>
+                                        {isMultiProduct ? (
+                                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                {categoryProducts.map(p => p.name).join(' · ')}
+                                                {totalQty > 0 && ` — ${totalQty.toLocaleString()} units`}
+                                            </p>
+                                        ) : (
+                                            categoryProducts[0]?.quantity ? (
+                                                <p className="text-xs text-gray-500 dark:text-gray-400">{categoryProducts[0].quantity.toLocaleString()} units</p>
+                                            ) : null
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                                        <CheckCircle size={13} className="text-green-500" />
+                                        <span>{completedCount}/{groupTasks.length} tasks</span>
+                                    </div>
+                                    {atRiskCount > 0 && (
+                                        <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-600 dark:text-amber-400">
+                                            <AlertCircle size={13} />
+                                            <span>{atRiskCount} at risk</span>
+                                        </div>
+                                    )}
+                                    <div className="flex items-center gap-2 min-w-[100px]">
+                                        <div className="flex-1 h-1.5 bg-gray-200/60 dark:bg-gray-700 rounded-full overflow-hidden">
+                                            <div className={`h-full rounded-full bg-gradient-to-r ${color.bg} transition-all duration-500`} style={{ width: `${sectionProgress}%` }} />
+                                        </div>
+                                        <span className="text-xs font-bold text-gray-600 dark:text-gray-300 w-8 text-right">{sectionProgress}%</span>
+                                    </div>
+                                    {!isMultiProduct && categoryProducts[0]?.status && (
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/60 dark:bg-gray-800/60 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
+                                            {categoryProducts[0].status}
+                                        </span>
+                                    )}
+                                    <div className={`ml-1 text-gray-400 dark:text-gray-500 transition-transform duration-200 ${isCollapsed ? '' : 'rotate-180'}`}>
+                                        <ChevronUp size={16} />
+                                    </div>
+                                </div>
+                            </button>
+                            {/* Task Table */}
+                            {!isCollapsed && (
+                                groupTasks.length > 0 || isEditMode ? (
+                                    <div className="overflow-x-auto">
+                                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                            <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50">
+                                                <tr>
+                                                    {sectionHeaders.map((header, i) => (
+                                                        <th key={`${header}-${i}`} scope="col" className="px-5 py-3 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">{header}</th>
+                                                    ))}
+                                                </tr>
+                                            </thead>
+                                            {isMultiProduct ? (
+                                                // Sub-sections per product within the category
+                                                categoryProducts.map(product => {
+                                                    const productTasks = groupTasks.filter((t: any) => t.productId === product.id);
+                                                    const productCompleted = productTasks.filter((t: any) => t.status === 'COMPLETE').length;
+                                                    return (
+                                                        <tbody key={product.id} className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
+                                                            {/* Product sub-header row */}
+                                                            <tr className="bg-gray-50/80 dark:bg-gray-800/60">
+                                                                <td colSpan={sectionHeaders.length} className="px-5 py-2.5 border-t border-gray-200 dark:border-gray-700">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <span className="text-xs font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wide">{product.name}</span>
+                                                                        {product.quantity ? <span className="text-xs text-gray-400">{product.quantity.toLocaleString()} units</span> : null}
+                                                                        {product.status && (
+                                                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600">{product.status}</span>
+                                                                        )}
+                                                                        <span className="text-xs text-gray-400">{productCompleted}/{productTasks.length} tasks</span>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                            {/* Task rows for this product */}
+                                                            {isEditMode
+                                                                ? productTasks.map(task => renderEditableRow(task as CrmTask, isMultiProduct, categoryProducts))
+                                                                : renderTaskRows(productTasks, isMultiProduct, categoryProducts)
+                                                            }
+                                                            {/* Add task row (edit mode) */}
+                                                            {isEditMode && (
+                                                                <tr>
+                                                                    <td colSpan={sectionHeaders.length} className="px-4 py-2 bg-gray-50/30 dark:bg-gray-800/10">
+                                                                        <button
+                                                                            onClick={() => addEditingTask(product.id)}
+                                                                            className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
+                                                                        >
+                                                                            <Plus size={12} />
+                                                                            Add Task to {product.name}
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                            )}
+                                                        </tbody>
+                                                    );
+                                                })
+                                            ) : (
+                                                // Single product — flat tbody
+                                                <tbody className="bg-white dark:bg-gray-900/40 divide-y divide-gray-100 dark:divide-gray-800 text-sm">
+                                                    {isEditMode
+                                                        ? groupTasks.map(task => renderEditableRow(task as CrmTask, isMultiProduct, categoryProducts))
+                                                        : renderTaskRows(groupTasks, isMultiProduct, categoryProducts)
+                                                    }
+                                                    {isEditMode && (
+                                                        <tr>
+                                                            <td colSpan={sectionHeaders.length} className="px-4 py-3 bg-gray-50/50 dark:bg-gray-800/20">
+                                                                <button
+                                                                    onClick={() => addEditingTask(categoryProducts[0]?.id)}
+                                                                    className="flex items-center gap-2 px-3 py-1.5 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
+                                                                >
+                                                                    <Plus size={14} />
+                                                                    Add Task
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                </tbody>
+                                            )}
+                                        </table>
+                                    </div>
+                                ) : (
+                                    <div className="px-6 py-8 text-center text-sm text-gray-400 dark:text-gray-500">
+                                        No tasks assigned to this product yet.
+                                    </div>
+                                )
+                            )}
+                        </div>
+                    );
+                })}
+
+                {/* ── Single-Task Edit Modal ─────────────────────── */}
+                {editingTask && onSaveTask && !isEditMode && (
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => setEditingTask(null)}>
+                        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-200 dark:border-white/10 animate-scale-in" onClick={e => e.stopPropagation()}>
+                            <div className="px-6 py-4 border-b border-gray-100 dark:border-white/10 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg shadow-md">
+                                        <Pencil size={14} className="text-white" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-gray-900 dark:text-white text-base">Edit Task</h3>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">{editingTask.name}</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => setEditingTask(null)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all">
+                                    <X size={18} />
+                                </button>
+                            </div>
+                            <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">Status</label>
+                                        <select
+                                            value={editingTask.status}
+                                            onChange={e => setEditingTask({ ...editingTask, status: e.target.value as CrmTask['status'] })}
+                                            className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        >
+                                            <option value="TO DO">TO DO</option>
+                                            <option value="IN PROGRESS">IN PROGRESS</option>
+                                            <option value="COMPLETE">COMPLETE</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">Priority</label>
+                                        <select
+                                            value={editingTask.priority || 'Medium'}
+                                            onChange={e => setEditingTask({ ...editingTask, priority: e.target.value as CrmTask['priority'] })}
+                                            className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        >
+                                            <option value="Low">Low</option>
+                                            <option value="Medium">Medium</option>
+                                            <option value="High">High</option>
+                                            <option value="Urgent">Urgent</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">
+                                        Progress — {editingTask.status === 'COMPLETE' ? 100 : (editingTask.progress || 0)}%
+                                    </label>
+                                    <input
+                                        type="range" min="0" max="100" step="5"
+                                        value={editingTask.status === 'COMPLETE' ? 100 : (editingTask.progress || 0)}
+                                        onChange={e => setEditingTask({ ...editingTask, progress: parseInt(e.target.value) })}
+                                        disabled={editingTask.status === 'COMPLETE'}
+                                        className="w-full accent-blue-500"
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">Planned Start</label>
+                                        <input
+                                            type="date" value={editingTask.plannedStartDate || ''}
+                                            onChange={e => setEditingTask({ ...editingTask, plannedStartDate: e.target.value })}
+                                            className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">Planned End</label>
+                                        <input
+                                            type="date" value={editingTask.plannedEndDate || ''}
+                                            onChange={e => setEditingTask({ ...editingTask, plannedEndDate: e.target.value })}
+                                            className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">Actual Start</label>
+                                        <input
+                                            type="date" value={editingTask.actualStartDate || ''}
+                                            onChange={e => setEditingTask({ ...editingTask, actualStartDate: e.target.value || null })}
+                                            className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">Actual End</label>
+                                        <input
+                                            type="date" value={editingTask.actualEndDate || ''}
+                                            onChange={e => setEditingTask({ ...editingTask, actualEndDate: e.target.value || null })}
+                                            className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">Responsible</label>
+                                    <input
+                                        type="text" value={editingTask.responsible || ''}
+                                        onChange={e => setEditingTask({ ...editingTask, responsible: e.target.value })}
+                                        className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        placeholder="Person responsible"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">Notes</label>
+                                    <textarea
+                                        value={editingTask.notes || ''}
+                                        onChange={e => setEditingTask({ ...editingTask, notes: e.target.value })}
+                                        rows={3}
+                                        className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                                        placeholder="Add any notes..."
+                                    />
+                                </div>
+                            </div>
+                            <div className="px-6 py-4 border-t border-gray-100 dark:border-white/10 flex justify-end gap-3">
+                                <button
+                                    onClick={() => setEditingTask(null)}
+                                    className="px-4 py-2 text-sm font-semibold text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleSave}
+                                    disabled={isSaving}
+                                    className="flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-sm font-semibold rounded-lg hover:from-blue-600 hover:to-indigo-600 transition-all shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+                                >
+                                    {isSaving ? (
+                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    ) : (
+                                        <Save size={14} />
+                                    )}
+                                    {isSaving ? 'Saving...' : 'Save Changes'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
-        )
+        );
     };
 
 export const OrderDetailsView: FC<{ order: any; allFactories: Factory[]; handleSetCurrentPage: (page: string, data?: any) => void; onSelectProduct?: (productId: string) => void }> = ({ order, allFactories, handleSetCurrentPage, onSelectProduct }) => {
@@ -1431,10 +1948,6 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
                             </p>
                         </div>
 
-                        {/* Action Button */}
-                        <button className="px-6 py-3 bg-gradient-to-r from-[#c20c0b] to-red-600 text-white rounded-xl font-semibold text-sm shadow-lg shadow-red-500/25 hover:shadow-red-500/40 transition-all duration-300 hover:scale-[1.03] flex items-center gap-2">
-                            <Plus size={18} /> Add Task
-                        </button>
                     </div>
                 </div>
             </header>
@@ -1503,7 +2016,7 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
                 </div>
                 {/* Overview mode: Overview, TNA, Dashboard (all tasks) */}
                 {activeOrder && activeView === 'Overview' && <OrderDetailsView order={activeOrder} allFactories={allFactories} handleSetCurrentPage={handleSetCurrentPage} onSelectProduct={handleSelectProduct} />}
-                {activeOrder && activeView === 'TNA' && <TNAView tasks={activeOrder.tasks} />}
+                {activeOrder && activeView === 'TNA' && <TNAView tasks={activeOrder.tasks} products={activeOrder.products} />}
                 {activeOrder && activeView === 'Dashboard' && <DashboardView tasks={activeOrder.tasks} orderKey={activeOrderKey || ''} orderDetails={activeOrder}/>}
                 {/* Product mode: List, Board, Gantt (filtered tasks) */}
                 {activeOrder && activeView === 'List' && <ListView tasks={filteredTasks} />}

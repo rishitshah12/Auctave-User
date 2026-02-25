@@ -6,13 +6,14 @@ import { factoryService } from './factory.service';
 import {
     Plus, Trash2, X, Info, List, LayoutDashboard, ClipboardCheck,
     PieChart as PieChartIcon, GanttChartSquare, ArrowLeft, Package,
-    Search, Building2, Mail, Users, Edit, ChevronRight, ShieldCheck
+    Search, Building2, Mail, Users, Edit, ChevronRight, ShieldCheck,
+    Flag, Clock, TrendingUp, CheckCircle, ChevronDown
 } from 'lucide-react';
 import { DashboardView, ListView, BoardView, GanttChartView, TNAView, OrderDetailsView } from './CRMPage';
 import CrmOrderCard from './CrmOrderCard';
-import { CrmProduct } from './types';
+import { CrmProduct, CrmTask } from './types';
 import { normalizeOrder, computeProductName } from './utils';
-import { ManageOrderModal } from './ManageOrderModal';
+import { ManageOrderPanel } from './ManageOrderModal';
 
 interface AdminCRMPageProps {
     pageKey: number;
@@ -118,6 +119,602 @@ function ClientProfileBanner({
     );
 }
 
+// ── Shared task edit modal ────────────────────────────────────────────────────
+function TaskEditModal({
+    task,
+    onSave,
+    onClose,
+}: {
+    task: CrmTask;
+    onSave: (updated: CrmTask) => void;
+    onClose: () => void;
+}) {
+    const [draft, setDraft] = useState<CrmTask>({ ...task });
+
+    return (
+        <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in"
+            onClick={onClose}
+        >
+            <div
+                className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-200 dark:border-white/10"
+                onClick={e => e.stopPropagation()}
+            >
+                {/* Header */}
+                <div className="px-6 py-4 border-b border-gray-100 dark:border-white/10 flex items-center justify-between">
+                    <h3 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                        <Edit size={16} className="text-[#c20c0b]" /> Edit Task
+                    </h3>
+                    <button onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all">
+                        <X size={18} />
+                    </button>
+                </div>
+
+                {/* Body */}
+                <div className="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
+                    {/* Name */}
+                    <div>
+                        <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">Task Name</label>
+                        <input
+                            autoFocus
+                            type="text"
+                            value={draft.name}
+                            onChange={e => setDraft(prev => ({ ...prev, name: e.target.value }))}
+                            className="w-full px-3 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#c20c0b] font-semibold"
+                        />
+                    </div>
+
+                    {/* Status + Priority */}
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">Status</label>
+                            <select
+                                value={draft.status}
+                                onChange={e => {
+                                    const status = e.target.value as CrmTask['status'];
+                                    const progress = status === 'COMPLETE' ? 100 : status === 'TO DO' ? 0 : Math.max(draft.progress || 0, 10);
+                                    setDraft(prev => ({ ...prev, status, progress }));
+                                }}
+                                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#c20c0b]"
+                            >
+                                <option>TO DO</option>
+                                <option>IN PROGRESS</option>
+                                <option>COMPLETE</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">Priority</label>
+                            <select
+                                value={draft.priority || 'Medium'}
+                                onChange={e => setDraft(prev => ({ ...prev, priority: e.target.value as CrmTask['priority'] }))}
+                                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#c20c0b]"
+                            >
+                                <option>Low</option>
+                                <option>Medium</option>
+                                <option>High</option>
+                                <option>Urgent</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* Progress */}
+                    <div>
+                        <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 block">
+                            Progress — <span className="text-[#c20c0b] font-black">{draft.progress ?? 0}%</span>
+                        </label>
+                        <input
+                            type="range"
+                            min={0}
+                            max={100}
+                            value={draft.progress ?? 0}
+                            onChange={e => setDraft(prev => ({ ...prev, progress: +e.target.value }))}
+                            className="w-full accent-[#c20c0b]"
+                        />
+                        <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
+                            <span>0%</span><span>50%</span><span>100%</span>
+                        </div>
+                    </div>
+
+                    {/* Responsible */}
+                    <div>
+                        <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">Responsible</label>
+                        <input
+                            type="text"
+                            value={draft.responsible || ''}
+                            onChange={e => setDraft(prev => ({ ...prev, responsible: e.target.value }))}
+                            className="w-full px-3 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#c20c0b]"
+                            placeholder="Assignee name"
+                        />
+                    </div>
+
+                    {/* Dates */}
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">Planned Start</label>
+                            <input
+                                type="date"
+                                value={draft.plannedStartDate || ''}
+                                onChange={e => setDraft(prev => ({ ...prev, plannedStartDate: e.target.value }))}
+                                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#c20c0b]"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">Planned End</label>
+                            <input
+                                type="date"
+                                value={draft.plannedEndDate || ''}
+                                onChange={e => setDraft(prev => ({ ...prev, plannedEndDate: e.target.value }))}
+                                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#c20c0b]"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Notes */}
+                    <div>
+                        <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">Notes</label>
+                        <textarea
+                            value={draft.notes || ''}
+                            onChange={e => setDraft(prev => ({ ...prev, notes: e.target.value }))}
+                            rows={3}
+                            className="w-full px-3 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#c20c0b] resize-none"
+                            placeholder="Optional notes..."
+                        />
+                    </div>
+                </div>
+
+                {/* Footer */}
+                <div className="px-6 py-4 border-t border-gray-100 dark:border-white/10 flex justify-end gap-2">
+                    <button
+                        onClick={onClose}
+                        className="px-4 py-2 text-sm font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-all"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={() => { if (draft.name.trim()) onSave(draft); }}
+                        disabled={!draft.name.trim()}
+                        className="px-5 py-2 bg-gradient-to-r from-[#c20c0b] to-red-600 text-white text-sm font-bold rounded-xl shadow hover:shadow-md transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                        Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ── Admin Kanban Board with drag-drop and add task ────────────────────────────
+function AdminBoardView({
+    tasks,
+    onTasksChange,
+    selectedProductId,
+}: {
+    tasks: CrmTask[];
+    onTasksChange: (tasks: CrmTask[]) => void;
+    selectedProductId?: string | null;
+}) {
+    const [draggedTaskId, setDraggedTaskId] = useState<number | null>(null);
+    const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
+    const [editingTask, setEditingTask] = useState<CrmTask | null>(null);
+    const [addingInColumn, setAddingInColumn] = useState<string | null>(null);
+    const [newTask, setNewTask] = useState({
+        name: '',
+        priority: 'Medium' as CrmTask['priority'],
+        responsible: '',
+        plannedStartDate: new Date().toISOString().split('T')[0],
+        plannedEndDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+    });
+
+    const columns = ['TO DO', 'IN PROGRESS', 'COMPLETE'] as const;
+
+    const columnMeta: Record<string, { bg: string; badge: string; border: string; dropRing: string; icon: React.ReactNode }> = {
+        'TO DO': {
+            bg: 'bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50',
+            badge: 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300',
+            border: 'border-gray-300 dark:border-gray-600',
+            dropRing: 'ring-2 ring-gray-400 ring-offset-2',
+            icon: <List size={16} className="text-gray-600 dark:text-gray-400" />,
+        },
+        'IN PROGRESS': {
+            bg: 'bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20',
+            badge: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400',
+            border: 'border-orange-300 dark:border-orange-600',
+            dropRing: 'ring-2 ring-orange-400 ring-offset-2',
+            icon: <TrendingUp size={16} className="text-orange-600 dark:text-orange-400" />,
+        },
+        'COMPLETE': {
+            bg: 'bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20',
+            badge: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
+            border: 'border-green-300 dark:border-green-600',
+            dropRing: 'ring-2 ring-green-400 ring-offset-2',
+            icon: <CheckCircle size={16} className="text-green-600 dark:text-green-400" />,
+        },
+    };
+
+    const priorityColors: Record<string, string> = {
+        'Urgent': 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400',
+        'High': 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400',
+        'Medium': 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400',
+        'Low': 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400',
+    };
+
+    const handleDragStart = (e: React.DragEvent, taskId: number) => {
+        setDraggedTaskId(taskId);
+        e.dataTransfer.effectAllowed = 'move';
+    };
+
+    const handleDragOver = (e: React.DragEvent, columnStatus: string) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        setDragOverColumn(columnStatus);
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        // Only clear if leaving the column container itself
+        if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) {
+            setDragOverColumn(null);
+        }
+    };
+
+    const handleDrop = (e: React.DragEvent, targetStatus: string) => {
+        e.preventDefault();
+        setDragOverColumn(null);
+        if (draggedTaskId === null) return;
+        const updatedTasks = tasks.map(t => {
+            if (t.id !== draggedTaskId) return t;
+            const progress =
+                targetStatus === 'COMPLETE' ? 100
+                : targetStatus === 'IN PROGRESS' ? (t.progress === 100 ? 50 : Math.max(t.progress || 0, 10))
+                : 0;
+            return { ...t, status: targetStatus as CrmTask['status'], progress };
+        });
+        onTasksChange(updatedTasks);
+        setDraggedTaskId(null);
+    };
+
+    const handleDragEnd = () => {
+        setDraggedTaskId(null);
+        setDragOverColumn(null);
+    };
+
+    const handleEditSave = (updated: CrmTask) => {
+        onTasksChange(tasks.map(t => t.id === updated.id ? updated : t));
+        setEditingTask(null);
+    };
+
+    const openAddForm = (columnStatus: string) => {
+        setAddingInColumn(columnStatus);
+        setNewTask({
+            name: '',
+            priority: 'Medium',
+            responsible: '',
+            plannedStartDate: new Date().toISOString().split('T')[0],
+            plannedEndDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+        });
+    };
+
+    const handleSaveNewTask = () => {
+        if (!newTask.name.trim() || !addingInColumn) return;
+        const progress =
+            addingInColumn === 'COMPLETE' ? 100
+            : addingInColumn === 'IN PROGRESS' ? 10
+            : 0;
+        const task: CrmTask = {
+            id: Date.now(),
+            name: newTask.name.trim(),
+            status: addingInColumn as CrmTask['status'],
+            priority: newTask.priority,
+            responsible: newTask.responsible.trim() || 'Admin',
+            plannedStartDate: newTask.plannedStartDate,
+            plannedEndDate: newTask.plannedEndDate,
+            actualStartDate: null,
+            actualEndDate: null,
+            progress,
+            ...(selectedProductId ? { productId: selectedProductId } : {}),
+        };
+        onTasksChange([...tasks, task]);
+        setAddingInColumn(null);
+    };
+
+    return (
+        <>
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-5 animate-fade-in">
+            {columns.map(status => {
+                const tasksInColumn = tasks.filter(t => t.status === status);
+                const meta = columnMeta[status];
+                const isDropTarget = dragOverColumn === status;
+
+                return (
+                    <div
+                        key={status}
+                        className={`${meta.bg} p-4 rounded-2xl border ${meta.border} shadow-lg transition-all duration-200 ${isDropTarget ? meta.dropRing : ''}`}
+                        onDragOver={e => handleDragOver(e, status)}
+                        onDragLeave={handleDragLeave}
+                        onDrop={e => handleDrop(e, status)}
+                    >
+                        {/* Column header */}
+                        <h3 className="flex items-center justify-between text-sm font-bold mb-4 px-1 text-gray-800 dark:text-white">
+                            <span className="flex items-center gap-2">
+                                {meta.icon}
+                                {status}
+                            </span>
+                            <span className={`${meta.badge} text-xs font-bold px-2.5 py-1 rounded-full shadow-sm`}>{tasksInColumn.length}</span>
+                        </h3>
+
+                        {/* Task cards */}
+                        <div className="space-y-3 min-h-[60px]">
+                            {tasksInColumn.map(task => {
+                                const progress = task.status === 'COMPLETE' ? 100 : (task.progress || 0);
+                                const isDragging = draggedTaskId === task.id;
+                                return (
+                                    <div
+                                        key={task.id}
+                                        draggable
+                                        onDragStart={e => handleDragStart(e, task.id)}
+                                        onDragEnd={handleDragEnd}
+                                        className={`bg-white dark:bg-gray-900/60 dark:backdrop-blur-md p-4 rounded-xl border border-gray-200 dark:border-white/10 shadow-md hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5 cursor-grab active:cursor-grabbing group select-none ${isDragging ? 'opacity-30 scale-95 rotate-1' : ''}`}
+                                    >
+                                        <div className="flex items-start justify-between gap-2">
+                                            <p className="font-bold text-sm text-gray-800 dark:text-white group-hover:text-[var(--color-primary)] dark:group-hover:text-red-400 transition-colors leading-snug flex-1 min-w-0">
+                                                {task.name}
+                                            </p>
+                                            <div className="flex items-center gap-1 flex-shrink-0">
+                                                {task.priority && (
+                                                    <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold ${priorityColors[task.priority] || priorityColors['Medium']}`}>
+                                                        <Flag size={8} /> {task.priority}
+                                                    </span>
+                                                )}
+                                                <button
+                                                    onClick={e => { e.stopPropagation(); setEditingTask(task); }}
+                                                    className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-gray-400 hover:text-[#c20c0b] hover:bg-red-50 dark:hover:bg-red-900/20 transition-all cursor-pointer"
+                                                    title="Edit task"
+                                                >
+                                                    <Edit size={13} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2 mt-2.5">
+                                            <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                <div
+                                                    className={`h-full rounded-full transition-all duration-500 ${progress === 100 ? 'bg-green-500' : progress > 50 ? 'bg-blue-500' : 'bg-amber-500'}`}
+                                                    style={{ width: `${progress}%` }}
+                                                />
+                                            </div>
+                                            <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 w-7 text-right">{progress}%</span>
+                                        </div>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 flex items-center gap-1">
+                                            <Clock size={12} /> {task.plannedEndDate || '—'}
+                                        </p>
+                                        {task.responsible && (
+                                            <div className="flex items-center gap-1.5 mt-2.5">
+                                                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0">
+                                                    {task.responsible[0]?.toUpperCase() || '?'}
+                                                </div>
+                                                <span className="text-xs text-gray-500 dark:text-gray-400 truncate">{task.responsible}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+
+                            {/* Inline add-task form */}
+                            {addingInColumn === status ? (
+                                <div className="bg-white dark:bg-gray-900/80 rounded-xl border border-gray-200 dark:border-white/15 shadow-lg p-4 space-y-3">
+                                    <input
+                                        autoFocus
+                                        type="text"
+                                        placeholder="Task name..."
+                                        value={newTask.name}
+                                        onChange={e => setNewTask(prev => ({ ...prev, name: e.target.value }))}
+                                        onKeyDown={e => { if (e.key === 'Enter') handleSaveNewTask(); if (e.key === 'Escape') setAddingInColumn(null); }}
+                                        className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#c20c0b] font-semibold"
+                                    />
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1 block">Priority</label>
+                                            <select
+                                                value={newTask.priority}
+                                                onChange={e => setNewTask(prev => ({ ...prev, priority: e.target.value as CrmTask['priority'] }))}
+                                                className="w-full px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#c20c0b]"
+                                            >
+                                                <option>Low</option>
+                                                <option>Medium</option>
+                                                <option>High</option>
+                                                <option>Urgent</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1 block">Responsible</label>
+                                            <input
+                                                type="text"
+                                                placeholder="Assignee"
+                                                value={newTask.responsible}
+                                                onChange={e => setNewTask(prev => ({ ...prev, responsible: e.target.value }))}
+                                                className="w-full px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#c20c0b]"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1 block">Start Date</label>
+                                            <input
+                                                type="date"
+                                                value={newTask.plannedStartDate}
+                                                onChange={e => setNewTask(prev => ({ ...prev, plannedStartDate: e.target.value }))}
+                                                className="w-full px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#c20c0b]"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1 block">End Date</label>
+                                            <input
+                                                type="date"
+                                                value={newTask.plannedEndDate}
+                                                onChange={e => setNewTask(prev => ({ ...prev, plannedEndDate: e.target.value }))}
+                                                className="w-full px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#c20c0b]"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2 pt-1">
+                                        <button
+                                            onClick={handleSaveNewTask}
+                                            disabled={!newTask.name.trim()}
+                                            className="flex-1 py-2 bg-gradient-to-r from-[#c20c0b] to-red-600 text-white text-xs font-bold rounded-lg shadow hover:shadow-md transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                                        >
+                                            Add Task
+                                        </button>
+                                        <button
+                                            onClick={() => setAddingInColumn(null)}
+                                            className="px-3 py-2 text-xs font-bold text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-all"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={() => openAddForm(status)}
+                                    className="w-full text-left text-sm font-semibold text-gray-600 dark:text-gray-300 hover:bg-white/60 dark:hover:bg-gray-800/60 p-3 rounded-xl flex items-center gap-2 transition-all duration-200 hover:shadow-md border border-dashed border-gray-300 dark:border-gray-600"
+                                >
+                                    <Plus size={16} /> Add Task
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+
+        {editingTask && (
+            <TaskEditModal
+                task={editingTask}
+                onSave={handleEditSave}
+                onClose={() => setEditingTask(null)}
+            />
+        )}
+    </>
+    );
+}
+
+// ── Admin List view with inline edit ─────────────────────────────────────────
+function AdminListView({
+    tasks,
+    onTasksChange,
+}: {
+    tasks: CrmTask[];
+    onTasksChange: (tasks: CrmTask[]) => void;
+}) {
+    const [editingTask, setEditingTask] = useState<CrmTask | null>(null);
+
+    const handleSave = (updated: CrmTask) => {
+        onTasksChange(tasks.map(t => t.id === updated.id ? updated : t));
+        setEditingTask(null);
+    };
+
+    const priorityColors: Record<string, string> = {
+        'Urgent': 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400',
+        'High': 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400',
+        'Medium': 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400',
+        'Low': 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400',
+    };
+
+    const groups: { title: string; tasks: CrmTask[]; headerColor: string; badgeColor: string }[] = [
+        {
+            title: 'IN PROGRESS',
+            tasks: tasks.filter(t => t.status === 'IN PROGRESS'),
+            headerColor: 'text-orange-600 dark:text-orange-400',
+            badgeColor: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400',
+        },
+        {
+            title: 'TO DO',
+            tasks: tasks.filter(t => t.status === 'TO DO'),
+            headerColor: 'text-gray-600 dark:text-gray-400',
+            badgeColor: 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300',
+        },
+        {
+            title: 'COMPLETE',
+            tasks: tasks.filter(t => t.status === 'COMPLETE'),
+            headerColor: 'text-green-600 dark:text-green-400',
+            badgeColor: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
+        },
+    ];
+
+    return (
+        <>
+            <div className="mt-6 animate-fade-in space-y-6">
+                {groups.map(({ title, tasks: groupTasks, headerColor, badgeColor }) => {
+                    if (groupTasks.length === 0) return null;
+                    return (
+                        <div key={title}>
+                            <div className="flex items-center text-sm font-bold mb-3">
+                                <ChevronDown size={20} className={`mr-2 ${headerColor}`} />
+                                <span className={`mr-2 ${headerColor}`}>{title}</span>
+                                <span className={`${badgeColor} text-xs font-bold px-2.5 py-1 rounded-full shadow-sm`}>{groupTasks.length}</span>
+                            </div>
+                            <div className="overflow-x-auto bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10">
+                                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                                    <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50">
+                                        <tr>
+                                            {['Task Name', 'Priority', 'Progress', 'Due Date', 'Responsible', ''].map(h => (
+                                                <th key={h} className="px-5 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">{h}</th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white dark:bg-gray-900/40 divide-y divide-gray-100 dark:divide-gray-800">
+                                        {groupTasks.map(task => {
+                                            const progress = task.status === 'COMPLETE' ? 100 : (task.progress || 0);
+                                            return (
+                                                <tr key={task.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors group">
+                                                    <td className="px-5 py-3.5 whitespace-nowrap font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                                                        <CheckCircle size={16} className={`flex-shrink-0 ${task.status === 'COMPLETE' ? 'text-green-500' : 'text-gray-300 dark:text-gray-600'}`} />
+                                                        {task.name}
+                                                    </td>
+                                                    <td className="px-5 py-3.5 whitespace-nowrap">
+                                                        {task.priority ? (
+                                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold ${priorityColors[task.priority] || priorityColors['Medium']}`}>
+                                                                <Flag size={10} /> {task.priority}
+                                                            </span>
+                                                        ) : <span className="text-gray-400 text-xs">—</span>}
+                                                    </td>
+                                                    <td className="px-5 py-3.5 whitespace-nowrap">
+                                                        <div className="flex items-center gap-2 min-w-[100px]">
+                                                            <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                                <div className={`h-full rounded-full transition-all duration-500 ${progress === 100 ? 'bg-green-500' : progress > 50 ? 'bg-blue-500' : 'bg-amber-500'}`} style={{ width: `${progress}%` }} />
+                                                            </div>
+                                                            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 w-8 text-right">{progress}%</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-5 py-3.5 whitespace-nowrap text-gray-600 dark:text-gray-300 text-xs">{task.plannedEndDate || '—'}</td>
+                                                    <td className="px-5 py-3.5 whitespace-nowrap text-gray-600 dark:text-gray-300 text-xs">{task.responsible || '—'}</td>
+                                                    <td className="px-5 py-3.5 whitespace-nowrap text-right">
+                                                        <button
+                                                            onClick={() => setEditingTask(task)}
+                                                            className="opacity-0 group-hover:opacity-100 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
+                                                        >
+                                                            <Edit size={12} /> Edit
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+
+            {editingTask && (
+                <TaskEditModal
+                    task={editingTask}
+                    onSave={handleSave}
+                    onClose={() => setEditingTask(null)}
+                />
+            )}
+        </>
+    );
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
     const CLIENTS_CACHE_KEY = 'garment_erp_admin_clients';
@@ -149,9 +746,9 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
     const [activeView, setActiveView] = useState('Overview');
     const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
 
-    // ── modals ──
+    // ── editing ──
     const [editingOrder, setEditingOrder] = useState<any>(null);
-    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isManageMode, setIsManageMode] = useState(false);
     const [isCreateOrderOpen, setIsCreateOrderOpen] = useState(false);
     const [newOrderData, setNewOrderData] = useState({
         product_name: '',
@@ -295,7 +892,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
     // ── order actions ──────────────────────────────────────────────────────────
     const handleEditOrder = (order: any) => {
         setEditingOrder(JSON.parse(JSON.stringify(order)));
-        setIsModalOpen(true);
+        setIsManageMode(true);
     };
 
     const handleSaveOrder = async () => {
@@ -312,7 +909,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
             }
 
             const updates = {
-                status: editingOrder.status,
+                status: editingOrder.status, 
                 tasks: editingOrder.tasks,
                 documents: editingOrder.documents,
                 products: editingOrder.products || [],
@@ -331,7 +928,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                     sessionStorage.setItem(ORDERS_CACHE_KEY, JSON.stringify(updatedOrders));
                     return updatedOrders;
                 });
-                setIsModalOpen(false);
+                setIsManageMode(false);
             }
         } catch (err: any) {
             console.error("Error saving order:", err);
@@ -364,6 +961,50 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
         setOrders(updatedOrders);
         const { error } = await crmService.update(order.id, { tasks: order.tasks });
         if (error) { showToast('Failed to update task date: ' + error.message, 'error'); fetchOrders(); }
+    };
+
+    const handleSaveTNATask = async (updatedTask: CrmTask) => {
+        if (!selectedOrderId) return;
+        const orderIndex = orders.findIndex(o => o.id === selectedOrderId);
+        if (orderIndex === -1) return;
+        const order = orders[orderIndex];
+        const updatedTasks = order.tasks.map((t: any) => t.id === updatedTask.id ? updatedTask : t);
+        const updatedOrders = orders.map((o: any, i: number) => i === orderIndex ? { ...o, tasks: updatedTasks } : o);
+        setOrders(updatedOrders);
+        const { error } = await crmService.update(selectedOrderId, { tasks: updatedTasks });
+        if (error) { showToast('Failed to save task: ' + error.message, 'error'); fetchOrders(); }
+        else showToast('Task updated successfully', 'success');
+    };
+
+    const handleSaveBulkTasks = async (updatedTasks: CrmTask[]) => {
+        if (!selectedOrderId) return;
+        const orderIndex = orders.findIndex(o => o.id === selectedOrderId);
+        if (orderIndex === -1) return;
+        const updatedOrders = orders.map((o: any, i: number) => i === orderIndex ? { ...o, tasks: updatedTasks } : o);
+        setOrders(updatedOrders);
+        const { error } = await crmService.update(selectedOrderId, { tasks: updatedTasks });
+        if (error) { showToast('Failed to save TNA: ' + error.message, 'error'); fetchOrders(); }
+        else showToast('TNA saved successfully', 'success');
+    };
+
+    const handleBoardTasksChange = async (updatedTasks: CrmTask[]) => {
+        if (!selectedOrderId) return;
+        // Merge board changes back into full order tasks (handles product filtering)
+        const orderIndex = orders.findIndex(o => o.id === selectedOrderId);
+        if (orderIndex === -1) return;
+        const order = orders[orderIndex];
+        const allTasks: CrmTask[] = order.tasks || [];
+        // Replace/add tasks that belong to the current filter scope; keep the rest untouched
+        const filteredIds = new Set(filteredTasks.map((t: CrmTask) => t.id));
+        const merged = [
+            ...allTasks.filter((t: CrmTask) => !filteredIds.has(t.id)),
+            ...updatedTasks,
+        ];
+        const updatedOrders = orders.map((o: any, i: number) => i === orderIndex ? { ...o, tasks: merged } : o);
+        setOrders(updatedOrders);
+        const { error } = await crmService.update(selectedOrderId, { tasks: merged });
+        if (error) { showToast('Failed to save board changes: ' + error.message, 'error'); fetchOrders(); }
+        else showToast('Board updated', 'success');
     };
 
     // ── create order ───────────────────────────────────────────────────────────
@@ -640,8 +1281,24 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                         </>
                     )}
 
+                    {/* ── Manage Order Panel (inline, replaces detail view) ── */}
+                    {!isLoading && selectedOrderId && isManageMode && editingOrder && (
+                        <ManageOrderPanel
+                            editingOrder={editingOrder}
+                            setEditingOrder={setEditingOrder}
+                            onSave={handleSaveOrder}
+                            onClose={() => {
+                                setIsManageMode(false);
+                                setEditingOrder(null);
+                            }}
+                            factories={factories}
+                            supabase={supabase}
+                            clientName={selectedClient?.name}
+                        />
+                    )}
+
                     {/* ── Order detail view ── */}
-                    {!isLoading && selectedOrderId && transformedOrder && (
+                    {!isLoading && selectedOrderId && transformedOrder && !isManageMode && (
                         <div className="animate-fade-in">
                             {/* Detail header */}
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
@@ -705,7 +1362,14 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                             onSelectProduct={(id) => { setSelectedProductId(id); setActiveView('List'); }}
                                         />
                                     )}
-                                    {activeView === 'TNA' && <TNAView tasks={transformedOrder.tasks} />}
+                                    {activeView === 'TNA' && (
+                                        <TNAView
+                                            tasks={transformedOrder.tasks}
+                                            products={transformedOrder.products}
+                                            onSaveTask={handleSaveTNATask}
+                                            onSaveBulkTasks={handleSaveBulkTasks}
+                                        />
+                                    )}
                                     {activeView === 'Dashboard' && (
                                         <DashboardView
                                             tasks={transformedOrder.tasks}
@@ -714,8 +1378,14 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                             darkMode={props.darkMode}
                                         />
                                     )}
-                                    {activeView === 'List' && <ListView tasks={filteredTasks} />}
-                                    {activeView === 'Board' && <BoardView tasks={filteredTasks} />}
+                                    {activeView === 'List' && <AdminListView tasks={filteredTasks} onTasksChange={handleBoardTasksChange} />}
+                                    {activeView === 'Board' && (
+                                        <AdminBoardView
+                                            tasks={filteredTasks}
+                                            onTasksChange={handleBoardTasksChange}
+                                            selectedProductId={selectedProductId}
+                                        />
+                                    )}
                                     {activeView === 'Gantt' && <GanttChartView tasks={filteredTasks} onTaskUpdate={handleTaskUpdate} />}
                                 </div>
                             </div>
@@ -809,17 +1479,6 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                 </div>
             )}
 
-            {/* ── Manage Order Modal ── */}
-            {isModalOpen && editingOrder && (
-                <ManageOrderModal
-                    editingOrder={editingOrder}
-                    setEditingOrder={setEditingOrder}
-                    onSave={handleSaveOrder}
-                    onClose={() => setIsModalOpen(false)}
-                    factories={factories}
-                    supabase={supabase}
-                />
-            )}
         </MainLayout>
     );
 };

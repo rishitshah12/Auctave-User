@@ -688,6 +688,15 @@ export default function CrmOrderDetail({
         setActiveView('Overview');
     };
 
+    const { showToast } = useToast();
+    const handleSaveTNATask = async (updatedTask: CrmTask) => {
+        const updatedTasks = localOrder.tasks.map(t => t.id === updatedTask.id ? updatedTask : t);
+        const { error } = await supabase.from('crm_orders').update({ tasks: updatedTasks }).eq('id', orderId);
+        if (error) throw error;
+        setLocalOrder({ ...localOrder, tasks: updatedTasks });
+        showToast('Task updated successfully', 'success');
+    };
+
     const generateOrderSummary = async () => {
         setIsSummaryModalOpen(true);
         setIsSummaryLoading(true);
@@ -787,7 +796,13 @@ export default function CrmOrderDetail({
                             handleSetCurrentPage={handleSetCurrentPage}
                         />
                     )}
-                    {activeView === 'TNA' && <TNAView tasks={localOrder.tasks} />}
+                    {activeView === 'TNA' && (
+                        <TNAView
+                            tasks={localOrder.tasks}
+                            products={localOrder.products}
+                            onSaveTask={supabase ? handleSaveTNATask : undefined}
+                        />
+                    )}
                     {activeView === 'Dashboard' && <DashboardView tasks={localOrder.tasks} orderKey={orderId} orderDetails={localOrder} darkMode={darkMode} />}
                     {activeView === 'List' && <ListView tasks={filteredTasks} />}
                     {activeView === 'Board' && <BoardView tasks={filteredTasks} />}
