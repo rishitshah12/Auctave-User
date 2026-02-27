@@ -35,6 +35,7 @@ import { AdminFactoriesPage } from './AdminFactoriesPage';
 import { AdminCRMPage } from './AdminCRMPage';
 import { AdminTrendingPage } from './AdminTrendingPage';
 import { AdminRFQPage } from './AdminRFQPage';
+import { AdminLoginSettingsPage } from './AdminLoginSettingsPage';
 import { quoteService } from './quote.service';
 import { MyQuotesPage } from './MyQuotesPage';
 import { QuoteDetailPage } from './QuoteDetailPage';
@@ -390,14 +391,20 @@ const AppContent: FC = () => {
                         setCurrentPage(targetPage);
                     }
 
-                    // Force redirect away from login if still on login page after 2 seconds
-                    // Only for initial auth events, not TOKEN_REFRESHED which fires on session refresh
+                    // Force redirect away from login if still on login page after 2 seconds.
+                    // Only for initial auth events, not TOKEN_REFRESHED which fires on session refresh.
+                    // IMPORTANT: re-verify the live session inside the timeout — do NOT use the stale
+                    // closure `session` variable, which remains truthy even after the user has signed out,
+                    // and would otherwise silently redirect a logged-out user back into the admin panel.
                     if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
-                        setTimeout(() => {
+                        setTimeout(async () => {
+                            const { data: { session: liveSession } } = await supabase.auth.getSession();
+                            if (!liveSession?.user) return; // User has since signed out — abort redirect
                             const currentSavedPage = localStorage.getItem('garment_erp_last_page');
-                            if ((!currentSavedPage || currentSavedPage === 'login') && session?.user) {
+                            if (!currentSavedPage || currentSavedPage === 'login') {
                                 console.warn('Still on login page after auth - forcing redirect');
-                                const forcedPage = isUserAdmin ? 'adminDashboard' : 'sourcing';
+                                const liveIsAdmin = liveSession.user.email?.toLowerCase().endsWith('@auctaveexports.com') ?? false;
+                                const forcedPage = liveIsAdmin ? 'adminDashboard' : 'sourcing';
                                 setCurrentPage(forcedPage);
                             }
                         }, 2000);
@@ -1478,6 +1485,7 @@ const AppContent: FC = () => {
             case 'adminCRM': return <AdminCRMPage {...layoutProps} />;
             case 'adminTrending': return <AdminTrendingPage {...layoutProps} />;
             case 'adminRFQ': return <AdminRFQPage {...layoutProps} />;
+            case 'adminLoginSettings': return <AdminLoginSettingsPage {...layoutProps} />;
             default: return <SourcingPage
                 {...layoutProps}
                 userProfile={userProfile}

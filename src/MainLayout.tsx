@@ -3,7 +3,7 @@ import React, { FC, ReactNode } from 'react';
 // Import icons for the menu and UI
 import {
     Search, DollarSign, Plus, ChevronLeft, ChevronsLeft, ChevronsRight,
-    Menu, X, List, Truck, User as UserIcon, LogOut, Settings, Flame, FileQuestion, LayoutDashboard, Users, Building
+    Menu, X, List, Truck, User as UserIcon, LogOut, Settings, Flame, FileQuestion, LayoutDashboard, Users, Building, ImageIcon
 } from 'lucide-react';
 
 // Define the data (props) that the MainLayout component needs to work
@@ -48,6 +48,7 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'>> = (
         { name: 'CRM Manager', page: 'adminCRM', icon: <List className="h-5 w-5" /> },
         { name: 'RFQ Requests', page: 'adminRFQ', icon: <FileQuestion className="h-5 w-5" /> },
         { name: 'Trending CMS', page: 'adminTrending', icon: <Flame className="h-5 w-5" /> },
+        { name: 'Login Images', page: 'adminLoginSettings', icon: <ImageIcon className="h-5 w-5" /> },
         { name: 'Settings', page: 'settings', icon: <Settings className="h-5 w-5" /> },
     ];
 
