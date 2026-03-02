@@ -13,6 +13,7 @@ interface AdminUsersPageProps {
     handleSetCurrentPage: (page: string, data?: any) => void;
     handleSignOut: () => void;
     isAdmin: boolean;
+    supabase: any;
 }
 
 export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
@@ -101,9 +102,25 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
 
     const handleDeleteClient = async (id: string) => {
          if (window.confirm('Are you sure you want to delete this client? This action cannot be undone.')) {
-            const { error } = await userService.delete(id);
-            if (error) {
-                showToast('Failed to delete client: ' + error.message, 'error');
+            // Use Edge Function to delete user from Auth and Database
+            const { error: funcError } = await props.supabase.functions.invoke('delete-user', {
+                body: { userId: id }
+            });
+
+            if (funcError) {
+                console.warn('Edge function delete failed, falling back to direct DB delete.', funcError);
+                const { error } = await userService.delete(id);
+                if (error) {
+                    // Provide more helpful error message for common DB constraint issues
+                    if (error.message?.includes('violates foreign key constraint') || error.message?.includes('Database error deleting user')) {
+                        showToast('Cannot delete user: They have active orders or related data. Please delete those first.', 'error');
+                    } else {
+                        showToast('Failed to delete client: ' + error.message, 'error');
+                    }
+                } else {
+                    setClients(prev => prev.filter(c => c.id !== id));
+                    showToast('Client profile deleted (Auth account may remain if Edge Function failed)');
+                }
             } else {
                 setClients(prev => prev.filter(c => c.id !== id));
                 showToast('Client deleted successfully');

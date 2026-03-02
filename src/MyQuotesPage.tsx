@@ -476,31 +476,45 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                                 })()}
                             </p>
                         </div>
-                        <div className={`rounded-xl p-3 border backdrop-blur-sm ${
-                            quote.status === 'Accepted'
+                        {(() => {
+                            const respondedStatuses = ['Responded', 'In Negotiation', 'Admin Accepted', 'Client Accepted', 'Accepted'];
+                            const hasResponse = respondedStatuses.includes(quote.status);
+                            const isAcc = quote.status === 'Accepted';
+                            let quotedPriceDisplay: string | null = null;
+                            if (hasResponse) {
+                                if (quote.response_details?.price) {
+                                    quotedPriceDisplay = `$${quote.response_details.price}`;
+                                } else if (quote.order?.lineItems?.length === 1) {
+                                    const itemId = quote.order.lineItems[0].id;
+                                    const r = (quote.response_details?.lineItemResponses || []).find((r: any) => r.lineItemId === itemId);
+                                    if (r?.price) quotedPriceDisplay = `$${r.price}`;
+                                }
+                            }
+                            const chipBg = isAcc
                                 ? 'bg-emerald-50/80 dark:bg-emerald-900/25 border-emerald-200/70 dark:border-emerald-700/40'
-                                : 'bg-white/70 dark:bg-gray-800/50 border-white/90 dark:border-gray-700/50'
-                        }`}>
-                            <p className="text-[9px] uppercase tracking-wider font-bold text-gray-400 dark:text-gray-500 mb-1.5 flex items-center gap-1">
-                                <DollarSign size={9} /> {quote.status === 'Accepted' ? 'Agreed' : 'Target'}
-                            </p>
-                            <p className={`text-sm font-bold truncate ${quote.status === 'Accepted' ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-800 dark:text-gray-100'}`}>
-                                {(() => {
-                                    const isAcc = quote.status === 'Accepted';
-                                    if (isAcc) {
-                                        if (quote.response_details?.price) return `$${quote.response_details.price}`;
-                                        if (quote.order?.lineItems?.length === 1) {
-                                            const itemId = quote.order.lineItems[0].id;
-                                            const r = quote.response_details?.lineItemResponses?.find((r: any) => r.lineItemId === itemId);
-                                            if (r?.price) return `$${r.price}`;
-                                        }
-                                        return 'See Details';
-                                    }
-                                    if (quote.order?.lineItems?.length === 1) return `$${quote.order.lineItems[0].targetPrice}`;
-                                    return 'See Details';
-                                })()}
-                            </p>
-                        </div>
+                                : hasResponse && quotedPriceDisplay
+                                ? 'bg-blue-50/80 dark:bg-blue-900/25 border-blue-200/70 dark:border-blue-700/40'
+                                : 'bg-white/70 dark:bg-gray-800/50 border-white/90 dark:border-gray-700/50';
+                            const label = isAcc ? 'Agreed' : hasResponse ? 'Quoted' : 'Target';
+                            const valueText = hasResponse
+                                ? (quotedPriceDisplay || (quote.order?.lineItems?.length === 1 ? `$${quote.order.lineItems[0].targetPrice}` : 'See Details'))
+                                : (quote.order?.lineItems?.length === 1 ? `$${quote.order.lineItems[0].targetPrice}` : 'See Details');
+                            const valueColor = isAcc
+                                ? 'text-emerald-600 dark:text-emerald-400'
+                                : hasResponse && quotedPriceDisplay
+                                ? 'text-blue-600 dark:text-blue-400'
+                                : 'text-gray-800 dark:text-gray-100';
+                            return (
+                                <div className={`rounded-xl p-3 border backdrop-blur-sm ${chipBg}`}>
+                                    <p className="text-[9px] uppercase tracking-wider font-bold text-gray-400 dark:text-gray-500 mb-1.5 flex items-center gap-1">
+                                        <DollarSign size={9} /> {label}
+                                    </p>
+                                    <p className={`text-sm font-bold truncate ${valueColor}`}>
+                                        {valueText}
+                                    </p>
+                                </div>
+                            );
+                        })()}
                     </div>
 
                     {/* Progress tracker */}

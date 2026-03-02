@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
+import { loginSettingsService } from './loginSettings.service';
 import {
     Mail, Phone, ArrowRight, Lock, Globe, Shield, Key, RefreshCw,
     Eye, EyeOff, Package, TrendingUp, Users, CheckCircle, Zap,
@@ -130,8 +131,6 @@ function loadLoginBgImages(): string[][] {
     return DEFAULT_FASHION_COLS;
 }
 
-const FASHION_COLS = loadLoginBgImages();
-
 // Icon component lookup for dynamic rendering
 const LOGIN_ICON_MAP: Record<LoginIconName, React.ComponentType<{ size?: number; style?: React.CSSProperties; className?: string }>> = {
     Package, TrendingUp, Users, CheckCircle, Zap, BarChart3, Clock, Star,
@@ -242,12 +241,35 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
     const [submittedPhone, setSubmittedPhone] = useState('');
     const [resendTimer, setResendTimer] = useState(0);
 
-    // Dynamic content loaded from admin settings
-    const content = React.useMemo(loadLoginContent, []);
+    // Dynamic content — initialise from localStorage cache, then hydrate from Supabase
+    const [content, setContent] = useState<LoginContent>(loadLoginContent);
+    const [fashionCols, setFashionCols] = useState<string[][]>(loadLoginBgImages);
     const getIcon = (name: LoginIconName, size: number, style?: React.CSSProperties) => {
         const Comp = LOGIN_ICON_MAP[name] || Package;
         return <Comp size={size} style={style} />;
     };
+
+    useEffect(() => {
+        (async () => {
+            const [remoteImages, remoteContent] = await Promise.all([
+                loginSettingsService.get<string[][]>('login_bg_images'),
+                loginSettingsService.get<LoginContent>('login_content_settings'),
+            ]);
+            if (remoteImages) {
+                setFashionCols(remoteImages);
+                try { localStorage.setItem('login_bg_images', JSON.stringify(remoteImages)); } catch {}
+            }
+            if (remoteContent) {
+                const merged: LoginContent = {
+                    ...DEFAULT_LOGIN_CONTENT, ...remoteContent,
+                    stats:    remoteContent.stats?.length    ? remoteContent.stats    : DEFAULT_LOGIN_CONTENT.stats,
+                    uspItems: remoteContent.uspItems?.length ? remoteContent.uspItems : DEFAULT_LOGIN_CONTENT.uspItems,
+                };
+                setContent(merged);
+                try { localStorage.setItem(LOGIN_CONTENT_KEY, JSON.stringify(merged)); } catch {}
+            }
+        })();
+    }, []);
 
     useEffect(() => {
         let interval: any;
@@ -632,7 +654,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
             >
                 {/* ── Scrolling fashion image columns ── */}
                 <div className="absolute inset-0 flex gap-1 pointer-events-none">
-                    {FASHION_COLS.map((col, colIdx) => (
+                    {fashionCols.map((col, colIdx) => (
                         <div key={colIdx} className="hero-img-col">
                             <div style={{
                                 animation: `scrollUp ${26 + colIdx * 7}s linear infinite`,

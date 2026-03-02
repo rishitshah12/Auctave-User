@@ -3,7 +3,7 @@ import React, { FC, useState, useMemo, useEffect, useRef, ReactNode, useCallback
 // Import icons for UI elements
 import {
     Search, Star, SlidersHorizontal, ChevronDown, Menu, User as UserIcon, LogOut, Briefcase, Truck, DollarSign,
-    Building, ChevronLeft, ChevronRight, Package, Trash2, X, Bell,
+    Building, ChevronLeft, ChevronRight, Package, Trash2, X,
     Sparkles, TrendingUp, ArrowRight, Zap, Globe, Award, ShieldCheck, Clock
 } from 'lucide-react';
 import { Factory, UserProfile, QuoteRequest } from '../src/types';
@@ -29,7 +29,6 @@ interface SourcingPageProps {
     selectedGarmentCategory: string;
     setSelectedGarmentCategory: (category: string) => void;
     showToast: (message: string, type?: 'success' | 'error') => void;
-    notificationCount?: number;
     quoteRequests?: QuoteRequest[];
     setGlobalLoading?: (isLoading: boolean) => void;
 }
@@ -240,7 +239,7 @@ const Dashboard: FC<{ quoteRequests: QuoteRequest[]; handleSetCurrentPage: (page
 });
 
 export const SourcingPage: FC<SourcingPageProps> = (props) => {
-    const { pageKey, user, userProfile, handleSelectFactory, toggleMenu, selectedGarmentCategory, setSelectedGarmentCategory, handleSetCurrentPage, handleSignOut, showToast, notificationCount = 0, quoteRequests = [], setGlobalLoading } = props;
+    const { pageKey, user, userProfile, handleSelectFactory, toggleMenu, selectedGarmentCategory, setSelectedGarmentCategory, handleSetCurrentPage, handleSignOut, showToast, quoteRequests = [], setGlobalLoading } = props;
     
     const CACHE_KEY = 'garment_erp_factories';
     // State to hold the complete list of factories fetched from the database
@@ -506,74 +505,6 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
         </>
     );
 
-    const NotificationBell: FC = () => {
-        const [isOpen, setIsOpen] = useState(false);
-        const dropdownRef = useRef<HTMLDivElement>(null);
-
-        useEffect(() => {
-            const handleClickOutside = (event: MouseEvent) => {
-                if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-                    setIsOpen(false);
-                }
-            };
-            document.addEventListener("mousedown", handleClickOutside);
-            return () => document.removeEventListener("mousedown", handleClickOutside);
-        }, []);
-
-        const notifications = quoteRequests.filter(q => q.status === 'Responded' || q.status === 'In Negotiation');
-
-        return (
-            <div className="relative mr-1 md:mr-2" ref={dropdownRef}>
-                <button onClick={() => setIsOpen(!isOpen)} className="p-2 rounded-full bg-white dark:bg-gray-800 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors relative text-gray-600 dark:text-gray-200">
-                    <Bell size={20} />
-                    {notificationCount > 0 && (
-                        <span className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white">
-                            {notificationCount > 9 ? '9+' : notificationCount}
-                        </span>
-                    )}
-                </button>
-                {isOpen && (
-                    <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-900/95 dark:backdrop-blur-xl rounded-xl shadow-lg py-2 z-50 border border-gray-100 dark:border-white/10 animate-fade-in">
-                        <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
-                            <h3 className="font-bold text-gray-800 dark:text-white text-sm">Notifications</h3>
-                            <span className="text-xs text-gray-500">{notifications.length} new</span>
-                        </div>
-                        <div className="max-h-64 overflow-y-auto">
-                            {notifications.length > 0 ? (
-                                notifications.map(quote => (
-                                    <button 
-                                        key={quote.id} 
-                                        onClick={() => { setIsOpen(false); handleSetCurrentPage('quoteDetail', quote); }}
-                                        className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border-b border-gray-50 dark:border-gray-700 last:border-0 flex items-center justify-between group"
-                                    >
-                                        <div className="flex items-center gap-2 overflow-hidden w-full">
-                                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${quote.status === 'Responded' ? 'bg-blue-500' : 'bg-orange-500'}`}></div>
-                                            <p className="text-sm text-gray-700 dark:text-gray-200 truncate w-full">
-                                                <span className="font-semibold text-gray-900 dark:text-white">{quote.factory?.name || 'Request'}</span>
-                                                <span className="text-gray-400 mx-1">•</span>
-                                                <span className={quote.status === 'Responded' ? 'text-blue-600' : 'text-orange-600'}>
-                                                    {quote.status === 'Responded' ? 'New Quote' : 'Negotiating'}
-                                                </span>
-                                            </p>
-                                        </div>
-                                    </button>
-                                ))
-                            ) : (
-                                <div className="px-4 py-6 text-center text-gray-500 text-sm">
-                                    No new notifications
-                                </div>
-                            )}
-                        </div>
-                        <div className="px-2 py-2 border-t border-gray-100 dark:border-gray-700">
-                            <button onClick={() => { setIsOpen(false); handleSetCurrentPage('myQuotes'); }} className="w-full py-2 text-xs font-semibold text-[#c20c0b] hover:bg-red-50 rounded-lg transition-colors">
-                                View All Quotes
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </div>
-        );
-    };
 
     const ProfileDropdown: FC = () => (
         <div ref={profileDropdownRef} className="relative">
@@ -660,11 +591,10 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                             </div>
                         </div>
 
-                        {/* Right side: Profile + Notification cluster */}
+                        {/* Right side: Profile cluster */}
                         <div className="flex items-center space-x-2 self-start sm:self-center">
                             <button className="p-2 rounded-full bg-white/10 backdrop-blur-sm shadow-sm md:hidden hover:bg-white/20 transition-colors"><Search size={20} className="text-white" /></button>
                             <button onClick={toggleMenu} className="p-2 rounded-full bg-white/10 backdrop-blur-sm shadow-sm md:hidden hover:bg-white/20 transition-colors"><Menu size={20} className="text-white" /></button>
-                            <NotificationBell />
                             <ProfileDropdown />
                         </div>
                     </div>

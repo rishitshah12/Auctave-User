@@ -5,6 +5,7 @@ import {
     Shield, Globe, Key, Mail, Lock, RefreshCw, Phone, Image, Type, Eye, EyeOff,
 } from 'lucide-react';
 import { MainLayout } from './MainLayout';
+import { loginSettingsService } from './loginSettings.service';
 
 interface AdminLoginSettingsPageProps {
     pageKey: number;
@@ -162,6 +163,9 @@ export const AdminLoginSettingsPage: FC<AdminLoginSettingsPageProps> = (props) =
     const [content, setContent] = useState<LoginContentSettings>(() => loadSavedContent());
     const [contentSaved, setContentSaved] = useState(false);
 
+    // ── Saving state ──────────────────────────────────────────────────────────
+    const [isSaving, setIsSaving] = useState(false);
+
     // ── Preview toggles ───────────────────────────────────────────────────────
     const [showImagesPreview, setShowImagesPreview] = useState(false);
     const [showLogoPreview, setShowLogoPreview] = useState(true);
@@ -193,23 +197,29 @@ export const AdminLoginSettingsPage: FC<AdminLoginSettingsPageProps> = (props) =
         e.target.value = '';
     };
 
-    const handleImgSave = () => {
-        try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(cols));
-            setImgSaved(true);
-            showToast('Login page images saved successfully');
-            setTimeout(() => setImgSaved(false), 2500);
-        } catch {
-            showToast('Failed to save — images may be too large for local storage', 'error');
+    const handleImgSave = async () => {
+        setIsSaving(true);
+        const { error } = await loginSettingsService.upsert('login_bg_images', cols);
+        setIsSaving(false);
+        if (error) {
+            showToast('Failed to save images — please try again', 'error');
+            return;
         }
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(cols)); } catch {}
+        setImgSaved(true);
+        showToast('Login page images saved successfully');
+        setTimeout(() => setImgSaved(false), 2500);
     };
 
-    const handleImgReset = () => {
+    const handleImgReset = async () => {
         const defaults = DEFAULT_COLS.map(col => [...col]);
         setCols(defaults);
         setUrlInputs(defaults);
         setSlotStatus({});
-        localStorage.removeItem(STORAGE_KEY);
+        setIsSaving(true);
+        await loginSettingsService.upsert('login_bg_images', defaults);
+        setIsSaving(false);
+        try { localStorage.removeItem(STORAGE_KEY); } catch {}
         showToast('Reset to default images');
     };
 
@@ -235,24 +245,31 @@ export const AdminLoginSettingsPage: FC<AdminLoginSettingsPageProps> = (props) =
     };
 
     // ── Content handlers ──────────────────────────────────────────────────────
-    const handleContentSave = () => {
-        try {
-            localStorage.setItem(CONTENT_KEY, JSON.stringify(content));
-            setContentSaved(true);
-            showToast('Login page content saved successfully');
-            setTimeout(() => setContentSaved(false), 2500);
-        } catch {
-            showToast('Failed to save content', 'error');
+    const handleContentSave = async () => {
+        setIsSaving(true);
+        const { error } = await loginSettingsService.upsert('login_content_settings', content);
+        setIsSaving(false);
+        if (error) {
+            showToast('Failed to save content — please try again', 'error');
+            return;
         }
+        try { localStorage.setItem(CONTENT_KEY, JSON.stringify(content)); } catch {}
+        setContentSaved(true);
+        showToast('Login page content saved successfully');
+        setTimeout(() => setContentSaved(false), 2500);
     };
 
-    const handleContentReset = () => {
-        setContent({
+    const handleContentReset = async () => {
+        const defaults = {
             ...DEFAULT_CONTENT,
             stats:    DEFAULT_CONTENT.stats.map(s => ({ ...s })),
             uspItems: DEFAULT_CONTENT.uspItems.map(u => ({ ...u })),
-        });
-        localStorage.removeItem(CONTENT_KEY);
+        };
+        setContent(defaults);
+        setIsSaving(true);
+        await loginSettingsService.upsert('login_content_settings', defaults);
+        setIsSaving(false);
+        try { localStorage.removeItem(CONTENT_KEY); } catch {}
         showToast('Content reset to defaults');
     };
 
@@ -298,6 +315,7 @@ export const AdminLoginSettingsPage: FC<AdminLoginSettingsPageProps> = (props) =
     const saved = activeTab === 'images' ? imgSaved : contentSaved;
     const handleSave = activeTab === 'images' ? handleImgSave : handleContentSave;
     const handleReset = activeTab === 'images' ? handleImgReset : handleContentReset;
+    const saveLabel = isSaving ? 'Saving…' : saved ? 'Saved!' : 'Save Changes';
 
     return (
         <MainLayout {...props}>
@@ -321,11 +339,12 @@ export const AdminLoginSettingsPage: FC<AdminLoginSettingsPageProps> = (props) =
                         </button>
                         <button
                             onClick={handleSave}
-                            className="flex items-center gap-2 px-5 py-2 rounded-lg text-white text-sm font-semibold transition-colors"
+                            disabled={isSaving}
+                            className="flex items-center gap-2 px-5 py-2 rounded-lg text-white text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                             style={{ background: saved ? '#16a34a' : '#c20c0b' }}
                         >
                             <Save size={15} />
-                            {saved ? 'Saved!' : 'Save Changes'}
+                            {saveLabel}
                         </button>
                     </div>
                 </div>

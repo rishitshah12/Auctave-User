@@ -336,66 +336,83 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
 
         const hasCache = !!sessionStorage.getItem(CACHE_KEY);
         if (!hasCache) setIsLoading(true);
-        
+
         let attempts = 0;
         while (attempts < 3) {
             try {
                 if (signal.aborted) return;
-                
-                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 15000));
-                const requestPromise = props.supabase
+
+                // Step 1: fetch quotes (no FK join — avoids relationship ambiguity errors)
+                const { data: quotesData, error: quotesError } = await props.supabase
                     .from('quotes')
-                    .select('*, clients:user_id(*)')
+                    .select('*')
                     .order('created_at', { ascending: false });
-                
-                const { data, error } = await Promise.race([
-                    requestPromise,
-                    timeoutPromise,
-                    new Promise<any>((_, reject) => signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError'))))
-                ]);
 
-                if (error) throw new Error(error.message);
+                if (quotesError) {
+                    console.error('[AdminRFQPage] quotes fetch error:', quotesError);
+                    throw new Error(quotesError.message);
+                }
+                if (signal.aborted) return;
 
-            // Transform DB data to QuoteRequest type
-            const transformedQuotes: QuoteRequest[] = data.map((q: any) => {
-                const client = Array.isArray(q.clients) ? q.clients[0] : q.clients;
-                return {
-                    id: q.id,
-                    factory: q.factory_data,
-                    order: q.order_details,
-                    status: q.status,
-                    submittedAt: q.created_at,
-                    acceptedAt: q.accepted_at || q.response_details?.acceptedAt,
-                    userId: q.user_id,
-                    files: q.files || [],
-                    response_details: q.response_details,
-                    negotiation_details: q.negotiation_details,
-                    // Add client info for display
-                    clientName: client?.name || 'Unknown',
-                    companyName: client?.company_name || 'Unknown',
-                    clientEmail: client?.email || 'N/A',
-                    clientPhone: client?.phone || 'N/A',
-                    clientCountry: client?.country || 'N/A',
-                    clientJobRole: client?.job_role || 'N/A',
-                    clientRevenue: client?.yearly_est_revenue || 'N/A',
-                    clientSpecialization: client?.category_specialization || 'N/A',
-                    modification_count: q.modification_count || 0,
-                    modified_at: q.modified_at
-                };
-            });
-            
-            if (!signal.aborted) {
+                // Step 2: fetch client data for the unique user_ids in the result set
+                const userIds: string[] = [...new Set(
+                    (quotesData as any[]).map((q: any) => q.user_id).filter(Boolean)
+                )];
+
+                let clientsMap: Record<string, any> = {};
+                if (userIds.length > 0) {
+                    const { data: clientsData, error: clientsError } = await props.supabase
+                        .from('clients')
+                        .select('id, name, company_name, email, phone, country, job_role, yearly_est_revenue, category_specialization')
+                        .in('id', userIds);
+
+                    if (clientsError) {
+                        console.warn('[AdminRFQPage] clients fetch error (non-fatal):', clientsError);
+                    } else if (clientsData) {
+                        clientsMap = Object.fromEntries((clientsData as any[]).map((c: any) => [c.id, c]));
+                    }
+                }
+                if (signal.aborted) return;
+
+                // Step 3: merge
+                const transformedQuotes: QuoteRequest[] = (quotesData as any[]).map((q: any) => {
+                    const client = clientsMap[q.user_id] ?? null;
+                    return {
+                        id: q.id,
+                        factory: q.factory_data,
+                        order: q.order_details,
+                        status: q.status,
+                        submittedAt: q.created_at,
+                        acceptedAt: q.accepted_at || q.response_details?.acceptedAt,
+                        userId: q.user_id,
+                        files: q.files || [],
+                        response_details: q.response_details,
+                        negotiation_details: q.negotiation_details,
+                        clientName: client?.name || 'Unknown',
+                        companyName: client?.company_name || 'Unknown',
+                        clientEmail: client?.email || 'N/A',
+                        clientPhone: client?.phone || 'N/A',
+                        clientCountry: client?.country || 'N/A',
+                        clientJobRole: client?.job_role || 'N/A',
+                        clientRevenue: client?.yearly_est_revenue || 'N/A',
+                        clientSpecialization: client?.category_specialization || 'N/A',
+                        modification_count: q.modification_count || 0,
+                        modified_at: q.modified_at,
+                    };
+                });
+
                 setQuotes(transformedQuotes);
                 sessionStorage.setItem(CACHE_KEY, JSON.stringify(transformedQuotes));
                 setIsLoading(false);
-            }
-            return;
+                return;
             } catch (err: any) {
                 if (err.name === 'AbortError') return;
                 attempts++;
+                console.error(`[AdminRFQPage] fetch attempt ${attempts} failed:`, err);
                 if (attempts >= 3) {
                     showToast('Failed to fetch quotes after retries.', 'error');
                     setIsLoading(false);
+                    return;
                 }
                 await new Promise(r => setTimeout(r, 1000 * attempts));
             }

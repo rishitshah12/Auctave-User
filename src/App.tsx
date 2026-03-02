@@ -10,7 +10,8 @@ import {
     GanttChartSquare, LayoutDashboard, MoreHorizontal, Info, Settings, LifeBuoy,
     History, Edit, Anchor, Ship, Warehouse, PackageCheck, Award, Users, Activity, Shield,
     PlayCircle, BarChart as BarChartIcon, FileQuestion, ClipboardCheck, Lock,
-    Tag, Weight, Palette, Box, Map as MapIcon, Download, BookOpen, Building, Trash2, Upload, Globe, Moon
+    Tag, Weight, Palette, Box, Map as MapIcon, Download, BookOpen, Building, Trash2, Upload, Globe, Moon,
+    Camera, Edit3
 } from 'lucide-react';
 // Import charting components from recharts for data visualization
 import {
@@ -21,6 +22,7 @@ import { UserProfile, OrderFormData, Factory, QuoteRequest, CrmOrder, CrmProduct
 // Import custom components for specific pages and UI elements
 import { MainLayout } from '../src/MainLayout';
 import { LoginPage } from '../src/LoginPage';
+import { OnboardingPage } from './OnboardingPage';
 import { SourcingPage } from '../src/SourcingPage';
 import { FactoryCard } from '../src/FactoryCard';
 import { OrderFormPage } from './OrderFormPage';
@@ -37,17 +39,41 @@ import { AdminTrendingPage } from './AdminTrendingPage';
 import { AdminRFQPage } from './AdminRFQPage';
 import { AdminLoginSettingsPage } from './AdminLoginSettingsPage';
 import { quoteService } from './quote.service';
+import { crmService } from './crm.service';
 import { MyQuotesPage } from './MyQuotesPage';
 import { QuoteDetailPage } from './QuoteDetailPage';
 import { FactoryDetailPage } from './FactoryDetailPage';
 import { theme } from './theme';
 import { ToastProvider, useToast } from './ToastContext';
+import { NotificationProvider, useNotifications } from './NotificationContext';
+
+// ─── Image resize helper ──────────────────────────────────────────────────────
+function resizeImage(file: File, maxPx = 240): Promise<string> {
+    return new Promise(resolve => {
+        const reader = new FileReader();
+        reader.onload = e => {
+            const img = new Image();
+            img.onload = () => {
+                const ratio = Math.min(maxPx / img.width, maxPx / img.height, 1);
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.round(img.width * ratio);
+                canvas.height = Math.round(img.height * ratio);
+                canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
+                resolve(canvas.toDataURL('image/jpeg', 0.82));
+            };
+            img.src = e.target!.result as string;
+        };
+        reader.readAsDataURL(file);
+    });
+}
 
 // --- Main App Component ---
 // This is the root component of the application
 const AppContent: FC = () => {
     // Access showToast from context
     const { showToast } = useToast();
+    // Access addNotification from context
+    const { addNotification } = useNotifications();
 
     // --- State Management ---
     
@@ -61,6 +87,8 @@ const AppContent: FC = () => {
     const [isAuthReady, setIsAuthReady] = useState<boolean>(false);
     // State to show loading indicator when saving profile
     const [isProfileLoading, setIsProfileLoading] = useState<boolean>(false);
+    // State to track if the current user is a new signup (needs onboarding)
+    const [isNewUserSignup, setIsNewUserSignup] = useState<boolean>(false);
     // State to store authentication error messages
     const [authError, setAuthError] = useState<string>('');
     // State to manage the visibility of the mobile menu
@@ -75,6 +103,12 @@ const AppContent: FC = () => {
     const [loadingCount, setLoadingCount] = useState<number>(0);
     const quotesAbortController = useRef<AbortController | null>(null);
     const [myQuotesFilter, setMyQuotesFilter] = useState<string>('All');
+    // Tracks last-known status per quote id for visibilitychange change detection
+    const prevQuoteStatusesRef = useRef<Map<string, string>>(new Map());
+    // Timestamp of when the tab was hidden (for the 30s poll gate)
+    const tabHiddenAtRef = useRef<number>(0);
+    // Tracks the created_at of the newest RFQ seen by the admin (for polling dedup)
+    const lastAdminRFQAtRef = useRef<string>('');
 
     // State for dark mode
     const [darkMode, setDarkMode] = useState<boolean>(() => {
@@ -160,11 +194,6 @@ const AppContent: FC = () => {
     const [selectedQuote, setSelectedQuote] = useState<QuoteRequest | null>(null);
     // State to manage loading of quotes
     const [isQuotesLoading, setIsQuotesLoading] = useState<boolean>(() => !sessionStorage.getItem(QUOTES_CACHE_KEY));
-
-    // Calculate notification count (quotes with updates)
-    const notificationCount = useMemo(() => {
-        return quoteRequests.filter(q => q.status === 'Responded' || q.status === 'In Negotiation').length;
-    }, [quoteRequests]);
 
     // --- Gemini (AI) Feature States ---
     
@@ -338,8 +367,22 @@ const AppContent: FC = () => {
                         } else if (error) {
                             // Check if profile truly doesn't exist (PGRST116) vs other errors
                             if (error.code === 'PGRST116') {
-                                console.log('No profile found in database - user will be redirected to create one');
+                                console.log('No profile found in database - checking if new user');
                                 setUserProfile(null);
+                                // Only trigger onboarding for brand-new users, not existing users without a profile.
+                                // A user is considered new if their account was created within 24 hours OR
+                                // the new-signup flag is still set in localStorage (handles tab-close/reopen).
+                                const newSignupKey = `garment_new_signup_${session.user.id}`;
+                                const accountAgeMs = Date.now() - new Date(session.user.created_at).getTime();
+                                const isNewAccount = accountAgeMs < 24 * 60 * 60 * 1000;
+                                if (isNewAccount || localStorage.getItem(newSignupKey) === 'true') {
+                                    localStorage.setItem(newSignupKey, 'true');
+                                    setIsNewUserSignup(true);
+                                    console.log('New user signup detected - will show onboarding');
+                                } else {
+                                    setIsNewUserSignup(false);
+                                    console.log('Existing user without profile - skipping onboarding');
+                                }
                             } else {
                                 // Network/timeout/other error - don't treat as missing profile
                                 console.error('Error fetching profile:', error.message, error.code);
@@ -370,6 +413,8 @@ const AppContent: FC = () => {
                         if (redirectRoute) {
                             console.log(`Redirecting to ${redirectRoute} for onboarding`);
                             setCurrentPage(redirectRoute);
+                            // Write to localStorage so the safety setTimeout doesn't override this redirect
+                            localStorage.setItem('garment_erp_last_page', redirectRoute);
                         } else {
                             // If it's INITIAL_SESSION or SIGNED_IN (refresh), try to keep current page if valid
                             if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
@@ -509,6 +554,37 @@ const AppContent: FC = () => {
         }
     }, [user, isAdmin, showToast, setGlobalLoading]);
 
+    // Keep prevQuoteStatusesRef in sync so the visibilitychange handler can diff changes
+    useEffect(() => {
+        const map = new Map<string, string>();
+        quoteRequests.forEach(q => map.set(q.id, q.status));
+        prevQuoteStatusesRef.current = map;
+    }, [quoteRequests]);
+
+    // Helper: transform a raw DB row into a QuoteRequest object
+    const transformRawQuote = (q: any): QuoteRequest => ({
+        id: q.id,
+        factory: q.factory_data,
+        order: q.order_details,
+        status: q.status,
+        submittedAt: q.created_at,
+        acceptedAt: q.accepted_at || q.response_details?.acceptedAt,
+        userId: q.user_id,
+        files: q.files || [],
+        response_details: q.response_details,
+        negotiation_details: q.negotiation_details,
+        modification_count: q.modification_count || 0,
+        modified_at: q.modified_at,
+    });
+
+    // Helper: build a short meta string for the quoted price
+    const buildQuoteMeta = (responseDetails: any): string | undefined => {
+        if (!responseDetails?.price) return undefined;
+        const parts: string[] = [`$${responseDetails.price}/unit`];
+        if (responseDetails.leadTime) parts.push(`${responseDetails.leadTime} lead`);
+        return parts.join(' · ');
+    };
+
     useEffect(() => {
         if (user && !isAdmin && (currentPage === 'myQuotes' || quoteRequests.length === 0)) {
             fetchUserQuotes();
@@ -518,53 +594,304 @@ const AppContent: FC = () => {
         };
     }, [user, isAdmin, currentPage, fetchUserQuotes, quoteRequests.length]);
 
-    // Effect to listen for real-time updates on quotes for the current user
+    // Shared helper: fire a rich RFQ notification for a quote status change
+    const fireQuoteNotification = useCallback((tq: QuoteRequest, newStatus: string) => {
+        const factoryName = tq.factory?.name || 'A factory';
+        const statusMessages: Record<string, { title: string; message: string }> = {
+            'Responded': {
+                title: 'New Quote Received',
+                message: `${factoryName} responded to your request.`,
+            },
+            'In Negotiation': {
+                title: 'Counter-Offer Received',
+                message: `${factoryName} sent a counter-offer on your quote.`,
+            },
+            'Admin Accepted': {
+                title: 'Quote Accepted — Action Required',
+                message: `${factoryName}'s quote was accepted by admin. Review and confirm.`,
+            },
+            'Client Accepted': {
+                title: 'Order Confirmed',
+                message: `You accepted the quote from ${factoryName}. Your order is placed.`,
+            },
+            'Declined': {
+                title: 'Quote Declined',
+                message: `${factoryName} declined your request.`,
+            },
+        };
+        const copy = statusMessages[newStatus] ?? {
+            title: 'Quote Updated',
+            message: `Your quote with ${factoryName} is now "${newStatus}".`,
+        };
+        addNotification({
+            category: 'rfq',
+            title: copy.title,
+            message: copy.message,
+            imageUrl: tq.factory?.imageUrl,
+            meta: buildQuoteMeta(tq.response_details),
+            action: { page: 'quoteDetail', data: tq },
+        });
+        showToast(`${copy.title}: ${factoryName} → ${newStatus}`);
+    }, [addNotification, showToast]);
+
+    // Effect to listen for real-time updates on quotes for the current user.
+    // NOTE: The server-side filter (filter: `user_id=eq.${user.id}`) requires
+    // REPLICA IDENTITY FULL on the quotes table. Without it the filter silently
+    // drops all events. We subscribe to all quote UPDATEs and filter client-side.
     useEffect(() => {
-        // Only run this for logged-in, non-admin users
         if (!user || isAdmin) return;
 
-        const channel = supabase.channel(`quotes-user-${user.id}`)
+        const channel = supabase.channel(`quotes-rt-${user.id}`)
             .on('postgres_changes', {
                 event: 'UPDATE',
                 schema: 'public',
                 table: 'quotes',
-                filter: `user_id=eq.${user.id}`
             }, (payload) => {
-                const updatedQuote = payload.new;
+                const raw = payload.new as any;
 
-                // Transform the updated data to match the application's QuoteRequest type
-                const transformedQuote: QuoteRequest = {
-                    id: updatedQuote.id,
-                    factory: updatedQuote.factory_data,
-                    order: updatedQuote.order_details,
-                    status: updatedQuote.status,
-                    submittedAt: updatedQuote.created_at,
-                    acceptedAt: updatedQuote.accepted_at || updatedQuote.response_details?.acceptedAt,
-                    userId: updatedQuote.user_id,
-                    files: updatedQuote.files || [],
-                    response_details: updatedQuote.response_details,
-                    negotiation_details: updatedQuote.negotiation_details
-                };
+                // Client-side ownership check
+                if (raw.user_id !== user.id) return;
 
-                // Update the quotes list with the new data
-                setQuoteRequests(prevQuotes => {
-                    const updatedQuotes = prevQuotes.map(q => q.id === transformedQuote.id ? transformedQuote : q);
-                    // Update sessionStorage cache to keep it in sync
-                    sessionStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify(updatedQuotes));
-                    return updatedQuotes;
+                const tq = transformRawQuote(raw);
+
+                // Update local state
+                setQuoteRequests(prev => {
+                    const next = prev.map(q => q.id === tq.id ? tq : q);
+                    sessionStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify(next));
+                    return next;
                 });
-                // If the user is viewing the detail page of the updated quote, refresh it too
-                setSelectedQuote(prevSelected => (prevSelected && prevSelected.id === transformedQuote.id) ? transformedQuote : prevSelected);
+                setSelectedQuote(prev => (prev?.id === tq.id ? tq : prev));
 
-                showToast(`A quote has been updated to: ${updatedQuote.status}`);
+                fireQuoteNotification(tq, raw.status);
+            })
+            .subscribe((status, err) => {
+                if (err) console.error('[Realtime] quotes channel error:', err);
+                else console.log('[Realtime] quotes channel status:', status);
+            });
+
+        return () => { supabase.removeChannel(channel); };
+    }, [user, isAdmin, fireQuoteNotification]);
+
+    // Visibility-change fallback: re-fetch quotes when the tab becomes visible again
+    // after being hidden for ≥30 s and fire notifications for any missed status changes.
+    useEffect(() => {
+        if (!user || isAdmin) return;
+
+        const onHide = () => { tabHiddenAtRef.current = Date.now(); };
+        const onShow = async () => {
+            if (Date.now() - tabHiddenAtRef.current < 30_000) return;
+            const { data } = await quoteService.getQuotesByUser(user.id);
+            if (!data) return;
+
+            const prevStatuses = prevQuoteStatusesRef.current;
+            const transformed = data.map(transformRawQuote);
+
+            transformed.forEach(tq => {
+                const prev = prevStatuses.get(tq.id);
+                if (prev && prev !== tq.status) {
+                    fireQuoteNotification(tq, tq.status);
+                }
+            });
+
+            setQuoteRequests(transformed);
+            sessionStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify(transformed));
+        };
+
+        const handleVisibility = () =>
+            document.visibilityState === 'hidden' ? onHide() : onShow();
+
+        document.addEventListener('visibilitychange', handleVisibility);
+        return () => document.removeEventListener('visibilitychange', handleVisibility);
+    }, [user, isAdmin, fireQuoteNotification]);
+
+    // Effect to listen for real-time CRM order updates for the current client.
+    // Server-side filter removed (same REPLICA IDENTITY FULL requirement as quotes).
+    // We use a local ref to diff old vs new since payload.old is unreliable without it.
+    const prevCrmRef = useRef<Map<string, { status: string; tasksJson: string }>>(new Map());
+
+    useEffect(() => {
+        if (!user || isAdmin) return;
+
+        const channel = supabase.channel(`crm-rt-${user.id}`)
+            .on('postgres_changes', {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'crm_orders',
+            }, (payload) => {
+                const updated = payload.new as any;
+
+                // Client-side ownership check
+                if (updated.client_id !== user.id) return;
+
+                const prev = prevCrmRef.current.get(updated.id);
+                const newTasksJson = JSON.stringify(updated.tasks || []);
+
+                // Notify on order status change.
+                // If prev is undefined this is the first update we've seen → always notify.
+                const statusChanged = !prev || updated.status !== prev.status;
+                if (statusChanged) {
+                    const statusEmoji: Record<string, string> = {
+                        'In Production': '🏭', 'Quality Check': '🔍',
+                        'Shipped': '🚢', 'Completed': '✅',
+                    };
+                    addNotification({
+                        category: 'crm',
+                        title: 'Order Status Updated',
+                        message: `Your order is now "${updated.status}" ${statusEmoji[updated.status] ?? ''}.`,
+                        meta: updated.order_name || undefined,
+                        action: { page: 'crm' },
+                    });
+                }
+
+                // Notify on task status changes (only when order status is unchanged)
+                if (!statusChanged && prev.tasksJson && newTasksJson !== prev.tasksJson) {
+                    const oldTasks = JSON.parse(prev.tasksJson) as any[];
+                    const newTasks = (updated.tasks || []) as any[];
+                    const changedTask = newTasks.find((t: any) => {
+                        const old = oldTasks.find((o: any) => o.id === t.id);
+                        return old && old.status !== t.status;
+                    });
+                    if (changedTask) {
+                        addNotification({
+                            category: 'crm',
+                            title: 'Task Progress Updated',
+                            message: `"${changedTask.name}" is now ${changedTask.status}.`,
+                            action: { page: 'crm' },
+                        });
+                    }
+                }
+
+                // Update local tracking ref
+                prevCrmRef.current.set(updated.id, {
+                    status: updated.status,
+                    tasksJson: newTasksJson,
+                });
+            })
+            .subscribe((status, err) => {
+                if (err) console.error('[Realtime] crm channel error:', err);
+            });
+
+        return () => { supabase.removeChannel(channel); };
+    }, [user, isAdmin, addNotification]);
+
+    // Effect to listen for new RFQ submissions (admin only)
+    useEffect(() => {
+        if (!user || !isAdmin) return;
+
+        const channel = supabase.channel('admin-new-rfq')
+            .on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'quotes',
+            }, (payload) => {
+                const newQuote = payload.new as any;
+                // Keep polling ref in sync so the poll fallback doesn't double-fire
+                if (newQuote.created_at > lastAdminRFQAtRef.current) {
+                    lastAdminRFQAtRef.current = newQuote.created_at;
+                }
+                addNotification({
+                    category: 'rfq',
+                    title: 'New RFQ Submitted',
+                    message: `A new quote request has been submitted${newQuote.factory_data?.name ? ` for ${newQuote.factory_data.name}` : ''}.`,
+                    action: { page: 'adminRFQ' },
+                });
+                showToast('New RFQ request received!');
             })
             .subscribe();
 
-        // Cleanup subscription on component unmount or user change
-        return () => {
-            supabase.removeChannel(channel);
-        };
+        return () => { supabase.removeChannel(channel); };
     }, [user, isAdmin]);
+
+    // ── Polling fallback: quote status changes (client, every 45 s) ──────────
+    // Fires when Supabase Realtime isn't delivering events (table not in publication).
+    useEffect(() => {
+        if (!user || isAdmin) return;
+        const poll = async () => {
+            const { data } = await quoteService.getQuotesByUser(user.id);
+            if (!data) return;
+            const transformed = data.map(transformRawQuote);
+            const prevStatuses = prevQuoteStatusesRef.current;
+            transformed.forEach(tq => {
+                const prev = prevStatuses.get(tq.id);
+                if (prev && prev !== tq.status) {
+                    fireQuoteNotification(tq, tq.status);
+                }
+            });
+            setQuoteRequests(transformed);
+            sessionStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify(transformed));
+        };
+        const id = setInterval(poll, 45_000);
+        return () => clearInterval(id);
+    }, [user, isAdmin, fireQuoteNotification]);
+
+    // ── Polling fallback: CRM order/task changes (client, every 45 s) ────────
+    useEffect(() => {
+        if (!user || isAdmin) return;
+        const poll = async () => {
+            const { data } = await crmService.getOrdersByClient(user.id);
+            if (!data) return;
+            data.forEach((order: any) => {
+                const prev = prevCrmRef.current.get(order.id);
+                const newTasksJson = JSON.stringify(order.tasks || []);
+                const statusChanged = prev && order.status !== prev.status;
+                if (statusChanged) {
+                    addNotification({
+                        category: 'crm',
+                        title: 'Order Status Updated',
+                        message: `Your order is now "${order.status}".`,
+                        meta: order.order_name || undefined,
+                        action: { page: 'crm' },
+                    });
+                } else if (prev && prev.tasksJson !== newTasksJson) {
+                    const oldTasks = JSON.parse(prev.tasksJson) as any[];
+                    const newTasks = (order.tasks || []) as any[];
+                    const changedTask = newTasks.find((t: any) => {
+                        const old = oldTasks.find((o: any) => o.id === t.id);
+                        return old && old.status !== t.status;
+                    });
+                    if (changedTask) {
+                        addNotification({
+                            category: 'crm',
+                            title: 'Task Progress Updated',
+                            message: `"${changedTask.name}" is now ${changedTask.status}.`,
+                            action: { page: 'crm' },
+                        });
+                    }
+                }
+                prevCrmRef.current.set(order.id, { status: order.status, tasksJson: newTasksJson });
+            });
+        };
+        const id = setInterval(poll, 45_000);
+        return () => clearInterval(id);
+    }, [user, isAdmin, addNotification]);
+
+    // ── Polling fallback: new RFQ submissions (admin, every 45 s) ────────────
+    useEffect(() => {
+        if (!user || !isAdmin) return;
+        const poll = async () => {
+            const { data } = await quoteService.getAllQuotes();
+            if (!data) return;
+            // First call: initialise baseline timestamp, don't notify
+            if (!lastAdminRFQAtRef.current) {
+                lastAdminRFQAtRef.current = data[0]?.created_at || new Date().toISOString();
+                return;
+            }
+            const newQuotes = data.filter((q: any) => q.created_at > lastAdminRFQAtRef.current);
+            newQuotes.forEach((q: any) => {
+                addNotification({
+                    category: 'rfq',
+                    title: 'New RFQ Submitted',
+                    message: `A new quote request has been submitted${q.factory_data?.name ? ` for ${q.factory_data.name}` : ''}.`,
+                    action: { page: 'adminRFQ' },
+                });
+            });
+            if (newQuotes.length > 0) {
+                lastAdminRFQAtRef.current = newQuotes[0].created_at;
+            }
+        };
+        const id = setInterval(poll, 45_000);
+        return () => clearInterval(id);
+    }, [user, isAdmin, addNotification]);
 
     // --- Authentication & Profile Functions ---
 
@@ -784,6 +1111,9 @@ const AppContent: FC = () => {
         } else {
             // Update local state on success
             setUserProfile(prev => ({ ...prev, ...profileData } as UserProfile));
+            // Clear new-signup flag so onboarding won't show again
+            setIsNewUserSignup(false);
+            if (user) localStorage.removeItem(`garment_new_signup_${user.id}`);
             showToast('Profile saved successfully!');
             handleSetCurrentPage(isAdmin ? 'adminDashboard' : 'sourcing');
         }
@@ -863,6 +1193,12 @@ const AppContent: FC = () => {
             });
 
             showToast('Quote request submitted successfully!');
+            addNotification({
+                category: 'order',
+                title: 'Quote Request Submitted',
+                message: `Your quote request has been sent. You'll be notified when factories respond.`,
+                action: { page: 'myQuotes' },
+            });
             // Navigation is handled by OrderFormPage after showing success animation
             return true;
         } catch (error: any) {
@@ -1010,6 +1346,7 @@ const AppContent: FC = () => {
     const layoutProps = {
         pageKey,
         user,
+        userProfile,
         currentPage,
         isMenuOpen,
         isSidebarCollapsed,
@@ -1080,40 +1417,297 @@ const AppContent: FC = () => {
         );
     };
 
-    // Component for editing user profile
+    // Component for editing user profile (dashboard view — existing users only)
     const ProfilePage: FC = () => {
-        // Initialize profile data from state or defaults
+        const fileRef = useRef<HTMLInputElement>(null);
         const [profileData, setProfileData] = useState<Partial<UserProfile>>({
-            name: userProfile?.name || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.displayName || '',
+            name: userProfile?.name || user?.user_metadata?.full_name || user?.user_metadata?.name || '',
             companyName: userProfile?.companyName || '',
             phone: userProfile?.phone || '',
             email: user?.email || '',
             country: userProfile?.country || '',
             jobRole: userProfile?.jobRole || '',
             categorySpecialization: userProfile?.categorySpecialization || '',
-            yearlyEstRevenue: userProfile?.yearlyEstRevenue || ''
+            yearlyEstRevenue: userProfile?.yearlyEstRevenue || '',
         });
-        // Dropdown options
-        const countries = ["Afghanistan","India","United States of America","China","Bangladesh", "Vietnam", "Turkey", "Portugal"];
-        const jobRoles = ["Owner/Founder", "CEO/President", "Sourcing Manager", "Designer"];
-        const revenueRanges = ["<$1M", "$1M - $5M", "$5M - $10M", "$10M+"];
-        
-        // Handle input changes
-        const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-            const { name, value } = e.target;
-            setProfileData(prevData => ({ ...prevData, [name]: value }));
+        const [avatarUrl, setAvatarUrl] = useState<string>(
+            user?.user_metadata?.avatar_url || user?.user_metadata?.picture || ''
+        );
+        const [avatarUploading, setAvatarUploading] = useState(false);
+        const [tags, setTags] = useState<string[]>(
+            (userProfile?.categorySpecialization || '')
+                .split(',').map((t: string) => t.trim()).filter(Boolean)
+        );
+        const [tagInput, setTagInput] = useState('');
+
+        const PREDEFINED_CATEGORIES = [
+            'Activewear & Sportswear', 'Denim & Bottoms', 'Tops & Shirts',
+            'Outerwear & Jackets', 'Swimwear & Beachwear', 'Intimates & Loungewear',
+            'Formal & Suiting', 'Kidswear & Babywear', 'Knitwear & Sweaters',
+            'Athleisure', 'Accessories', 'Footwear', 'Workwear',
+            'Sustainable Fashion', 'Luxury & Couture', 'Casual & Streetwear',
+        ];
+
+        const countries = [
+            'Afghanistan', 'Australia', 'Bangladesh', 'Belgium', 'Brazil', 'Cambodia',
+            'Canada', 'China', 'Colombia', 'Denmark', 'Egypt', 'France', 'Germany',
+            'Ghana', 'Hong Kong', 'India', 'Indonesia', 'Italy', 'Japan', 'Malaysia',
+            'Mexico', 'Morocco', 'Myanmar', 'Netherlands', 'Pakistan', 'Philippines',
+            'Portugal', 'Saudi Arabia', 'South Korea', 'Spain', 'Sri Lanka', 'Sweden',
+            'Taiwan', 'Thailand', 'Turkey', 'United Arab Emirates', 'United Kingdom',
+            'United States of America', 'Vietnam', 'Other',
+        ];
+        const jobRoles = ['Owner / Founder', 'CEO / President', 'Sourcing Manager', 'Product Manager', 'Designer / Creative Director', 'Supply Chain Manager', 'Brand Manager', 'Buyer', 'Other'];
+
+        const initials = (profileData.name || user?.email || '?')
+            .split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase();
+
+        const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+            setProfileData(p => ({ ...p, [field]: e.target.value }));
+
+        const handleAvatarFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            setAvatarUploading(true);
+            try {
+                const resized = await resizeImage(file, 240);
+                setAvatarUrl(resized);
+                await supabase.auth.updateUser({ data: { avatar_url: resized } });
+                showToast('Profile picture updated!');
+            } catch {
+                showToast('Failed to update picture', 'error');
+            } finally {
+                setAvatarUploading(false);
+            }
+            e.target.value = '';
         };
-        
-        // Handle form submission
-        const handleSaveProfile = async (e: React.FormEvent) => {
+
+        const addTag = (tag: string) => {
+            const trimmed = tag.trim();
+            if (trimmed && !tags.includes(trimmed)) {
+                const newTags = [...tags, trimmed];
+                setTags(newTags);
+                setProfileData(p => ({ ...p, categorySpecialization: newTags.join(', ') }));
+            }
+            setTagInput('');
+        };
+
+        const removeTag = (tag: string) => {
+            const newTags = tags.filter(t => t !== tag);
+            setTags(newTags);
+            setProfileData(p => ({ ...p, categorySpecialization: newTags.join(', ') }));
+        };
+
+        const handleSave = async (e: React.FormEvent) => {
             e.preventDefault();
             if (!profileData.name || !profileData.companyName || !profileData.phone || !profileData.email) {
-                showToast("Please fill all required fields.", "error");
+                showToast('Please fill all required fields.', 'error');
                 return;
             }
             await saveUserProfile(profileData);
         };
-        return ( <MainLayout {...layoutProps} hideSidebar={!userProfile}> <div className="max-w-2xl mx-auto"> <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md p-6 sm:p-8 rounded-xl shadow-lg border border-gray-200 dark:border-white/10"> <h2 className="text-3xl font-bold text-gray-800 dark:text-white mb-6 text-center">{userProfile ? 'Update Your Profile' : 'Complete Your Profile'}</h2> <p className="text-center text-gray-500 dark:text-gray-400 mb-6">Fields marked with * are required to access the platform.</p> {authError && <p className="text-red-500 mb-4">{authError}</p>} <form onSubmit={handleSaveProfile} className="grid grid-cols-1 md:grid-cols-2 gap-6"> <div> <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name <span className="text-red-500">*</span></label> <input type="text" id="name" name="name" value={profileData.name} onChange={handleProfileChange} required className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] bg-white dark:bg-gray-700 text-gray-900 dark:text-white" /> </div> <div> <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Company Name <span className="text-red-500">*</span></label> <input type="text" id="companyName" name="companyName" value={profileData.companyName} onChange={handleProfileChange} required className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] bg-white dark:bg-gray-700 text-gray-900 dark:text-white" /> </div> <div className="md:col-span-2"> <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email <span className="text-red-500">*</span></label> <input type="email" id="email" name="email" value={profileData.email} onChange={handleProfileChange} required className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] bg-white dark:bg-gray-700 text-gray-900 dark:text-white" /> </div> <div> <label htmlFor="phone" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone <span className="text-red-500">*</span></label> <input type="tel" id="phone" name="phone" value={profileData.phone} onChange={handleProfileChange} required className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] bg-white dark:bg-gray-700 text-gray-900 dark:text-white" /> </div> <div> <label htmlFor="country" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Country</label> <select id="country" name="country" value={profileData.country} onChange={handleProfileChange} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] bg-white dark:bg-gray-700 text-gray-900 dark:text-white"> <option value="">Select a country</option> {countries.map(country => (<option key={country} value={country}>{country}</option>))} </select> </div> <div> <label htmlFor="jobRole" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Job Role</label> <select id="jobRole" name="jobRole" value={profileData.jobRole} onChange={handleProfileChange} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] bg-white dark:bg-gray-700 text-gray-900 dark:text-white"> <option value="">Select a role</option> {jobRoles.map(role => (<option key={role} value={role}>{role}</option>))} </select> </div> <div> <label htmlFor="categorySpecialization" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category Specialization</label> <input type="text" id="categorySpecialization" name="categorySpecialization" placeholder="e.g., Activewear, Denim" value={profileData.categorySpecialization} onChange={handleProfileChange} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] bg-white dark:bg-gray-700 text-gray-900 dark:text-white" /> </div> <div> <label htmlFor="yearlyEstRevenue" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Est. Yearly Revenue (USD)</label> <select id="yearlyEstRevenue" name="yearlyEstRevenue" value={profileData.yearlyEstRevenue} onChange={handleProfileChange} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] bg-white dark:bg-gray-700 text-gray-900 dark:text-white"> <option value="">Select a revenue range</option> {revenueRanges.map(range => (<option key={range} value={range}>{range}</option>))} </select> </div> <div className="md:col-span-2 text-right mt-4"> <button type="submit" disabled={isProfileLoading} className="w-full md:w-auto px-6 py-3 text-white rounded-md font-semibold bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] transition shadow-md disabled:opacity-50"> {isProfileLoading ? 'Saving...' : (userProfile ? 'Save Profile' : 'Complete Profile & Continue')} </button> </div> </form> </div> </div> </MainLayout> );
+
+        const fieldCls = 'w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent transition placeholder-gray-400 dark:placeholder-gray-500';
+        const labelCls = 'block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1.5';
+
+        return (
+            <MainLayout {...layoutProps}>
+                <div className="max-w-2xl mx-auto py-2">
+                    {/* Header */}
+                    <div className="mb-6">
+                        <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">My Profile</h1>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Update your personal and business details below.</p>
+                    </div>
+
+                    <form onSubmit={handleSave}>
+                        {/* Personal Information card */}
+                        <div className="bg-white dark:bg-gray-900/60 rounded-xl border border-gray-200 dark:border-white/10 shadow-sm mb-4">
+                            <div className="px-6 py-4 border-b border-gray-100 dark:border-white/8">
+                                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Personal Information</h2>
+                            </div>
+
+                            {/* Profile picture row */}
+                            <div className="px-6 py-4 flex items-center gap-4 border-b border-gray-100 dark:border-white/8">
+                                <div
+                                    className="relative cursor-pointer flex-shrink-0"
+                                    onClick={() => fileRef.current?.click()}
+                                >
+                                    <div className="w-16 h-16 rounded-full overflow-hidden bg-gradient-to-br from-red-700 to-red-900 flex items-center justify-center border-2 border-red-500/30 relative group">
+                                        {avatarUrl
+                                            ? <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+                                            : <span className="text-white font-bold text-lg leading-none">{initials}</span>
+                                        }
+                                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                            {avatarUploading
+                                                ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                                : <Camera size={18} className="text-white" />
+                                            }
+                                        </div>
+                                    </div>
+                                    <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-[var(--color-primary)] flex items-center justify-center border-2 border-white dark:border-gray-900">
+                                        <Edit3 size={9} className="text-white" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <p className="text-sm font-medium text-gray-800 dark:text-gray-100">Profile Photo</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Click to upload a new photo</p>
+                                </div>
+                                <input ref={fileRef} type="file" accept="image/*" onChange={handleAvatarFile} className="hidden" />
+                            </div>
+
+                            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
+                                <div>
+                                    <label className={labelCls}>Full Name <span className="text-[var(--color-primary)]">*</span></label>
+                                    <input
+                                        type="text"
+                                        name="name"
+                                        value={profileData.name || ''}
+                                        onChange={set('name')}
+                                        placeholder="Jane Smith"
+                                        required
+                                        className={fieldCls}
+                                    />
+                                </div>
+                                <div>
+                                    <label className={labelCls}>Email Address <span className="text-[var(--color-primary)]">*</span></label>
+                                    <input
+                                        type="email"
+                                        value={profileData.email || ''}
+                                        readOnly
+                                        className={`${fieldCls} opacity-60 cursor-default`}
+                                    />
+                                </div>
+                                <div>
+                                    <label className={labelCls}>Phone Number <span className="text-[var(--color-primary)]">*</span></label>
+                                    <input
+                                        type="tel"
+                                        name="phone"
+                                        value={profileData.phone || ''}
+                                        onChange={set('phone')}
+                                        placeholder="+1 555 000 0000"
+                                        required
+                                        className={fieldCls}
+                                    />
+                                </div>
+                                <div>
+                                    <label className={labelCls}>Country / Region</label>
+                                    <select
+                                        name="country"
+                                        value={profileData.country || ''}
+                                        onChange={set('country')}
+                                        className={fieldCls}
+                                    >
+                                        <option value="">Select a country</option>
+                                        {countries.map(c => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Business Information card */}
+                        <div className="bg-white dark:bg-gray-900/60 rounded-xl border border-gray-200 dark:border-white/10 shadow-sm mb-4">
+                            <div className="px-6 py-4 border-b border-gray-100 dark:border-white/8">
+                                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Business Information</h2>
+                            </div>
+                            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
+                                <div>
+                                    <label className={labelCls}>Company Name <span className="text-[var(--color-primary)]">*</span></label>
+                                    <input
+                                        type="text"
+                                        name="companyName"
+                                        value={profileData.companyName || ''}
+                                        onChange={set('companyName')}
+                                        placeholder="Acme Fashion Co."
+                                        required
+                                        className={fieldCls}
+                                    />
+                                </div>
+                                <div>
+                                    <label className={labelCls}>Your Role</label>
+                                    <select
+                                        name="jobRole"
+                                        value={profileData.jobRole || ''}
+                                        onChange={set('jobRole')}
+                                        className={fieldCls}
+                                    >
+                                        <option value="">Select a role</option>
+                                        {jobRoles.map(r => <option key={r} value={r}>{r}</option>)}
+                                    </select>
+                                </div>
+                                {/* Category Specialization — tag input */}
+                                <div className="md:col-span-2">
+                                    <label className={labelCls}>Category Specialization</label>
+                                    {/* Selected tags */}
+                                    {tags.length > 0 && (
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                            {tags.map(tag => (
+                                                <span
+                                                    key={tag}
+                                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-[var(--color-primary)]/10 text-[var(--color-primary)] border border-[var(--color-primary)]/20"
+                                                >
+                                                    {tag}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeTag(tag)}
+                                                        className="hover:text-red-500 transition-colors leading-none"
+                                                    >
+                                                        <X size={11} />
+                                                    </button>
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {/* Text input + Add button */}
+                                    <div className="flex gap-2 mb-2">
+                                        <input
+                                            type="text"
+                                            value={tagInput}
+                                            onChange={e => setTagInput(e.target.value)}
+                                            onKeyDown={e => {
+                                                if (e.key === 'Enter') { e.preventDefault(); addTag(tagInput); }
+                                            }}
+                                            placeholder="Type a category and press Enter…"
+                                            className={fieldCls}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => addTag(tagInput)}
+                                            className="px-4 py-2 rounded-lg bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white text-xs font-semibold transition-colors flex-shrink-0"
+                                        >
+                                            Add
+                                        </button>
+                                    </div>
+                                    {/* Quick-add suggestions */}
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {PREDEFINED_CATEGORIES.filter(c => !tags.includes(c)).map(cat => (
+                                            <button
+                                                type="button"
+                                                key={cat}
+                                                onClick={() => addTag(cat)}
+                                                className="text-xs px-2.5 py-0.5 rounded-full border border-gray-200 dark:border-white/10 text-gray-500 dark:text-gray-400 hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition-colors"
+                                            >
+                                                + {cat}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Save button */}
+                        <div className="flex justify-end">
+                            <button
+                                type="submit"
+                                disabled={isProfileLoading}
+                                className="px-6 py-2.5 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white text-sm font-semibold rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {isProfileLoading ? 'Saving…' : 'Save Changes'}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </MainLayout>
+        );
     };
 
     // Component for user settings
@@ -1430,6 +2024,12 @@ const AppContent: FC = () => {
             return <div className="flex items-center justify-center min-h-screen bg-gray-100"><div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[var(--color-primary)]"></div></div>;
         }
 
+        // Hard gate: if user is authenticated, has no profile, and is a new signup, show onboarding.
+        // Existing users without a profile record are NOT gated — they go straight to the app.
+        if (user && userProfile === null && isNewUserSignup && currentPage !== 'login' && currentPage !== 'createPassword') {
+            return <OnboardingPage user={user} onComplete={saveUserProfile} isLoading={isProfileLoading} />;
+        }
+
         // 1. Check Dynamic Routes from MasterController (Enables Extensibility)
         const DynamicComponent = masterController.getRouteComponent(currentPage);
         if (DynamicComponent) {
@@ -1439,7 +2039,9 @@ const AppContent: FC = () => {
         // Switch statement to render the appropriate component
         switch (currentPage) {
             case 'login': return <LoginPage showToast={showToast} setAuthError={setAuthError} authError={authError} />;
-            case 'profile': return <ProfilePage />;
+            case 'profile': return (userProfile || !isNewUserSignup)
+                ? <ProfilePage />
+                : <OnboardingPage user={user} onComplete={saveUserProfile} isLoading={isProfileLoading} />;
             case 'createPassword': return <CreatePasswordPage />;
             case 'sourcing': return <SourcingPage
                 {...layoutProps}
@@ -1448,7 +2050,6 @@ const AppContent: FC = () => {
                 selectedGarmentCategory={selectedGarmentCategory}
                 setSelectedGarmentCategory={setSelectedGarmentCategory}
                 showToast={showToast}
-                notificationCount={notificationCount}
                 quoteRequests={quoteRequests}
             />;
             case 'orderForm': return <OrderFormPage
@@ -1493,7 +2094,6 @@ const AppContent: FC = () => {
                 selectedGarmentCategory={selectedGarmentCategory}
                 setSelectedGarmentCategory={setSelectedGarmentCategory}
                 showToast={showToast}
-                notificationCount={notificationCount}
                 quoteRequests={quoteRequests}
             />;
         }
@@ -1845,9 +2445,11 @@ const AppContent: FC = () => {
 
 const App: FC = () => {
     return (
-        <ToastProvider>
-            <AppContent />
-        </ToastProvider>
+        <NotificationProvider>
+            <ToastProvider>
+                <AppContent />
+            </ToastProvider>
+        </NotificationProvider>
     );
 };
 
