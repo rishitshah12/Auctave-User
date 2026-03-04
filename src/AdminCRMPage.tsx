@@ -1,4 +1,5 @@
 import React, { useState, useEffect, FC, useRef, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { MainLayout } from './MainLayout';
 import { crmService } from './crm.service';
 import { userService } from './user.service';
@@ -9,12 +10,13 @@ import {
     Search, Building2, Mail, Users, Edit, ChevronRight, ShieldCheck,
     Flag, Clock, TrendingUp, CheckCircle, ChevronDown, FileText,
     Download, Save, MapPin, PencilLine, Zap, MessageSquare,
-    CalendarDays, User, AlertTriangle, ChevronUp
+    CalendarDays, User, AlertTriangle, ChevronUp, Loader2
 } from 'lucide-react';
 import { DashboardView, ListView, BoardView, GanttChartView, TNAView, OrderDetailsView } from './CRMPage';
 import CrmOrderCard from './CrmOrderCard';
 import { CrmProduct, CrmTask } from './types';
 import { normalizeOrder, computeProductName } from './utils';
+import { useToast } from './ToastContext';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const TASK_TEMPLATES = [
@@ -291,6 +293,19 @@ function TaskEditModal({
                         </div>
                     </div>
 
+                    {/* Quantity */}
+                    <div>
+                        <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">Quantity (units)</label>
+                        <input
+                            type="number"
+                            min="0"
+                            value={draft.quantity ?? ''}
+                            onChange={e => setDraft(prev => ({ ...prev, quantity: e.target.value ? parseInt(e.target.value) : undefined }))}
+                            className="w-full px-3 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#c20c0b]"
+                            placeholder="e.g. 500"
+                        />
+                    </div>
+
                     {/* Notes */}
                     <div>
                         <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">Notes</label>
@@ -345,6 +360,7 @@ function AdminBoardView({
         responsible: '',
         plannedStartDate: new Date().toISOString().split('T')[0],
         plannedEndDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+        quantity: '',
     });
 
     const columns = ['TO DO', 'IN PROGRESS', 'COMPLETE'] as const;
@@ -432,6 +448,7 @@ function AdminBoardView({
             responsible: '',
             plannedStartDate: new Date().toISOString().split('T')[0],
             plannedEndDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+            quantity: '',
         });
     };
 
@@ -452,6 +469,7 @@ function AdminBoardView({
             actualStartDate: null,
             actualEndDate: null,
             progress,
+            ...(newTask.quantity ? { quantity: parseInt(newTask.quantity) } : {}),
             ...(selectedProductId ? { productId: selectedProductId } : {}),
         };
         onTasksChange([...tasks, task]);
@@ -535,6 +553,11 @@ function AdminBoardView({
                                                 <span className="text-xs text-gray-500 dark:text-gray-400 truncate">{task.responsible}</span>
                                             </div>
                                         )}
+                                        {task.quantity != null && (
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 font-medium">
+                                                {task.quantity.toLocaleString()} units
+                                            </p>
+                                        )}
                                     </div>
                                 );
                             })}
@@ -596,6 +619,17 @@ function AdminBoardView({
                                             />
                                         </div>
                                     </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1 block">Quantity (units)</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            placeholder="e.g. 500"
+                                            value={newTask.quantity}
+                                            onChange={e => setNewTask(prev => ({ ...prev, quantity: e.target.value }))}
+                                            className="w-full px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#c20c0b]"
+                                        />
+                                    </div>
                                     <div className="flex gap-2 pt-1">
                                         <button
                                             onClick={handleSaveNewTask}
@@ -641,11 +675,69 @@ function AdminBoardView({
 function AdminListView({
     tasks,
     onTasksChange,
+    products,
+    selectedProductId,
 }: {
     tasks: CrmTask[];
     onTasksChange: (tasks: CrmTask[]) => void;
+    products?: CrmProduct[];
+    selectedProductId?: string | null;
 }) {
     const [editingTask, setEditingTask] = useState<CrmTask | null>(null);
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [templateDropdown, setTemplateDropdown] = useState<{ title: string; top: number; right: number } | null>(null);
+    const templateBtnRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+    const toggleTemplates = (title: string) => {
+        if (templateDropdown?.title === title) { setTemplateDropdown(null); return; }
+        const btn = templateBtnRefs.current[title];
+        if (btn) {
+            const r = btn.getBoundingClientRect();
+            setTemplateDropdown({ title, top: r.bottom + 6, right: window.innerWidth - r.right });
+        }
+    };
+
+    const blankTask = () => ({
+        name: '',
+        responsible: '',
+        priority: 'Medium' as CrmTask['priority'],
+        status: 'TO DO' as CrmTask['status'],
+        plannedStartDate: new Date().toISOString().split('T')[0],
+        plannedEndDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+        notes: '',
+        progress: 0,
+        quantity: '' as string,
+        productId: selectedProductId ?? products?.[0]?.id ?? '',
+    });
+
+    const [newTaskForm, setNewTaskForm] = useState(blankTask);
+
+    const openAddModal = (status: CrmTask['status'], template?: { name: string; responsible: string }) => {
+        setNewTaskForm({ ...blankTask(), status, ...(template ? { name: template.name, responsible: template.responsible } : {}) });
+        setShowAddModal(true);
+        setTemplateDropdown(null);
+    };
+
+    const handleSubmitNewTask = () => {
+        if (!newTaskForm.name.trim()) return;
+        onTasksChange([...tasks, {
+            id: Date.now(),
+            name: newTaskForm.name.trim(),
+            responsible: newTaskForm.responsible.trim() || 'Admin',
+            priority: newTaskForm.priority,
+            status: newTaskForm.status,
+            plannedStartDate: newTaskForm.plannedStartDate,
+            plannedEndDate: newTaskForm.plannedEndDate,
+            actualStartDate: null,
+            actualEndDate: null,
+            notes: newTaskForm.notes,
+            progress: newTaskForm.status === 'COMPLETE' ? 100 : newTaskForm.progress,
+            ...(newTaskForm.quantity ? { quantity: parseInt(newTaskForm.quantity) } : {}),
+            productId: newTaskForm.productId || (selectedProductId ?? products?.[0]?.id ?? ''),
+        }]);
+        setShowAddModal(false);
+        setNewTaskForm(blankTask());
+    };
 
     const handleSave = (updated: CrmTask) => {
         onTasksChange(tasks.map(t => t.id === updated.id ? updated : t));
@@ -661,16 +753,16 @@ function AdminListView({
 
     const groups: { title: string; tasks: CrmTask[]; headerColor: string; badgeColor: string }[] = [
         {
-            title: 'IN PROGRESS',
-            tasks: tasks.filter(t => t.status === 'IN PROGRESS'),
-            headerColor: 'text-orange-600 dark:text-orange-400',
-            badgeColor: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400',
-        },
-        {
             title: 'TO DO',
             tasks: tasks.filter(t => t.status === 'TO DO'),
             headerColor: 'text-gray-600 dark:text-gray-400',
             badgeColor: 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300',
+        },
+        {
+            title: 'IN PROGRESS',
+            tasks: tasks.filter(t => t.status === 'IN PROGRESS'),
+            headerColor: 'text-orange-600 dark:text-orange-400',
+            badgeColor: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400',
         },
         {
             title: 'COMPLETE',
@@ -683,20 +775,44 @@ function AdminListView({
     return (
         <>
             <div className="mt-6 animate-fade-in space-y-6">
-                {groups.map(({ title, tasks: groupTasks, headerColor, badgeColor }) => {
-                    if (groupTasks.length === 0) return null;
-                    return (
-                        <div key={title}>
-                            <div className="flex items-center text-sm font-bold mb-3">
+                {groups.map(({ title, tasks: groupTasks, headerColor, badgeColor }) => (
+                    <div key={title}>
+                        {/* Group header with Add + Templates */}
+                        <div className="flex items-center justify-between text-sm font-bold mb-3">
+                            <div className="flex items-center">
                                 <ChevronDown size={20} className={`mr-2 ${headerColor}`} />
                                 <span className={`mr-2 ${headerColor}`}>{title}</span>
                                 <span className={`${badgeColor} text-xs font-bold px-2.5 py-1 rounded-full shadow-sm`}>{groupTasks.length}</span>
                             </div>
+                            <div className="flex items-center gap-1.5">
+                                {/* Templates button — dropdown rendered via portal to avoid stacking-context/overflow issues */}
+                                <button
+                                    ref={el => { templateBtnRefs.current[title] = el; }}
+                                    onClick={() => toggleTemplates(title)}
+                                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                >
+                                    <Zap size={12} /> Templates <ChevronDown size={10} />
+                                </button>
+                                {/* Add task button */}
+                                <button
+                                    onClick={() => openAddModal(title as CrmTask['status'])}
+                                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-gradient-to-r from-[#c20c0b] to-red-600 text-white shadow-sm hover:shadow-md transition-all"
+                                >
+                                    <Plus size={13} /> Add task
+                                </button>
+                            </div>
+                        </div>
+
+                        {groupTasks.length === 0 ? (
+                            <div className="text-center py-8 bg-white dark:bg-gray-900/40 rounded-2xl border border-dashed border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500 text-sm">
+                                No tasks yet — use <span className="font-semibold">Add task</span> or <span className="font-semibold">Templates</span> to get started.
+                            </div>
+                        ) : (
                             <div className="overflow-x-auto bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10">
                                 <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
                                     <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50">
                                         <tr>
-                                            {['Task Name', 'Priority', 'Progress', 'Due Date', 'Responsible', ''].map(h => (
+                                            {['Task Name', 'Priority', 'Progress', 'Due Date', 'Responsible', 'QTY', ''].map(h => (
                                                 <th key={h} className="px-5 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">{h}</th>
                                             ))}
                                         </tr>
@@ -727,6 +843,9 @@ function AdminListView({
                                                     </td>
                                                     <td className="px-5 py-3.5 whitespace-nowrap text-gray-600 dark:text-gray-300 text-xs">{task.plannedEndDate || '—'}</td>
                                                     <td className="px-5 py-3.5 whitespace-nowrap text-gray-600 dark:text-gray-300 text-xs">{task.responsible || '—'}</td>
+                                                    <td className="px-5 py-3.5 whitespace-nowrap text-gray-600 dark:text-gray-300 font-medium text-xs">
+                                                        {task.quantity != null ? task.quantity.toLocaleString() : '—'}
+                                                    </td>
                                                     <td className="px-5 py-3.5 whitespace-nowrap text-right">
                                                         <button
                                                             onClick={() => setEditingTask(task)}
@@ -741,19 +860,1003 @@ function AdminListView({
                                     </tbody>
                                 </table>
                             </div>
-                        </div>
-                    );
-                })}
+                        )}
+                    </div>
+                ))}
             </div>
 
             {editingTask && (
-                <TaskEditModal
-                    task={editingTask}
-                    onSave={handleSave}
-                    onClose={() => setEditingTask(null)}
-                />
+                <TaskEditModal task={editingTask} onSave={handleSave} onClose={() => setEditingTask(null)} />
+            )}
+
+            {/* ── Templates portal — rendered at document.body to escape overflow/stacking-context issues ── */}
+            {templateDropdown && createPortal(
+                <>
+                    <div className="fixed inset-0 z-[9998]" onClick={() => setTemplateDropdown(null)} />
+                    <div
+                        className="fixed z-[9999] w-72 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-2xl max-h-72 overflow-y-auto"
+                        style={{ top: templateDropdown.top, right: templateDropdown.right }}
+                    >
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-3 pt-3 pb-1">Garment Templates</p>
+                        {TASK_TEMPLATES.map((tpl, i) => (
+                            <button key={i} onClick={() => openAddModal(templateDropdown.title as CrmTask['status'], tpl)}
+                                className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-left">
+                                <span>{tpl.name}</span>
+                                <span className="text-xs text-gray-400">{tpl.responsible}</span>
+                            </button>
+                        ))}
+                    </div>
+                </>,
+                document.body
+            )}
+
+            {/* ── Add Task Modal ── */}
+            {showAddModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setShowAddModal(false)}>
+                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+                    <div className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-white/10 w-full max-w-lg animate-fade-in" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-white/10">
+                            <div className="flex items-center gap-2">
+                                <div className="p-1.5 bg-red-50 dark:bg-red-900/20 rounded-lg"><Plus size={16} className="text-[#c20c0b]" /></div>
+                                <h2 className="text-base font-bold text-gray-800 dark:text-white">Add New Task</h2>
+                            </div>
+                            <button onClick={() => setShowAddModal(false)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all">
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <div className="px-6 py-5 space-y-4">
+                            {/* Name */}
+                            <div>
+                                <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">Task Name *</label>
+                                <input
+                                    list="list-task-name-templates"
+                                    autoFocus
+                                    type="text"
+                                    value={newTaskForm.name}
+                                    onChange={e => {
+                                        const val = e.target.value;
+                                        const matched = TASK_TEMPLATES.find(t => t.name === val);
+                                        setNewTaskForm(prev => ({ ...prev, name: val, ...(matched ? { responsible: matched.responsible } : {}) }));
+                                    }}
+                                    onKeyDown={e => { if (e.key === 'Enter') handleSubmitNewTask(); if (e.key === 'Escape') setShowAddModal(false); }}
+                                    placeholder="e.g. Fabric Sourcing"
+                                    className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-[#c20c0b]/20 focus:border-[#c20c0b] focus:outline-none"
+                                />
+                                <datalist id="list-task-name-templates">
+                                    {TASK_TEMPLATES.map((t, i) => <option key={i} value={t.name} />)}
+                                </datalist>
+                            </div>
+
+                            {/* Responsible + Priority */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">Responsible</label>
+                                    <input type="text" value={newTaskForm.responsible}
+                                        onChange={e => setNewTaskForm(prev => ({ ...prev, responsible: e.target.value }))}
+                                        placeholder="e.g. Merch Team"
+                                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-[#c20c0b]/20 focus:border-[#c20c0b] focus:outline-none" />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">Priority</label>
+                                    <select value={newTaskForm.priority}
+                                        onChange={e => setNewTaskForm(prev => ({ ...prev, priority: e.target.value as CrmTask['priority'] }))}
+                                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-[#c20c0b]/20 focus:border-[#c20c0b] focus:outline-none">
+                                        <option value="Low">↓ Low</option>
+                                        <option value="Medium">→ Medium</option>
+                                        <option value="High">↑ High</option>
+                                        <option value="Urgent">⚡ Urgent</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Status */}
+                            <div>
+                                <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">Status</label>
+                                <div className="flex gap-2">
+                                    {(['TO DO', 'IN PROGRESS', 'COMPLETE'] as CrmTask['status'][]).map(s => (
+                                        <button key={s} onClick={() => setNewTaskForm(prev => ({ ...prev, status: s }))}
+                                            className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all border ${newTaskForm.status === s
+                                                ? s === 'TO DO' ? 'bg-slate-500 text-white border-slate-500' : s === 'IN PROGRESS' ? 'bg-blue-500 text-white border-blue-500' : 'bg-emerald-500 text-white border-emerald-500'
+                                                : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
+                                            }`}>
+                                            {s === 'TO DO' ? 'To Do' : s === 'IN PROGRESS' ? 'In Progress' : 'Complete'}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Dates */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">Start Date</label>
+                                    <input type="date" value={newTaskForm.plannedStartDate}
+                                        onChange={e => setNewTaskForm(prev => ({ ...prev, plannedStartDate: e.target.value }))}
+                                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-[#c20c0b]/20 focus:border-[#c20c0b] focus:outline-none" />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">End Date</label>
+                                    <input type="date" value={newTaskForm.plannedEndDate}
+                                        onChange={e => setNewTaskForm(prev => ({ ...prev, plannedEndDate: e.target.value }))}
+                                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-[#c20c0b]/20 focus:border-[#c20c0b] focus:outline-none" />
+                                </div>
+                            </div>
+
+                            {/* Progress slider — only for IN PROGRESS */}
+                            {newTaskForm.status === 'IN PROGRESS' && (
+                                <div>
+                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 flex justify-between">
+                                        <span>Progress</span>
+                                        <span className="text-blue-600 dark:text-blue-400">{newTaskForm.progress}%</span>
+                                    </label>
+                                    <input type="range" min={0} max={100} step={5}
+                                        value={newTaskForm.progress}
+                                        onChange={e => setNewTaskForm(prev => ({ ...prev, progress: +e.target.value }))}
+                                        className="w-full accent-[#c20c0b]" />
+                                </div>
+                            )}
+
+                            {/* Product assignment */}
+                            {products && products.length > 0 && (
+                                <div>
+                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">Assign to Product</label>
+                                    <select value={newTaskForm.productId}
+                                        onChange={e => setNewTaskForm(prev => ({ ...prev, productId: e.target.value }))}
+                                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-[#c20c0b]/20 focus:border-[#c20c0b] focus:outline-none">
+                                        <option value="">— Unassigned —</option>
+                                        {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                    </select>
+                                </div>
+                            )}
+
+                            {/* Quantity */}
+                            <div>
+                                <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">Quantity (units)</label>
+                                <input type="number" min="0" value={newTaskForm.quantity}
+                                    onChange={e => setNewTaskForm(prev => ({ ...prev, quantity: e.target.value }))}
+                                    placeholder="e.g. 500"
+                                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-[#c20c0b]/20 focus:border-[#c20c0b] focus:outline-none" />
+                            </div>
+
+                            {/* Notes */}
+                            <div>
+                                <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">Notes</label>
+                                <textarea rows={2} value={newTaskForm.notes}
+                                    onChange={e => setNewTaskForm(prev => ({ ...prev, notes: e.target.value }))}
+                                    placeholder="Optional notes..."
+                                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-[#c20c0b]/20 focus:border-[#c20c0b] focus:outline-none resize-none" />
+                            </div>
+                        </div>
+
+                        <div className="px-6 py-4 border-t border-gray-100 dark:border-white/10 flex items-center gap-3">
+                            <button onClick={() => setShowAddModal(false)}
+                                className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                Cancel
+                            </button>
+                            <button onClick={handleSubmitNewTask} disabled={!newTaskForm.name.trim()}
+                                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#c20c0b] to-red-600 text-white text-sm font-bold hover:shadow-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                                <Plus size={15} /> Add Task
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </>
+    );
+}
+
+// ── Admin Gantt Chart ──────────────────────────────────────────────────────────
+const GANTT_DAY_WIDTHS = [16, 24, 36, 52, 72];
+const GANTT_LEFT_WIDTH = 260;
+const GANTT_ROW_H = 40;
+const GANTT_ROW_H_EXP = 104;
+
+const STATUS_GANTT: Record<string, { bar: string; label: string }> = {
+    'TO DO':       { bar: 'bg-slate-400 dark:bg-slate-500',    label: 'To Do' },
+    'IN PROGRESS': { bar: 'bg-blue-500 dark:bg-blue-500',      label: 'In Progress' },
+    'COMPLETE':    { bar: 'bg-emerald-500 dark:bg-emerald-500', label: 'Complete' },
+};
+const PRIORITY_SYM: Record<string, string> = { Low: '↓', Medium: '→', High: '↑', Urgent: '⚡' };
+
+const GANTT_BLANK_TASK = () => ({
+    name: '',
+    responsible: '',
+    priority: 'Medium' as CrmTask['priority'],
+    status: 'TO DO' as CrmTask['status'],
+    plannedStartDate: new Date().toISOString().split('T')[0],
+    plannedEndDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+    notes: '',
+    progress: 0,
+    productId: '',
+});
+
+function AdminGanttChartView({
+    tasks,
+    products,
+    onTaskUpdate,
+    onAddTask,
+}: {
+    tasks: CrmTask[];
+    products?: CrmProduct[];
+    onTaskUpdate?: (taskId: number, newStart: string, newEnd: string) => void;
+    onAddTask?: (task: CrmTask) => void;
+}) {
+    const [dayWidth, setDayWidth] = useState(36);
+    const [expandedTasks, setExpandedTasks] = useState<Set<number>>(new Set());
+    const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+    const [hoveredTaskId, setHoveredTaskId] = useState<number | null>(null);
+
+    // ── Add-task modal ───────────────────────────────────────────────────────
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [showTemplates, setShowTemplates] = useState(false);
+    const [newTaskForm, setNewTaskForm] = useState(GANTT_BLANK_TASK);
+    const templateBtnRef = useRef<HTMLButtonElement>(null);
+
+    const openAddModal = (template?: { name: string; responsible: string }) => {
+        setNewTaskForm({ ...GANTT_BLANK_TASK(), ...(template ? { name: template.name, responsible: template.responsible } : {}) });
+        setShowAddModal(true);
+        setShowTemplates(false);
+    };
+
+    const handleSubmitNewTask = () => {
+        if (!newTaskForm.name.trim() || !onAddTask) return;
+        onAddTask({
+            id: Date.now(),
+            name: newTaskForm.name.trim(),
+            responsible: newTaskForm.responsible.trim() || 'Admin',
+            priority: newTaskForm.priority,
+            status: newTaskForm.status,
+            plannedStartDate: newTaskForm.plannedStartDate,
+            plannedEndDate: newTaskForm.plannedEndDate,
+            actualStartDate: null,
+            actualEndDate: null,
+            notes: newTaskForm.notes,
+            progress: newTaskForm.status === 'COMPLETE' ? 100 : newTaskForm.progress,
+            productId: newTaskForm.productId || (products?.[0]?.id ?? ''),
+        });
+        setShowAddModal(false);
+        setNewTaskForm(GANTT_BLANK_TASK());
+    };
+
+    const [interaction, setInteraction] = useState<{
+        type: 'move' | 'resize-start' | 'resize-end';
+        taskId: number;
+        startX: number;
+        origStart: Date;
+        origEnd: Date;
+        deltaDays: number;
+    } | null>(null);
+
+    const timelineRef = useRef<HTMLDivElement>(null);
+    const leftRef = useRef<HTMLDivElement>(null);
+
+    const parseDate = (s: string) => new Date(s);
+    const today = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
+
+    // ── Timeline bounds ──────────────────────────────────────────────────────
+    const { timelineStart, totalDays } = useMemo(() => {
+        const valid = tasks.filter(t => t.plannedStartDate && t.plannedEndDate);
+        if (!valid.length) {
+            const s = new Date(today); s.setDate(s.getDate() - 14);
+            return { timelineStart: s, totalDays: 60 };
+        }
+        const starts = valid.map(t => parseDate(t.plannedStartDate).getTime());
+        const ends = valid.map(t => parseDate(t.plannedEndDate).getTime());
+        const min = new Date(Math.min(...starts));
+        const max = new Date(Math.max(...ends));
+        min.setDate(min.getDate() - 10);
+        max.setDate(max.getDate() + 20);
+        return {
+            timelineStart: min,
+            totalDays: Math.ceil((max.getTime() - min.getTime()) / 86400000) + 1,
+        };
+    }, [tasks, today]);
+
+    const days = useMemo(() => {
+        const arr: Date[] = [];
+        const cur = new Date(timelineStart);
+        for (let i = 0; i < totalDays; i++) {
+            arr.push(new Date(cur));
+            cur.setDate(cur.getDate() + 1);
+        }
+        return arr;
+    }, [timelineStart, totalDays]);
+
+    // ── Header groupings ─────────────────────────────────────────────────────
+    const monthGroups = useMemo(() => {
+        const g: { label: string; span: number }[] = [];
+        let cur = '', span = 0;
+        days.forEach(d => {
+            const lbl = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+            if (lbl !== cur) { if (cur) g.push({ label: cur, span }); cur = lbl; span = 1; }
+            else span++;
+        });
+        if (cur) g.push({ label: cur, span });
+        return g;
+    }, [days]);
+
+    const weekGroups = useMemo(() => {
+        const g: { label: string; span: number; alt: boolean }[] = [];
+        let curW = -1, span = 0, alt = false;
+        days.forEach(d => {
+            const w = Math.ceil((Math.floor((d.getTime() - new Date(d.getFullYear(), 0, 1).getTime()) / 86400000) + 1) / 7);
+            if (w !== curW) {
+                if (curW >= 0) { g.push({ label: `W${curW}`, span, alt }); alt = !alt; }
+                curW = w; span = 1;
+            } else span++;
+        });
+        if (curW >= 0) g.push({ label: `W${curW}`, span, alt });
+        return g;
+    }, [days]);
+
+    // ── Today offset ─────────────────────────────────────────────────────────
+    const todayOffset = useMemo(() => {
+        const diff = Math.floor((today.getTime() - timelineStart.getTime()) / 86400000);
+        return diff >= 0 && diff < totalDays ? diff * dayWidth + dayWidth / 2 : -1;
+    }, [today, timelineStart, totalDays, dayWidth]);
+
+    const scrollToToday = useCallback(() => {
+        if (timelineRef.current && todayOffset >= 0) {
+            timelineRef.current.scrollLeft = Math.max(0, todayOffset - timelineRef.current.clientWidth / 2);
+        }
+    }, [todayOffset]);
+
+    useEffect(() => { setTimeout(scrollToToday, 150); }, [dayWidth]);
+
+    // ── Sync vertical scroll between panels ─────────────────────────────────
+    const syncScroll = useCallback((source: 'left' | 'right') => {
+        if (source === 'left' && leftRef.current && timelineRef.current) {
+            timelineRef.current.scrollTop = leftRef.current.scrollTop;
+        } else if (source === 'right' && timelineRef.current && leftRef.current) {
+            leftRef.current.scrollTop = timelineRef.current.scrollTop;
+        }
+    }, []);
+
+    // ── Grouping ─────────────────────────────────────────────────────────────
+    const groups = useMemo(() => {
+        if (!products?.length) return [{ key: 'all', label: 'All Tasks', tasks }];
+        const result: { key: string; label: string; tasks: CrmTask[] }[] = [];
+        products.forEach(p => {
+            const pt = tasks.filter(t => t.productId === p.id);
+            if (pt.length) result.push({ key: p.id, label: p.name, tasks: pt });
+        });
+        const unassigned = tasks.filter(t => !products.find(p => p.id === t.productId));
+        if (unassigned.length) result.push({ key: 'unassigned', label: 'Unassigned Tasks', tasks: unassigned });
+        return result;
+    }, [tasks, products]);
+
+    // ── Drag handlers ────────────────────────────────────────────────────────
+    const onBarMouseDown = useCallback((e: React.MouseEvent, task: CrmTask, type: 'move' | 'resize-start' | 'resize-end') => {
+        if (!onTaskUpdate) return;
+        e.preventDefault(); e.stopPropagation();
+        setInteraction({
+            type, taskId: task.id, startX: e.clientX,
+            origStart: parseDate(task.plannedStartDate),
+            origEnd: parseDate(task.plannedEndDate),
+            deltaDays: 0,
+        });
+    }, [onTaskUpdate]);
+
+    useEffect(() => {
+        if (!interaction) return;
+        const onMove = (e: MouseEvent) => {
+            const delta = Math.round((e.clientX - interaction.startX) / dayWidth);
+            setInteraction(p => p ? { ...p, deltaDays: delta } : null);
+        };
+        const onUp = () => {
+            if (interaction && onTaskUpdate && interaction.deltaDays !== 0) {
+                const d = interaction.deltaDays;
+                let s = new Date(interaction.origStart);
+                let en = new Date(interaction.origEnd);
+                if (interaction.type === 'move') { s.setDate(s.getDate() + d); en.setDate(en.getDate() + d); }
+                else if (interaction.type === 'resize-start') { s.setDate(s.getDate() + d); if (s > en) s = new Date(en); }
+                else { en.setDate(en.getDate() + d); if (en < s) en = new Date(s); }
+                onTaskUpdate(interaction.taskId, s.toISOString().split('T')[0], en.toISOString().split('T')[0]);
+            }
+            setInteraction(null);
+        };
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+        return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    }, [interaction, dayWidth, onTaskUpdate]);
+
+    // ── Bar geometry ─────────────────────────────────────────────────────────
+    const getBar = useCallback((task: CrmTask) => {
+        if (!task.plannedStartDate || !task.plannedEndDate) return null;
+        let s = Math.floor((parseDate(task.plannedStartDate).getTime() - timelineStart.getTime()) / 86400000);
+        let e = Math.floor((parseDate(task.plannedEndDate).getTime() - timelineStart.getTime()) / 86400000);
+        if (interaction?.taskId === task.id) {
+            const d = interaction.deltaDays;
+            if (interaction.type === 'move') { s += d; e += d; }
+            else if (interaction.type === 'resize-start') s = Math.min(s + d, e);
+            else e = Math.max(e + d, s);
+        }
+        return { left: s * dayWidth, width: Math.max((e - s + 1) * dayWidth - 3, dayWidth - 3) };
+    }, [timelineStart, dayWidth, interaction]);
+
+    // ── Render rows (shared for both panels) ─────────────────────────────────
+    const rowList: { type: 'group'; key: string; label: string; count: number } | { type: 'task'; task: CrmTask; groupKey: string } extends infer T ? T[] : never = useMemo(() => {
+        const rows: any[] = [];
+        groups.forEach(g => {
+            rows.push({ type: 'group', key: g.key, label: g.label, count: g.tasks.length });
+            if (!collapsedGroups.has(g.key)) g.tasks.forEach(task => rows.push({ type: 'task', task, groupKey: g.key }));
+        });
+        return rows;
+    }, [groups, collapsedGroups]);
+
+    const getRowHeight = (row: any) => row.type === 'group' ? GANTT_ROW_H : expandedTasks.has(row.task.id) ? GANTT_ROW_H_EXP : GANTT_ROW_H;
+    const totalRowHeight = rowList.reduce((acc, r) => acc + getRowHeight(r), 0);
+
+    const isOverdue = (task: CrmTask) =>
+        task.status !== 'COMPLETE' && !!task.plannedEndDate && parseDate(task.plannedEndDate) < today;
+
+    return (
+        <div className="flex flex-col bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden" style={{ height: 'calc(100vh - 280px)', minHeight: 400 }}>
+            {/* ── Toolbar ── */}
+            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-gray-100 dark:border-white/10 flex-shrink-0 flex-wrap">
+                <GanttChartSquare size={15} className="text-[#c20c0b]" />
+                <span className="text-sm font-bold text-gray-700 dark:text-gray-200 mr-1">Gantt</span>
+                <div className="h-4 w-px bg-gray-200 dark:bg-white/10" />
+
+                {/* Zoom */}
+                <div className="flex items-center gap-1">
+                    <span className="text-[11px] text-gray-400 font-medium">Zoom:</span>
+                    {([['XS','16'],['S','24'],['M','36'],['L','52'],['XL','72']] as [string,string][]).map(([lbl, w]) => (
+                        <button key={w} onClick={() => setDayWidth(+w)}
+                            className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-colors ${dayWidth === +w ? 'bg-[#c20c0b] text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>
+                            {lbl}
+                        </button>
+                    ))}
+                </div>
+                <div className="h-4 w-px bg-gray-200 dark:bg-white/10" />
+
+                {/* Today button */}
+                <button onClick={scrollToToday}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-50 dark:bg-red-900/20 text-[#c20c0b] dark:text-red-400 text-[11px] font-bold hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors">
+                    <CalendarDays size={12} /> Today
+                </button>
+
+                {/* Expand all / Collapse all */}
+                <button onClick={() => setExpandedTasks(new Set(tasks.map(t => t.id)))}
+                    className="text-[11px] text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors font-medium">
+                    Expand All
+                </button>
+                <button onClick={() => setExpandedTasks(new Set())}
+                    className="text-[11px] text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors font-medium">
+                    Collapse All
+                </button>
+
+                <div className="flex-1" />
+
+                {/* Legend */}
+                <div className="hidden lg:flex items-center gap-3">
+                    {Object.entries(STATUS_GANTT).map(([k, v]) => (
+                        <div key={k} className="flex items-center gap-1.5">
+                            <div className={`w-2.5 h-2.5 rounded-sm ${v.bar}`} />
+                            <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">{v.label}</span>
+                        </div>
+                    ))}
+                    <div className="flex items-center gap-1.5">
+                        <div className="w-2.5 h-2.5 rounded-sm bg-red-400/60" />
+                        <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">Today</span>
+                    </div>
+                </div>
+
+                {onAddTask && (
+                    <>
+                        <div className="h-4 w-px bg-gray-200 dark:bg-white/10" />
+                        {/* Templates dropdown */}
+                        <div className="relative">
+                            <button
+                                ref={templateBtnRef}
+                                onClick={() => setShowTemplates(p => !p)}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-200 dark:border-white/10 text-[11px] font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                            >
+                                <Zap size={12} /> Templates <ChevronDown size={10} />
+                            </button>
+                            {showTemplates && (
+                                <div className="absolute right-0 top-full mt-1.5 w-72 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-2xl z-50 max-h-72 overflow-y-auto">
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-3 pt-3 pb-1">Garment Templates</p>
+                                    {TASK_TEMPLATES.map((tpl, i) => (
+                                        <button key={i} onClick={() => openAddModal(tpl)}
+                                            className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-left">
+                                            <span className="font-medium">{tpl.name}</span>
+                                            <span className="text-xs text-gray-400 ml-2 flex-shrink-0">{tpl.responsible}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        {/* Add Task button */}
+                        <button onClick={() => openAddModal()}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-[#c20c0b] to-red-600 text-white text-[11px] font-bold hover:shadow-md hover:scale-105 transition-all duration-200">
+                            <Plus size={13} /> Add Task
+                        </button>
+                    </>
+                )}
+            </div>
+
+            {/* ── Main area ── */}
+            <div className="flex flex-1 min-h-0 overflow-hidden">
+
+                {/* LEFT panel — task names */}
+                <div
+                    ref={leftRef}
+                    onScroll={() => syncScroll('left')}
+                    className="flex-shrink-0 border-r border-gray-200 dark:border-white/10 overflow-y-auto overflow-x-hidden"
+                    style={{ width: GANTT_LEFT_WIDTH }}
+                >
+                    {/* Sticky header */}
+                    <div className="sticky top-0 z-20 bg-white dark:bg-gray-900 border-b-2 border-gray-200 dark:border-white/10">
+                        <div className="h-6 flex items-center px-3 border-b border-gray-100 dark:border-white/5">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Month</span>
+                        </div>
+                        <div className="h-5 flex items-center px-3 border-b border-gray-100 dark:border-white/5">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Week</span>
+                        </div>
+                        <div className="h-8 flex items-center px-3">
+                            <span className="text-xs font-bold text-gray-700 dark:text-gray-200">Task / Product</span>
+                        </div>
+                    </div>
+
+                    {/* Rows */}
+                    {rowList.map((row: any, i: number) => {
+                        const h = getRowHeight(row);
+                        if (row.type === 'group') {
+                            return (
+                                <div key={`g-${row.key}`}
+                                    className="flex items-center gap-2 px-3 cursor-pointer bg-gray-50 dark:bg-gray-800/60 border-b border-gray-100 dark:border-white/5 hover:bg-gray-100 dark:hover:bg-gray-800/80 transition-colors select-none"
+                                    style={{ height: h }}
+                                    onClick={() => setCollapsedGroups(prev => {
+                                        const n = new Set(prev);
+                                        n.has(row.key) ? n.delete(row.key) : n.add(row.key);
+                                        return n;
+                                    })}
+                                >
+                                    {collapsedGroups.has(row.key)
+                                        ? <ChevronRight size={12} className="text-gray-400 flex-shrink-0" />
+                                        : <ChevronDown size={12} className="text-gray-400 flex-shrink-0" />}
+                                    <Package size={12} className="text-[#c20c0b] flex-shrink-0" />
+                                    <span className="text-xs font-bold text-gray-700 dark:text-gray-200 truncate flex-1">{row.label}</span>
+                                    <span className="text-[10px] text-gray-400 bg-gray-200 dark:bg-gray-700 rounded-full px-1.5 py-0.5 font-semibold">{row.count}</span>
+                                </div>
+                            );
+                        }
+                        const task: CrmTask = row.task;
+                        const cfg = STATUS_GANTT[task.status] || STATUS_GANTT['TO DO'];
+                        const overdue = isOverdue(task);
+                        const expanded = expandedTasks.has(task.id);
+                        const prog = task.status === 'COMPLETE' ? 100 : (task.progress || 0);
+                        return (
+                            <div key={`t-${task.id}`}
+                                className={`flex flex-col border-b border-gray-50 dark:border-white/[0.04] transition-all ${overdue ? 'bg-red-50/40 dark:bg-red-900/10' : ''}`}
+                                style={{ height: h }}
+                            >
+                                <div
+                                    className="flex items-center gap-2 px-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/[0.03] transition-colors select-none flex-shrink-0"
+                                    style={{ height: GANTT_ROW_H }}
+                                    onClick={() => setExpandedTasks(prev => {
+                                        const n = new Set(prev); n.has(task.id) ? n.delete(task.id) : n.add(task.id); return n;
+                                    })}
+                                >
+                                    <div className={`w-2 h-2 rounded-sm flex-shrink-0 ${cfg.bar}`} />
+                                    <span className="text-xs font-medium text-gray-700 dark:text-gray-200 truncate flex-1">{task.name}</span>
+                                    {overdue && <AlertTriangle size={10} className="text-red-500 flex-shrink-0" />}
+                                    {task.priority && <span className="text-[9px] text-gray-400 font-bold flex-shrink-0">{PRIORITY_SYM[task.priority]}</span>}
+                                    {expanded ? <ChevronUp size={10} className="text-gray-400 flex-shrink-0" /> : <ChevronDown size={10} className="text-gray-300 dark:text-gray-600 flex-shrink-0" />}
+                                </div>
+                                {expanded && (
+                                    <div className="px-3 pb-2 pt-0.5 space-y-1 overflow-hidden">
+                                        <div className="flex items-center gap-1">
+                                            <User size={9} className="text-gray-400 flex-shrink-0" />
+                                            <span className="text-[10px] text-gray-500 dark:text-gray-400 truncate">{task.responsible || '—'}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <CalendarDays size={9} className="text-gray-400 flex-shrink-0" />
+                                            <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                                                {task.plannedStartDate?.slice(5) || '?'} → {task.plannedEndDate?.slice(5) || '?'}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <div className="flex justify-between mb-0.5">
+                                                <span className="text-[9px] text-gray-400">Progress</span>
+                                                <span className="text-[9px] font-bold text-gray-600 dark:text-gray-300">{prog}%</span>
+                                            </div>
+                                            <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                <div
+                                                    className={`h-full rounded-full transition-all ${prog >= 100 ? 'bg-emerald-500' : prog > 50 ? 'bg-blue-500' : 'bg-amber-500'}`}
+                                                    style={{ width: `${prog}%` }}
+                                                />
+                                            </div>
+                                        </div>
+                                        {task.notes && (
+                                            <p className="text-[10px] text-gray-400 italic line-clamp-1">{task.notes}</p>
+                                        )}
+                                        {task.priority && (
+                                            <span className={`inline-block text-[9px] px-1.5 py-0.5 rounded font-bold ${INLINE_PRIORITY_CONFIG[task.priority]?.bg || ''} ${INLINE_PRIORITY_CONFIG[task.priority]?.text || ''}`}>
+                                                {PRIORITY_SYM[task.priority]} {task.priority}
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                    {tasks.length === 0 && (
+                        <div className="flex items-center justify-center h-32 text-xs text-gray-400">No tasks</div>
+                    )}
+                </div>
+
+                {/* RIGHT panel — timeline */}
+                <div
+                    ref={timelineRef}
+                    onScroll={() => syncScroll('right')}
+                    className="flex-1 overflow-auto"
+                >
+                    <div style={{ width: Math.max(totalDays * dayWidth, 1), position: 'relative' }}>
+                        {/* Sticky header */}
+                        <div className="sticky top-0 z-20 bg-white dark:bg-gray-900 border-b-2 border-gray-200 dark:border-white/10">
+                            {/* Month row */}
+                            <div className="flex h-6">
+                                {monthGroups.map((m, i) => (
+                                    <div key={i}
+                                        className="flex-shrink-0 border-r border-b border-gray-100 dark:border-white/5 flex items-center px-2 overflow-hidden"
+                                        style={{ width: m.span * dayWidth }}>
+                                        <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider truncate">{m.label}</span>
+                                    </div>
+                                ))}
+                            </div>
+                            {/* Week row */}
+                            <div className="flex h-5">
+                                {weekGroups.map((w, i) => (
+                                    <div key={i}
+                                        className={`flex-shrink-0 border-r border-b border-gray-100 dark:border-white/5 flex items-center justify-center overflow-hidden ${w.alt ? 'bg-gray-50/70 dark:bg-white/[0.015]' : ''}`}
+                                        style={{ width: w.span * dayWidth }}>
+                                        {dayWidth >= 24 && <span className="text-[9px] text-gray-400 font-semibold">{w.label}</span>}
+                                    </div>
+                                ))}
+                            </div>
+                            {/* Day row */}
+                            <div className="flex h-8">
+                                {days.map((d, i) => {
+                                    const isToday = d.getTime() === today.getTime();
+                                    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                                    return (
+                                        <div key={i}
+                                            className={`flex-shrink-0 border-r border-gray-100 dark:border-white/5 flex flex-col items-center justify-center overflow-hidden
+                                                ${isToday ? 'bg-red-50 dark:bg-red-900/20' : isWeekend ? 'bg-gray-50/80 dark:bg-white/[0.015]' : ''}`}
+                                            style={{ width: dayWidth }}>
+                                            {dayWidth >= 24 && (
+                                                <span className={`text-[9px] font-bold leading-none ${isToday ? 'text-[#c20c0b]' : 'text-gray-600 dark:text-gray-400'}`}>
+                                                    {d.getDate()}
+                                                </span>
+                                            )}
+                                            {dayWidth >= 36 && (
+                                                <span className={`text-[8px] leading-none mt-0.5 ${isToday ? 'text-red-400' : 'text-gray-400 dark:text-gray-600'}`}>
+                                                    {d.toLocaleDateString('en-US', { weekday: 'narrow' })}
+                                                </span>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* ── Task rows (bars) ── */}
+                        <div className="relative" style={{ height: totalRowHeight }}>
+                            {/* Weekend columns */}
+                            {days.map((d, i) => (d.getDay() === 0 || d.getDay() === 6) && (
+                                <div key={i}
+                                    className="absolute top-0 bottom-0 bg-gray-100/50 dark:bg-white/[0.015] pointer-events-none"
+                                    style={{ left: i * dayWidth, width: dayWidth }} />
+                            ))}
+
+                            {/* Today line */}
+                            {todayOffset >= 0 && (
+                                <div className="absolute top-0 bottom-0 z-10 pointer-events-none" style={{ left: todayOffset }}>
+                                    <div className="absolute top-0 bottom-0 w-0.5 bg-[#c20c0b]/50" />
+                                    <div className="absolute -top-1 w-2.5 h-2.5 rounded-full bg-[#c20c0b] -translate-x-[5px]" />
+                                </div>
+                            )}
+
+                            {/* Row backgrounds + bars */}
+                            {(() => {
+                                let yOffset = 0;
+                                return rowList.map((row: any) => {
+                                    const h = getRowHeight(row);
+                                    const top = yOffset;
+                                    yOffset += h;
+
+                                    if (row.type === 'group') {
+                                        return (
+                                            <div key={`gr-${row.key}`}
+                                                className="absolute left-0 right-0 border-b border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-gray-800/30"
+                                                style={{ top, height: h }} />
+                                        );
+                                    }
+
+                                    const task: CrmTask = row.task;
+                                    const bar = getBar(task);
+                                    const cfg = STATUS_GANTT[task.status] || STATUS_GANTT['TO DO'];
+                                    const isDragging = interaction?.taskId === task.id;
+                                    const overdue = isOverdue(task);
+                                    const prog = task.status === 'COMPLETE' ? 100 : (task.progress || 0);
+                                    const isHovered = hoveredTaskId === task.id;
+
+                                    return (
+                                        <div key={`tr-${task.id}`}
+                                            className={`absolute left-0 right-0 border-b border-gray-50 dark:border-white/[0.03] ${overdue ? 'bg-red-50/20 dark:bg-red-900/5' : ''}`}
+                                            style={{ top, height: h }}
+                                            onMouseEnter={() => setHoveredTaskId(task.id)}
+                                            onMouseLeave={() => setHoveredTaskId(null)}
+                                        >
+                                            {bar && (
+                                                <div
+                                                    className={`absolute rounded-md overflow-visible select-none group ${isDragging ? 'z-30 opacity-90' : 'z-10'} ${onTaskUpdate ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}
+                                                    style={{ left: bar.left, width: bar.width, top: 8, height: 24 }}
+                                                    onMouseDown={(e) => onBarMouseDown(e, task, 'move')}
+                                                >
+                                                    {/* Base fill */}
+                                                    <div className={`absolute inset-0 rounded-md ${cfg.bar} opacity-85`} />
+
+                                                    {/* Progress shimmer */}
+                                                    {prog > 0 && prog < 100 && (
+                                                        <div className="absolute inset-y-0 left-0 rounded-l-md bg-white/25 pointer-events-none"
+                                                            style={{ width: `${prog}%` }} />
+                                                    )}
+
+                                                    {/* Stripe for overdue */}
+                                                    {overdue && (
+                                                        <div className="absolute inset-0 rounded-md pointer-events-none overflow-hidden opacity-20"
+                                                            style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(255,255,255,0.6) 4px, rgba(255,255,255,0.6) 8px)' }} />
+                                                    )}
+
+                                                    {/* Left resize handle */}
+                                                    {onTaskUpdate && (
+                                                        <div
+                                                            className="absolute left-0 top-0 bottom-0 w-3 cursor-ew-resize z-20 hover:bg-black/20 rounded-l-md flex items-center justify-center"
+                                                            onMouseDown={(e) => { e.stopPropagation(); onBarMouseDown(e, task, 'resize-start'); }}
+                                                        >
+                                                            <div className="w-px h-3 bg-white/60 rounded-full" />
+                                                        </div>
+                                                    )}
+
+                                                    {/* Label */}
+                                                    {bar.width > 48 && (
+                                                        <span className="relative z-10 text-[10px] font-semibold text-white truncate px-3 pointer-events-none leading-6 block">
+                                                            {task.priority ? PRIORITY_SYM[task.priority] + ' ' : ''}{task.name}
+                                                        </span>
+                                                    )}
+
+                                                    {/* Right resize handle */}
+                                                    {onTaskUpdate && (
+                                                        <div
+                                                            className="absolute right-0 top-0 bottom-0 w-3 cursor-ew-resize z-20 hover:bg-black/20 rounded-r-md flex items-center justify-center"
+                                                            onMouseDown={(e) => { e.stopPropagation(); onBarMouseDown(e, task, 'resize-end'); }}
+                                                        >
+                                                            <div className="w-px h-3 bg-white/60 rounded-full" />
+                                                        </div>
+                                                    )}
+
+                                                    {/* Tooltip */}
+                                                    {isHovered && !isDragging && (
+                                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 pointer-events-none z-50 w-52">
+                                                            <div className="bg-gray-900 dark:bg-gray-800 text-white rounded-xl shadow-2xl p-3 text-[11px] border border-white/10">
+                                                                <p className="font-bold text-sm mb-1 leading-tight">{task.name}</p>
+                                                                <div className="space-y-0.5 text-gray-300">
+                                                                    <p><span className="text-gray-500">Who:</span> {task.responsible || '—'}</p>
+                                                                    <p><span className="text-gray-500">Start:</span> {task.plannedStartDate || '—'}</p>
+                                                                    <p><span className="text-gray-500">End:</span> {task.plannedEndDate || '—'}</p>
+                                                                    {prog > 0 && <p><span className="text-gray-500">Progress:</span> <span className="text-blue-400 font-semibold">{prog}%</span></p>}
+                                                                    {task.priority && <p><span className="text-gray-500">Priority:</span> {PRIORITY_SYM[task.priority]} {task.priority}</p>}
+                                                                    {overdue && <p className="text-red-400 font-semibold mt-1">⚠ Overdue</p>}
+                                                                </div>
+                                                            </div>
+                                                            <div className="w-0 h-0 border-l-4 border-r-4 border-t-6 border-l-transparent border-r-transparent border-t-gray-900 dark:border-t-gray-800 mx-auto" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* Actual dates underline (for completed tasks) */}
+                                            {task.status === 'COMPLETE' && task.actualStartDate && task.actualEndDate && (() => {
+                                                const s = Math.floor((parseDate(task.actualStartDate).getTime() - timelineStart.getTime()) / 86400000);
+                                                const e = Math.floor((parseDate(task.actualEndDate).getTime() - timelineStart.getTime()) / 86400000);
+                                                return (
+                                                    <div
+                                                        className="absolute rounded-sm bg-emerald-400/30 dark:bg-emerald-500/20 border-t border-emerald-500/40 pointer-events-none"
+                                                        style={{ left: s * dayWidth, width: Math.max((e - s + 1) * dayWidth - 3, dayWidth - 3), bottom: 4, height: 3 }}
+                                                    />
+                                                );
+                                            })()}
+                                        </div>
+                                    );
+                                });
+                            })()}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* ── Footer stats ── */}
+            <div className="flex-shrink-0 border-t border-gray-100 dark:border-white/10 px-4 py-2 flex items-center gap-3 text-[11px] text-gray-500 dark:text-gray-400 flex-wrap bg-gray-50/50 dark:bg-white/[0.02]">
+                <span className="font-semibold text-gray-700 dark:text-gray-300">{tasks.length} tasks</span>
+                <span className="text-gray-300 dark:text-gray-600">·</span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-medium">{tasks.filter(t => t.status === 'COMPLETE').length} complete</span>
+                <span className="text-gray-300 dark:text-gray-600">·</span>
+                <span className="text-blue-600 dark:text-blue-400 font-medium">{tasks.filter(t => t.status === 'IN PROGRESS').length} in progress</span>
+                <span className="text-gray-300 dark:text-gray-600">·</span>
+                <span className="text-slate-500 dark:text-slate-400 font-medium">{tasks.filter(t => t.status === 'TO DO').length} to do</span>
+                {tasks.filter(isOverdue).length > 0 && (
+                    <>
+                        <span className="text-gray-300 dark:text-gray-600">·</span>
+                        <span className="text-red-600 dark:text-red-400 font-semibold flex items-center gap-1">
+                            <AlertTriangle size={10} /> {tasks.filter(isOverdue).length} overdue
+                        </span>
+                    </>
+                )}
+                <div className="flex-1" />
+                <span className="text-gray-400 italic">{onTaskUpdate ? 'Drag bars to reschedule · Drag edges to resize' : 'Read-only'}</span>
+            </div>
+
+            {/* ── Add Task Modal ── */}
+            {showAddModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => { setShowAddModal(false); setShowTemplates(false); }}>
+                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+                    <div className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-white/10 w-full max-w-lg animate-fade-in"
+                        onClick={e => e.stopPropagation()}>
+
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-white/10">
+                            <div className="flex items-center gap-2">
+                                <div className="p-1.5 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                                    <Plus size={16} className="text-[#c20c0b]" />
+                                </div>
+                                <h2 className="text-base font-bold text-gray-800 dark:text-white">Add New Task</h2>
+                            </div>
+                            <button onClick={() => setShowAddModal(false)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all">
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        {/* Body */}
+                        <div className="px-6 py-5 space-y-4">
+                            {/* Name */}
+                            <div>
+                                <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">Task Name *</label>
+                                <input
+                                    list="gantt-task-name-templates"
+                                    autoFocus
+                                    type="text"
+                                    value={newTaskForm.name}
+                                    onChange={e => {
+                                        const val = e.target.value;
+                                        const matched = TASK_TEMPLATES.find(t => t.name === val);
+                                        setNewTaskForm(prev => ({ ...prev, name: val, ...(matched ? { responsible: matched.responsible } : {}) }));
+                                    }}
+                                    onKeyDown={e => { if (e.key === 'Enter') handleSubmitNewTask(); if (e.key === 'Escape') setShowAddModal(false); }}
+                                    placeholder="e.g. Fabric Sourcing"
+                                    className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-[#c20c0b]/20 focus:border-[#c20c0b] focus:outline-none"
+                                />
+                                <datalist id="gantt-task-name-templates">
+                                    {TASK_TEMPLATES.map((t, i) => <option key={i} value={t.name} />)}
+                                </datalist>
+                            </div>
+
+                            {/* Responsible + Priority */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">Responsible</label>
+                                    <input
+                                        type="text"
+                                        value={newTaskForm.responsible}
+                                        onChange={e => setNewTaskForm(prev => ({ ...prev, responsible: e.target.value }))}
+                                        placeholder="e.g. Merch Team"
+                                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-[#c20c0b]/20 focus:border-[#c20c0b] focus:outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">Priority</label>
+                                    <select
+                                        value={newTaskForm.priority}
+                                        onChange={e => setNewTaskForm(prev => ({ ...prev, priority: e.target.value as CrmTask['priority'] }))}
+                                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-[#c20c0b]/20 focus:border-[#c20c0b] focus:outline-none"
+                                    >
+                                        <option value="Low">↓ Low</option>
+                                        <option value="Medium">→ Medium</option>
+                                        <option value="High">↑ High</option>
+                                        <option value="Urgent">⚡ Urgent</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Status */}
+                            <div>
+                                <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">Status</label>
+                                <div className="flex gap-2">
+                                    {(['TO DO', 'IN PROGRESS', 'COMPLETE'] as CrmTask['status'][]).map(s => (
+                                        <button key={s} onClick={() => setNewTaskForm(prev => ({ ...prev, status: s }))}
+                                            className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all border ${newTaskForm.status === s
+                                                ? s === 'TO DO' ? 'bg-slate-500 text-white border-slate-500' : s === 'IN PROGRESS' ? 'bg-blue-500 text-white border-blue-500' : 'bg-emerald-500 text-white border-emerald-500'
+                                                : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
+                                            }`}>
+                                            {s === 'TO DO' ? 'To Do' : s === 'IN PROGRESS' ? 'In Progress' : 'Complete'}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Dates */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">Start Date</label>
+                                    <input type="date" value={newTaskForm.plannedStartDate}
+                                        onChange={e => setNewTaskForm(prev => ({ ...prev, plannedStartDate: e.target.value }))}
+                                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-[#c20c0b]/20 focus:border-[#c20c0b] focus:outline-none" />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">End Date</label>
+                                    <input type="date" value={newTaskForm.plannedEndDate}
+                                        onChange={e => setNewTaskForm(prev => ({ ...prev, plannedEndDate: e.target.value }))}
+                                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-[#c20c0b]/20 focus:border-[#c20c0b] focus:outline-none" />
+                                </div>
+                            </div>
+
+                            {/* Progress (only if not TO DO) */}
+                            {newTaskForm.status === 'IN PROGRESS' && (
+                                <div>
+                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 flex justify-between">
+                                        <span>Progress</span>
+                                        <span className="text-blue-600 dark:text-blue-400">{newTaskForm.progress}%</span>
+                                    </label>
+                                    <input type="range" min={0} max={100} step={5}
+                                        value={newTaskForm.progress}
+                                        onChange={e => setNewTaskForm(prev => ({ ...prev, progress: +e.target.value }))}
+                                        className="w-full accent-[#c20c0b]" />
+                                </div>
+                            )}
+
+                            {/* Product assignment */}
+                            {products && products.length > 0 && (
+                                <div>
+                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">Assign to Product</label>
+                                    <select value={newTaskForm.productId}
+                                        onChange={e => setNewTaskForm(prev => ({ ...prev, productId: e.target.value }))}
+                                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-[#c20c0b]/20 focus:border-[#c20c0b] focus:outline-none">
+                                        <option value="">— Unassigned —</option>
+                                        {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                    </select>
+                                </div>
+                            )}
+
+                            {/* Notes */}
+                            <div>
+                                <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">Notes</label>
+                                <textarea
+                                    rows={2}
+                                    value={newTaskForm.notes}
+                                    onChange={e => setNewTaskForm(prev => ({ ...prev, notes: e.target.value }))}
+                                    placeholder="Optional notes..."
+                                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-[#c20c0b]/20 focus:border-[#c20c0b] focus:outline-none resize-none"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="px-6 py-4 border-t border-gray-100 dark:border-white/10 flex items-center gap-3">
+                            <button onClick={() => setShowAddModal(false)}
+                                className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                Cancel
+                            </button>
+                            <button onClick={handleSubmitNewTask} disabled={!newTaskForm.name.trim()}
+                                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#c20c0b] to-red-600 text-white text-sm font-bold hover:shadow-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                                <Plus size={15} /> Add Task
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
     );
 }
 
@@ -811,14 +1914,16 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
     const [showTemplates, setShowTemplates] = useState(false);
     const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
     const [isUploading, setIsUploading] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const handleSaveOrderRef = useRef<(silent?: boolean) => Promise<void>>(async () => {});
 
     const ordersAbortController = useRef<AbortController | null>(null);
     const mountAbortController = useRef<AbortController | null>(null);
 
-    const showToast = (message: string, type: 'success' | 'error' = 'success') => {
-        if (window.showToast) window.showToast(message, type);
-    };
+    const { showToast } = useToast();
 
     // ── filtered search suggestions ────��───────────────────────────────────────
     const searchResults = useMemo(() => {
@@ -914,6 +2019,8 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
 
     // ── sync editingOrder whenever selected order changes ──────────────────────
     useEffect(() => {
+        if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+        setLastSavedAt(null);
         if (selectedOrderId) {
             const order = orders.find(o => o.id === selectedOrderId);
             if (order) {
@@ -941,6 +2048,18 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
             setHasChanges(JSON.stringify(editingOrder) !== originalOrderStr);
         }
     }, [editingOrder, originalOrderStr]);
+
+    // ── auto-save: debounce 1.5s after each edit ───────────────────────────────
+    useEffect(() => {
+        if (!hasChanges || isSaving) return;
+        if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = setTimeout(() => {
+            handleSaveOrderRef.current(true);
+        }, 1500);
+        return () => {
+            if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+        };
+    }, [hasChanges, editingOrder]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── client selection ───────────────────────────────────────────────────────
     const handleSelectClient = (client: any) => {
@@ -974,9 +2093,9 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
     };
 
     // ── order actions ──────────────────────────────────────────────────────────
-    const handleSaveOrder = async () => {
+    const handleSaveOrder = async (silent = false) => {
         if (!editingOrder) return;
-
+        setIsSaving(true);
         try {
             let productName = editingOrder.product_name || 'Order';
             try {
@@ -1003,9 +2122,10 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
             };
             const { error } = await crmService.update(editingOrder.id, updates);
             if (error) {
-                showToast('Failed to update order: ' + error.message, 'error');
+                if (!silent) showToast('Failed to update order: ' + error.message, 'error');
             } else {
-                showToast('Order updated successfully');
+                setLastSavedAt(new Date());
+                if (!silent) showToast('Order updated successfully');
                 setOrders(prev => {
                     const updatedOrders = prev.map(o => o.id === editingOrder.id ? { ...o, ...updates } : o);
                     const ORDERS_CACHE_KEY = `garment_erp_admin_orders_${selectedClientId}`;
@@ -1018,9 +2138,12 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
             }
         } catch (err: any) {
             console.error("Error saving order:", err);
-            showToast('An error occurred while saving: ' + err.message, 'error');
+            if (!silent) showToast('An error occurred while saving: ' + err.message, 'error');
+        } finally {
+            setIsSaving(false);
         }
     };
+    handleSaveOrderRef.current = handleSaveOrder;
 
     const handleDeleteOrder = async (orderId: string) => {
         if (!confirm('Are you sure you want to delete this order? This action cannot be undone.')) return;
@@ -1049,6 +2172,19 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
         if (error) { showToast('Failed to update task date: ' + error.message, 'error'); fetchOrders(); }
     };
 
+    const handleGanttAddTask = async (newTask: CrmTask) => {
+        if (!selectedOrderId) return;
+        const orderIndex = orders.findIndex(o => o.id === selectedOrderId);
+        if (orderIndex === -1) return;
+        const updatedOrders = [...orders];
+        const order = { ...updatedOrders[orderIndex], tasks: [...updatedOrders[orderIndex].tasks, newTask] };
+        updatedOrders[orderIndex] = order;
+        setOrders(updatedOrders);
+        const { error } = await crmService.update(order.id, { tasks: order.tasks });
+        if (error) { showToast('Failed to add task: ' + error.message, 'error'); fetchOrders(); }
+        else showToast('Task added to Gantt', 'success');
+    };
+
     const handleSaveTNATask = async (updatedTask: CrmTask) => {
         if (!selectedOrderId) return;
         const orderIndex = orders.findIndex(o => o.id === selectedOrderId);
@@ -1073,7 +2209,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
         else showToast('TNA saved successfully', 'success');
     };
 
-    const handleBoardTasksChange = async (updatedTasks: CrmTask[]) => {
+    const handleBoardTasksChange = (updatedTasks: CrmTask[]) => {
         if (!selectedOrderId) return;
         // Merge board changes back into full order tasks (handles product filtering)
         const orderIndex = orders.findIndex(o => o.id === selectedOrderId);
@@ -1088,9 +2224,8 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
         ];
         const updatedOrders = orders.map((o: any, i: number) => i === orderIndex ? { ...o, tasks: merged } : o);
         setOrders(updatedOrders);
-        const { error } = await crmService.update(selectedOrderId, { tasks: merged });
-        if (error) { showToast('Failed to save board changes: ' + error.message, 'error'); fetchOrders(); }
-        else showToast('Board updated', 'success');
+        // Update editingOrder with merged tasks — autosave will detect the change (hasChanges=true) and persist
+        setEditingOrder((prev: any) => prev ? { ...prev, tasks: merged } : prev);
     };
 
     // ── inline task management ─────────────────────────────────────────────────
@@ -1272,13 +2407,31 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
         { name: 'Documents', icon: <FileText size={16} /> },
         { name: 'TNA', icon: <ClipboardCheck size={16} /> },
         { name: 'Dashboard', icon: <PieChartIcon size={16} /> },
+        { name: 'Gantt', icon: <GanttChartSquare size={16} /> },
     ];
     const productViews = [
+        { name: 'Overview', icon: <Info size={16} /> },
+        { name: 'TNA', icon: <ClipboardCheck size={16} /> },
         { name: 'List', icon: <List size={16} /> },
         { name: 'Board', icon: <LayoutDashboard size={16} /> },
         { name: 'Gantt', icon: <GanttChartSquare size={16} /> },
     ];
     const currentViews = selectedProductId ? productViews : overviewViews;
+
+    // Product selector chip click — keep current view if compatible
+    const handleSelectProduct = (productId: string | null) => {
+        setSelectedProductId(productId);
+        if (productId === null) {
+            if (['List', 'Board'].includes(activeView)) setActiveView('Overview');
+        } else {
+            if (['Tasks', 'Documents', 'Dashboard'].includes(activeView)) setActiveView('TNA');
+        }
+    };
+    // Product card click from Overview — navigate to TNA for that product
+    const handleSelectProductCard = (productId: string) => {
+        setSelectedProductId(productId);
+        setActiveView('TNA');
+    };
 
     const selectedProduct = selectedProductId && transformedOrder?.products
         ? transformedOrder.products.find(p => p.id === selectedProductId) || null
@@ -1531,29 +2684,37 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                                 <div className="flex items-center gap-3 min-w-0">
                                     <button
-                                        onClick={selectedProductId ? () => { setSelectedProductId(null); setActiveView('Overview'); } : handleBackToOrders}
+                                        onClick={handleBackToOrders}
                                         className="flex items-center gap-2 text-sm font-semibold text-gray-500 dark:text-gray-400 hover:text-[#c20c0b] dark:hover:text-red-400 transition-colors flex-shrink-0"
                                     >
                                         <ArrowLeft size={18} />
-                                        <span className="hidden sm:inline">{selectedProductId ? 'Overview' : 'All Orders'}</span>
+                                        <span className="hidden sm:inline">All Orders</span>
                                     </button>
                                     <div className="h-5 w-px bg-gray-200 dark:bg-gray-700 flex-shrink-0" />
                                     <h2 className="text-lg font-bold text-gray-800 dark:text-white truncate">
-                                        {selectedProduct ? selectedProduct.name : transformedOrder.product}
+                                        {transformedOrder.product}
                                     </h2>
-                                    {hasChanges && (
-                                        <span className="hidden sm:inline px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 animate-pulse flex-shrink-0">
+                                    {isSaving ? (
+                                        <span className="hidden sm:inline flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex-shrink-0">
+                                            <Loader2 size={11} className="animate-spin" /> Saving…
+                                        </span>
+                                    ) : lastSavedAt ? (
+                                        <span className="hidden sm:inline flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex-shrink-0">
+                                            <CheckCircle size={11} /> Saved {lastSavedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                                        </span>
+                                    ) : hasChanges ? (
+                                        <span className="hidden sm:inline px-2.5 py-0.5 text-xs font-semibold rounded-full bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 animate-pulse flex-shrink-0">
                                             Unsaved changes
                                         </span>
-                                    )}
+                                    ) : null}
                                 </div>
                                 <div className="flex items-center gap-2 flex-shrink-0">
-                                    {hasChanges && (
+                                    {hasChanges && !isSaving && (
                                         <button
-                                            onClick={handleSaveOrder}
+                                            onClick={() => handleSaveOrder(false)}
                                             className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#c20c0b] to-red-600 text-white text-sm font-bold rounded-xl shadow hover:shadow-lg hover:scale-105 transition-all"
                                         >
-                                            <Save size={15} /> Save Changes
+                                            <Save size={15} /> Save Now
                                         </button>
                                     )}
                                     <button
@@ -1568,6 +2729,36 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
 
                             {/* View tabs */}
                             <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                                {/* Product selector chips */}
+                                {transformedOrder?.products && transformedOrder.products.length > 0 && (
+                                    <div className="px-4 sm:px-6 pt-4 pb-3 border-b border-gray-100 dark:border-white/5 flex items-center gap-1.5 flex-wrap">
+                                        <span className="text-xs font-medium text-gray-400 dark:text-gray-500">Product:</span>
+                                        <button
+                                            onClick={() => handleSelectProduct(null)}
+                                            className={`py-1.5 px-3 text-xs font-semibold rounded-lg transition-all duration-200 ${
+                                                !selectedProductId
+                                                    ? 'bg-gradient-to-r from-[#c20c0b] to-red-600 text-white shadow-md'
+                                                    : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                            }`}
+                                        >
+                                            All
+                                        </button>
+                                        {transformedOrder.products.map(p => (
+                                            <button
+                                                key={p.id}
+                                                onClick={() => handleSelectProduct(p.id)}
+                                                className={`flex items-center gap-1 py-1.5 px-3 text-xs font-semibold rounded-lg transition-all duration-200 ${
+                                                    selectedProductId === p.id
+                                                        ? 'bg-gradient-to-r from-[#c20c0b] to-red-600 text-white shadow-md'
+                                                        : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                                }`}
+                                            >
+                                                <Package size={11} />
+                                                {p.name}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                                 <div className="border-b border-gray-200 dark:border-white/10 px-4 sm:px-6 pt-4 pb-0">
                                     <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide -mb-px">
                                         {currentViews.map(view => (
@@ -1747,7 +2938,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                                     order={transformedOrder}
                                                     allFactories={factories}
                                                     handleSetCurrentPage={props.handleSetCurrentPage}
-                                                    onSelectProduct={(id) => { setSelectedProductId(id); setActiveView('List'); }}
+                                                    onSelectProduct={handleSelectProductCard}
                                                 />
                                             </div>
                                         </div>
@@ -1991,13 +3182,16 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                                 )}
                                             </div>
 
-                                            {/* Sticky save hint */}
-                                            {hasChanges && (
-                                                <div className="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-800">
-                                                    <span className="text-sm text-amber-700 dark:text-amber-400 font-medium">You have unsaved task changes</span>
-                                                    <button onClick={handleSaveOrder} className="flex items-center gap-2 px-4 py-1.5 bg-gradient-to-r from-[#c20c0b] to-red-600 text-white text-sm font-bold rounded-lg shadow hover:shadow-md transition-all">
-                                                        <Save size={14} /> Save
-                                                    </button>
+                                            {/* Auto-save status */}
+                                            {(isSaving || lastSavedAt || hasChanges) && (
+                                                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10 text-xs font-medium">
+                                                    {isSaving ? (
+                                                        <><Loader2 size={12} className="animate-spin text-blue-500" /><span className="text-blue-600 dark:text-blue-400">Saving…</span></>
+                                                    ) : lastSavedAt ? (
+                                                        <><CheckCircle size={12} className="text-emerald-500" /><span className="text-emerald-600 dark:text-emerald-400">Saved {lastSavedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</span></>
+                                                    ) : (
+                                                        <><Loader2 size={12} className="animate-spin text-amber-500" /><span className="text-amber-600 dark:text-amber-400">Auto-saving…</span></>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
@@ -2076,12 +3270,15 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                                 </div>
                                             </div>
 
-                                            {hasChanges && (
-                                                <div className="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-800">
-                                                    <span className="text-sm text-amber-700 dark:text-amber-400 font-medium">You have unsaved changes</span>
-                                                    <button onClick={handleSaveOrder} className="flex items-center gap-2 px-4 py-1.5 bg-gradient-to-r from-[#c20c0b] to-red-600 text-white text-sm font-bold rounded-lg shadow hover:shadow-md transition-all">
-                                                        <Save size={14} /> Save
-                                                    </button>
+                                            {(isSaving || lastSavedAt || hasChanges) && (
+                                                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10 text-xs font-medium">
+                                                    {isSaving ? (
+                                                        <><Loader2 size={12} className="animate-spin text-blue-500" /><span className="text-blue-600 dark:text-blue-400">Saving…</span></>
+                                                    ) : lastSavedAt ? (
+                                                        <><CheckCircle size={12} className="text-emerald-500" /><span className="text-emerald-600 dark:text-emerald-400">Saved {lastSavedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</span></>
+                                                    ) : (
+                                                        <><Loader2 size={12} className="animate-spin text-amber-500" /><span className="text-amber-600 dark:text-amber-400">Auto-saving…</span></>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
@@ -2089,8 +3286,8 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
 
                                     {activeView === 'TNA' && (
                                         <TNAView
-                                            tasks={transformedOrder.tasks}
-                                            products={transformedOrder.products}
+                                            tasks={filteredTasks}
+                                            products={selectedProductId ? undefined : transformedOrder.products}
                                             onSaveTask={handleSaveTNATask}
                                             onSaveBulkTasks={handleSaveBulkTasks}
                                         />
@@ -2103,7 +3300,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                             darkMode={props.darkMode}
                                         />
                                     )}
-                                    {activeView === 'List' && <AdminListView tasks={filteredTasks} onTasksChange={handleBoardTasksChange} />}
+                                    {activeView === 'List' && <AdminListView tasks={filteredTasks} onTasksChange={handleBoardTasksChange} products={transformedOrder?.products} selectedProductId={selectedProductId} />}
                                     {activeView === 'Board' && (
                                         <AdminBoardView
                                             tasks={filteredTasks}
@@ -2111,7 +3308,14 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                             selectedProductId={selectedProductId}
                                         />
                                     )}
-                                    {activeView === 'Gantt' && <GanttChartView tasks={filteredTasks} onTaskUpdate={handleTaskUpdate} />}
+                                    {activeView === 'Gantt' && (
+                                        <AdminGanttChartView
+                                            tasks={filteredTasks}
+                                            products={transformedOrder.products}
+                                            onTaskUpdate={handleTaskUpdate}
+                                            onAddTask={handleGanttAddTask}
+                                        />
+                                    )}
                                 </div>
                             </div>
                         </div>

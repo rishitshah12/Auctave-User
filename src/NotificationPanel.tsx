@@ -330,31 +330,27 @@ const EmptyState: FC<{ activeFilter: 'all' | NotificationCategory }> = ({ active
 export const NotificationBellButton: FC<{
     onClick: () => void;
     isSidebarCollapsed: boolean;
-}> = ({ onClick, isSidebarCollapsed }) => {
+}> = ({ onClick }) => {
     const { unreadCount } = useNotifications();
 
     return (
         <button
             onClick={onClick}
-            className={`w-full text-left p-3 rounded-md font-medium flex items-center transition duration-150 ease-in-out hover:bg-gray-200 dark:hover:bg-gray-700 relative ${isSidebarCollapsed ? 'justify-center' : ''}`}
-            title={isSidebarCollapsed ? 'Notifications' : ''}
+            className="relative w-full flex flex-col items-center gap-[5px] py-[9px] px-1 rounded-xl hover:bg-white/[0.12] transition-all duration-150 group"
         >
-            <div className={`relative flex-shrink-0 ${isSidebarCollapsed ? '' : 'mr-3'}`}>
-                <Bell className="h-5 w-5" />
+            {/* Icon with badge */}
+            <span className="relative flex-shrink-0 text-white/80 group-hover:text-white transition-colors duration-150">
+                <Bell className="h-[22px] w-[22px]" />
                 {unreadCount > 0 && (
-                    <span className="absolute -top-1.5 -right-1.5 h-4 w-4 bg-[var(--color-primary)] text-white text-[9px] font-bold rounded-full flex items-center justify-center border-2 border-white dark:border-gray-900 shadow-sm">
+                    <span className="absolute -top-[5px] -right-[5px] h-[14px] min-w-[14px] px-0.5 bg-white text-rose-600 text-[7.5px] font-bold rounded-full flex items-center justify-center leading-none">
                         {unreadCount > 9 ? '9+' : unreadCount}
                     </span>
                 )}
-            </div>
-            {!isSidebarCollapsed && (
-                <span className="flex-1">Notifications</span>
-            )}
-            {!isSidebarCollapsed && unreadCount > 0 && (
-                <span className="ml-auto flex-shrink-0 px-2 py-0.5 bg-[var(--color-primary)]/10 text-[var(--color-primary)] text-[10px] font-bold rounded-full">
-                    {unreadCount}
-                </span>
-            )}
+            </span>
+            {/* Label */}
+            <span className="text-[10px] font-bold text-white/75 group-hover:text-white transition-colors leading-tight">
+                Alerts
+            </span>
         </button>
     );
 };

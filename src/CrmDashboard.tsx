@@ -6,11 +6,12 @@ import { CrmOrder, Factory } from './types';
 import { normalizeOrder } from './utils';
 import {
     Package, Inbox, CheckCircle2, Search, LayoutDashboard,
-    Shirt, Activity, Scissors, Ruler, Scroll, TrendingUp, Calendar
+    Shirt, Activity, Scissors, Ruler, Scroll, TrendingUp, Calendar,
+    ChevronLeft, ChevronRight, AlertTriangle, Clock
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend,
-    ResponsiveContainer, PieChart, Pie, Cell
+    ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
 import CrmOrderCard from './CrmOrderCard';
 import CrmOrderDetail from './CrmOrderDetail';
@@ -46,20 +47,135 @@ const StatCard = ({ title, value, subtitle, icon, gradient }: any) => (
     </div>
 );
 
+// Mini calendar component showing order timelines
+const ProductionCalendar = ({ timelineData, darkMode }: { timelineData: any[]; darkMode?: boolean }) => {
+    const [currentDate, setCurrentDate] = useState(() => {
+        const d = new Date(); d.setDate(1); return d;
+    });
+
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    const ORDER_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4'];
+
+    // Map each day to orders active that day
+    const dayOrders = useMemo(() => {
+        const map: Record<number, { label: string; color: string }[]> = {};
+        timelineData.forEach((item, idx) => {
+            const color = ORDER_COLORS[idx % ORDER_COLORS.length];
+            for (let d = 1; d <= daysInMonth; d++) {
+                const day = new Date(year, month, d);
+                if (day >= item.start && day <= item.end) {
+                    if (!map[d]) map[d] = [];
+                    if (map[d].length < 3) map[d].push({ label: item.product, color });
+                }
+            }
+        });
+        return map;
+    }, [timelineData, year, month, daysInMonth]);
+
+    const today = new Date();
+    const isToday = (d: number) =>
+        today.getFullYear() === year && today.getMonth() === month && today.getDate() === d;
+
+    const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
+    const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
+
+    const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    return (
+        <div>
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4">
+                <span className="text-sm font-bold text-gray-700 dark:text-gray-200">
+                    {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                </span>
+                <div className="flex items-center gap-1">
+                    <button onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors">
+                        <ChevronLeft size={16} />
+                    </button>
+                    <button onClick={nextMonth} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors">
+                        <ChevronRight size={16} />
+                    </button>
+                </div>
+            </div>
+
+            {/* Day headers */}
+            <div className="grid grid-cols-7 mb-1">
+                {DAYS.map(d => (
+                    <div key={d} className="text-center text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase py-1">{d}</div>
+                ))}
+            </div>
+
+            {/* Day cells */}
+            <div className="grid grid-cols-7 gap-px">
+                {Array.from({ length: firstDay }).map((_, i) => (
+                    <div key={`empty-${i}`} className="h-16 rounded-lg" />
+                ))}
+                {Array.from({ length: daysInMonth }).map((_, i) => {
+                    const day = i + 1;
+                    const orders = dayOrders[day] || [];
+                    const past = new Date(year, month, day) < new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                    return (
+                        <div
+                            key={day}
+                            className={`h-16 rounded-lg p-1 relative overflow-hidden transition-colors ${
+                                isToday(day)
+                                    ? 'bg-[#c20c0b]/10 dark:bg-[#c20c0b]/20 ring-1 ring-[#c20c0b]/40'
+                                    : orders.length > 0
+                                        ? 'bg-blue-50/60 dark:bg-blue-900/10'
+                                        : 'bg-gray-50/60 dark:bg-gray-800/20'
+                            }`}
+                        >
+                            <span className={`text-[11px] font-bold leading-none ${
+                                isToday(day) ? 'text-[#c20c0b]' : past ? 'text-gray-400 dark:text-gray-600' : 'text-gray-600 dark:text-gray-300'
+                            }`}>{day}</span>
+                            <div className="mt-0.5 space-y-px">
+                                {orders.slice(0, 2).map((o, oi) => (
+                                    <div
+                                        key={oi}
+                                        className="h-1.5 rounded-full w-full opacity-70"
+                                        style={{ backgroundColor: o.color }}
+                                        title={o.label}
+                                    />
+                                ))}
+                                {orders.length > 2 && (
+                                    <div className="text-[9px] text-gray-400 font-semibold">+{orders.length - 2}</div>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* Legend */}
+            {timelineData.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-gray-100 dark:border-white/5 flex flex-wrap gap-3">
+                    {timelineData.slice(0, 5).map((item, idx) => (
+                        <div key={item.id} className="flex items-center gap-1.5">
+                            <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: ORDER_COLORS[idx % ORDER_COLORS.length] }} />
+                            <span className="text-[10px] text-gray-500 dark:text-gray-400 truncate max-w-[100px]">{item.product}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
 const AggregateStatsView = ({ stats, darkMode }: { stats: any; darkMode?: boolean }) => {
     const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
-    const getTimelineProgress = (start: Date, end: Date) => {
-        const now = new Date();
-        const total = end.getTime() - start.getTime();
-        if (total <= 0) return 100;
-        return Math.max(0, Math.min(100, ((now.getTime() - start.getTime()) / total) * 100));
-    };
+    const onTimeRate = stats.totalOrders > 0
+        ? Math.round(((stats.totalOrders - stats.delayedOrders) / stats.totalOrders) * 100)
+        : 100;
 
     return (
         <div className="space-y-6 animate-fade-in">
-            {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+            {/* KPI Cards — 5 cards */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 <StatCard
                     title="Total Production"
                     value={stats.totalUnits.toLocaleString()}
@@ -82,6 +198,13 @@ const AggregateStatsView = ({ stats, darkMode }: { stats: any; darkMode?: boolea
                     gradient="from-violet-500 to-purple-600"
                 />
                 <StatCard
+                    title="On-Time Rate"
+                    value={`${onTimeRate}%`}
+                    subtitle={stats.delayedOrders > 0 ? `${stats.delayedOrders} at risk` : 'All on schedule'}
+                    icon={<Clock className="text-white" size={22} />}
+                    gradient={onTimeRate >= 80 ? 'from-cyan-500 to-blue-600' : 'from-rose-500 to-red-600'}
+                />
+                <StatCard
                     title="Total Orders"
                     value={stats.totalOrders}
                     subtitle="Across all stages"
@@ -90,7 +213,7 @@ const AggregateStatsView = ({ stats, darkMode }: { stats: any; darkMode?: boolea
                 />
             </div>
 
-            {/* Charts */}
+            {/* Row 1: Status Mix + Factory Allocation */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Status Distribution */}
                 <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 relative overflow-hidden group">
@@ -103,7 +226,7 @@ const AggregateStatsView = ({ stats, darkMode }: { stats: any; darkMode?: boolea
                         </div>
                         Order Status Mix
                     </h3>
-                    <div className="h-72 w-full">
+                    <div className="h-64 w-full">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                 <Pie
@@ -137,7 +260,7 @@ const AggregateStatsView = ({ stats, darkMode }: { stats: any; darkMode?: boolea
                         </div>
                         Factory Allocation
                     </h3>
-                    <div className="h-72 w-full">
+                    <div className="h-64 w-full">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={stats.factoryData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={darkMode ? '#374151' : '#e5e7eb'} opacity={0.5} />
@@ -163,7 +286,82 @@ const AggregateStatsView = ({ stats, darkMode }: { stats: any; darkMode?: boolea
                 </div>
             </div>
 
-            {/* Production Timeline */}
+            {/* Row 2: Monthly Volume Trend + Upcoming Deadlines */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Monthly Order Volume Trend */}
+                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10">
+                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-6 flex items-center gap-2">
+                        <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg text-emerald-600">
+                            <TrendingUp size={18} />
+                        </div>
+                        Monthly Order Volume
+                    </h3>
+                    {stats.monthlyVolumeData.length === 0 ? (
+                        <p className="text-gray-400 dark:text-gray-500 text-sm text-center py-10">Not enough data yet.</p>
+                    ) : (
+                        <div className="h-64 w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={stats.monthlyVolumeData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                                    <defs>
+                                        <linearGradient id="volumeGrad" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                                            <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#374151' : '#e5e7eb'} opacity={0.5} />
+                                    <XAxis dataKey="month" tick={{ fill: darkMode ? '#9ca3af' : '#6b7280', fontSize: 11 }} axisLine={false} tickLine={false} />
+                                    <YAxis tick={{ fill: darkMode ? '#9ca3af' : '#6b7280', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                                    <RechartsTooltip
+                                        contentStyle={{ backgroundColor: darkMode ? '#1f2937' : '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
+                                        itemStyle={{ color: darkMode ? '#e5e7eb' : '#374151', fontWeight: 600 }}
+                                    />
+                                    <Area type="monotone" dataKey="orders" stroke="#10b981" strokeWidth={2.5} fill="url(#volumeGrad)" dot={{ fill: '#10b981', r: 3 }} />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        </div>
+                    )}
+                </div>
+
+                {/* Upcoming Deadlines */}
+                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10">
+                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-5 flex items-center gap-2">
+                        <div className="p-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg text-amber-600">
+                            <AlertTriangle size={18} />
+                        </div>
+                        Upcoming Deadlines
+                        <span className="ml-auto text-xs font-medium text-gray-400 dark:text-gray-500">Next 30 days</span>
+                    </h3>
+                    {stats.upcomingDeadlines.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-10 text-center">
+                            <CheckCircle2 size={32} className="text-emerald-400 mb-2" />
+                            <p className="text-sm text-gray-500 dark:text-gray-400">No deadlines in the next 30 days.</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            {stats.upcomingDeadlines.map((item: any) => {
+                                const daysLeft = Math.ceil((item.due.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                                const urgent = daysLeft <= 7;
+                                return (
+                                    <div key={item.id} className={`flex items-center gap-3 p-3 rounded-xl border ${urgent ? 'bg-red-50/60 dark:bg-red-900/10 border-red-200/50 dark:border-red-800/30' : 'bg-gray-50/60 dark:bg-gray-800/30 border-gray-100 dark:border-white/5'}`}>
+                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${urgent ? 'bg-red-100 dark:bg-red-900/30' : 'bg-amber-100 dark:bg-amber-900/20'}`}>
+                                            <Calendar size={14} className={urgent ? 'text-red-500' : 'text-amber-500'} />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 truncate">{item.product}</p>
+                                            <p className="text-xs text-gray-400 dark:text-gray-500">{item.due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                                        </div>
+                                        <span className={`text-xs font-bold px-2.5 py-1 rounded-lg flex-shrink-0 ${urgent ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' : 'bg-amber-100 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400'}`}>
+                                            {daysLeft === 0 ? 'Today' : daysLeft === 1 ? '1 day' : `${daysLeft} days`}
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Production Timeline Calendar */}
             <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 relative overflow-hidden group">
                 <div className="absolute top-0 right-0 p-6 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity pointer-events-none">
                     <Calendar size={120} />
@@ -172,43 +370,13 @@ const AggregateStatsView = ({ stats, darkMode }: { stats: any; darkMode?: boolea
                     <div className="p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg text-purple-600">
                         <Calendar size={18} />
                     </div>
-                    Production Schedule
+                    Production Timeline Calendar
                 </h3>
-                <div className="space-y-5">
-                    {stats.timelineData.length === 0 ? (
-                        <p className="text-gray-500 dark:text-gray-400 text-sm italic text-center py-4">No active production schedules.</p>
-                    ) : (
-                        stats.timelineData.slice(0, 5).map((item: any) => {
-                            const progress = getTimelineProgress(item.start, item.end);
-                            const isDelayed = new Date() > item.end && progress < 100;
-                            return (
-                                <div key={item.id}>
-                                    <div className="flex justify-between text-sm mb-1.5">
-                                        <div className="flex items-center gap-2">
-                                            <span className="font-bold text-gray-700 dark:text-gray-200">{item.product}</span>
-                                            <span className="text-xs text-gray-400 dark:text-gray-500">• {item.customer}</span>
-                                        </div>
-                                        <span className={`text-xs font-medium ${isDelayed ? 'text-red-500' : 'text-gray-500 dark:text-gray-400'}`}>
-                                            {isDelayed ? 'Overdue' : `Due ${item.end.toLocaleDateString()}`}
-                                        </span>
-                                    </div>
-                                    <div className="w-full h-3 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden relative shadow-inner">
-                                        <div
-                                            className={`h-full rounded-full transition-all duration-1000 ease-out ${isDelayed ? 'bg-red-500' : 'bg-gradient-to-r from-blue-500 to-indigo-600'}`}
-                                            style={{ width: `${progress}%` }}
-                                        >
-                                            <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(255,255,255,0.5) 5px, rgba(255,255,255,0.5) 10px)' }} />
-                                        </div>
-                                    </div>
-                                    <div className="flex justify-between text-[10px] text-gray-400 mt-1 font-medium">
-                                        <span>Started {item.start.toLocaleDateString()}</span>
-                                        <span>{Math.round(progress)}% Complete</span>
-                                    </div>
-                                </div>
-                            );
-                        })
-                    )}
-                </div>
+                {stats.timelineData.length === 0 ? (
+                    <p className="text-gray-500 dark:text-gray-400 text-sm italic text-center py-8">No active production schedules.</p>
+                ) : (
+                    <ProductionCalendar timelineData={stats.timelineData} darkMode={darkMode} />
+                )}
             </div>
         </div>
     );
@@ -387,7 +555,30 @@ export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user
             })
             .sort((a, b) => a.end.getTime() - b.end.getTime());
 
-        return { totalOrders, activeOrders, completedOrders, totalUnits, delayedOrders, statusData, factoryData, timelineData };
+        // Monthly order volume (last 6 months)
+        const monthlyMap: Record<string, number> = {};
+        for (let i = 5; i >= 0; i--) {
+            const d = new Date(); d.setMonth(d.getMonth() - i); d.setDate(1);
+            const key = d.toLocaleString('default', { month: 'short' });
+            monthlyMap[key] = 0;
+        }
+        orders.forEach(o => {
+            if (!o.createdAt) return;
+            const d = new Date(o.createdAt);
+            const key = d.toLocaleString('default', { month: 'short' });
+            if (key in monthlyMap) monthlyMap[key]++;
+        });
+        const monthlyVolumeData = Object.entries(monthlyMap).map(([month, orders]) => ({ month, orders }));
+
+        // Upcoming deadlines (next 30 days)
+        const now = new Date();
+        const in30 = new Date(); in30.setDate(in30.getDate() + 30);
+        const upcomingDeadlines = timelineData
+            .filter(item => item.end >= now && item.end <= in30)
+            .slice(0, 5)
+            .map(item => ({ ...item, due: item.end }));
+
+        return { totalOrders, activeOrders, completedOrders, totalUnits, delayedOrders, statusData, factoryData, timelineData, monthlyVolumeData, upcomingDeadlines };
     }, [crmData, allFactories]);
 
     const filteredOrders = useMemo(() => {
