@@ -5,7 +5,7 @@ import {
     GanttChartSquare, Bot, FileText, Ship, DollarSign, Download, MapPin, Plus, ChevronDown, X,
     Star, AlertCircle, ArrowRight, ArrowLeft, Building, Clock, Flag,
     Activity, Scissors, Target, Zap, ChevronRight, ChevronLeft, Pencil, Save, ChevronUp, Trash2,
-    User, CalendarDays, AlertTriangle, Calendar
+    User, CalendarDays, AlertTriangle, Calendar, Paperclip, CheckCircle2, ThumbsUp, ThumbsDown
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Pie, Cell, PieChart
@@ -1404,7 +1404,8 @@ export const TNAView: FC<{
         products?: CrmProduct[];
         onSaveTask?: (updatedTask: CrmTask) => Promise<void>;
         onSaveBulkTasks?: (tasks: CrmTask[]) => Promise<void>;
-    }> = ({ tasks, products, onSaveTask, onSaveBulkTasks }) => {
+        onBuyerConfirm?: (task: CrmTask, confirmed: boolean, reason?: string) => Promise<void>;
+    }> = ({ tasks, products, onSaveTask, onSaveBulkTasks, onBuyerConfirm }) => {
         const parseDate = (str: string | null) => str ? new Date(str) : null;
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -1412,6 +1413,14 @@ export const TNAView: FC<{
         const [editingTask, setEditingTask] = useState<CrmTask | null>(null);
         const [isSaving, setIsSaving] = useState(false);
         const [collapsedProducts, setCollapsedProducts] = useState<Set<string>>(new Set());
+        const [disputingTaskId, setDisputingTaskId] = useState<number | null>(null);
+        const [disputeReason, setDisputeReason] = useState('');
+        const [confirmingId, setConfirmingId] = useState<number | null>(null);
+
+        // Tasks awaiting buyer confirmation
+        const pendingConfirmTasks = useMemo(() => tasks.filter((t: CrmTask) =>
+            t.requiresBuyerConfirmation && t.status === 'COMPLETE' && !t.buyerConfirmedAt && !t.buyerDisputed
+        ), [tasks]);
 
         // ── Bulk edit state ───────────────────────────────
         const [isEditMode, setIsEditMode] = useState(false);
@@ -1641,7 +1650,27 @@ export const TNAView: FC<{
                             </span>
                         </td>
                     )}
-                    <td className="px-5 py-4 whitespace-nowrap font-semibold text-gray-900 dark:text-white">{task.name}</td>
+                    <td className="px-5 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                            <span className="font-semibold text-gray-900 dark:text-white">{task.name}</span>
+                            {task.requiresDocument && (
+                                <span title={task.documentUrl ? `Document: ${task.documentFileName || 'uploaded'}` : 'Document required'}>
+                                    {task.documentUrl
+                                        ? <CheckCircle2 size={13} className="text-green-500 flex-shrink-0" />
+                                        : <Paperclip size={13} className="text-orange-400 flex-shrink-0" />}
+                                </span>
+                            )}
+                            {task.requiresBuyerConfirmation && task.status === 'COMPLETE' && (
+                                <span title={task.buyerConfirmedAt ? 'Buyer confirmed' : task.buyerDisputed ? 'Buyer disputed' : 'Awaiting buyer confirmation'}>
+                                    {task.buyerConfirmedAt
+                                        ? <ThumbsUp size={13} className="text-green-500 flex-shrink-0" />
+                                        : task.buyerDisputed
+                                        ? <ThumbsDown size={13} className="text-red-500 flex-shrink-0" />
+                                        : <AlertCircle size={13} className="text-yellow-400 flex-shrink-0 animate-pulse" />}
+                                </span>
+                            )}
+                        </div>
+                    </td>
                     <td className="px-5 py-4 whitespace-nowrap">
                         {task.priority ? (
                             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold ${priorityColors[task.priority] || priorityColors['Medium']}`}>
@@ -1693,6 +1722,71 @@ export const TNAView: FC<{
 
         return (
             <div className="mt-6 space-y-3 animate-fade-in">
+                {/* ── Buyer Confirmation Panel ──────────────────── */}
+                {onBuyerConfirm && pendingConfirmTasks.length > 0 && (
+                    <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-xl p-4 space-y-3">
+                        <div className="flex items-center gap-2 mb-1">
+                            <AlertCircle size={16} className="text-yellow-600 dark:text-yellow-400" />
+                            <span className="text-sm font-bold text-yellow-800 dark:text-yellow-300">
+                                {pendingConfirmTasks.length} Milestone{pendingConfirmTasks.length > 1 ? 's' : ''} Awaiting Your Confirmation
+                            </span>
+                        </div>
+                        {pendingConfirmTasks.map((task: CrmTask) => (
+                            <div key={task.id} className="bg-white dark:bg-gray-900/60 rounded-lg p-3 border border-yellow-100 dark:border-yellow-800/50">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                        <p className="text-sm font-semibold text-gray-800 dark:text-white">{task.name}</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Responsible: {task.responsible} · Due: {task.plannedEndDate}</p>
+                                    </div>
+                                    <div className="flex items-center gap-2 flex-shrink-0">
+                                        <button
+                                            disabled={confirmingId === task.id}
+                                            onClick={async () => {
+                                                setConfirmingId(task.id);
+                                                try { await onBuyerConfirm(task, true); } finally { setConfirmingId(null); }
+                                            }}
+                                            className="flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white text-xs font-bold rounded-lg hover:bg-green-700 transition-colors disabled:opacity-60"
+                                        >
+                                            <ThumbsUp size={12} /> Confirm
+                                        </button>
+                                        <button
+                                            onClick={() => setDisputingTaskId(disputingTaskId === task.id ? null : task.id)}
+                                            className="flex items-center gap-1 px-3 py-1.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs font-bold rounded-lg border border-red-200 dark:border-red-700 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
+                                        >
+                                            <ThumbsDown size={12} /> Dispute
+                                        </button>
+                                    </div>
+                                </div>
+                                {disputingTaskId === task.id && (
+                                    <div className="mt-3 flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={disputeReason}
+                                            onChange={e => setDisputeReason(e.target.value)}
+                                            placeholder="Reason for dispute..."
+                                            className="flex-1 text-xs px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-red-400"
+                                        />
+                                        <button
+                                            disabled={!disputeReason.trim() || confirmingId === task.id}
+                                            onClick={async () => {
+                                                setConfirmingId(task.id);
+                                                try {
+                                                    await onBuyerConfirm(task, false, disputeReason);
+                                                    setDisputingTaskId(null);
+                                                    setDisputeReason('');
+                                                } finally { setConfirmingId(null); }
+                                            }}
+                                            className="px-3 py-1.5 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 transition-colors disabled:opacity-60"
+                                        >
+                                            Submit
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
+
                 {/* ── Bulk Edit Toolbar ─────────────────────────── */}
                 {onSaveBulkTasks && (
                     <div className={`flex items-center justify-between px-4 py-3 rounded-xl border transition-all duration-200 ${
@@ -2338,6 +2432,21 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
 
     const activeOrder = activeOrderKey && crmData[activeOrderKey] ? { ...crmData[activeOrderKey], id: activeOrderKey } : null;
 
+    const handleBuyerConfirm = async (task: CrmTask, confirmed: boolean, reason?: string) => {
+        if (!activeOrderKey) return;
+        const updatedTask: CrmTask = confirmed
+            ? { ...task, buyerConfirmedAt: new Date().toISOString() }
+            : { ...task, buyerDisputed: true, disputeReason: reason || '', status: 'IN PROGRESS' as const };
+        const currentOrder = crmData[activeOrderKey];
+        const updatedTasks = currentOrder.tasks.map(t => t.id === task.id ? updatedTask : t);
+        await crmService.update(activeOrderKey, { tasks: updatedTasks });
+        setCrmData(prev => ({
+            ...prev,
+            [activeOrderKey]: { ...prev[activeOrderKey], tasks: updatedTasks }
+        }));
+        showToast(confirmed ? 'Milestone confirmed' : 'Milestone disputed', confirmed ? 'success' : 'error');
+    };
+
     // Filter tasks for the selected product
     const filteredTasks = useMemo(() => {
         if (!activeOrder) return [];
@@ -2581,7 +2690,7 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
                     </div>
                 </div>
                 {activeOrder && activeView === 'Overview' && <OrderDetailsView order={activeOrder} allFactories={allFactories} handleSetCurrentPage={handleSetCurrentPage} onSelectProduct={handleSelectProductCard} />}
-                {activeOrder && activeView === 'TNA' && <TNAView tasks={filteredTasks} products={selectedProductId ? undefined : activeOrder.products} />}
+                {activeOrder && activeView === 'TNA' && <TNAView tasks={filteredTasks} products={selectedProductId ? undefined : activeOrder.products} onBuyerConfirm={handleBuyerConfirm} />}
                 {activeOrder && activeView === 'Dashboard' && <DashboardView tasks={activeOrder.tasks} orderKey={activeOrderKey || ''} orderDetails={activeOrder}/>}
                 {activeOrder && activeView === 'List' && <ListView tasks={filteredTasks} />}
                 {activeOrder && activeView === 'Board' && <BoardView tasks={filteredTasks} />}

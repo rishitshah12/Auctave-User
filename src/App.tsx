@@ -707,7 +707,7 @@ const AppContent: FC = () => {
     // Effect to listen for real-time CRM order updates for the current client.
     // Server-side filter removed (same REPLICA IDENTITY FULL requirement as quotes).
     // We use a local ref to diff old vs new since payload.old is unreliable without it.
-    const prevCrmRef = useRef<Map<string, { status: string; tasksJson: string }>>(new Map());
+    const prevCrmRef = useRef<Map<string, { status: string; tasksJson: string; riskScore?: string }>>(new Map());
 
     useEffect(() => {
         if (!user || isAdmin) return;
@@ -761,10 +761,62 @@ const AppContent: FC = () => {
                     }
                 }
 
+                // Notify on risk score changes
+                const newRiskScore = updated.risk_score;
+                const prevRiskScore = prev?.riskScore;
+                if (newRiskScore && newRiskScore !== prevRiskScore) {
+                    if (newRiskScore === 'red') {
+                        addNotification({
+                            category: 'crm',
+                            title: 'Critical Delay Detected',
+                            message: `Order "${updated.product_name || updated.id}" is critically at risk — immediate action needed.`,
+                            action: { page: 'crm' },
+                        });
+                    } else if (newRiskScore === 'amber') {
+                        addNotification({
+                            category: 'crm',
+                            title: 'Timeline Risk Detected',
+                            message: `Order "${updated.product_name || updated.id}" has a schedule risk — review milestones.`,
+                            action: { page: 'crm' },
+                        });
+                    }
+                }
+
+                // Notify on buyer confirmation or dispute
+                if (prev?.tasksJson && newTasksJson !== prev.tasksJson) {
+                    const oldTasks = JSON.parse(prev.tasksJson) as any[];
+                    const newTasks = (updated.tasks || []) as any[];
+                    const confirmedTask = newTasks.find((t: any) => {
+                        const old = oldTasks.find((o: any) => o.id === t.id);
+                        return old && !old.buyerConfirmedAt && t.buyerConfirmedAt;
+                    });
+                    const disputedTask = newTasks.find((t: any) => {
+                        const old = oldTasks.find((o: any) => o.id === t.id);
+                        return old && !old.buyerDisputed && t.buyerDisputed;
+                    });
+                    if (confirmedTask) {
+                        addNotification({
+                            category: 'crm',
+                            title: 'Milestone Confirmed by Buyer',
+                            message: `"${confirmedTask.name}" was confirmed on order "${updated.product_name || updated.id}".`,
+                            action: { page: 'crm' },
+                        });
+                    }
+                    if (disputedTask) {
+                        addNotification({
+                            category: 'crm',
+                            title: 'Milestone Disputed by Buyer',
+                            message: `"${disputedTask.name}" was disputed: ${disputedTask.disputeReason || 'No reason given'}.`,
+                            action: { page: 'crm' },
+                        });
+                    }
+                }
+
                 // Update local tracking ref
                 prevCrmRef.current.set(updated.id, {
                     status: updated.status,
                     tasksJson: newTasksJson,
+                    riskScore: newRiskScore,
                 });
             })
             .subscribe((status, err) => {

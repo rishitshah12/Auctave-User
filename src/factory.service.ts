@@ -19,6 +19,10 @@ interface FactoryDB {
     specialties: string[];
     machine_slots: any;
     catalog: any;
+    trust_tier?: string;
+    completed_orders_count?: number;
+    on_time_delivery_rate?: number;
+    quality_rejection_rate?: number;
     created_at?: string;
     updated_at?: string;
 }
@@ -54,6 +58,26 @@ export class FactoryService extends BaseService<Factory> {
             delete dbFactory.machineSlots;
         }
 
+        if (factory.trustTier !== undefined) {
+            dbFactory.trust_tier = factory.trustTier;
+            delete dbFactory.trustTier;
+        }
+
+        if (factory.completedOrdersCount !== undefined) {
+            dbFactory.completed_orders_count = factory.completedOrdersCount;
+            delete dbFactory.completedOrdersCount;
+        }
+
+        if (factory.onTimeDeliveryRate !== undefined) {
+            dbFactory.on_time_delivery_rate = factory.onTimeDeliveryRate;
+            delete dbFactory.onTimeDeliveryRate;
+        }
+
+        if (factory.qualityRejectionRate !== undefined) {
+            dbFactory.quality_rejection_rate = factory.qualityRejectionRate;
+            delete dbFactory.qualityRejectionRate;
+        }
+
         return dbFactory;
     }
 
@@ -74,7 +98,11 @@ export class FactoryService extends BaseService<Factory> {
             certifications: dbFactory.certifications || [],
             specialties: dbFactory.specialties || [],
             machineSlots: dbFactory.machine_slots || [],
-            catalog: dbFactory.catalog || { productCategories: [], fabricOptions: [] }
+            catalog: dbFactory.catalog || { productCategories: [], fabricOptions: [] },
+            trustTier: (dbFactory.trust_tier as Factory['trustTier']) || 'unverified',
+            completedOrdersCount: dbFactory.completed_orders_count ?? 0,
+            onTimeDeliveryRate: dbFactory.on_time_delivery_rate ?? undefined,
+            qualityRejectionRate: dbFactory.quality_rejection_rate ?? undefined,
         };
     }
 

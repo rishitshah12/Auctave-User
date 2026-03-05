@@ -73,6 +73,10 @@ export interface Factory {
     certifications: string[];
     machineSlots: MachineSlot[];
     catalog: FactoryCatalog;
+    trustTier?: 'unverified' | 'bronze' | 'silver' | 'gold';
+    completedOrdersCount?: number;
+    onTimeDeliveryRate?: number;
+    qualityRejectionRate?: number;
 }
 
 export interface NegotiationHistoryItem {
@@ -157,6 +161,14 @@ export interface CrmTask {
     priority?: 'Low' | 'Medium' | 'High' | 'Urgent';
     notes?: string;
     progress?: number;
+    requiresDocument?: boolean;
+    documentUrl?: string;
+    documentFileName?: string;
+    documentUploadedAt?: string;
+    requiresBuyerConfirmation?: boolean;
+    buyerConfirmedAt?: string;
+    buyerDisputed?: boolean;
+    disputeReason?: string;
 }
 
 export interface CrmDocument {
@@ -181,6 +193,9 @@ export interface CrmOrder {
     products?: CrmProduct[];
     custom_factory_name?: string;
     custom_factory_location?: string;
+    riskScore?: 'green' | 'amber' | 'red';
+    riskScoreUpdatedAt?: string;
+    deliveryDate?: string;
 }
 
 

@@ -1,9 +1,10 @@
 import React, { FC, useState, useEffect } from 'react';
 import {
-    Star, MapPin, ChevronLeft, ChevronRight, BookOpen, Activity, ShieldCheck, LayoutGrid, Scroll, X, ZoomIn
+    Star, MapPin, ChevronLeft, ChevronRight, BookOpen, Activity, ShieldCheck, LayoutGrid, Scroll, X, ZoomIn, TrendingUp, AlertCircle, CheckCircle2
 } from 'lucide-react';
 import { MainLayout } from '../src/MainLayout';
 import { Factory, MachineSlot } from '../src/types';
+import { TrustTierBadge } from '../src/FactoryCard';
 
 interface FactoryDetailPageProps {
     // Props for MainLayout
@@ -137,11 +138,12 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                         <div className="absolute bottom-0 left-0 p-6 md:p-8 w-full">
                             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                                 <div>
-                                    <div className="flex items-center gap-3 mb-2">
+                                    <div className="flex items-center gap-3 mb-2 flex-wrap">
                                         <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">{selectedFactory.name}</h1>
                                         {selectedFactory.rating >= 4.5 && (
                                             <span className="px-2 py-0.5 rounded bg-[#c20c0b] text-white text-[10px] font-bold uppercase tracking-wider shadow-sm">Top Rated</span>
                                         )}
+                                        <TrustTierBadge tier={selectedFactory.trustTier} />
                                     </div>
                                     <p className="text-gray-200 flex items-center text-sm md:text-base font-medium">
                                         <MapPin size={18} className="mr-1.5 text-[#c20c0b]" /> {selectedFactory.location}
@@ -199,6 +201,39 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                                     <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-3">About Factory</h3>
                                     <p className="text-gray-600 dark:text-gray-200 leading-relaxed text-sm md:text-base">{selectedFactory.description}</p>
                                 </div>
+
+                                {selectedFactory.onTimeDeliveryRate !== undefined && (
+                                    <div>
+                                        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                                            <TrendingUp size={18} className="text-[#c20c0b]" /> Performance Metrics
+                                        </h3>
+                                        <div className="grid grid-cols-3 gap-3">
+                                            <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-white/10 text-center">
+                                                <div className={`text-2xl font-bold ${selectedFactory.onTimeDeliveryRate >= 90 ? 'text-green-600' : selectedFactory.onTimeDeliveryRate >= 75 ? 'text-yellow-500' : 'text-red-500'}`}>
+                                                    {selectedFactory.onTimeDeliveryRate}%
+                                                </div>
+                                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 font-medium">On-Time Delivery</div>
+                                                {selectedFactory.onTimeDeliveryRate >= 90 ? <CheckCircle2 size={14} className="text-green-500 mx-auto mt-1" /> : <AlertCircle size={14} className="text-yellow-500 mx-auto mt-1" />}
+                                            </div>
+                                            {selectedFactory.qualityRejectionRate !== undefined && (
+                                                <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-white/10 text-center">
+                                                    <div className={`text-2xl font-bold ${selectedFactory.qualityRejectionRate <= 2 ? 'text-green-600' : selectedFactory.qualityRejectionRate <= 5 ? 'text-yellow-500' : 'text-red-500'}`}>
+                                                        {selectedFactory.qualityRejectionRate}%
+                                                    </div>
+                                                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 font-medium">Quality Rejection</div>
+                                                    {selectedFactory.qualityRejectionRate <= 2 ? <CheckCircle2 size={14} className="text-green-500 mx-auto mt-1" /> : <AlertCircle size={14} className="text-yellow-500 mx-auto mt-1" />}
+                                                </div>
+                                            )}
+                                            <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-white/10 text-center">
+                                                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                                                    {selectedFactory.completedOrdersCount ?? 0}
+                                                </div>
+                                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 font-medium">Completed Orders</div>
+                                                <TrustTierBadge tier={selectedFactory.trustTier} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
 
                                 <div>
                                     <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">

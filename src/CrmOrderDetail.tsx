@@ -7,8 +7,9 @@ import {
     PieChart as PieChartIcon, GanttChartSquare, Bot, X,
     FileText, Download, Plus, RefreshCw,
     Package, Clock, CheckCircle, AlertCircle, MapPin, Anchor,
-    Eye, Trash2, Upload, AlertTriangle
+    Eye, Trash2, Upload, AlertTriangle, ShieldAlert, ShieldCheck, ShieldX
 } from 'lucide-react';
+import { updateOrderRiskScore, calculateOrderRiskScore, updateFactoryMetricsOnCompletion } from './risk.service';
 import {
     DashboardView, ListView, BoardView, GanttChartView, TNAView
 } from './CRMPage';
@@ -46,6 +47,24 @@ function formatBytes(bytes: number): string {
 function isImageFile(filename: string): boolean {
     return /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(filename);
 }
+
+export const RiskBadge: FC<{ score?: 'green' | 'amber' | 'red' }> = ({ score = 'green' }) => {
+    if (score === 'red') return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 border border-red-200 dark:border-red-700">
+            <ShieldX size={10} /> Critical Risk
+        </span>
+    );
+    if (score === 'amber') return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-700">
+            <ShieldAlert size={10} /> At Risk
+        </span>
+    );
+    return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 border border-green-200 dark:border-green-700">
+            <ShieldCheck size={10} /> On Track
+        </span>
+    );
+};
 
 const OrderDetailsView: FC<{
     order: CrmOrder;
@@ -650,9 +669,13 @@ export default function CrmOrderDetail({
     const [orderSummary, setOrderSummary] = useState('');
     const [isSummaryLoading, setIsSummaryLoading] = useState(false);
     const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+    const [riskScore, setRiskScore] = useState<'green' | 'amber' | 'red'>(
+        (order.riskScore as 'green' | 'amber' | 'red') || calculateOrderRiskScore(order.tasks)
+    );
 
     useEffect(() => {
         setLocalOrder(order);
+        setRiskScore((order.riskScore as 'green' | 'amber' | 'red') || calculateOrderRiskScore(order.tasks));
     }, [order]);
 
     const status = localOrder.status || 'In Production';
@@ -695,6 +718,27 @@ export default function CrmOrderDetail({
         if (error) throw error;
         setLocalOrder({ ...localOrder, tasks: updatedTasks });
         showToast('Task updated successfully', 'success');
+        // Recalculate risk score
+        const newScore = await updateOrderRiskScore(orderId, updatedTasks, riskScore, supabase);
+        if (newScore !== riskScore) {
+            setRiskScore(newScore);
+            if (newScore === 'red') showToast('⚠️ Critical delay detected — order is now At Risk', 'error');
+            else if (newScore === 'amber') showToast('Timeline risk detected — review milestones', 'error');
+        }
+    };
+
+    const handleOrderStatusChange = async (newStatus: CrmOrder['status']) => {
+        if (!supabase) return;
+        const { error } = await supabase.from('crm_orders').update({ status: newStatus }).eq('id', orderId);
+        if (error) { showToast('Failed to update status', 'error'); return; }
+        setLocalOrder(prev => ({ ...prev, status: newStatus }));
+        showToast(`Order status updated to ${newStatus}`, 'success');
+        if (newStatus === 'Completed') {
+            const factory = allFactories.find(f => f.id === localOrder.factoryId || f.id === (localOrder as any).factory_id);
+            if (factory?.id) {
+                await updateFactoryMetricsOnCompletion(factory.id, localOrder.tasks, factory.completedOrdersCount ?? 0, supabase);
+            }
+        }
     };
 
     const generateOrderSummary = async () => {
@@ -753,6 +797,7 @@ export default function CrmOrderDetail({
                     <span className={`flex-shrink-0 px-2.5 py-1 rounded-full text-[11px] font-bold ${getOrderStatusColor(selectedProduct?.status || status)}`}>
                         {selectedProduct?.status || status}
                     </span>
+                    {!selectedProductId && <RiskBadge score={riskScore} />}
                 </div>
                 <button
                     onClick={generateOrderSummary}

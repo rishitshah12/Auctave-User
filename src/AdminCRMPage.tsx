@@ -17,6 +17,8 @@ import CrmOrderCard from './CrmOrderCard';
 import { CrmProduct, CrmTask } from './types';
 import { normalizeOrder, computeProductName } from './utils';
 import { useToast } from './ToastContext';
+import { calculateOrderRiskScore } from './risk.service';
+import { RiskBadge } from './CrmOrderDetail';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const TASK_TEMPLATES = [
@@ -1910,6 +1912,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
     const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null);
     const [taskSearch, setTaskSearch] = useState('');
     const [taskStatusFilter, setTaskStatusFilter] = useState('ALL');
+    const [showAtRiskOnly, setShowAtRiskOnly] = useState(false);
     const [taskProductFilter, setTaskProductFilter] = useState('ALL');
     const [showTemplates, setShowTemplates] = useState(false);
     const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
@@ -2627,17 +2630,25 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                     {/* ── Orders list view ── */}
                     {!isLoading && !selectedOrderId && (
                         <>
-                            <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
                                 <h3 className="text-lg font-bold text-gray-800 dark:text-white">
                                     Orders
                                     <span className="ml-2 text-sm font-normal text-gray-400">({orders.length})</span>
                                 </h3>
-                                <button
-                                    onClick={() => setIsCreateOrderOpen(true)}
-                                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#c20c0b] to-red-600 text-white text-sm font-bold rounded-xl shadow hover:shadow-lg hover:scale-105 transition-all"
-                                >
-                                    <Plus size={16} /> New Order
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => setShowAtRiskOnly(v => !v)}
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border transition-colors ${showAtRiskOnly ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-300 dark:border-red-700' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-red-300'}`}
+                                    >
+                                        <AlertTriangle size={12} /> At Risk
+                                    </button>
+                                    <button
+                                        onClick={() => setIsCreateOrderOpen(true)}
+                                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#c20c0b] to-red-600 text-white text-sm font-bold rounded-xl shadow hover:shadow-lg hover:scale-105 transition-all"
+                                    >
+                                        <Plus size={16} /> New Order
+                                    </button>
+                                </div>
                             </div>
 
                             {orders.length === 0 ? (
@@ -2658,20 +2669,31 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                 </div>
                             ) : (
                                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                                    {orders.map((order, idx) => {
-                                        const normalized = normalizeOrder(order);
-                                        const factory = factories.find(f => f.id === order.factory_id);
-                                        return (
-                                            <CrmOrderCard
-                                                key={order.id}
-                                                orderId={order.id}
-                                                order={{ ...normalized, customer: selectedClient?.name || '' }}
-                                                factory={factory}
-                                                index={idx}
-                                                onClick={() => handleSelectOrder(order.id)}
-                                            />
-                                        );
-                                    })}
+                                    {orders
+                                        .map(order => ({ order, riskScore: order.risk_score || calculateOrderRiskScore(order.tasks || []) }))
+                                        .filter(({ riskScore }) => !showAtRiskOnly || riskScore === 'amber' || riskScore === 'red')
+                                        .sort((a, b) => {
+                                            const rank: Record<string, number> = { red: 0, amber: 1, green: 2 };
+                                            return (rank[a.riskScore] ?? 2) - (rank[b.riskScore] ?? 2);
+                                        })
+                                        .map(({ order, riskScore }, idx) => {
+                                            const normalized = normalizeOrder(order);
+                                            const factory = factories.find(f => f.id === order.factory_id);
+                                            return (
+                                                <div key={order.id} className="relative">
+                                                    <CrmOrderCard
+                                                        orderId={order.id}
+                                                        order={{ ...normalized, customer: selectedClient?.name || '' }}
+                                                        factory={factory}
+                                                        index={idx}
+                                                        onClick={() => handleSelectOrder(order.id)}
+                                                    />
+                                                    <div className="absolute top-3 right-3 pointer-events-none">
+                                                        <RiskBadge score={riskScore as any} />
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
                                 </div>
                             )}
                         </>
@@ -2694,6 +2716,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                     <h2 className="text-lg font-bold text-gray-800 dark:text-white truncate">
                                         {transformedOrder.product}
                                     </h2>
+                                    <RiskBadge score={(orders.find(o => o.id === selectedOrderId)?.risk_score || calculateOrderRiskScore(transformedOrder.tasks || [])) as any} />
                                     {isSaving ? (
                                         <span className="hidden sm:inline flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex-shrink-0">
                                             <Loader2 size={11} className="animate-spin" /> Saving…

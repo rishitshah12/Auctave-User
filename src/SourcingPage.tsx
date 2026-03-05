@@ -249,7 +249,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
     });
 
     // Default values for filters to allow easy resetting
-    const initialFilters = { rating: 0, maxMoq: 10000, tags: [] as string[], categories: [] as string[], location: '', certifications: [] as string[] };
+    const initialFilters = { rating: 0, maxMoq: 10000, tags: [] as string[], categories: [] as string[], location: '', certifications: [] as string[], minTrustTier: '' as '' | 'bronze' | 'silver' | 'gold' };
     // State for the text typed in the search bar
     const [searchTerm, setSearchTerm] = useState('');
     // State to track active filters (rating, location, etc.)
@@ -376,7 +376,15 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
             // 7. Filter by specific location text from the filter panel
             .filter(f => filters.location === '' || f.location.toLowerCase().includes(filters.location.toLowerCase()))
             // 8. Filter by certifications (e.g., "ISO 9001") - factory must have ALL selected certs
-            .filter(f => filters.certifications.length === 0 || filters.certifications.every(cert => f.certifications.includes(cert as string)));
+            .filter(f => filters.certifications.length === 0 || filters.certifications.every(cert => f.certifications.includes(cert as string)))
+            // 9. Filter by minimum trust tier
+            .filter(f => {
+                if (!filters.minTrustTier) return true;
+                const tierRank = { unverified: 0, bronze: 1, silver: 2, gold: 3 };
+                const factoryRank = tierRank[f.trustTier || 'unverified'];
+                const minRank = tierRank[filters.minTrustTier];
+                return factoryRank >= minRank;
+            });
     }, [selectedGarmentCategory, searchTerm, filters, allFactories]);
 
     const displayCategories = [
@@ -490,6 +498,21 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-white mb-2">Certifications</label>
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">{allCertifications.map(cert => <button key={cert} onClick={() => { const newCerts = filters.certifications.includes(cert) ? filters.certifications.filter(c => c !== cert) : [...filters.certifications, cert]; setFilters(f => ({ ...f, certifications: newCerts })); }} className={`text-sm p-2 rounded-md transition-colors ${filters.certifications.includes(cert) ? 'bg-[#c20c0b] text-white' : 'bg-gray-100 dark:bg-gray-700 dark:text-white'}`}>{cert}</button>)}</div>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-white mb-2">Minimum Trust Tier</label>
+                            <div className="flex gap-2 flex-wrap">
+                                {(['bronze', 'silver', 'gold'] as const).map(tier => {
+                                    const tierColors: Record<string, string> = { bronze: 'bg-orange-500', silver: 'bg-slate-500', gold: 'bg-yellow-500' };
+                                    const isActive = filters.minTrustTier === tier;
+                                    return (
+                                        <button key={tier} onClick={() => setFilters(f => ({ ...f, minTrustTier: f.minTrustTier === tier ? '' : tier }))}
+                                            className={`text-sm px-3 py-1.5 rounded-md capitalize transition-colors font-medium ${isActive ? `${tierColors[tier]} text-white` : 'bg-gray-100 dark:bg-gray-700 dark:text-white'}`}>
+                                            {tier}+
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </div>
                         <div>
                             <label htmlFor="location" className="block text-sm font-medium text-gray-700 dark:text-white">Location</label>

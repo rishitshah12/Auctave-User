@@ -1,9 +1,27 @@
 // Import React and functional component type
 import React, { FC } from 'react';
 // Import icons for rating and offers
-import { Star, BadgePercent } from 'lucide-react';
+import { Star, BadgePercent, Medal } from 'lucide-react';
 // Import the Factory data type
 import { Factory } from '../src/types';
+
+const TRUST_TIER_CONFIG = {
+    gold:       { label: 'Gold',       bg: 'bg-yellow-100 dark:bg-yellow-900/40', text: 'text-yellow-700 dark:text-yellow-300', border: 'border-yellow-300 dark:border-yellow-600' },
+    silver:     { label: 'Silver',     bg: 'bg-slate-100 dark:bg-slate-800/60',   text: 'text-slate-600 dark:text-slate-300',   border: 'border-slate-300 dark:border-slate-500' },
+    bronze:     { label: 'Bronze',     bg: 'bg-orange-100 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300', border: 'border-orange-300 dark:border-orange-600' },
+    unverified: { label: 'Unverified', bg: 'bg-gray-100 dark:bg-gray-800/60',     text: 'text-gray-500 dark:text-gray-400',     border: 'border-gray-200 dark:border-gray-600' },
+} as const;
+
+export const TrustTierBadge: FC<{ tier?: Factory['trustTier'] }> = ({ tier = 'unverified' }) => {
+    if (tier === 'unverified') return null;
+    const cfg = TRUST_TIER_CONFIG[tier];
+    return (
+        <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md border text-[10px] font-semibold ${cfg.bg} ${cfg.text} ${cfg.border}`}>
+            <Medal size={9} />
+            {cfg.label}
+        </span>
+    );
+};
 
 // Define what information this component needs to work
 interface FactoryCardProps {
@@ -60,7 +78,10 @@ export const FactoryCard: FC<FactoryCardProps> = React.memo(({ factory, onSelect
             {/* Header: Name and Star Rating */}
             <div className="flex justify-between items-start mb-2">
                 <div className="pr-2">
-                    <h3 className="font-bold text-lg text-gray-900 dark:text-white leading-tight group-hover:text-[#c20c0b] transition-colors line-clamp-1">{factory.name}</h3>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                        <h3 className="font-bold text-lg text-gray-900 dark:text-white leading-tight group-hover:text-[#c20c0b] transition-colors line-clamp-1">{factory.name}</h3>
+                        <TrustTierBadge tier={factory.trustTier} />
+                    </div>
                     <p className="text-xs text-gray-500 dark:text-gray-200 mt-1 line-clamp-1">{factory.location}</p>
                 </div>
                 <div className="flex-shrink-0 flex items-center justify-center bg-green-600 text-white font-bold px-2 py-1 rounded-lg text-xs shadow-sm">

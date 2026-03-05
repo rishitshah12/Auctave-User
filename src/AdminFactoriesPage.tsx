@@ -710,6 +710,18 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
                                         onRemove={(idx) => setEditingFactory(prev => ({ ...prev, certifications: (prev.certifications || []).filter((_, i) => i !== idx) }))}
                                     />
                                     <div> <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">Rating</label> <input type="number" step="0.1" max="5" min="0" required value={editingFactory.rating} onChange={e => setEditingFactory({...editingFactory, rating: parseFloat(e.target.value)})} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#c20c0b] focus:outline-none" /> </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">Trust Tier</label>
+                                        <select value={editingFactory.trustTier || 'unverified'} onChange={e => setEditingFactory({...editingFactory, trustTier: e.target.value as any})} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#c20c0b] focus:outline-none">
+                                            <option value="unverified">Unverified</option>
+                                            <option value="bronze">Bronze</option>
+                                            <option value="silver">Silver</option>
+                                            <option value="gold">Gold</option>
+                                        </select>
+                                    </div>
+                                    <div> <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">Completed Orders</label> <input type="number" min="0" value={editingFactory.completedOrdersCount ?? 0} onChange={e => setEditingFactory({...editingFactory, completedOrdersCount: parseInt(e.target.value) || 0})} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#c20c0b] focus:outline-none" /> </div>
+                                    <div> <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">On-Time Delivery Rate (%)</label> <input type="number" step="0.1" min="0" max="100" value={editingFactory.onTimeDeliveryRate ?? ''} onChange={e => setEditingFactory({...editingFactory, onTimeDeliveryRate: e.target.value ? parseFloat(e.target.value) : undefined})} placeholder="e.g. 94.5" className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#c20c0b] focus:outline-none" /> </div>
+                                    <div> <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">Quality Rejection Rate (%)</label> <input type="number" step="0.1" min="0" max="100" value={editingFactory.qualityRejectionRate ?? ''} onChange={e => setEditingFactory({...editingFactory, qualityRejectionRate: e.target.value ? parseFloat(e.target.value) : undefined})} placeholder="e.g. 1.2" className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#c20c0b] focus:outline-none" /> </div>
                                 </div>
                             </div>
 
