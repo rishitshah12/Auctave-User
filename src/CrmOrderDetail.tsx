@@ -10,6 +10,7 @@ import {
     Eye, Trash2, Upload, AlertTriangle, ShieldAlert, ShieldCheck, ShieldX
 } from 'lucide-react';
 import { updateOrderRiskScore, calculateOrderRiskScore, updateFactoryMetricsOnCompletion } from './risk.service';
+import jsPDF from 'jspdf';
 import {
     DashboardView, ListView, BoardView, GanttChartView, TNAView
 } from './CRMPage';
@@ -26,17 +27,245 @@ interface CrmOrderDetailProps {
 }
 
 // Moved outside component to avoid recreation on every render
-const MarkdownRenderer: FC<{ text: string }> = ({ text }) => {
-    if (!text) return null;
-    const lines = text.split('\n').map((line, i) => {
-        if (line.startsWith('###')) return <h3 key={i} className="text-xl font-bold text-gray-800 dark:text-white mb-4">{line.replace(/^###\s*/, '')}</h3>;
-        if (line.startsWith('**')) return <p key={i} className="font-semibold text-gray-700 dark:text-gray-200 mt-4 mb-1">{line.replace(/\*\*/g, '')}</p>;
-        if (line.startsWith('- ')) return <li key={i} className="flex items-start my-1 text-gray-600 dark:text-gray-300"><span className="mr-3 mt-1.5 text-[#c20c0b]">&#8729;</span><span>{line.substring(2)}</span></li>;
-        if (!line.trim()) return null;
-        return <p key={i} className="text-gray-600 dark:text-gray-300">{line}</p>;
-    });
-    return <div className="space-y-1">{lines}</div>;
+// --- AI Summary Infographic Components ---
+
+const CircularProgress: FC<{ percent: number; size?: number; strokeWidth?: number; color?: string }> = ({ percent, size = 64, strokeWidth = 5, color = '#c20c0b' }) => {
+    const radius = (size - strokeWidth) / 2;
+    const circumference = 2 * Math.PI * radius;
+    const offset = circumference - (percent / 100) * circumference;
+    return (
+        <svg width={size} height={size} className="transform -rotate-90">
+            <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="currentColor" strokeWidth={strokeWidth} className="text-gray-200 dark:text-gray-700" />
+            <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={color} strokeWidth={strokeWidth} strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round" className="transition-all duration-1000 ease-out" />
+        </svg>
+    );
 };
+
+const StatusDistributionBar: FC<{ completed: number; inProgress: number; todo: number; overdue: number; total: number }> = ({ completed, inProgress, todo, overdue, total }) => {
+    if (total === 0) return null;
+    const pct = (n: number) => Math.max((n / total) * 100, n > 0 ? 3 : 0);
+    return (
+        <div className="space-y-2">
+            <div className="flex h-3 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700/50">
+                {completed > 0 && <div className="bg-gradient-to-r from-emerald-400 to-emerald-500 transition-all duration-700" style={{ width: `${pct(completed)}%` }} />}
+                {inProgress > 0 && <div className="bg-gradient-to-r from-amber-400 to-orange-400 transition-all duration-700" style={{ width: `${pct(inProgress)}%` }} />}
+                {overdue > 0 && <div className="bg-gradient-to-r from-red-400 to-rose-500 transition-all duration-700" style={{ width: `${pct(overdue)}%` }} />}
+                {todo > 0 && <div className="bg-gradient-to-r from-gray-300 to-gray-400 dark:from-gray-500 dark:to-gray-600 transition-all duration-700" style={{ width: `${pct(todo - overdue)}%` }} />}
+            </div>
+            <div className="flex items-center gap-4 flex-wrap">
+                <span className="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400"><span className="w-2 h-2 rounded-full bg-emerald-500" />{completed} Done</span>
+                <span className="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400"><span className="w-2 h-2 rounded-full bg-amber-400" />{inProgress} Active</span>
+                {overdue > 0 && <span className="flex items-center gap-1.5 text-[11px] text-red-500"><span className="w-2 h-2 rounded-full bg-red-500" />{overdue} Overdue</span>}
+                <span className="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400"><span className="w-2 h-2 rounded-full bg-gray-400" />{todo} To Do</span>
+            </div>
+        </div>
+    );
+};
+
+const RiskGauge: FC<{ level: string }> = ({ level }) => {
+    const normalized = level.toUpperCase();
+    const isLow = normalized.includes('LOW');
+    const isMed = normalized.includes('MEDIUM') || normalized.includes('MED');
+    const isHigh = normalized.includes('HIGH');
+    return (
+        <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1">
+                <div className={`w-8 h-2.5 rounded-l-full ${isLow || isMed || isHigh ? 'bg-gradient-to-r from-emerald-400 to-emerald-500' : 'bg-gray-200 dark:bg-gray-700'}`} />
+                <div className={`w-8 h-2.5 ${isMed || isHigh ? 'bg-gradient-to-r from-amber-400 to-orange-400' : 'bg-gray-200 dark:bg-gray-700'}`} />
+                <div className={`w-8 h-2.5 rounded-r-full ${isHigh ? 'bg-gradient-to-r from-red-400 to-rose-500' : 'bg-gray-200 dark:bg-gray-700'}`} />
+            </div>
+            <span className={`text-xs font-bold uppercase tracking-wider ${isHigh ? 'text-red-500' : isMed ? 'text-amber-500' : 'text-emerald-500'}`}>{isHigh ? 'HIGH' : isMed ? 'MEDIUM' : 'LOW'}</span>
+        </div>
+    );
+};
+
+const MilestoneTimeline: FC<{ lines: string[] }> = ({ lines }) => (
+    <div className="relative pl-4">
+        <div className="absolute left-[7px] top-2 bottom-2 w-0.5 bg-gradient-to-b from-violet-400 to-purple-600 rounded-full" />
+        {lines.map((line, i) => (
+            <div key={i} className="relative flex items-start gap-3 py-2">
+                <div className="absolute left-[-13px] top-3 w-3 h-3 rounded-full bg-white dark:bg-gray-800 border-2 border-violet-500 shadow-sm shadow-violet-500/30 z-10" />
+                <span className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">{renderInlineBold(line.replace(/^-\s*/, ''))}</span>
+            </div>
+        ))}
+    </div>
+);
+
+const sectionConfig: Record<string, { icon: React.ReactNode; gradient: string; bgGlow: string }> = {
+    'executive summary': {
+        icon: <ClipboardCheck size={15} className="text-white" />,
+        gradient: 'from-[#c20c0b] via-red-600 to-pink-600',
+        bgGlow: 'bg-red-500/5 dark:bg-red-500/10',
+    },
+    'current progress': {
+        icon: <Clock size={15} className="text-white" />,
+        gradient: 'from-amber-500 via-orange-500 to-red-400',
+        bgGlow: 'bg-amber-500/5 dark:bg-amber-500/10',
+    },
+    'upcoming milestones': {
+        icon: <Anchor size={15} className="text-white" />,
+        gradient: 'from-violet-500 via-purple-500 to-pink-500',
+        bgGlow: 'bg-violet-500/5 dark:bg-violet-500/10',
+    },
+    'risk assessment': {
+        icon: <AlertTriangle size={15} className="text-white" />,
+        gradient: 'from-rose-500 via-red-500 to-orange-500',
+        bgGlow: 'bg-rose-500/5 dark:bg-rose-500/10',
+    },
+    'recommended actions': {
+        icon: <CheckCircle size={15} className="text-white" />,
+        gradient: 'from-emerald-500 via-teal-500 to-cyan-500',
+        bgGlow: 'bg-emerald-500/5 dark:bg-emerald-500/10',
+    },
+};
+
+const renderInlineBold = (str: string) => {
+    const parts = str.split(/(\*\*[^*]+\*\*)/g);
+    return parts.map((part, i) =>
+        part.startsWith('**') && part.endsWith('**')
+            ? <strong key={i} className="font-semibold text-gray-800 dark:text-white">{part.slice(2, -2)}</strong>
+            : <span key={i}>{part}</span>
+    );
+};
+
+interface AISummaryRendererProps {
+    text: string;
+    tasks: { status: string; plannedEndDate?: string; name: string }[];
+}
+
+const AISummaryRenderer: FC<AISummaryRendererProps> = ({ text, tasks }) => {
+    if (!text) return null;
+    const sections: { title: string; lines: string[] }[] = [];
+    let current: { title: string; lines: string[] } | null = null;
+    text.split('\n').forEach(line => {
+        if (line.startsWith('###')) {
+            if (current) sections.push(current);
+            current = { title: line.replace(/^###\s*/, '').trim(), lines: [] };
+        } else if (current) {
+            if (line.trim()) current.lines.push(line);
+        } else if (line.trim()) {
+            if (!sections.length && !current) current = { title: '', lines: [line] };
+        }
+    });
+    if (current) sections.push(current);
+
+    const totalTasks = tasks.length;
+    const completed = tasks.filter(t => t.status === 'COMPLETE').length;
+    const inProgress = tasks.filter(t => t.status === 'IN PROGRESS').length;
+    const overdue = tasks.filter(t => t.plannedEndDate && new Date(t.plannedEndDate) < new Date() && t.status !== 'COMPLETE').length;
+    const todo = tasks.filter(t => t.status === 'TO DO').length;
+    const pct = totalTasks > 0 ? Math.round((completed / totalTasks) * 100) : 0;
+
+    return (
+        <div className="space-y-4">
+            {sections.map((section, idx) => {
+                const key = section.title.toLowerCase();
+                const config = sectionConfig[key] || { icon: <Info size={15} className="text-white" />, gradient: 'from-gray-500 to-gray-600', bgGlow: '' };
+
+                // Detect risk level from content
+                const riskLevel = key === 'risk assessment' ? (section.lines.join(' ')) : '';
+
+                return (
+                    <div key={idx} className={`rounded-2xl border border-gray-200/80 dark:border-gray-700/30 overflow-hidden ${config.bgGlow} backdrop-blur-sm shadow-sm hover:shadow-md transition-shadow duration-300`}>
+                        {section.title && (
+                            <div className={`bg-gradient-to-r ${config.gradient} px-4 py-3 flex items-center gap-2.5 relative overflow-hidden`}>
+                                <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMSIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjEpIi8+PC9zdmc+')] opacity-40" />
+                                <div className="w-7 h-7 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0">
+                                    {config.icon}
+                                </div>
+                                <h3 className="text-sm font-bold text-white uppercase tracking-wider relative z-10">{section.title}</h3>
+                            </div>
+                        )}
+                        <div className="p-4 space-y-3">
+                            {/* Infographic for Executive Summary */}
+                            {key === 'executive summary' && (
+                                <div className="flex items-center gap-5 pb-3 mb-3 border-b border-gray-100 dark:border-gray-700/30">
+                                    <div className="relative flex-shrink-0">
+                                        <CircularProgress percent={pct} size={72} strokeWidth={6} />
+                                        <div className="absolute inset-0 flex items-center justify-center">
+                                            <span className="text-base font-bold text-gray-800 dark:text-white">{pct}%</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <StatusDistributionBar completed={completed} inProgress={inProgress} todo={todo} overdue={overdue} total={totalTasks} />
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Infographic for Current Progress */}
+                            {key === 'current progress' && inProgress > 0 && (
+                                <div className="grid grid-cols-3 gap-2 pb-3 mb-3 border-b border-gray-100 dark:border-gray-700/30">
+                                    {tasks.filter(t => t.status === 'IN PROGRESS').slice(0, 3).map((t, ti) => {
+                                        const due = t.plannedEndDate ? new Date(t.plannedEndDate) : null;
+                                        const daysLeft = due ? Math.ceil((due.getTime() - Date.now()) / 86400000) : null;
+                                        return (
+                                            <div key={ti} className="bg-white dark:bg-gray-800/60 rounded-xl p-2.5 border border-amber-200/50 dark:border-amber-500/20 text-center">
+                                                <div className={`text-lg font-bold ${daysLeft !== null && daysLeft < 0 ? 'text-red-500' : daysLeft !== null && daysLeft <= 3 ? 'text-amber-500' : 'text-gray-700 dark:text-gray-200'}`}>
+                                                    {daysLeft !== null ? (daysLeft < 0 ? `${Math.abs(daysLeft)}d late` : `${daysLeft}d`) : '—'}
+                                                </div>
+                                                <div className="text-[10px] text-gray-500 dark:text-gray-400 truncate mt-0.5">{t.name}</div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {/* Timeline for Upcoming Milestones */}
+                            {key === 'upcoming milestones' && section.lines.some(l => l.startsWith('- ')) ? (
+                                <MilestoneTimeline lines={section.lines.filter(l => l.startsWith('- '))} />
+                            ) : key === 'upcoming milestones' ? (
+                                section.lines.map((line, i) => <p key={i} className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">{renderInlineBold(line.replace(/^-\s*/, ''))}</p>)
+                            ) : null}
+
+                            {/* Risk Gauge for Risk Assessment */}
+                            {key === 'risk assessment' && (
+                                <div className="pb-3 mb-3 border-b border-gray-100 dark:border-gray-700/30">
+                                    <RiskGauge level={riskLevel} />
+                                </div>
+                            )}
+
+                            {/* Checklist for Recommended Actions */}
+                            {key === 'recommended actions' ? (
+                                <div className="space-y-2">
+                                    {section.lines.map((line, i) => (
+                                        <div key={i} className="flex items-start gap-3 p-2.5 bg-white dark:bg-gray-800/40 rounded-xl border border-emerald-100 dark:border-emerald-500/10">
+                                            <div className="mt-0.5 w-5 h-5 rounded-md bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center flex-shrink-0">
+                                                <CheckCircle size={12} className="text-white" />
+                                            </div>
+                                            <span className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">{renderInlineBold(line.replace(/^-\s*/, ''))}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : null}
+
+                            {/* Default bullet rendering for sections without special infographics */}
+                            {key !== 'upcoming milestones' && key !== 'recommended actions' && (
+                                <div className="space-y-1.5">
+                                    {section.lines.map((line, i) => {
+                                        if (line.startsWith('- ')) {
+                                            return (
+                                                <div key={i} className="flex items-start gap-2.5 py-0.5">
+                                                    <span className={`mt-1.5 w-1.5 h-1.5 rounded-full bg-gradient-to-r ${config.gradient} flex-shrink-0`} />
+                                                    <span className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">{renderInlineBold(line.substring(2))}</span>
+                                                </div>
+                                            );
+                                        }
+                                        return <p key={i} className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">{renderInlineBold(line)}</p>;
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+    );
+};
+
+// Keep simple MarkdownRenderer as alias for backward compat
+const MarkdownRenderer: FC<{ text: string }> = ({ text }) => (
+    <AISummaryRenderer text={text} tasks={[]} />
+);
 
 function formatBytes(bytes: number): string {
     if (bytes < 1024) return `${bytes} B`;
@@ -668,14 +897,16 @@ export default function CrmOrderDetail({
     const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
     const [orderSummary, setOrderSummary] = useState('');
     const [isSummaryLoading, setIsSummaryLoading] = useState(false);
+    const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+    const summaryContentRef = useRef<HTMLDivElement>(null);
     const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
     const [riskScore, setRiskScore] = useState<'green' | 'amber' | 'red'>(
-        (order.riskScore as 'green' | 'amber' | 'red') || calculateOrderRiskScore(order.tasks)
+        calculateOrderRiskScore(order.tasks)
     );
 
     useEffect(() => {
         setLocalOrder(order);
-        setRiskScore((order.riskScore as 'green' | 'amber' | 'red') || calculateOrderRiskScore(order.tasks));
+        setRiskScore(calculateOrderRiskScore(order.tasks));
     }, [order]);
 
     const status = localOrder.status || 'In Production';
@@ -745,28 +976,49 @@ export default function CrmOrderDetail({
         setIsSummaryModalOpen(true);
         setIsSummaryLoading(true);
         setOrderSummary('');
-        const products = localOrder.products || [{ id: 'default', name: localOrder.product }];
-        const productDetails = products.map(p => {
-            const pTasks = localOrder.tasks.filter(t => t.productId === p.id);
-            const completed = pTasks.filter(t => t.status === 'COMPLETE').length;
-            const taskLines = pTasks.map(t => `  - ${t.name}: ${t.status} (Due: ${t.plannedEndDate})`).join('\n');
-            return `**${p.name}** (${completed}/${pTasks.length} complete)\n${taskLines}`;
-        }).join('\n\n');
-        const prompt = `
-            Generate a professional project report and order summary for the following garment production order:
+        const tasks = localOrder.tasks || [];
+        const totalTasks = tasks.length;
+        const completedTasks = tasks.filter(t => t.status === 'COMPLETE').length;
+        const inProgressTasks = tasks.filter(t => t.status === 'IN PROGRESS');
+        const todoTasks = tasks.filter(t => t.status === 'TO DO');
+        const overdueTasks = tasks.filter(t => t.plannedEndDate && new Date(t.plannedEndDate) < new Date() && t.status !== 'COMPLETE');
+        const progressPct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+        const taskDetails = tasks.map(t => `- ${t.name}: ${t.status} (Due: ${t.plannedEndDate || 'N/A'})`).join('\n');
+        const prompt = `You are a garment production project manager writing a structured order report. Be concise, data-driven, and actionable.
 
-            **Order ID:** ${orderId}
-            **Products:**
-            ${productDetails}
+Order: ${localOrder.product} (ID: ${orderId})
+Customer: ${localOrder.customer}
+Products: ${localOrder.products?.map(p => p.name).join(', ') || localOrder.product}
+Progress: ${completedTasks}/${totalTasks} tasks complete (${progressPct}%)
+In Progress: ${inProgressTasks.map(t => t.name).join(', ') || 'None'}
+Overdue: ${overdueTasks.map(t => `${t.name} (due ${t.plannedEndDate})`).join(', ') || 'None'}
+Next Up: ${todoTasks.slice(0, 3).map(t => t.name).join(', ') || 'None'}
 
-            Please structure your response with the following sections:
-            1.  **Overall Status:** A one-sentence overview of the order's health, including the percentage of tasks completed.
-            2.  **Current Focus:** Describe what is actively being worked on (tasks in progress).
-            3.  **Upcoming Milestones:** List the next 2-3 important tasks from the 'TO DO' list.
-            4.  **Potential Risks:** Identify any potential risks based on the task list. If none are apparent, state "No immediate risks identified."
+All Tasks:
+${taskDetails}
 
-            Format the response clearly using markdown for headings and lists.
-        `;
+Reply using EXACTLY this format with these section headers (use ### for headers):
+
+### Executive Summary
+One paragraph: overall health, completion percentage, and timeline assessment.
+
+### Current Progress
+- List each in-progress task with its due date
+- If nothing is in progress, say so
+
+### Upcoming Milestones
+- List next 3 upcoming tasks from TO DO with their planned dates
+- If none, say "All tasks are either in progress or complete"
+
+### Risk Assessment
+- List specific risks (overdue tasks, tight timelines, bottlenecks)
+- Rate overall risk as LOW / MEDIUM / HIGH
+- If no risks, say "LOW — No immediate risks identified"
+
+### Recommended Actions
+- 2-3 specific actionable next steps the team should take
+
+Keep it professional and brief. Use bullet points, not paragraphs (except Executive Summary).`;
         try {
             const summary = await callGeminiAPI(prompt);
             setOrderSummary(summary);
@@ -775,6 +1027,193 @@ export default function CrmOrderDetail({
             setOrderSummary("### Error\nSorry, I was unable to generate a summary at this time. Please try again later.");
         } finally {
             setIsSummaryLoading(false);
+        }
+    };
+
+    const downloadSummaryPdf = async () => {
+        if (!orderSummary) return;
+        setIsDownloadingPdf(true);
+        try {
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pageWidth = 210;
+            const pageHeight = 297;
+            const margin = 15;
+            const contentWidth = pageWidth - margin * 2;
+            let y = 0;
+
+            const sectionColors: Record<string, [number, number, number]> = {
+                'executive summary': [194, 12, 11],
+                'current progress': [245, 158, 11],
+                'upcoming milestones': [139, 92, 246],
+                'risk assessment': [239, 68, 68],
+                'recommended actions': [16, 185, 129],
+            };
+
+            const checkPage = (needed: number) => {
+                if (y + needed > pageHeight - 20) {
+                    pdf.addPage();
+                    y = 15;
+                }
+            };
+
+            // --- Header banner ---
+            pdf.setFillColor(194, 12, 11);
+            pdf.rect(0, 0, pageWidth, 32, 'F');
+            // Accent stripe
+            pdf.setFillColor(160, 8, 8);
+            pdf.rect(0, 32, pageWidth, 1.5, 'F');
+            pdf.setTextColor(255, 255, 255);
+            pdf.setFontSize(16);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('AI Project Report', margin, 14);
+            pdf.setFontSize(9);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text(`${localOrder.product} — ${localOrder.customer}`, margin, 22);
+            pdf.setFontSize(8);
+            pdf.text(new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }), pageWidth - margin, 14, { align: 'right' });
+            pdf.text(`Order ID: ${orderId}`, pageWidth - margin, 22, { align: 'right' });
+
+            y = 38;
+
+            // --- Stats bar ---
+            const tasks = localOrder.tasks || [];
+            const total = tasks.length;
+            const done = tasks.filter(t => t.status === 'COMPLETE').length;
+            const active = tasks.filter(t => t.status === 'IN PROGRESS').length;
+            const overdue = tasks.filter(t => t.plannedEndDate && new Date(t.plannedEndDate) < new Date() && t.status !== 'COMPLETE').length;
+            const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+
+            pdf.setFillColor(248, 248, 248);
+            pdf.roundedRect(margin, y, contentWidth, 18, 3, 3, 'F');
+            pdf.setDrawColor(230, 230, 230);
+            pdf.roundedRect(margin, y, contentWidth, 18, 3, 3, 'S');
+
+            const statW = contentWidth / 4;
+            const stats = [
+                { label: 'PROGRESS', value: `${pct}%`, color: [50, 50, 50] as [number, number, number] },
+                { label: 'COMPLETED', value: `${done}`, color: [16, 185, 129] as [number, number, number] },
+                { label: 'ACTIVE', value: `${active}`, color: [245, 158, 11] as [number, number, number] },
+                { label: 'OVERDUE', value: `${overdue}`, color: overdue > 0 ? [239, 68, 68] as [number, number, number] : [160, 160, 160] as [number, number, number] },
+            ];
+            stats.forEach((s, i) => {
+                const sx = margin + statW * i + statW / 2;
+                pdf.setTextColor(...s.color);
+                pdf.setFontSize(14);
+                pdf.setFont('helvetica', 'bold');
+                pdf.text(s.value, sx, y + 9, { align: 'center' });
+                pdf.setTextColor(140, 140, 140);
+                pdf.setFontSize(6);
+                pdf.setFont('helvetica', 'normal');
+                pdf.text(s.label, sx, y + 14, { align: 'center' });
+                // Divider line
+                if (i < 3) {
+                    pdf.setDrawColor(220, 220, 220);
+                    pdf.line(margin + statW * (i + 1), y + 3, margin + statW * (i + 1), y + 15);
+                }
+            });
+
+            // Progress bar
+            y += 22;
+            pdf.setFillColor(235, 235, 235);
+            pdf.roundedRect(margin, y, contentWidth, 3, 1.5, 1.5, 'F');
+            if (done > 0) {
+                pdf.setFillColor(16, 185, 129);
+                pdf.roundedRect(margin, y, contentWidth * (done / total), 3, 1.5, 1.5, 'F');
+            }
+            if (active > 0) {
+                pdf.setFillColor(245, 158, 11);
+                pdf.rect(margin + contentWidth * (done / total), y, contentWidth * (active / total), 3, 'F');
+            }
+            if (overdue > 0) {
+                pdf.setFillColor(239, 68, 68);
+                const overdueStart = margin + contentWidth * ((done + active) / total);
+                pdf.rect(overdueStart, y, contentWidth * (overdue / total), 3, 'F');
+            }
+
+            y += 10;
+
+            // --- Parse and render sections ---
+            const sections: { title: string; lines: string[] }[] = [];
+            let current: { title: string; lines: string[] } | null = null;
+            orderSummary.split('\n').forEach(line => {
+                if (line.startsWith('###')) {
+                    if (current) sections.push(current);
+                    current = { title: line.replace(/^###\s*/, '').trim(), lines: [] };
+                } else if (current) {
+                    if (line.trim()) current.lines.push(line.trim());
+                } else if (line.trim()) {
+                    if (!current) current = { title: '', lines: [line.trim()] };
+                }
+            });
+            if (current) sections.push(current);
+
+            sections.forEach(section => {
+                checkPage(25);
+
+                // Section header with colored bar
+                const key = section.title.toLowerCase();
+                const color = sectionColors[key] || [100, 100, 100];
+
+                if (section.title) {
+                    pdf.setFillColor(...color);
+                    pdf.roundedRect(margin, y, contentWidth, 8, 2, 2, 'F');
+                    pdf.setTextColor(255, 255, 255);
+                    pdf.setFontSize(8);
+                    pdf.setFont('helvetica', 'bold');
+                    pdf.text(section.title.toUpperCase(), margin + 4, y + 5.5);
+                    y += 12;
+                }
+
+                // Section content
+                section.lines.forEach(line => {
+                    checkPage(8);
+                    const cleanLine = line.replace(/\*\*/g, '');
+                    const isBullet = line.startsWith('- ');
+                    const bulletText = isBullet ? cleanLine.substring(2) : cleanLine;
+
+                    if (isBullet) {
+                        // Colored bullet dot
+                        pdf.setFillColor(...color);
+                        pdf.circle(margin + 2, y - 0.5, 0.8, 'F');
+                        pdf.setTextColor(60, 60, 60);
+                        pdf.setFontSize(9);
+                        pdf.setFont('helvetica', 'normal');
+                        const wrappedLines = pdf.splitTextToSize(bulletText, contentWidth - 8);
+                        pdf.text(wrappedLines, margin + 6, y);
+                        y += wrappedLines.length * 4.5 + 1.5;
+                    } else {
+                        // Check if line has bold markers
+                        const hasBold = /\*\*/.test(line);
+                        pdf.setTextColor(50, 50, 50);
+                        pdf.setFontSize(9);
+                        pdf.setFont('helvetica', hasBold ? 'bold' : 'normal');
+                        const wrappedLines = pdf.splitTextToSize(cleanLine, contentWidth - 2);
+                        pdf.text(wrappedLines, margin + 1, y);
+                        y += wrappedLines.length * 4.5 + 1.5;
+                    }
+                });
+                y += 4;
+            });
+
+            // --- Footer on every page ---
+            const pageCount = pdf.getNumberOfPages();
+            for (let i = 1; i <= pageCount; i++) {
+                pdf.setPage(i);
+                pdf.setDrawColor(230, 230, 230);
+                pdf.line(margin, pageHeight - 12, pageWidth - margin, pageHeight - 12);
+                pdf.setFontSize(7);
+                pdf.setTextColor(160, 160, 160);
+                pdf.setFont('helvetica', 'normal');
+                pdf.text('Powered by Gemini AI', margin, pageHeight - 7);
+                pdf.text(`Page ${i} of ${pageCount}`, pageWidth - margin, pageHeight - 7, { align: 'right' });
+            }
+
+            const fileName = `AI-Report-${(localOrder.product || 'Order').replace(/\s+/g, '-')}-${new Date().toISOString().slice(0, 10)}.pdf`;
+            pdf.save(fileName);
+        } catch (err) {
+            console.error('PDF download failed:', err);
+        } finally {
+            setIsDownloadingPdf(false);
         }
     };
 
@@ -856,37 +1295,123 @@ export default function CrmOrderDetail({
             </div>
 
             {/* AI Summary Modal */}
-            {isSummaryModalOpen && (
+            {isSummaryModalOpen && (() => {
+                const mTasks = localOrder.tasks || [];
+                const mTotal = mTasks.length;
+                const mCompleted = mTasks.filter(t => t.status === 'COMPLETE').length;
+                const mInProgress = mTasks.filter(t => t.status === 'IN PROGRESS').length;
+                const mOverdue = mTasks.filter(t => t.plannedEndDate && new Date(t.plannedEndDate) < new Date() && t.status !== 'COMPLETE').length;
+                const mPct = mTotal > 0 ? Math.round((mCompleted / mTotal) * 100) : 0;
+                return (
                 <div
-                    className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4 animate-fade-in"
+                    className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[60] p-4 animate-fade-in overflow-hidden"
                     onClick={() => setIsSummaryModalOpen(false)}
                 >
                     <div
-                        className="bg-white/90 backdrop-blur-xl dark:bg-gray-900/95 dark:backdrop-blur-xl rounded-2xl shadow-2xl p-6 sm:p-8 w-full max-w-2xl relative border border-gray-200 dark:border-white/10"
+                        className="bg-white dark:bg-gray-950 rounded-3xl shadow-2xl shadow-red-500/5 w-full max-w-3xl max-h-[90vh] flex flex-col relative border border-gray-200 dark:border-white/5 animate-scale-in overflow-hidden"
                         onClick={e => e.stopPropagation()}
                     >
-                        <button onClick={() => setIsSummaryModalOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition">
-                            <X size={24} />
-                        </button>
-                        <div className="flex items-center gap-3 mb-6">
-                            <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                                <Bot className="w-6 h-6 text-[#c20c0b]" />
+                        {/* Gradient Header */}
+                        <div className="relative flex-shrink-0 bg-gradient-to-br from-[#c20c0b] via-rose-600 to-pink-700 px-6 py-6 overflow-hidden">
+                            {/* Decorative elements */}
+                            <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full filter blur-3xl -translate-y-1/2 translate-x-1/4" />
+                            <div className="absolute bottom-0 left-0 w-48 h-48 bg-black/10 rounded-full filter blur-3xl translate-y-1/2 -translate-x-1/4" />
+                            <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iMSIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjA4KSIvPjwvc3ZnPg==')] opacity-60" />
+
+                            <div className="relative z-10">
+                                <div className="flex items-center justify-between mb-5">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2.5 bg-white/20 backdrop-blur-sm rounded-xl">
+                                            <Bot className="w-5 h-5 text-white" />
+                                        </div>
+                                        <div>
+                                            <h2 className="text-lg font-bold text-white tracking-tight">AI Project Report</h2>
+                                            <p className="text-xs text-white/60 mt-0.5">{localOrder.product} • {localOrder.customer}</p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => setIsSummaryModalOpen(false)}
+                                        className="p-2 text-white/60 hover:text-white transition-colors rounded-xl hover:bg-white/10"
+                                    >
+                                        <X size={20} />
+                                    </button>
+                                </div>
+                                {/* Quick Stats Bar */}
+                                {!isSummaryLoading && (
+                                    <div className="grid grid-cols-4 gap-2">
+                                        <div className="bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2.5 text-center border border-white/10">
+                                            <div className="relative mx-auto w-10 h-10 mb-1">
+                                                <CircularProgress percent={mPct} size={40} strokeWidth={3} color="white" />
+                                                <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">{mPct}%</span>
+                                            </div>
+                                            <p className="text-[10px] text-white/60 uppercase tracking-wider font-medium">Progress</p>
+                                        </div>
+                                        <div className="bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2.5 text-center border border-white/10">
+                                            <p className="text-2xl font-bold text-white">{mCompleted}</p>
+                                            <p className="text-[10px] text-white/60 uppercase tracking-wider font-medium">Done</p>
+                                        </div>
+                                        <div className="bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2.5 text-center border border-white/10">
+                                            <p className="text-2xl font-bold text-white">{mInProgress}</p>
+                                            <p className="text-[10px] text-white/60 uppercase tracking-wider font-medium">Active</p>
+                                        </div>
+                                        <div className="bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2.5 text-center border border-white/10">
+                                            <p className={`text-2xl font-bold ${mOverdue > 0 ? 'text-yellow-300' : 'text-white/40'}`}>{mOverdue}</p>
+                                            <p className="text-[10px] text-white/60 uppercase tracking-wider font-medium">Overdue</p>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                            <h2 className="text-2xl font-bold text-gray-800 dark:text-white">AI Order Summary</h2>
                         </div>
-                        <div className="min-h-[200px] max-h-[60vh] overflow-y-auto prose prose-sm max-w-none">
+                        {/* Content */}
+                        <div ref={summaryContentRef} className="min-h-0 flex-1 overflow-y-auto p-5 bg-gradient-to-b from-gray-50 to-white dark:from-gray-900/80 dark:to-gray-950">
                             {isSummaryLoading ? (
-                                <div className="flex items-center justify-center h-[200px] flex-col">
-                                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#c20c0b]" />
-                                    <p className="mt-4 text-gray-500 dark:text-gray-400">Analyzing order data...</p>
+                                <div className="flex items-center justify-center flex-col py-20">
+                                    <div className="relative">
+                                        <div className="animate-spin rounded-full h-16 w-16 border-[3px] border-gray-200 dark:border-gray-700" />
+                                        <div className="animate-spin rounded-full h-16 w-16 border-[3px] border-t-[#c20c0b] dark:border-t-red-400 absolute top-0" />
+                                        <div className="absolute inset-0 flex items-center justify-center">
+                                            <Bot size={18} className="text-[#c20c0b] dark:text-red-400 animate-pulse" />
+                                        </div>
+                                    </div>
+                                    <p className="mt-6 text-sm text-gray-500 dark:text-gray-400 font-medium">Generating project report...</p>
+                                    <div className="mt-3 flex items-center gap-1">
+                                        <span className="w-1.5 h-1.5 bg-[#c20c0b] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                                        <span className="w-1.5 h-1.5 bg-[#c20c0b] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                                        <span className="w-1.5 h-1.5 bg-[#c20c0b] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                                    </div>
                                 </div>
                             ) : (
-                                <MarkdownRenderer text={orderSummary} />
+                                <AISummaryRenderer text={orderSummary} tasks={mTasks} />
                             )}
+                        </div>
+                        {/* Footer */}
+                        <div className="flex-shrink-0 px-6 py-3 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between bg-white dark:bg-gray-950">
+                            <p className="text-[10px] text-gray-400 flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Powered by Gemini AI
+                            </p>
+                            <div className="flex items-center gap-2">
+                                {!isSummaryLoading && orderSummary && (
+                                    <button
+                                        onClick={downloadSummaryPdf}
+                                        disabled={isDownloadingPdf}
+                                        className="text-xs font-semibold text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white flex items-center gap-1.5 disabled:opacity-50 transition-colors px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-700"
+                                    >
+                                        <Download size={11} className={isDownloadingPdf ? 'animate-bounce' : ''} /> {isDownloadingPdf ? 'Exporting...' : 'Download PDF'}
+                                    </button>
+                                )}
+                                <button
+                                    onClick={generateOrderSummary}
+                                    disabled={isSummaryLoading}
+                                    className="text-xs font-semibold text-[#c20c0b] hover:text-red-700 dark:hover:text-red-300 flex items-center gap-1.5 disabled:opacity-50 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
+                            >
+                                <RefreshCw size={11} className={isSummaryLoading ? 'animate-spin' : ''} /> Regenerate
+                            </button>
+                            </div>
                         </div>
                     </div>
                 </div>
-            )}
+                );
+            })()}
         </div>
     );
 }

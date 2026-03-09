@@ -44,16 +44,41 @@ export interface MachineSlot {
     nextAvailable: string;
 }
 
+export interface CatalogProduct {
+    id: string;
+    name: string;
+    description: string;
+    category: string;
+    subcategory?: string;
+    images: string[];
+    brochureUrl?: string;
+    fabricComposition: string;
+    availableColors: string[];
+    sizeRange: string;
+    moq?: number;
+    priceRange?: string;
+    leadTime?: string;
+    tags: string[];
+    featured?: boolean;
+}
+
+export interface FabricOption {
+    name: string;
+    composition: string;
+    weightGSM?: string;
+    useCases: string;
+    swatchImageUrl?: string;
+    pricePerMeter?: string;
+}
+
 export interface FactoryCatalog {
-    productCategories: {
+    products: CatalogProduct[];
+    fabricOptions: FabricOption[];
+    brochureUrl?: string;
+    productCategories?: {
         name: string;
         description: string;
         imageUrl: string;
-    }[];
-    fabricOptions: {
-        name: string;
-        composition: string;
-        useCases: string;
     }[];
 }
 

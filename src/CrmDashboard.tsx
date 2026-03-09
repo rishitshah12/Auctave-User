@@ -437,7 +437,7 @@ export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user
                             certifications: f.certifications || [],
                             specialties: f.specialties || [],
                             machineSlots: f.machine_slots || [],
-                            catalog: f.catalog || { productCategories: [], fabricOptions: [] }
+                            catalog: f.catalog || { products: [], fabricOptions: [] }
                         })) || [];
                         return { data: transformed, error: null };
                     });

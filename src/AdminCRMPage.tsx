@@ -2670,7 +2670,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                             ) : (
                                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                                     {orders
-                                        .map(order => ({ order, riskScore: order.risk_score || calculateOrderRiskScore(order.tasks || []) }))
+                                        .map(order => ({ order, riskScore: calculateOrderRiskScore(order.tasks || []) }))
                                         .filter(({ riskScore }) => !showAtRiskOnly || riskScore === 'amber' || riskScore === 'red')
                                         .sort((a, b) => {
                                             const rank: Record<string, number> = { red: 0, amber: 1, green: 2 };
@@ -2716,7 +2716,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                     <h2 className="text-lg font-bold text-gray-800 dark:text-white truncate">
                                         {transformedOrder.product}
                                     </h2>
-                                    <RiskBadge score={(orders.find(o => o.id === selectedOrderId)?.risk_score || calculateOrderRiskScore(transformedOrder.tasks || [])) as any} />
+                                    <RiskBadge score={calculateOrderRiskScore(transformedOrder.tasks || [])} />
                                     {isSaving ? (
                                         <span className="hidden sm:inline flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex-shrink-0">
                                             <Loader2 size={11} className="animate-spin" /> Saving…

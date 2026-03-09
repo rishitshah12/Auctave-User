@@ -5,7 +5,7 @@ import {
     GanttChartSquare, Bot, FileText, Ship, DollarSign, Download, MapPin, Plus, ChevronDown, X,
     Star, AlertCircle, ArrowRight, ArrowLeft, Building, Clock, Flag,
     Activity, Scissors, Target, Zap, ChevronRight, ChevronLeft, Pencil, Save, ChevronUp, Trash2,
-    User, CalendarDays, AlertTriangle, Calendar, Paperclip, CheckCircle2, ThumbsUp, ThumbsDown
+    User, CalendarDays, AlertTriangle, Calendar, Paperclip, CheckCircle2, ThumbsUp, ThumbsDown, RefreshCw
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Pie, Cell, PieChart
@@ -14,6 +14,7 @@ import { MainLayout } from '../src/MainLayout';
 import { CrmOrder, CrmProduct, CrmTask, Factory } from '../src/types';
 import { crmService } from './crm.service';
 import { normalizeOrder, getOrderStatusColor } from './utils';
+import jsPDF from 'jspdf';
 
 interface CRMPageProps {
     pageKey: number;
@@ -2428,9 +2429,47 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
     const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
     const [orderSummary, setOrderSummary] = useState('');
     const [isSummaryLoading, setIsSummaryLoading] = useState(false);
+    const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+    const summaryContentRef = useRef<HTMLDivElement>(null);
     const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+    const [inlineSummary, setInlineSummary] = useState('');
+    const [inlineSummaryLoading, setInlineSummaryLoading] = useState(false);
+    const [inlineSummaryCollapsed, setInlineSummaryCollapsed] = useState(false);
+    const lastSummarizedOrderRef = useRef<string | null>(null);
 
     const activeOrder = activeOrderKey && crmData[activeOrderKey] ? { ...crmData[activeOrderKey], id: activeOrderKey } : null;
+
+    // Auto-generate inline AI summary when active order changes
+    useEffect(() => {
+        if (!activeOrder || !activeOrderKey || activeOrderKey === lastSummarizedOrderRef.current) return;
+        lastSummarizedOrderRef.current = activeOrderKey;
+        setInlineSummary('');
+        setInlineSummaryLoading(true);
+        setInlineSummaryCollapsed(false);
+        const tasks = activeOrder.tasks || [];
+        const total = tasks.length;
+        const completed = tasks.filter(t => t.status === 'COMPLETE').length;
+        const inProgress = tasks.filter(t => t.status === 'IN PROGRESS').length;
+        const overdue = tasks.filter(t => t.plannedEndDate && new Date(t.plannedEndDate) < new Date() && t.status !== 'COMPLETE').length;
+        const nextTasks = tasks.filter(t => t.status === 'TO DO').slice(0, 3).map(t => t.name).join(', ');
+        const inProgressNames = tasks.filter(t => t.status === 'IN PROGRESS').map(t => t.name).join(', ');
+        const prompt = `You are an order tracking assistant. Give a brief 3-line status update for this garment order. Be direct and specific — no headers, no markdown, just plain sentences.
+
+Order: ${activeOrder.product} (${activeOrderKey})
+Progress: ${completed}/${total} tasks complete, ${inProgress} in progress, ${overdue} overdue
+Currently active: ${inProgressNames || 'None'}
+Next up: ${nextTasks || 'None'}
+Products: ${activeOrder.products?.map(p => p.name).join(', ') || activeOrder.product}
+
+Reply with exactly 3 short sentences: 1) overall status, 2) what's happening now, 3) what to watch out for.`;
+        callGeminiAPI(prompt).then(summary => {
+            setInlineSummary(summary);
+        }).catch(() => {
+            setInlineSummary('Unable to generate summary at this time.');
+        }).finally(() => {
+            setInlineSummaryLoading(false);
+        });
+    }, [activeOrderKey, activeOrder]);
 
     const handleBuyerConfirm = async (task: CrmTask, confirmed: boolean, reason?: string) => {
         if (!activeOrderKey) return;
@@ -2497,25 +2536,49 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
         setIsSummaryModalOpen(true);
         setIsSummaryLoading(true);
         setOrderSummary('');
-        const taskDetails = activeOrder.tasks.map(t => `- ${t.name}: ${t.status} (Due: ${t.plannedEndDate})`).join('\n');
-        const prompt = `
-            Generate a professional project report and order summary for the following garment production order:
-            
-            **Order ID:** ${activeOrderKey}
-            **Customer:** ${activeOrder.customer}
-            **Product:** ${activeOrder.product}
+        const tasks = activeOrder.tasks || [];
+        const totalTasks = tasks.length;
+        const completedTasks = tasks.filter(t => t.status === 'COMPLETE').length;
+        const inProgressTasks = tasks.filter(t => t.status === 'IN PROGRESS');
+        const todoTasks = tasks.filter(t => t.status === 'TO DO');
+        const overdueTasks = tasks.filter(t => t.plannedEndDate && new Date(t.plannedEndDate) < new Date() && t.status !== 'COMPLETE');
+        const progressPct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+        const taskDetails = tasks.map(t => `- ${t.name}: ${t.status} (Due: ${t.plannedEndDate || 'N/A'})`).join('\n');
+        const prompt = `You are a garment production project manager writing a structured order report. Be concise, data-driven, and actionable.
 
-            **Current Task Status:**
-            ${taskDetails}
+Order: ${activeOrder.product} (ID: ${activeOrderKey})
+Customer: ${activeOrder.customer}
+Products: ${activeOrder.products?.map(p => p.name).join(', ') || activeOrder.product}
+Progress: ${completedTasks}/${totalTasks} tasks complete (${progressPct}%)
+In Progress: ${inProgressTasks.map(t => t.name).join(', ') || 'None'}
+Overdue: ${overdueTasks.map(t => `${t.name} (due ${t.plannedEndDate})`).join(', ') || 'None'}
+Next Up: ${todoTasks.slice(0, 3).map(t => t.name).join(', ') || 'None'}
 
-            Please structure your response with the following sections:
-            1.  **Overall Status:** A one-sentence overview of the order's health, including the percentage of tasks completed.
-            2.  **Current Focus:** Describe what is actively being worked on (tasks in progress).
-            3.  **Upcoming Milestones:** List the next 2-3 important tasks from the 'TO DO' list.
-            4.  **Potential Risks:** Identify any potential risks based on the task list. If none are apparent, state "No immediate risks identified."
-            
-            Format the response clearly using markdown for headings and lists.
-        `;
+All Tasks:
+${taskDetails}
+
+Reply using EXACTLY this format with these section headers (use ### for headers):
+
+### Executive Summary
+One paragraph: overall health, completion percentage, and timeline assessment.
+
+### Current Progress
+- List each in-progress task with its due date
+- If nothing is in progress, say so
+
+### Upcoming Milestones
+- List next 3 upcoming tasks from TO DO with their planned dates
+- If none, say "All tasks are either in progress or complete"
+
+### Risk Assessment
+- List specific risks (overdue tasks, tight timelines, bottlenecks)
+- Rate overall risk as LOW / MEDIUM / HIGH
+- If no risks, say "LOW — No immediate risks identified"
+
+### Recommended Actions
+- 2-3 specific actionable next steps the team should take
+
+Keep it professional and brief. Use bullet points, not paragraphs (except Executive Summary).`;
         try {
             const summary = await callGeminiAPI(prompt);
             setOrderSummary(summary);
@@ -2528,55 +2591,470 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
         }
     };
 
-    const MarkdownRenderer: FC<{ text: string }> = ({ text }) => {
-        if (!text) return null;
-        // A simple markdown-like renderer
-        const lines = text.split('\n').map((line, i) => {
-            if (line.startsWith('###')) return <h3 key={i} className="text-xl font-bold text-gray-800 dark:text-white mb-4">{line.replace('###', '')}</h3>;
-            if (line.startsWith('**')) return <p key={i} className="font-semibold text-gray-700 dark:text-white mt-4 mb-1">{line.replace(/\*\*/g, '')}</p>;
-            if (line.startsWith('- ')) return <li key={i} className="flex items-start my-1 text-gray-600 dark:text-gray-300"><span className="mr-3 mt-1.5 text-[var(--color-primary)]">∙</span><span>{line.substring(2)}</span></li>;
-            return <p key={i} className="text-gray-600 dark:text-gray-200">{line}</p>;
-        });
-        return <div className="space-y-1">{lines}</div>;
+    const downloadSummaryPdf = async () => {
+        if (!orderSummary) return;
+        setIsDownloadingPdf(true);
+        try {
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pageWidth = 210;
+            const pageHeight = 297;
+            const margin = 15;
+            const contentWidth = pageWidth - margin * 2;
+            let y = 0;
+
+            const sectionColors: Record<string, [number, number, number]> = {
+                'executive summary': [194, 12, 11],
+                'current progress': [245, 158, 11],
+                'upcoming milestones': [139, 92, 246],
+                'risk assessment': [239, 68, 68],
+                'recommended actions': [16, 185, 129],
+            };
+
+            const checkPage = (needed: number) => {
+                if (y + needed > pageHeight - 20) {
+                    pdf.addPage();
+                    y = 15;
+                }
+            };
+
+            // Header banner
+            pdf.setFillColor(194, 12, 11);
+            pdf.rect(0, 0, pageWidth, 32, 'F');
+            pdf.setFillColor(160, 8, 8);
+            pdf.rect(0, 32, pageWidth, 1.5, 'F');
+            pdf.setTextColor(255, 255, 255);
+            pdf.setFontSize(16);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('AI Project Report', margin, 14);
+            pdf.setFontSize(9);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text(`${activeOrder?.product || 'Order'} — ${activeOrder?.customer || ''}`, margin, 22);
+            pdf.setFontSize(8);
+            pdf.text(new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }), pageWidth - margin, 14, { align: 'right' });
+            pdf.text(`Order ID: ${activeOrderKey || ''}`, pageWidth - margin, 22, { align: 'right' });
+
+            y = 38;
+
+            // Stats bar
+            const tasks = activeOrder?.tasks || [];
+            const total = tasks.length;
+            const done = tasks.filter(t => t.status === 'COMPLETE').length;
+            const active = tasks.filter(t => t.status === 'IN PROGRESS').length;
+            const overdue = tasks.filter(t => t.plannedEndDate && new Date(t.plannedEndDate) < new Date() && t.status !== 'COMPLETE').length;
+            const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+
+            pdf.setFillColor(248, 248, 248);
+            pdf.roundedRect(margin, y, contentWidth, 18, 3, 3, 'F');
+            pdf.setDrawColor(230, 230, 230);
+            pdf.roundedRect(margin, y, contentWidth, 18, 3, 3, 'S');
+
+            const statW = contentWidth / 4;
+            const stats = [
+                { label: 'PROGRESS', value: `${pct}%`, color: [50, 50, 50] as [number, number, number] },
+                { label: 'COMPLETED', value: `${done}`, color: [16, 185, 129] as [number, number, number] },
+                { label: 'ACTIVE', value: `${active}`, color: [245, 158, 11] as [number, number, number] },
+                { label: 'OVERDUE', value: `${overdue}`, color: overdue > 0 ? [239, 68, 68] as [number, number, number] : [160, 160, 160] as [number, number, number] },
+            ];
+            stats.forEach((s, i) => {
+                const sx = margin + statW * i + statW / 2;
+                pdf.setTextColor(...s.color);
+                pdf.setFontSize(14);
+                pdf.setFont('helvetica', 'bold');
+                pdf.text(s.value, sx, y + 9, { align: 'center' });
+                pdf.setTextColor(140, 140, 140);
+                pdf.setFontSize(6);
+                pdf.setFont('helvetica', 'normal');
+                pdf.text(s.label, sx, y + 14, { align: 'center' });
+                if (i < 3) {
+                    pdf.setDrawColor(220, 220, 220);
+                    pdf.line(margin + statW * (i + 1), y + 3, margin + statW * (i + 1), y + 15);
+                }
+            });
+
+            // Progress bar
+            y += 22;
+            pdf.setFillColor(235, 235, 235);
+            pdf.roundedRect(margin, y, contentWidth, 3, 1.5, 1.5, 'F');
+            if (done > 0) { pdf.setFillColor(16, 185, 129); pdf.roundedRect(margin, y, contentWidth * (done / total), 3, 1.5, 1.5, 'F'); }
+            if (active > 0) { pdf.setFillColor(245, 158, 11); pdf.rect(margin + contentWidth * (done / total), y, contentWidth * (active / total), 3, 'F'); }
+            if (overdue > 0) { pdf.setFillColor(239, 68, 68); pdf.rect(margin + contentWidth * ((done + active) / total), y, contentWidth * (overdue / total), 3, 'F'); }
+
+            y += 10;
+
+            // Parse sections
+            const pdfSections: { title: string; lines: string[] }[] = [];
+            let cur: { title: string; lines: string[] } | null = null;
+            orderSummary.split('\n').forEach(line => {
+                if (line.startsWith('###')) {
+                    if (cur) pdfSections.push(cur);
+                    cur = { title: line.replace(/^###\s*/, '').trim(), lines: [] };
+                } else if (cur) {
+                    if (line.trim()) cur.lines.push(line.trim());
+                } else if (line.trim()) {
+                    if (!cur) cur = { title: '', lines: [line.trim()] };
+                }
+            });
+            if (cur) pdfSections.push(cur);
+
+            pdfSections.forEach(section => {
+                checkPage(25);
+                const key = section.title.toLowerCase();
+                const color = sectionColors[key] || [100, 100, 100];
+
+                if (section.title) {
+                    pdf.setFillColor(...color);
+                    pdf.roundedRect(margin, y, contentWidth, 8, 2, 2, 'F');
+                    pdf.setTextColor(255, 255, 255);
+                    pdf.setFontSize(8);
+                    pdf.setFont('helvetica', 'bold');
+                    pdf.text(section.title.toUpperCase(), margin + 4, y + 5.5);
+                    y += 12;
+                }
+
+                section.lines.forEach(line => {
+                    checkPage(8);
+                    const cleanLine = line.replace(/\*\*/g, '');
+                    const isBullet = line.startsWith('- ');
+                    const bulletText = isBullet ? cleanLine.substring(2) : cleanLine;
+
+                    if (isBullet) {
+                        pdf.setFillColor(...color);
+                        pdf.circle(margin + 2, y - 0.5, 0.8, 'F');
+                        pdf.setTextColor(60, 60, 60);
+                        pdf.setFontSize(9);
+                        pdf.setFont('helvetica', 'normal');
+                        const wrappedLines = pdf.splitTextToSize(bulletText, contentWidth - 8);
+                        pdf.text(wrappedLines, margin + 6, y);
+                        y += wrappedLines.length * 4.5 + 1.5;
+                    } else {
+                        const hasBold = /\*\*/.test(line);
+                        pdf.setTextColor(50, 50, 50);
+                        pdf.setFontSize(9);
+                        pdf.setFont('helvetica', hasBold ? 'bold' : 'normal');
+                        const wrappedLines = pdf.splitTextToSize(cleanLine, contentWidth - 2);
+                        pdf.text(wrappedLines, margin + 1, y);
+                        y += wrappedLines.length * 4.5 + 1.5;
+                    }
+                });
+                y += 4;
+            });
+
+            // Footer
+            const pageCount = pdf.getNumberOfPages();
+            for (let i = 1; i <= pageCount; i++) {
+                pdf.setPage(i);
+                pdf.setDrawColor(230, 230, 230);
+                pdf.line(margin, pageHeight - 12, pageWidth - margin, pageHeight - 12);
+                pdf.setFontSize(7);
+                pdf.setTextColor(160, 160, 160);
+                pdf.setFont('helvetica', 'normal');
+                pdf.text('Powered by Gemini AI', margin, pageHeight - 7);
+                pdf.text(`Page ${i} of ${pageCount}`, pageWidth - margin, pageHeight - 7, { align: 'right' });
+            }
+
+            const fileName = `AI-Report-${(activeOrder?.product || 'Order').replace(/\s+/g, '-')}-${new Date().toISOString().slice(0, 10)}.pdf`;
+            pdf.save(fileName);
+        } catch (err) {
+            console.error('PDF download failed:', err);
+        } finally {
+            setIsDownloadingPdf(false);
+        }
     };
 
-    const AIOrderSummaryModal: FC = () => (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-fade-in" onClick={() => setIsSummaryModalOpen(false)}>
-            <div className="bg-white dark:bg-gray-900/95 dark:backdrop-blur-xl rounded-3xl shadow-2xl p-6 sm:p-8 w-full max-w-3xl relative border border-gray-200 dark:border-white/10 animate-scale-in" onClick={e => e.stopPropagation()}>
-                <button
-                    onClick={() => setIsSummaryModalOpen(false)}
-                    className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
-                >
-                    <X size={24} />
-                </button>
-                <div className="flex items-center gap-3 mb-6">
-                    <div className="p-3 bg-gradient-to-br from-red-500 to-pink-600 rounded-xl shadow-lg">
-                        <Bot className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                        <h2 className="text-2xl font-extrabold text-gray-800 dark:text-white">AI Order Summary</h2>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Powered by Gemini AI</p>
+    // --- AI Summary Infographic Components ---
+    const CircularProgressLocal: FC<{ percent: number; size?: number; strokeWidth?: number; color?: string }> = ({ percent, size = 64, strokeWidth = 5, color = '#c20c0b' }) => {
+        const radius = (size - strokeWidth) / 2;
+        const circumference = 2 * Math.PI * radius;
+        const offset = circumference - (percent / 100) * circumference;
+        return (
+            <svg width={size} height={size} className="transform -rotate-90">
+                <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="currentColor" strokeWidth={strokeWidth} className="text-gray-200 dark:text-gray-700" />
+                <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={color} strokeWidth={strokeWidth} strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round" className="transition-all duration-1000 ease-out" />
+            </svg>
+        );
+    };
+
+    const StatusBarLocal: FC<{ completed: number; inProgress: number; todo: number; overdue: number; total: number }> = ({ completed, inProgress, todo, overdue, total }) => {
+        if (total === 0) return null;
+        const pct = (n: number) => Math.max((n / total) * 100, n > 0 ? 3 : 0);
+        return (
+            <div className="space-y-2">
+                <div className="flex h-3 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700/50">
+                    {completed > 0 && <div className="bg-gradient-to-r from-emerald-400 to-emerald-500 transition-all duration-700" style={{ width: `${pct(completed)}%` }} />}
+                    {inProgress > 0 && <div className="bg-gradient-to-r from-amber-400 to-orange-400 transition-all duration-700" style={{ width: `${pct(inProgress)}%` }} />}
+                    {overdue > 0 && <div className="bg-gradient-to-r from-red-400 to-rose-500 transition-all duration-700" style={{ width: `${pct(overdue)}%` }} />}
+                    {todo > 0 && <div className="bg-gradient-to-r from-gray-300 to-gray-400 dark:from-gray-500 dark:to-gray-600 transition-all duration-700" style={{ width: `${pct(todo - overdue)}%` }} />}
+                </div>
+                <div className="flex items-center gap-4 flex-wrap">
+                    <span className="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400"><span className="w-2 h-2 rounded-full bg-emerald-500" />{completed} Done</span>
+                    <span className="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400"><span className="w-2 h-2 rounded-full bg-amber-400" />{inProgress} Active</span>
+                    {overdue > 0 && <span className="flex items-center gap-1.5 text-[11px] text-red-500"><span className="w-2 h-2 rounded-full bg-red-500" />{overdue} Overdue</span>}
+                    <span className="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400"><span className="w-2 h-2 rounded-full bg-gray-400" />{todo} To Do</span>
+                </div>
+            </div>
+        );
+    };
+
+    const RiskGaugeLocal: FC<{ level: string }> = ({ level }) => {
+        const normalized = level.toUpperCase();
+        const isLow = normalized.includes('LOW');
+        const isMed = normalized.includes('MEDIUM') || normalized.includes('MED');
+        const isHigh = normalized.includes('HIGH');
+        return (
+            <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1">
+                    <div className={`w-8 h-2.5 rounded-l-full ${isLow || isMed || isHigh ? 'bg-gradient-to-r from-emerald-400 to-emerald-500' : 'bg-gray-200 dark:bg-gray-700'}`} />
+                    <div className={`w-8 h-2.5 ${isMed || isHigh ? 'bg-gradient-to-r from-amber-400 to-orange-400' : 'bg-gray-200 dark:bg-gray-700'}`} />
+                    <div className={`w-8 h-2.5 rounded-r-full ${isHigh ? 'bg-gradient-to-r from-red-400 to-rose-500' : 'bg-gray-200 dark:bg-gray-700'}`} />
+                </div>
+                <span className={`text-xs font-bold uppercase tracking-wider ${isHigh ? 'text-red-500' : isMed ? 'text-amber-500' : 'text-emerald-500'}`}>{isHigh ? 'HIGH' : isMed ? 'MEDIUM' : 'LOW'}</span>
+            </div>
+        );
+    };
+
+    const renderInlineBold = (str: string) => {
+        const parts = str.split(/(\*\*[^*]+\*\*)/g);
+        return parts.map((part, i) =>
+            part.startsWith('**') && part.endsWith('**')
+                ? <strong key={i} className="font-semibold text-gray-800 dark:text-white">{part.slice(2, -2)}</strong>
+                : <span key={i}>{part}</span>
+        );
+    };
+
+    const localSectionConfig: Record<string, { icon: React.ReactNode; gradient: string; bgGlow: string }> = {
+        'executive summary': { icon: <ClipboardCheck size={15} className="text-white" />, gradient: 'from-[#c20c0b] via-red-600 to-pink-600', bgGlow: 'bg-red-500/5 dark:bg-red-500/10' },
+        'current progress': { icon: <Clock size={15} className="text-white" />, gradient: 'from-amber-500 via-orange-500 to-red-400', bgGlow: 'bg-amber-500/5 dark:bg-amber-500/10' },
+        'upcoming milestones': { icon: <Target size={15} className="text-white" />, gradient: 'from-violet-500 via-purple-500 to-pink-500', bgGlow: 'bg-violet-500/5 dark:bg-violet-500/10' },
+        'risk assessment': { icon: <AlertTriangle size={15} className="text-white" />, gradient: 'from-rose-500 via-red-500 to-orange-500', bgGlow: 'bg-rose-500/5 dark:bg-rose-500/10' },
+        'recommended actions': { icon: <CheckCircle size={15} className="text-white" />, gradient: 'from-emerald-500 via-teal-500 to-cyan-500', bgGlow: 'bg-emerald-500/5 dark:bg-emerald-500/10' },
+    };
+
+    const AIOrderSummaryModal: FC = () => {
+        const tasks = activeOrder?.tasks || [];
+        const totalTasks = tasks.length;
+        const completedTasks = tasks.filter(t => t.status === 'COMPLETE').length;
+        const inProgressTasks = tasks.filter(t => t.status === 'IN PROGRESS').length;
+        const overdueTasks = tasks.filter(t => t.plannedEndDate && new Date(t.plannedEndDate) < new Date() && t.status !== 'COMPLETE').length;
+        const todoTasks = tasks.filter(t => t.status === 'TO DO').length;
+        const progressPct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+        // Parse sections
+        const parseSections = (text: string) => {
+            const sections: { title: string; lines: string[] }[] = [];
+            let current: { title: string; lines: string[] } | null = null;
+            text.split('\n').forEach(line => {
+                if (line.startsWith('###')) {
+                    if (current) sections.push(current);
+                    current = { title: line.replace(/^###\s*/, '').trim(), lines: [] };
+                } else if (current) {
+                    if (line.trim()) current.lines.push(line);
+                } else if (line.trim()) {
+                    if (!sections.length && !current) current = { title: '', lines: [line] };
+                }
+            });
+            if (current) sections.push(current);
+            return sections;
+        };
+
+        const sections = orderSummary ? parseSections(orderSummary) : [];
+
+        return (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[60] p-4 animate-fade-in overflow-hidden" onClick={() => setIsSummaryModalOpen(false)}>
+            <div className="bg-white dark:bg-gray-950 rounded-3xl shadow-2xl shadow-red-500/5 w-full max-w-3xl max-h-[90vh] flex flex-col relative border border-gray-200 dark:border-white/5 animate-scale-in overflow-hidden" onClick={e => e.stopPropagation()}>
+                {/* Gradient Header */}
+                <div className="relative flex-shrink-0 bg-gradient-to-br from-[#c20c0b] via-rose-600 to-pink-700 px-6 py-6 overflow-hidden">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full filter blur-3xl -translate-y-1/2 translate-x-1/4" />
+                    <div className="absolute bottom-0 left-0 w-48 h-48 bg-black/10 rounded-full filter blur-3xl translate-y-1/2 -translate-x-1/4" />
+                    <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iMSIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjA4KSIvPjwvc3ZnPg==')] opacity-60" />
+                    <div className="relative z-10">
+                        <div className="flex items-center justify-between mb-5">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-white/20 backdrop-blur-sm rounded-xl">
+                                    <Bot className="w-5 h-5 text-white" />
+                                </div>
+                                <div>
+                                    <h2 className="text-lg font-bold text-white tracking-tight">AI Project Report</h2>
+                                    <p className="text-xs text-white/60 mt-0.5">{activeOrder?.product} • {activeOrder?.customer}</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setIsSummaryModalOpen(false)} className="p-2 text-white/60 hover:text-white transition-colors rounded-xl hover:bg-white/10">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        {!isSummaryLoading && (
+                            <div className="grid grid-cols-4 gap-2">
+                                <div className="bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2.5 text-center border border-white/10">
+                                    <div className="relative mx-auto w-10 h-10 mb-1">
+                                        <CircularProgressLocal percent={progressPct} size={40} strokeWidth={3} color="white" />
+                                        <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">{progressPct}%</span>
+                                    </div>
+                                    <p className="text-[10px] text-white/60 uppercase tracking-wider font-medium">Progress</p>
+                                </div>
+                                <div className="bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2.5 text-center border border-white/10">
+                                    <p className="text-2xl font-bold text-white">{completedTasks}</p>
+                                    <p className="text-[10px] text-white/60 uppercase tracking-wider font-medium">Done</p>
+                                </div>
+                                <div className="bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2.5 text-center border border-white/10">
+                                    <p className="text-2xl font-bold text-white">{inProgressTasks}</p>
+                                    <p className="text-[10px] text-white/60 uppercase tracking-wider font-medium">Active</p>
+                                </div>
+                                <div className="bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2.5 text-center border border-white/10">
+                                    <p className={`text-2xl font-bold ${overdueTasks > 0 ? 'text-yellow-300' : 'text-white/40'}`}>{overdueTasks}</p>
+                                    <p className="text-[10px] text-white/60 uppercase tracking-wider font-medium">Overdue</p>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
-                <div className="min-h-[250px] max-h-[70vh] overflow-y-auto prose prose-sm max-w-none p-5 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50 rounded-2xl border border-gray-200 dark:border-gray-700">
+                {/* Content */}
+                <div ref={summaryContentRef} className="min-h-0 flex-1 overflow-y-auto p-5 bg-gradient-to-b from-gray-50 to-white dark:from-gray-900/80 dark:to-gray-950">
                     {isSummaryLoading ? (
-                        <div className="flex items-center justify-center h-full flex-col py-12">
+                        <div className="flex items-center justify-center flex-col py-20">
                             <div className="relative">
-                                <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-200 dark:border-gray-700"></div>
-                                <div className="animate-spin rounded-full h-16 w-16 border-4 border-t-[var(--color-primary)] dark:border-t-red-400 absolute top-0"></div>
+                                <div className="animate-spin rounded-full h-16 w-16 border-[3px] border-gray-200 dark:border-gray-700" />
+                                <div className="animate-spin rounded-full h-16 w-16 border-[3px] border-t-[#c20c0b] dark:border-t-red-400 absolute top-0" />
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <Bot size={18} className="text-[#c20c0b] dark:text-red-400 animate-pulse" />
+                                </div>
                             </div>
-                            <p className="mt-6 text-gray-600 dark:text-gray-400 font-semibold flex items-center gap-2">
-                                <span className="inline-block w-2 h-2 bg-[var(--color-primary)] rounded-full animate-pulse"></span>
-                                Analyzing order data...
-                            </p>
+                            <p className="mt-6 text-sm text-gray-500 dark:text-gray-400 font-medium">Generating project report...</p>
+                            <div className="mt-3 flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 bg-[#c20c0b] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                                <span className="w-1.5 h-1.5 bg-[#c20c0b] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                                <span className="w-1.5 h-1.5 bg-[#c20c0b] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                            </div>
                         </div>
                     ) : (
-                        <MarkdownRenderer text={orderSummary} />
+                        <div className="space-y-4">
+                            {sections.map((section, idx) => {
+                                const key = section.title.toLowerCase();
+                                const config = localSectionConfig[key] || { icon: <Info size={15} className="text-white" />, gradient: 'from-gray-500 to-gray-600', bgGlow: '' };
+                                const riskLevel = key === 'risk assessment' ? section.lines.join(' ') : '';
+
+                                return (
+                                    <div key={idx} className={`rounded-2xl border border-gray-200/80 dark:border-gray-700/30 overflow-hidden ${config.bgGlow} backdrop-blur-sm shadow-sm hover:shadow-md transition-shadow duration-300`}>
+                                        {section.title && (
+                                            <div className={`bg-gradient-to-r ${config.gradient} px-4 py-3 flex items-center gap-2.5 relative overflow-hidden`}>
+                                                <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMSIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjEpIi8+PC9zdmc+')] opacity-40" />
+                                                <div className="w-7 h-7 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0">{config.icon}</div>
+                                                <h3 className="text-sm font-bold text-white uppercase tracking-wider relative z-10">{section.title}</h3>
+                                            </div>
+                                        )}
+                                        <div className="p-4 space-y-3">
+                                            {/* Executive Summary infographic */}
+                                            {key === 'executive summary' && (
+                                                <div className="flex items-center gap-5 pb-3 mb-3 border-b border-gray-100 dark:border-gray-700/30">
+                                                    <div className="relative flex-shrink-0">
+                                                        <CircularProgressLocal percent={progressPct} size={72} strokeWidth={6} />
+                                                        <div className="absolute inset-0 flex items-center justify-center">
+                                                            <span className="text-base font-bold text-gray-800 dark:text-white">{progressPct}%</span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <StatusBarLocal completed={completedTasks} inProgress={inProgressTasks} todo={todoTasks} overdue={overdueTasks} total={totalTasks} />
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {/* Current Progress infographic */}
+                                            {key === 'current progress' && inProgressTasks > 0 && (
+                                                <div className="grid grid-cols-3 gap-2 pb-3 mb-3 border-b border-gray-100 dark:border-gray-700/30">
+                                                    {tasks.filter(t => t.status === 'IN PROGRESS').slice(0, 3).map((t, ti) => {
+                                                        const due = t.plannedEndDate ? new Date(t.plannedEndDate) : null;
+                                                        const daysLeft = due ? Math.ceil((due.getTime() - Date.now()) / 86400000) : null;
+                                                        return (
+                                                            <div key={ti} className="bg-white dark:bg-gray-800/60 rounded-xl p-2.5 border border-amber-200/50 dark:border-amber-500/20 text-center">
+                                                                <div className={`text-lg font-bold ${daysLeft !== null && daysLeft < 0 ? 'text-red-500' : daysLeft !== null && daysLeft <= 3 ? 'text-amber-500' : 'text-gray-700 dark:text-gray-200'}`}>
+                                                                    {daysLeft !== null ? (daysLeft < 0 ? `${Math.abs(daysLeft)}d late` : `${daysLeft}d`) : '—'}
+                                                                </div>
+                                                                <div className="text-[10px] text-gray-500 dark:text-gray-400 truncate mt-0.5">{t.name}</div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                            {/* Milestone Timeline */}
+                                            {key === 'upcoming milestones' && section.lines.some(l => l.startsWith('- ')) ? (
+                                                <div className="relative pl-4">
+                                                    <div className="absolute left-[7px] top-2 bottom-2 w-0.5 bg-gradient-to-b from-violet-400 to-purple-600 rounded-full" />
+                                                    {section.lines.filter(l => l.startsWith('- ')).map((line, i) => (
+                                                        <div key={i} className="relative flex items-start gap-3 py-2">
+                                                            <div className="absolute left-[-13px] top-3 w-3 h-3 rounded-full bg-white dark:bg-gray-800 border-2 border-violet-500 shadow-sm shadow-violet-500/30 z-10" />
+                                                            <span className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">{renderInlineBold(line.replace(/^-\s*/, ''))}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : key === 'upcoming milestones' ? (
+                                                section.lines.map((line, i) => <p key={i} className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">{renderInlineBold(line.replace(/^-\s*/, ''))}</p>)
+                                            ) : null}
+                                            {/* Risk Gauge */}
+                                            {key === 'risk assessment' && (
+                                                <div className="pb-3 mb-3 border-b border-gray-100 dark:border-gray-700/30">
+                                                    <RiskGaugeLocal level={riskLevel} />
+                                                </div>
+                                            )}
+                                            {/* Action checklist */}
+                                            {key === 'recommended actions' ? (
+                                                <div className="space-y-2">
+                                                    {section.lines.map((line, i) => (
+                                                        <div key={i} className="flex items-start gap-3 p-2.5 bg-white dark:bg-gray-800/40 rounded-xl border border-emerald-100 dark:border-emerald-500/10">
+                                                            <div className="mt-0.5 w-5 h-5 rounded-md bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center flex-shrink-0">
+                                                                <CheckCircle size={12} className="text-white" />
+                                                            </div>
+                                                            <span className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">{renderInlineBold(line.replace(/^-\s*/, ''))}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : null}
+                                            {/* Default bullets */}
+                                            {key !== 'upcoming milestones' && key !== 'recommended actions' && (
+                                                <div className="space-y-1.5">
+                                                    {section.lines.map((line, i) => {
+                                                        if (line.startsWith('- ')) {
+                                                            return (
+                                                                <div key={i} className="flex items-start gap-2.5 py-0.5">
+                                                                    <span className={`mt-1.5 w-1.5 h-1.5 rounded-full bg-gradient-to-r ${config.gradient} flex-shrink-0`} />
+                                                                    <span className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">{renderInlineBold(line.substring(2))}</span>
+                                                                </div>
+                                                            );
+                                                        }
+                                                        return <p key={i} className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">{renderInlineBold(line)}</p>;
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     )}
+                </div>
+                {/* Footer */}
+                <div className="flex-shrink-0 px-6 py-3 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between bg-white dark:bg-gray-950">
+                    <p className="text-[10px] text-gray-400 flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Powered by Gemini AI
+                    </p>
+                    <div className="flex items-center gap-2">
+                        {!isSummaryLoading && orderSummary && (
+                            <button
+                                onClick={downloadSummaryPdf}
+                                disabled={isDownloadingPdf}
+                                className="text-xs font-semibold text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white flex items-center gap-1.5 disabled:opacity-50 transition-colors px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-700"
+                            >
+                                <Download size={11} className={isDownloadingPdf ? 'animate-bounce' : ''} /> {isDownloadingPdf ? 'Exporting...' : 'Download PDF'}
+                            </button>
+                        )}
+                        <button
+                            onClick={generateOrderSummary}
+                            disabled={isSummaryLoading}
+                            className="text-xs font-semibold text-[#c20c0b] hover:text-red-700 dark:hover:text-red-300 flex items-center gap-1.5 disabled:opacity-50 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
+                        >
+                            <RefreshCw size={11} className={isSummaryLoading ? 'animate-spin' : ''} /> Regenerate
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
-    );
+    );};
 
     return (
         <MainLayout {...props}>
@@ -2689,6 +3167,86 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
                         </div>
                     </div>
                 </div>
+                {/* Inline AI Summary Card */}
+                {activeOrder && (inlineSummaryLoading || inlineSummary) && (
+                    <div className="mx-0 mt-3 mb-1">
+                        <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-red-50 via-pink-50 to-orange-50 dark:from-red-950/30 dark:via-pink-950/20 dark:to-orange-950/20 border border-red-100 dark:border-red-900/30 shadow-sm">
+                            <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-[#c20c0b] via-pink-500 to-orange-400"></div>
+                            <div className="px-4 py-3">
+                                <div className="flex items-center justify-between mb-1">
+                                    <div className="flex items-center gap-2">
+                                        <div className="p-1.5 bg-gradient-to-br from-[#c20c0b] to-pink-600 rounded-lg shadow-sm">
+                                            <Bot size={14} className="text-white" />
+                                        </div>
+                                        <span className="text-xs font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">AI Status Update</span>
+                                        {inlineSummaryLoading && (
+                                            <span className="flex items-center gap-1 text-[10px] text-gray-400 dark:text-gray-500">
+                                                <span className="inline-block w-1.5 h-1.5 bg-[#c20c0b] rounded-full animate-pulse"></span>
+                                                Analyzing...
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <button
+                                            onClick={() => {
+                                                lastSummarizedOrderRef.current = null;
+                                                setInlineSummary('');
+                                                setInlineSummaryLoading(true);
+                                                const tasks = activeOrder.tasks || [];
+                                                const total = tasks.length;
+                                                const completed = tasks.filter(t => t.status === 'COMPLETE').length;
+                                                const inProgress = tasks.filter(t => t.status === 'IN PROGRESS').length;
+                                                const overdue = tasks.filter(t => t.plannedEndDate && new Date(t.plannedEndDate) < new Date() && t.status !== 'COMPLETE').length;
+                                                const nextTasks = tasks.filter(t => t.status === 'TO DO').slice(0, 3).map(t => t.name).join(', ');
+                                                const inProgressNames = tasks.filter(t => t.status === 'IN PROGRESS').map(t => t.name).join(', ');
+                                                const prompt = `You are an order tracking assistant. Give a brief 3-line status update for this garment order. Be direct and specific — no headers, no markdown, just plain sentences.
+
+Order: ${activeOrder.product} (${activeOrderKey})
+Progress: ${completed}/${total} tasks complete, ${inProgress} in progress, ${overdue} overdue
+Currently active: ${inProgressNames || 'None'}
+Next up: ${nextTasks || 'None'}
+Products: ${activeOrder.products?.map(p => p.name).join(', ') || activeOrder.product}
+
+Reply with exactly 3 short sentences: 1) overall status, 2) what's happening now, 3) what to watch out for.`;
+                                                callGeminiAPI(prompt).then(summary => {
+                                                    setInlineSummary(summary);
+                                                    lastSummarizedOrderRef.current = activeOrderKey;
+                                                }).catch(() => {
+                                                    setInlineSummary('Unable to generate summary at this time.');
+                                                }).finally(() => {
+                                                    setInlineSummaryLoading(false);
+                                                });
+                                            }}
+                                            className="p-1 text-gray-400 hover:text-[#c20c0b] transition-colors rounded-md hover:bg-white/60 dark:hover:bg-white/10"
+                                            title="Refresh summary"
+                                        >
+                                            <RefreshCw size={12} className={inlineSummaryLoading ? 'animate-spin' : ''} />
+                                        </button>
+                                        <button
+                                            onClick={() => setInlineSummaryCollapsed(!inlineSummaryCollapsed)}
+                                            className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors rounded-md hover:bg-white/60 dark:hover:bg-white/10"
+                                        >
+                                            {inlineSummaryCollapsed ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
+                                        </button>
+                                    </div>
+                                </div>
+                                {!inlineSummaryCollapsed && (
+                                    <div className="mt-1">
+                                        {inlineSummaryLoading ? (
+                                            <div className="space-y-1.5">
+                                                <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full w-full animate-pulse"></div>
+                                                <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full w-4/5 animate-pulse"></div>
+                                                <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full w-3/5 animate-pulse"></div>
+                                            </div>
+                                        ) : (
+                                            <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed whitespace-pre-line">{inlineSummary}</p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
                 {activeOrder && activeView === 'Overview' && <OrderDetailsView order={activeOrder} allFactories={allFactories} handleSetCurrentPage={handleSetCurrentPage} onSelectProduct={handleSelectProductCard} />}
                 {activeOrder && activeView === 'TNA' && <TNAView tasks={filteredTasks} products={selectedProductId ? undefined : activeOrder.products} onBuyerConfirm={handleBuyerConfirm} />}
                 {activeOrder && activeView === 'Dashboard' && <DashboardView tasks={activeOrder.tasks} orderKey={activeOrderKey || ''} orderDetails={activeOrder}/>}

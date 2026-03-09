@@ -1,10 +1,11 @@
 import React, { FC, useState, useEffect } from 'react';
 import {
-    Star, MapPin, ChevronLeft, ChevronRight, BookOpen, Activity, ShieldCheck, LayoutGrid, Scroll, X, ZoomIn, TrendingUp, AlertCircle, CheckCircle2
+    Star, MapPin, ChevronLeft, ChevronRight, BookOpen, Activity, ShieldCheck, LayoutGrid, Scroll, X, ZoomIn, TrendingUp, AlertCircle, CheckCircle2, Clock, Cog
 } from 'lucide-react';
 import { MainLayout } from '../src/MainLayout';
 import { Factory, MachineSlot } from '../src/types';
 import { TrustTierBadge } from '../src/FactoryCard';
+import ProductCatalog from '../src/ProductCatalog';
 
 interface FactoryDetailPageProps {
     // Props for MainLayout
@@ -34,23 +35,65 @@ const CertificationBadge: FC<{ cert: string }> = ({ cert }) => {
     return <span className={`text-xs font-bold px-2.5 py-1 rounded-md border ${certStyles[cert] || 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-white border-gray-200 dark:border-gray-700'}`}>{cert}</span>
 }
 
-const MachineSlotRow: FC<{ slot: MachineSlot }> = ({ slot }) => {
-    const usagePercentage = (slot.availableSlots / slot.totalSlots) * 100;
+const MachineSlotCard: FC<{ slot: MachineSlot }> = ({ slot }) => {
+    const pct = slot.totalSlots > 0 ? Math.round((slot.availableSlots / slot.totalSlots) * 100) : 0;
+    const colorCls = pct > 50 ? 'bg-green-500' : pct > 20 ? 'bg-yellow-500' : slot.totalSlots === 0 ? 'bg-gray-400' : 'bg-red-500';
+    const textColorCls = pct > 50 ? 'text-green-600 dark:text-green-400' : pct > 20 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400';
+
     return (
-        <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{slot.machineType}</td>
-            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-200">
-                <div className="flex items-center">
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mr-3">
-                        <div className="bg-[#c20c0b] h-2 rounded-full" style={{ width: `${usagePercentage}%` }}></div>
-                    </div>
-                    <span className="font-medium">{slot.availableSlots}/{slot.totalSlots}</span>
+        <div className="bg-white dark:bg-gray-800/60 rounded-xl border border-gray-200 dark:border-white/10 p-4 hover:shadow-md transition-shadow">
+            <div className="flex items-center gap-3 mb-3">
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0 ${colorCls}`}>
+                    {slot.totalSlots > 0 ? `${pct}%` : '—'}
                 </div>
-            </td>
-            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-200">{slot.nextAvailable}</td>
-        </tr>
-    )
-}
+                <div className="flex-grow min-w-0">
+                    <h4 className="text-sm font-bold text-gray-900 dark:text-white truncate">{slot.machineType}</h4>
+                    {slot.nextAvailable && (
+                        <p className="text-[11px] text-gray-400 dark:text-gray-500 flex items-center gap-1 mt-0.5">
+                            <Clock size={10} /> Next available: {slot.nextAvailable}
+                        </p>
+                    )}
+                </div>
+            </div>
+            <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2 mb-2">
+                <div className={`h-2 rounded-full transition-all duration-500 ${colorCls}`} style={{ width: `${pct}%` }} />
+            </div>
+            <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                    <span className="font-bold text-gray-700 dark:text-gray-200">{slot.availableSlots}</span> / {slot.totalSlots} slots available
+                </span>
+                <span className={`text-[10px] font-bold uppercase ${textColorCls}`}>
+                    {pct > 50 ? 'High' : pct > 20 ? 'Medium' : slot.totalSlots === 0 ? 'N/A' : 'Low'}
+                </span>
+            </div>
+        </div>
+    );
+};
+
+const CapacitySummary: FC<{ slots: MachineSlot[] }> = ({ slots }) => {
+    if (!slots || slots.length === 0) return null;
+    const totalAll = slots.reduce((s, m) => s + (m.totalSlots || 0), 0);
+    const availAll = slots.reduce((s, m) => s + (m.availableSlots || 0), 0);
+    const pct = totalAll > 0 ? Math.round((availAll / totalAll) * 100) : 0;
+    const colorCls = pct > 50 ? 'bg-green-500' : pct > 20 ? 'bg-yellow-500' : 'bg-red-500';
+    const textColorCls = pct > 50 ? 'text-green-600 dark:text-green-400' : pct > 20 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400';
+
+    return (
+        <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-white/10 p-4 mb-4">
+            <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">Overall Capacity</span>
+                <span className="text-sm font-bold text-gray-900 dark:text-white">{availAll} / {totalAll} slots available</span>
+            </div>
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                <div className={`h-2.5 rounded-full transition-all duration-500 ${colorCls}`} style={{ width: `${pct}%` }} />
+            </div>
+            <div className="flex justify-between mt-1.5">
+                <span className="text-[10px] text-gray-400 uppercase font-semibold">{slots.length} machine type{slots.length !== 1 ? 's' : ''}</span>
+                <span className={`text-[10px] font-bold uppercase ${textColorCls}`}>{pct}% available</span>
+            </div>
+        </div>
+    );
+};
 
 export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
     const { selectedFactory, handleSetCurrentPage, suggestedFactories, initialTab = 'overview' } = props;
@@ -183,15 +226,23 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                             <>
                                 {/* Tags */}
                                 <div className="flex flex-wrap gap-2 mb-8">
-                                    {selectedFactory.tags?.map(tag => (
-                                        <span key={tag} className={`text-xs font-bold px-3 py-1.5 rounded-lg border ${
-                                            tag === 'Prime' ? 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800' :
-                                            tag === 'Sustainable' ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800' :
-                                            'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-200 border-gray-200 dark:border-gray-700'
-                                        }`}>
-                                            {tag}
-                                        </span>
-                                    ))}
+                                    {selectedFactory.tags?.map(tag => {
+                                        const [text, tagColor] = tag.split(':');
+                                        return (
+                                            <span
+                                                key={tag}
+                                                className={`text-xs font-bold px-3 py-1.5 rounded-lg border ${
+                                                    tagColor ? 'border-transparent' :
+                                                    text === 'Prime' ? 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800' :
+                                                    text === 'Sustainable' ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800' :
+                                                    'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-200 border-gray-200 dark:border-gray-700'
+                                                }`}
+                                                style={tagColor ? { backgroundColor: tagColor, color: '#fff', borderColor: tagColor } : {}}
+                                            >
+                                                {text}
+                                            </span>
+                                        );
+                                    })}
                                 </div>
 
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -226,7 +277,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                                             )}
                                             <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-white/10 text-center">
                                                 <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                                                    {selectedFactory.completedOrdersCount ?? 0}
+                                                    {selectedFactory.completedOrdersCount ?? 0}+
                                                 </div>
                                                 <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 font-medium">Completed Orders</div>
                                                 <TrustTierBadge tier={selectedFactory.trustTier} />
@@ -239,22 +290,21 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                                     <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                                         <Activity size={20} className="text-[#c20c0b]"/> Production Capacity
                                     </h3>
-                                    <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-white/10 shadow-sm">
-                                        <table className="min-w-full divide-y divide-gray-200 dark:divide-white/10">
-                                            <thead className="bg-gray-50 dark:bg-gray-800">
-                                                <tr>
-                                                    <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-200 uppercase tracking-wider">Machine</th>
-                                                    <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-200 uppercase tracking-wider">Availability</th>
-                                                    <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-200 uppercase tracking-wider">Next Slot</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="bg-white dark:bg-gray-900/40 divide-y divide-gray-200 dark:divide-white/10">
+                                    {selectedFactory.machineSlots?.length > 0 ? (
+                                        <>
+                                            <CapacitySummary slots={selectedFactory.machineSlots} />
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                 {selectedFactory.machineSlots.map(slot => (
-                                                    <MachineSlotRow key={slot.machineType} slot={slot} />
+                                                    <MachineSlotCard key={slot.machineType} slot={slot} />
                                                 ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className="text-center py-8 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-white/10">
+                                            <Cog size={32} className="mx-auto mb-2 text-gray-300 dark:text-gray-600" />
+                                            <p className="text-sm text-gray-500 dark:text-gray-400">No capacity information available</p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -302,67 +352,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                         </div>
                             </>
                         ) : (
-                            <div className="space-y-8 animate-fade-in">
-                                {/* Categories */}
-                                <div className="bg-gray-50 dark:bg-gray-800/50 p-6 rounded-2xl border border-gray-200 dark:border-white/10">
-                                    <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
-                                        <LayoutGrid size={20} className="text-[#c20c0b]" /> Product Categories
-                                    </h3>
-                                    {selectedFactory.catalog.productCategories.length > 0 ? (
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                                            {selectedFactory.catalog.productCategories.map((category, index) => (
-                                                <div key={index} className="group relative overflow-hidden rounded-xl border border-gray-200 dark:border-white/10 shadow-sm">
-                                                    <div className="aspect-[4/3] overflow-hidden">
-                                                        <img src={category.imageUrl} alt={category.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                                                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-60 group-hover:opacity-80 transition-opacity" />
-                                                    </div>
-                                                    <div className="absolute bottom-0 left-0 p-4 w-full">
-                                                        <h4 className="text-white font-bold text-lg">{category.name}</h4>
-                                                        <p className="text-gray-200 text-xs mt-1 line-clamp-2">{category.description}</p>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <div className="text-center py-8 text-gray-500 dark:text-gray-200">No categories available.</div>
-                                    )}
-                                </div>
-
-                                {/* Fabrics */}
-                                <div className="bg-gray-50 dark:bg-gray-800/50 p-6 rounded-2xl border border-gray-200 dark:border-white/10">
-                                    <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
-                                        <Scroll size={20} className="text-[#c20c0b]" /> Fabric Options
-                                    </h3>
-                                    {selectedFactory.catalog.fabricOptions.length > 0 ? (
-                                        <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-white/10 shadow-sm">
-                                            <table className="min-w-full divide-y divide-gray-200 dark:divide-white/10">
-                                                <thead className="bg-white dark:bg-gray-900/40">
-                                                    <tr>
-                                                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-200 uppercase tracking-wider">Fabric Name</th>
-                                                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-200 uppercase tracking-wider">Composition</th>
-                                                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-200 uppercase tracking-wider">Best For</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="bg-white dark:bg-gray-900/40 divide-y divide-gray-200 dark:divide-white/10">
-                                                    {selectedFactory.catalog.fabricOptions.map((fabric, index) => (
-                                                        <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                                                            <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{fabric.name}</td>
-                                                            <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-200">{fabric.composition}</td>
-                                                            <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-200">
-                                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                                                                    {fabric.useCases}
-                                                                </span>
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    ) : (
-                                        <div className="text-center py-8 text-gray-500 dark:text-gray-200">No fabric options listed.</div>
-                                    )}
-                                </div>
-                            </div>
+                            <ProductCatalog catalog={selectedFactory.catalog} />
                         )}
                     </div>
 

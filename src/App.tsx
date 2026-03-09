@@ -9,7 +9,7 @@ import {
     BadgePercent, BrainCircuit, MessageSquare, ClipboardCopy, FileText, DollarSign,
     GanttChartSquare, LayoutDashboard, MoreHorizontal, Info, Settings, LifeBuoy,
     History, Edit, Anchor, Ship, Warehouse, PackageCheck, Award, Users, Activity, Shield,
-    PlayCircle, BarChart as BarChartIcon, FileQuestion, ClipboardCheck, Lock,
+    BarChart as BarChartIcon, FileQuestion, ClipboardCheck, Lock,
     Tag, Weight, Palette, Box, Map as MapIcon, Download, BookOpen, Building, Trash2, Upload, Globe, Moon,
     Camera, Edit3
 } from 'lucide-react';
@@ -18,7 +18,7 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Pie, Cell, PieChart
 } from 'recharts';
 // Import TypeScript interfaces/types for data structures used in the app
-import { UserProfile, OrderFormData, Factory, QuoteRequest, CrmOrder, CrmProduct, ToastState, MachineSlot } from './types';
+import { UserProfile, OrderFormData, Factory, QuoteRequest, CrmOrder, CrmProduct, CrmTask, ToastState, MachineSlot } from './types';
 // Import custom components for specific pages and UI elements
 import { MainLayout } from '../src/MainLayout';
 import { LoginPage } from '../src/LoginPage';
@@ -36,6 +36,7 @@ import { AdminUsersPage } from './AdminUsersPage';
 import { AdminFactoriesPage } from './AdminFactoriesPage';
 import { AdminCRMPage } from './AdminCRMPage';
 import { AdminTrendingPage } from './AdminTrendingPage';
+import { TrendingPage as TrendingPageComponent } from './TrendingPage';
 import { AdminRFQPage } from './AdminRFQPage';
 import { AdminLoginSettingsPage } from './AdminLoginSettingsPage';
 import { quoteService } from './quote.service';
@@ -1326,8 +1327,47 @@ const AppContent: FC = () => {
 
     // --- Gemini API Call (Live) ---
     
-    // Function to call the Gemini AI API via Supabase Edge Function
+    // Function to call the Gemini AI API via Supabase Edge Function or Direct API
     const callGeminiAPI = async (prompt: string): Promise<string> => {
+        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+
+        // 1. Try Direct Client-Side Call if API Key is present (Fastest for prototyping)
+        if (apiKey) {
+            try {
+                console.log("Calling Gemini API (gemini-2.5-flash)...");
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{ text: prompt }]
+                        }]
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error?.message || `API Error: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                
+                if (typeof text === 'string') {
+                    return text;
+                } else {
+                    throw new Error('Invalid response format from Gemini API');
+                }
+            } catch (error: any) {
+                console.error("Direct Gemini API call failed:", error);
+                showToast(`AI Error: ${error.message}`, 'error');
+                return `Error generating summary: ${error.message}`;
+            }
+        }
+
+        // 2. Fallback to Supabase Edge Function (Secure production method)
         try {
             // Securely call the Gemini API via a Supabase Edge Function
             const { data, error } = await supabase.functions.invoke('gemini-api', {
@@ -1351,6 +1391,12 @@ const AppContent: FC = () => {
         } catch (error) {
             const errorMessage = (error instanceof Error) ? error.message : 'An unknown error occurred.';
             console.error("Error calling Gemini API function:", errorMessage);
+            
+            if (errorMessage.includes("Failed to send a request")) {
+                showToast("Edge Function not deployed. Add VITE_GEMINI_API_KEY to .env.local to run locally.", "error");
+                return "Configuration Error: Please add VITE_GEMINI_API_KEY to your .env.local file or deploy the 'gemini-api' Edge Function.";
+            }
+
             showToast(`Error: ${errorMessage}`, 'error');
             return `Error calling AI function: ${errorMessage}`;
         }
@@ -2121,7 +2167,7 @@ const AppContent: FC = () => {
             case 'factoryTools': return <FactoryToolsPage />;
             case 'settings': return <SettingsPage />;
             case 'tracking': return <OrderTrackingPage />;
-            case 'trending': return <TrendingPage />;
+            case 'trending': return <TrendingPageComponent {...layoutProps} />;
             case 'myQuotes': return <MyQuotesPage quoteRequests={quoteRequests} handleSetCurrentPage={handleSetCurrentPage} layoutProps={layoutProps} isLoading={isQuotesLoading} onRefresh={fetchUserQuotes} initialFilterStatus={myQuotesFilter} />;
             case 'quoteRequest': return <QuoteRequestPage />;
             case 'quoteDetail': return <QuoteDetailPage 
@@ -2150,93 +2196,6 @@ const AppContent: FC = () => {
             />;
         }
     };
-
-    // Component for the Trending/News page
-    const TrendingPage: FC = () => {
-        const trendBlogs = [
-            { id: 1, title: 'The Rise of Sustainable Denim', category: 'Materials', author: 'Vogue Business', date: 'June 24, 2025', imageUrl: 'https://ninelondon.co.uk/cdn/shop/articles/Guide_on_Sustainable_Jeans-_The_Future_of_Ethical_Fashion.jpg?v=1742809387' },
-            { id: 2, title: 'Utility Wear: Function Meets Fashion', category: 'Styles', author: 'Hypebeast', date: 'June 23, 2025', imageUrl: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT45WPOXDJhJUrtWtQCIhBDEBzdxfZG8wJmig&s' },
-            { id: 3, title: 'Tech-Infused Fabrics are the Future', category: 'Innovation', author: 'WGSN', date: 'June 22, 2025', imageUrl: 'https://www.digitaltrends.com/wp-content/uploads/2019/02/190207142242_1_900x600.jpg?fit=720%2C480&p=1' },
-        ];
-        const fashionShorts = [
-            { id: 1, creator: '@fashionista.diaries', views: '1.2M', videoUrl: 'https://youtube.com/shorts/kO-0HbPq1ec?si=k3xoYY4Fgtd2Ed9L', thumbnail: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?q=80&w=300&h=500&auto=format&fit=crop' },
-            { id: 2, creator: '@stylebyraul', views: '890K', videoUrl: 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4', thumbnail: 'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?q=80&w=300&h=500&auto=format&fit=crop' },
-            { id: 3, creator: '@denimqueen', views: '2.5M', videoUrl: 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4', thumbnail: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRmDXe8m1LiarHW_nFhOakVDDuaRichGrky-Q&s' },
-            { id: 4, creator: '@modern.man', views: '750K', videoUrl: 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4', thumbnail: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=300&h=500&auto=format&fit=crop' },
-        ];
-        const [fullscreenVideo, setFullscreenVideo] = useState<string | null>(null);
-
-        const FullscreenVideoPlayer: FC<{ src: string; onClose: () => void }> = ({ src, onClose }) => {
-            if (!src) return null;
-            return (
-                <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[100]" onClick={onClose}>
-                    <button onClick={onClose} className="absolute top-4 right-4 text-white hover:text-gray-300 transition z-[101]">
-                        <X size={32} />
-                    </button>
-                    <div className="relative w-auto h-[90vh] aspect-[9/16]" onClick={e => e.stopPropagation()}>
-                        <video src={src} autoPlay controls loop className="w-full h-full rounded-lg" />
-                    </div>
-                </div>
-            )
-        }
-
-        return (
-            <MainLayout {...layoutProps}>
-                <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-2">What's Trending</h1>
-                <p className="text-gray-500 dark:text-gray-200 mb-8">Discover the latest in fashion, materials, and manufacturing.</p>
-                {/* Banners */}
-                <section className="mb-12">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="relative rounded-xl overflow-hidden h-64 group cursor-pointer col-span-1 md:col-span-2">
-                            <img src="https://images.unsplash.com/photo-1551488831-00ddcb6c6bd3?q=80&w=1200&h=400&auto=format&fit=crop" alt="Summer Collection" className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"/>
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
-                            <div className="absolute bottom-0 left-0 p-6 text-white">
-                                <h2 className="text-3xl font-bold">Summer 2025 Collections</h2>
-                                <p className="mt-1">Explore the vibrant colors and lightweight fabrics defining the season.</p>
-                                <button className="mt-4 bg-white text-black font-semibold py-2 px-4 rounded-lg hover:bg-opacity-90 transition">Explore Now</button>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-                <section className="mb-12">
-                    <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-6">Latest Articles</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                        {trendBlogs.map(blog => (
-                            <div key={blog.id} className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-md border border-gray-200 dark:border-white/10 overflow-hidden group cursor-pointer">
-                                <div className="overflow-hidden">
-                                    <img src={blog.imageUrl} alt={blog.title} className="h-48 w-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                                </div>
-                                <div className="p-6">
-                                    <span className="text-xs font-semibold bg-red-100 text-[var(--color-primary)] px-2 py-1 rounded-full">{blog.category}</span>
-                                    <h3 className="font-bold text-lg text-gray-800 dark:text-white mt-3 mb-2">{blog.title}</h3>
-                                    <p className="text-sm text-gray-500 dark:text-gray-200">By {blog.author} · {blog.date}</p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </section>
-                <section>
-                    <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-6">Fashion Shorts</h2>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {fashionShorts.map(short =>(
-                            <div key={short.id} className="relative rounded-xl overflow-hidden shadow-lg border border-gray-200 dark:border-white/10 group cursor-pointer aspect-[9/16]" onClick={() => setFullscreenVideo(short.videoUrl)}>
-                                <img src={short.thumbnail} alt={short.creator} className="absolute inset-0 w-full h-full object-cover"/>
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-                                <div className="absolute inset-0 flex items-center justify-center transition-opacity duration-300">
-                                    <PlayCircle size={48} className="text-white/80" />
-                                </div>
-                                <div className="absolute bottom-0 left-0 p-4 text-white">
-                                    <p className="font-semibold text-sm">{short.creator}</p>
-                                    <p className="text-xs">{short.views} views</p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </section>
-                {fullscreenVideo && <FullscreenVideoPlayer src={fullscreenVideo} onClose={() => setFullscreenVideo(null)} />}
-            </MainLayout>
-        )
-    }
 
     // Component to create a new quote request
     const QuoteRequestPage: FC = () => {
@@ -2332,9 +2291,8 @@ const AppContent: FC = () => {
         }
     };
 
-    const createCrmOrder = (quote: QuoteRequest) => {
+    const createCrmOrder = async (quote: QuoteRequest) => {
         const { factory, order } = quote;
-        const newOrderId = `PO-2024-${String(Object.keys(crmData).length + 1).padStart(3, '0')}`;
         const lineItems = order.lineItems || [];
         const products: CrmProduct[] = lineItems.map((item) => ({
             id: String(item.id),
@@ -2344,16 +2302,44 @@ const AppContent: FC = () => {
         }));
         const productName = products.length === 1 ? products[0].name : `${products.length} Items Order`;
         const firstProductId = products.length > 0 ? products[0].id : 'default';
+
+        const documents = (quote.files || []).map(filePath => ({
+            name: filePath.split('/').pop()?.replace(/^\d+_/, '') || 'Attachment',
+            type: 'Quote Attachment',
+            lastUpdated: new Date().toISOString().split('T')[0],
+            path: filePath
+        }));
+        if (documents.length === 0) {
+            documents.push({ name: 'Purchase Order', type: 'PO', lastUpdated: new Date().toISOString().split('T')[0], path: '' });
+        }
+
+        const payload = {
+            client_id: quote.userId,
+            product_name: productName,
+            factory_id: factory?.id || null,
+            status: 'Pending',
+            products,
+            tasks: [
+                { id: Date.now(), name: 'Order Confirmation', status: 'COMPLETE', plannedStartDate: new Date().toISOString().split('T')[0], plannedEndDate: new Date().toISOString().split('T')[0], responsible: 'Admin', actualStartDate: new Date().toISOString().split('T')[0], actualEndDate: new Date().toISOString().split('T')[0], productId: firstProductId },
+                { id: Date.now() + 1, name: 'Fabric Sourcing', status: 'TO DO', plannedStartDate: new Date().toISOString().split('T')[0], plannedEndDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0], responsible: 'Merch Team', productId: firstProductId }
+            ],
+            documents
+        };
+
+        const { error } = await crmService.create(payload);
+        if (error) {
+            console.error('Failed to create CRM order:', error);
+        }
+
+        // Also update local state for immediate UI feedback
+        const newOrderId = `PO-2024-${String(Object.keys(crmData).length + 1).padStart(3, '0')}`;
         const newOrder: CrmOrder = {
             customer: userProfile?.companyName || 'N/A',
             product: productName,
-            factoryId: factory.id,
+            factoryId: factory?.id,
             products,
-            documents: [{ name: 'Purchase Order', type: 'PO', lastUpdated: new Date().toISOString().split('T')[0] }],
-            tasks: [
-                { id: Date.now(), name: 'Order Confirmation', responsible: 'Admin', plannedStartDate: new Date().toISOString().split('T')[0], plannedEndDate: new Date().toISOString().split('T')[0], actualStartDate: null, actualEndDate: null, status: 'TO DO', productId: firstProductId },
-                { id: Date.now() + 1, name: 'Fabric Sourcing', responsible: 'Merch Team', plannedStartDate: new Date().toISOString().split('T')[0], plannedEndDate: new Date(new Date().setDate(new Date().getDate() + 7)).toISOString().split('T')[0], actualStartDate: null, actualEndDate: null, status: 'TO DO', productId: firstProductId },
-            ]
+            documents: documents.map(d => ({ name: d.name, type: d.type, lastUpdated: d.lastUpdated, path: d.path })),
+            tasks: payload.tasks.map(t => ({ ...t, status: t.status as CrmTask['status'], actualStartDate: t.status === 'COMPLETE' ? t.plannedStartDate : null, actualEndDate: t.status === 'COMPLETE' ? t.plannedEndDate : null }))
         };
         addNewOrderToCrm(newOrderId, newOrder);
     };

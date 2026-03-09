@@ -241,7 +241,7 @@ const Dashboard: FC<{ quoteRequests: QuoteRequest[]; handleSetCurrentPage: (page
 export const SourcingPage: FC<SourcingPageProps> = (props) => {
     const { pageKey, user, userProfile, handleSelectFactory, toggleMenu, selectedGarmentCategory, setSelectedGarmentCategory, handleSetCurrentPage, handleSignOut, showToast, quoteRequests = [], setGlobalLoading } = props;
     
-    const CACHE_KEY = 'garment_erp_factories';
+    const CACHE_KEY = 'garment_erp_factories_v2';
     // State to hold the complete list of factories fetched from the database
     const [allFactories, setAllFactories] = useState<Factory[]>(() => {
         const cached = sessionStorage.getItem(CACHE_KEY);
@@ -252,6 +252,8 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
     const initialFilters = { rating: 0, maxMoq: 10000, tags: [] as string[], categories: [] as string[], location: '', certifications: [] as string[], minTrustTier: '' as '' | 'bronze' | 'silver' | 'gold' };
     // State for the text typed in the search bar
     const [searchTerm, setSearchTerm] = useState('');
+    const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+    const searchContainerRef = useRef<HTMLDivElement>(null);
     // State to track active filters (rating, location, etc.)
     const [filters, setFilters] = useState(initialFilters);
     // State to control visibility of the side filter panel
@@ -326,7 +328,11 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                         certifications: f.certifications || [],
                         specialties: f.specialties || [],
                         machineSlots: f.machine_slots || [],
-                        catalog: f.catalog || { productCategories: [], fabricOptions: [] }
+                        catalog: f.catalog || { products: [], fabricOptions: [] },
+                        trustTier: (f.trust_tier as Factory['trustTier']) || 'unverified',
+                        completedOrdersCount: f.completed_orders_count ?? 0,
+                        onTimeDeliveryRate: f.on_time_delivery_rate ?? undefined,
+                        qualityRejectionRate: f.quality_rejection_rate ?? undefined,
                     }));
                     // Update state with the processed list of factories
                     setAllFactories(transformedFactories);
@@ -357,14 +363,87 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
         };
     }, [fetchFactories]);
 
+    // Close search dropdown on outside click
+    useEffect(() => {
+        const handleSearchClickOutside = (event: MouseEvent) => {
+            if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
+                setShowSearchDropdown(false);
+            }
+        };
+        document.addEventListener("mousedown", handleSearchClickOutside);
+        return () => document.removeEventListener("mousedown", handleSearchClickOutside);
+    }, []);
+
+    // Predictive search suggestions grouped by category
+    const searchSuggestions = useMemo(() => {
+        const term = searchTerm.toLowerCase().trim();
+        if (term.length < 1) return [];
+
+        type Suggestion = { type: string; label: string; icon: string; factories: Factory[] };
+        const seen = new Set<string>();
+        const suggestions: Suggestion[] = [];
+
+        // Helper to add unique suggestions
+        const addSuggestion = (type: string, label: string, icon: string, factory: Factory) => {
+            const key = `${type}:${label.toLowerCase()}`;
+            if (seen.has(key)) {
+                const existing = suggestions.find(s => `${s.type}:${s.label.toLowerCase()}` === key);
+                if (existing && !existing.factories.find(f => f.id === factory.id)) existing.factories.push(factory);
+                return;
+            }
+            seen.add(key);
+            suggestions.push({ type, label, icon, factories: [factory] });
+        };
+
+        allFactories.forEach(f => {
+            if (f.name.toLowerCase().includes(term)) {
+                addSuggestion('Factory', f.name, 'building', f);
+            }
+            if (f.location.toLowerCase().includes(term)) {
+                addSuggestion('Location', f.location, 'globe', f);
+            }
+            f.specialties.forEach(s => {
+                if (s.toLowerCase().includes(term)) {
+                    addSuggestion('Product', s, 'package', f);
+                }
+            });
+            f.tags.forEach(t => {
+                if (t.toLowerCase().includes(term)) {
+                    addSuggestion('Tag', t, 'zap', f);
+                }
+            });
+            f.certifications.forEach(c => {
+                if (c.toLowerCase().includes(term)) {
+                    addSuggestion('Certification', c, 'award', f);
+                }
+            });
+        });
+
+        // Sort: exact prefix matches first, then by number of matching factories
+        return suggestions
+            .sort((a, b) => {
+                const aPrefix = a.label.toLowerCase().startsWith(term) ? 0 : 1;
+                const bPrefix = b.label.toLowerCase().startsWith(term) ? 0 : 1;
+                if (aPrefix !== bPrefix) return aPrefix - bPrefix;
+                return b.factories.length - a.factories.length;
+            })
+            .slice(0, 8);
+    }, [searchTerm, allFactories]);
+
     // Core Filtering Logic: Determines which factories to display
-    // useMemo ensures this calculation only runs when dependencies (filters, search, etc.) change
     const filteredFactories = useMemo(() => {
+        const term = searchTerm.toLowerCase();
         return allFactories
-            // 1. Filter by the main category selected in the top carousel (e.g., "T-shirt")
             .filter(f => selectedGarmentCategory === 'All' || f.specialties.includes(selectedGarmentCategory))
-            // 2. Filter by search text (checks both factory name and location)
-            .filter(f => f.name.toLowerCase().includes(searchTerm.toLowerCase()) || f.location.toLowerCase().includes(searchTerm.toLowerCase()))
+            // Search across name, location, specialties, tags, certifications
+            .filter(f => {
+                if (!term) return true;
+                return f.name.toLowerCase().includes(term)
+                    || f.location.toLowerCase().includes(term)
+                    || f.specialties.some(s => s.toLowerCase().includes(term))
+                    || f.tags.some(t => t.toLowerCase().includes(term))
+                    || f.certifications.some(c => c.toLowerCase().includes(term));
+            })
             // 3. Filter by minimum star rating
             .filter(f => f.rating >= filters.rating)
             // 4. Filter by Maximum Order Quantity (MOQ) - ensures factory accepts the user's order size
@@ -625,9 +704,78 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
 
                 {/* Search Bar - floating below the hero */}
                 <div className="relative -mt-5 mx-4 sm:mx-8 flex flex-col sm:flex-row gap-2">
-                    <div className="relative flex-grow group">
-                        <Search className="h-5 w-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#c20c0b] transition-colors" />
-                        <input type="text" placeholder="Search factories by name or location..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3.5 border border-gray-200 dark:border-gray-700 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#c20c0b] focus:border-transparent shadow-lg bg-white dark:bg-gray-900/80 dark:backdrop-blur-md dark:text-white text-gray-900 text-sm" />
+                    <div className="relative flex-grow" ref={searchContainerRef}>
+                        <div className="relative group">
+                            <Search className="h-5 w-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#c20c0b] transition-colors z-10" />
+                            <input
+                                type="text"
+                                placeholder="Search by name, location, product, tag, certification..."
+                                value={searchTerm}
+                                onChange={(e) => { setSearchTerm(e.target.value); setShowSearchDropdown(true); }}
+                                onFocus={() => { if (searchTerm.trim()) setShowSearchDropdown(true); }}
+                                className={`w-full pl-12 pr-10 py-3.5 border border-gray-200 dark:border-gray-700 ${showSearchDropdown && searchSuggestions.length > 0 ? 'rounded-t-2xl rounded-b-none border-b-0' : 'rounded-2xl'} focus:outline-none focus:ring-2 focus:ring-[#c20c0b] focus:border-transparent shadow-lg bg-white dark:bg-gray-900/80 dark:backdrop-blur-md dark:text-white text-gray-900 text-sm`}
+                            />
+                            {searchTerm && (
+                                <button onClick={() => { setSearchTerm(''); setShowSearchDropdown(false); }} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors z-10">
+                                    <X size={16} className="text-gray-400" />
+                                </button>
+                            )}
+                        </div>
+                        {/* Predictive Search Dropdown */}
+                        {showSearchDropdown && searchSuggestions.length > 0 && (
+                            <div className="absolute top-full left-0 right-0 bg-white dark:bg-gray-900/95 dark:backdrop-blur-md border border-t-0 border-gray-200 dark:border-gray-700 rounded-b-2xl shadow-2xl z-50 overflow-hidden max-h-[360px] overflow-y-auto">
+                                {searchSuggestions.map((suggestion, idx) => {
+                                    const IconEl = suggestion.icon === 'building' ? Building
+                                        : suggestion.icon === 'globe' ? Globe
+                                        : suggestion.icon === 'package' ? Package
+                                        : suggestion.icon === 'zap' ? Zap
+                                        : Award;
+                                    const colorClass = suggestion.type === 'Factory' ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/30'
+                                        : suggestion.type === 'Location' ? 'text-emerald-500 bg-emerald-50 dark:bg-emerald-900/30'
+                                        : suggestion.type === 'Product' ? 'text-purple-500 bg-purple-50 dark:bg-purple-900/30'
+                                        : suggestion.type === 'Tag' ? 'text-amber-500 bg-amber-50 dark:bg-amber-900/30'
+                                        : 'text-rose-500 bg-rose-50 dark:bg-rose-900/30';
+                                    // Highlight matching portion
+                                    const termLower = searchTerm.toLowerCase();
+                                    const labelLower = suggestion.label.toLowerCase();
+                                    const matchIdx = labelLower.indexOf(termLower);
+                                    const before = suggestion.label.slice(0, matchIdx);
+                                    const match = suggestion.label.slice(matchIdx, matchIdx + searchTerm.length);
+                                    const after = suggestion.label.slice(matchIdx + searchTerm.length);
+
+                                    return (
+                                        <button
+                                            key={`${suggestion.type}-${suggestion.label}-${idx}`}
+                                            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors text-left group/item"
+                                            onClick={() => {
+                                                setSearchTerm(suggestion.label);
+                                                setShowSearchDropdown(false);
+                                            }}
+                                        >
+                                            <div className={`p-2 rounded-lg ${colorClass} flex-shrink-0`}>
+                                                <IconEl size={16} />
+                                            </div>
+                                            <div className="flex-grow min-w-0">
+                                                <p className="text-sm font-medium text-gray-800 dark:text-white truncate">
+                                                    {matchIdx >= 0 ? (<>{before}<span className="text-[#c20c0b] font-bold">{match}</span>{after}</>) : suggestion.label}
+                                                </p>
+                                                <p className="text-xs text-gray-400 dark:text-gray-500">
+                                                    {suggestion.type} · {suggestion.factories.length} {suggestion.factories.length === 1 ? 'factory' : 'factories'}
+                                                </p>
+                                            </div>
+                                            <ArrowRight size={14} className="text-gray-300 dark:text-gray-600 flex-shrink-0 opacity-0 group-hover/item:opacity-100 transition-opacity" />
+                                        </button>
+                                    );
+                                })}
+                                {filteredFactories.length > 0 && (
+                                    <div className="px-4 py-2.5 border-t border-gray-100 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-800/30">
+                                        <p className="text-xs text-gray-400 dark:text-gray-500">
+                                            Showing <span className="font-semibold text-gray-600 dark:text-gray-300">{filteredFactories.length}</span> matching {filteredFactories.length === 1 ? 'factory' : 'factories'}
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                     <button onClick={() => setShowFilterPanel(true)} className="flex-shrink-0 px-5 py-3.5 bg-white dark:bg-gray-900/80 dark:backdrop-blur-md border border-gray-200 dark:border-gray-700 rounded-2xl flex items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800 font-semibold shadow-lg text-gray-700 dark:text-white text-sm transition-all duration-200 hover:scale-[1.02]"><SlidersHorizontal size={16} /> <span className="hidden sm:inline">Filters</span></button>
                 </div>
