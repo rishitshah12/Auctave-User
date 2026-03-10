@@ -129,40 +129,159 @@ export const TrendingPage: FC<TrendingPageProps> = (props) => {
                 )}
 
                 {/* ─── Banner Slideshow ─────────────────────────────────────── */}
-                {banners.length > 0 && (
-                    <section className="mb-12">
-                        <div className="relative rounded-2xl overflow-hidden h-72 md:h-80 group">
-                            {banners.map((banner, idx) => (
-                                <div key={banner.id} className={`absolute inset-0 transition-opacity duration-700 ${idx === currentBanner ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-                                    <img src={banner.image_url} alt={banner.title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-[8000ms] group-hover:scale-105" />
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                                    <div className="absolute bottom-0 left-0 p-8 text-white max-w-2xl">
-                                        <h2 className="text-3xl md:text-4xl font-bold mb-2">{banner.title}</h2>
-                                        {banner.subtitle && <p className="text-lg opacity-90 mb-4">{banner.subtitle}</p>}
-                                        {banner.cta_text && (
-                                            <button className="bg-white text-black font-semibold py-2.5 px-6 rounded-lg hover:bg-opacity-90 transition flex items-center gap-2">
-                                                {banner.cta_text} <ArrowRight size={16} />
-                                            </button>
-                                        )}
+                {banners.length > 0 && (() => {
+                    const TEXT_POS_MAP: Record<string, string> = {
+                        'bottom-left': 'items-start justify-end',
+                        'bottom-center': 'items-center justify-end text-center',
+                        'bottom-right': 'items-end justify-end text-right',
+                        'center-left': 'items-start justify-center',
+                        'center': 'items-center justify-center text-center',
+                        'center-right': 'items-end justify-center text-right',
+                        'top-left': 'items-start justify-start',
+                        'top-center': 'items-center justify-start text-center',
+                        'top-right': 'items-end justify-start text-right',
+                    };
+                    const isMobileView = window.innerWidth < 768;
+                    // Legacy height maps for old sm/md/lg/xl values
+                    const LEGACY_HEIGHT_MAP: Record<string, number> = { sm: 240, md: 320, lg: 400, xl: 500 };
+                    const LEGACY_MOBILE_HEIGHT_MAP: Record<string, number> = { sm: 192, md: 240, lg: 288, xl: 320 };
+                    const activeBanner = banners[currentBanner];
+                    const mob = activeBanner?.mobile || {};
+                    const rawDesktopHeight = activeBanner?.banner_height || 320;
+                    const rawMobileHeight = mob.banner_height || rawDesktopHeight;
+                    // Resolve to px: support both new numeric px and legacy string keys
+                    const resolveHeight = (val: any, legacyMap: Record<string, number>, fallback: number) => {
+                        if (typeof val === 'number') return val;
+                        if (typeof val === 'string' && legacyMap[val]) return legacyMap[val];
+                        return fallback;
+                    };
+                    const bannerHeightPx = isMobileView
+                        ? resolveHeight(rawMobileHeight, LEGACY_MOBILE_HEIGHT_MAP, 240)
+                        : resolveHeight(rawDesktopHeight, LEGACY_HEIGHT_MAP, 320);
+                    // Helper for font size: supports both px numbers and legacy Tailwind classes
+                    const fontSizeStyle = (size: any): React.CSSProperties => {
+                        if (typeof size === 'number') return { fontSize: `${size}px` };
+                        if (typeof size === 'string' && /^\d+$/.test(size)) return { fontSize: `${size}px` };
+                        return {};
+                    };
+                    const fontSizeClass = (size: any): string => {
+                        if (typeof size === 'number' || (typeof size === 'string' && /^\d+$/.test(size))) return '';
+                        return size || '';
+                    };
+
+                    // Per-banner slideshow state
+                    const BannerSlide: FC<{ banner: any; isActive: boolean }> = ({ banner, isActive }) => {
+                        const [slideIdx, setSlideIdx] = useState(0);
+                        const allSlides: any[] = banner.slides || [];
+                        // Filter to only selected slides
+                        const bSlides = allSlides.filter((s: any) => s.selected !== false);
+                        const bIsSlideshow = banner.is_slideshow && bSlides.length > 0;
+                        const currentSlide = bIsSlideshow ? bSlides[slideIdx % bSlides.length] : null;
+                        const mediaUrl = bIsSlideshow ? currentSlide?.url : banner.image_url;
+                        const mediaType = bIsSlideshow ? currentSlide?.type : 'image';
+
+                        useEffect(() => {
+                            if (!bIsSlideshow || bSlides.length <= 1) return;
+                            const interval = setInterval(() => setSlideIdx(p => (p + 1) % bSlides.length), 5000);
+                            return () => clearInterval(interval);
+                        }, [bIsSlideshow, bSlides.length]);
+
+                        // Resolve per-slide settings with banner-level fallback, then mobile override
+                        const mob = banner.mobile || {};
+                        const resolve = (key: string, fallback: any) => {
+                            const slideVal = currentSlide?.[key];
+                            const bannerVal = banner[key];
+                            const base = slideVal != null ? slideVal : (bannerVal != null ? bannerVal : fallback);
+                            // Apply mobile override if on mobile
+                            if (isMobileView && mob[key] != null) return mob[key];
+                            return base;
+                        };
+
+                        const fpx = resolve('focal_point_x', 50);
+                        const fpy = resolve('focal_point_y', 50);
+                        const fp = `${fpx}% ${fpy}%`;
+                        const fit = resolve('image_fit', 'cover');
+                        const opacity = (resolve('overlay_opacity', 60)) / 100;
+                        const gc = resolve('gradient_color', '0,0,0');
+                        const gd = resolve('gradient_direction', 'to top');
+                        const hs = resolve('heading_size', 36);
+                        const ss = resolve('subtitle_size', 18);
+                        const tp = resolve('text_position', 'bottom-left');
+                        const tx = resolve('text_x', null);
+                        const ty = resolve('text_y', null);
+                        const useCustomPos = tp === 'custom' && tx != null;
+                        const posClass = TEXT_POS_MAP[tp] || TEXT_POS_MAP['bottom-left'];
+
+                        // Per-slide text overrides
+                        const title = currentSlide?.title || banner.title;
+                        const subtitle = currentSlide?.subtitle || banner.subtitle;
+                        const ctaText = currentSlide?.cta_text || banner.cta_text;
+
+                        const textContent = (
+                            <div className="max-w-2xl">
+                                <h2 className={`${fontSizeClass(hs)} font-bold mb-2 text-white`} style={fontSizeStyle(hs)}>{title}</h2>
+                                {subtitle && <p className={`${fontSizeClass(ss)} text-white/90 mb-4`} style={fontSizeStyle(ss)}>{subtitle}</p>}
+                                {ctaText && (
+                                    <button className="bg-white text-black font-semibold py-2.5 px-6 rounded-lg hover:bg-opacity-90 transition flex items-center gap-2">
+                                        {ctaText} <ArrowRight size={16} />
+                                    </button>
+                                )}
+                            </div>
+                        );
+
+                        return (
+                            <div className={`absolute inset-0 transition-opacity duration-700 ${isActive ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                                {mediaUrl && (
+                                    mediaType === 'video' ? (
+                                        <video src={mediaUrl} autoPlay muted loop playsInline className="absolute inset-0 w-full h-full object-cover transition-transform duration-[8000ms] group-hover:scale-105" />
+                                    ) : (
+                                        <img src={mediaUrl} alt={title} className="absolute inset-0 w-full h-full transition-transform duration-[8000ms] group-hover:scale-105" style={{ objectFit: fit as any, objectPosition: fp }} />
+                                    )
+                                )}
+                                <div className="absolute inset-0" style={{ background: `linear-gradient(${gd}, rgba(${gc},${opacity}), rgba(${gc},${opacity * 0.3}), transparent)` }} />
+                                {useCustomPos ? (
+                                    <div className="absolute z-10" style={{ left: `${tx}%`, top: `${ty}%`, transform: 'translate(-50%, -50%)' }}>
+                                        {textContent}
                                     </div>
-                                </div>
-                            ))}
-                            {/* Nav arrows */}
-                            {banners.length > 1 && (
-                                <>
-                                    <button onClick={() => setCurrentBanner(prev => (prev - 1 + banners.length) % banners.length)} className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/20 backdrop-blur-sm hover:bg-white/40 text-white p-2 rounded-full transition opacity-0 group-hover:opacity-100"><ChevronLeft size={20} /></button>
-                                    <button onClick={() => setCurrentBanner(prev => (prev + 1) % banners.length)} className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/20 backdrop-blur-sm hover:bg-white/40 text-white p-2 rounded-full transition opacity-0 group-hover:opacity-100"><ChevronRight size={20} /></button>
-                                    {/* Dots */}
-                                    <div className="absolute bottom-4 right-4 flex gap-2">
-                                        {banners.map((_, idx) => (
-                                            <button key={idx} onClick={() => setCurrentBanner(idx)} className={`w-2.5 h-2.5 rounded-full transition-all ${idx === currentBanner ? 'bg-white w-6' : 'bg-white/50 hover:bg-white/70'}`} />
+                                ) : (
+                                    <div className={`absolute inset-0 flex flex-col p-8 ${posClass}`}>
+                                        {textContent}
+                                    </div>
+                                )}
+                                {/* Inner slideshow dots */}
+                                {bIsSlideshow && bSlides.length > 1 && (
+                                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-20">
+                                        {bSlides.map((_, i) => (
+                                            <button key={i} onClick={(e) => { e.stopPropagation(); setSlideIdx(i); }} className={`h-1.5 rounded-full transition-all ${i === slideIdx % bSlides.length ? 'bg-white w-4' : 'bg-white/40 w-1.5'}`} />
                                         ))}
                                     </div>
-                                </>
-                            )}
-                        </div>
-                    </section>
-                )}
+                                )}
+                            </div>
+                        );
+                    };
+
+                    return (
+                        <section className="mb-12">
+                            <div className="relative rounded-2xl overflow-hidden group" style={{ height: `${bannerHeightPx}px` }}>
+                                {banners.map((banner, idx) => (
+                                    <BannerSlide key={banner.id} banner={banner} isActive={idx === currentBanner} />
+                                ))}
+                                {/* Nav arrows (between banners) */}
+                                {banners.length > 1 && (
+                                    <>
+                                        <button onClick={() => setCurrentBanner(prev => (prev - 1 + banners.length) % banners.length)} className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/20 backdrop-blur-sm hover:bg-white/40 text-white p-2 rounded-full transition opacity-0 group-hover:opacity-100 z-30"><ChevronLeft size={20} /></button>
+                                        <button onClick={() => setCurrentBanner(prev => (prev + 1) % banners.length)} className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/20 backdrop-blur-sm hover:bg-white/40 text-white p-2 rounded-full transition opacity-0 group-hover:opacity-100 z-30"><ChevronRight size={20} /></button>
+                                        <div className="absolute bottom-4 right-4 flex gap-2 z-30">
+                                            {banners.map((_, idx) => (
+                                                <button key={idx} onClick={() => setCurrentBanner(idx)} className={`w-2.5 h-2.5 rounded-full transition-all ${idx === currentBanner ? 'bg-white w-6' : 'bg-white/50 hover:bg-white/70'}`} />
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </section>
+                    );
+                })()}
 
                 {/* ─── Featured Products ──────────────────────────────────── */}
                 {featuredProducts.length > 0 && (
