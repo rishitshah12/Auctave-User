@@ -1,7 +1,75 @@
-import React, { useState, useEffect, FC, useCallback } from 'react';
-import { PlayCircle, X, ChevronLeft, ChevronRight, ArrowRight, Clock, User, Tag, ShoppingBag, Sparkles, TrendingUp } from 'lucide-react';
+import React, { useState, useEffect, useRef, FC, useCallback } from 'react';
+import { PlayCircle, X, ChevronLeft, ChevronRight, ArrowRight, Clock, User, Tag, ShoppingBag, Sparkles, TrendingUp, Volume2, VolumeX } from 'lucide-react';
 import { MainLayout } from './MainLayout';
 import { bannerService, trendingProductService, blogService, shortsService } from './trending.service';
+
+// ─── YouTube helpers ────────────────────────────────────────────────
+const extractYouTubeId = (url: string): string | null => {
+    const patterns = [
+        /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/,
+        /^([a-zA-Z0-9_-]{11})$/
+    ];
+    for (const p of patterns) {
+        const m = url.match(p);
+        if (m) return m[1];
+    }
+    return null;
+};
+
+const isYouTubeUrl = (url: string): boolean => extractYouTubeId(url) !== null;
+const getYouTubeEmbedUrl = (url: string): string | null => {
+    const id = extractYouTubeId(url);
+    return id ? `https://www.youtube.com/embed/${id}?autoplay=1&mute=1&loop=1&playlist=${id}&controls=0&modestbranding=1` : null;
+};
+const getYouTubeThumbnail = (videoId: string): string => `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+
+// ─── Animation CSS helpers ──────────────────────────────────────────
+// `state`: 'active' = currently visible, 'exiting' = leaving, 'queued' = off-screen waiting
+const getSlideAnimationStyles = (animation: string, state: 'active' | 'exiting' | 'queued', duration: number): React.CSSProperties => {
+    // Queued slides should not animate — they jump instantly to their off-screen position
+    const base: React.CSSProperties = { transition: state === 'queued' ? 'none' : `all ${duration}ms ease-in-out`, position: 'absolute', inset: 0 };
+    const pe = state === 'active' ? 'auto' : 'none';
+    const op = state === 'active' ? 1 : 0;
+    if (animation === 'fade') return { ...base, opacity: op, pointerEvents: pe };
+    if (animation === 'slide-left') {
+        const tx = state === 'active' ? 'translateX(0)' : state === 'exiting' ? 'translateX(-100%)' : 'translateX(100%)';
+        return { ...base, opacity: op, transform: tx, pointerEvents: pe };
+    }
+    if (animation === 'slide-right') {
+        const tx = state === 'active' ? 'translateX(0)' : state === 'exiting' ? 'translateX(100%)' : 'translateX(-100%)';
+        return { ...base, opacity: op, transform: tx, pointerEvents: pe };
+    }
+    if (animation === 'slide-up') {
+        const ty = state === 'active' ? 'translateY(0)' : state === 'exiting' ? 'translateY(-100%)' : 'translateY(100%)';
+        return { ...base, opacity: op, transform: ty, pointerEvents: pe };
+    }
+    if (animation === 'slide-down') {
+        const ty = state === 'active' ? 'translateY(0)' : state === 'exiting' ? 'translateY(100%)' : 'translateY(-100%)';
+        return { ...base, opacity: op, transform: ty, pointerEvents: pe };
+    }
+    if (animation === 'zoom-in') return { ...base, opacity: op, transform: state === 'active' ? 'scale(1)' : 'scale(0.8)', pointerEvents: pe };
+    if (animation === 'zoom-out') return { ...base, opacity: op, transform: state === 'active' ? 'scale(1)' : 'scale(1.2)', pointerEvents: pe };
+    if (animation === 'flip') return { ...base, opacity: op, transform: state === 'active' ? 'rotateY(0deg)' : 'rotateY(90deg)', pointerEvents: pe };
+    return { ...base, opacity: op, pointerEvents: pe };
+};
+
+// Hover animation: returns inline styles for hovered/unhovered state (scoped to banner container)
+const getHoverAnimationStyles = (animation: string, isHovered: boolean): React.CSSProperties => {
+    const base: React.CSSProperties = { transition: 'transform 0.5s ease, filter 0.5s ease' };
+    if (animation === 'scale') return { ...base, transform: isHovered ? 'scale(1.05)' : 'scale(1)' };
+    if (animation === 'brightness') return { ...base, filter: isHovered ? 'brightness(1.1)' : 'brightness(1)' };
+    if (animation === 'grayscale') return { ...base, filter: isHovered ? 'grayscale(0)' : 'grayscale(1)' };
+    if (animation === 'blur-edge') return { ...base, filter: isHovered ? 'blur(0.5px)' : 'blur(0)' };
+    return base;
+};
+
+// ─── CTA style defaults ─────────────────────────────────────────────
+const DEFAULT_CTA_STYLE = {
+    bg_color: '#ffffff', text_color: '#000000', border_radius: 8, border_width: 0,
+    border_color: '#ffffff', font_size: 14, padding_x: 24, padding_y: 10,
+    hover_bg_color: '#f3f3f3', hover_text_color: '#000000', hover_scale: 100,
+    shadow: false, icon: true,
+};
 
 interface TrendingPageProps {
     pageKey: number;
@@ -17,16 +85,23 @@ interface TrendingPageProps {
 }
 
 // ─── Fullscreen Video Player ────────────────────────────────────────
-const FullscreenVideoPlayer: FC<{ src: string; onClose: () => void }> = ({ src, onClose }) => (
-    <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-[100]" onClick={onClose}>
-        <button onClick={onClose} className="absolute top-4 right-4 text-white hover:text-gray-300 transition z-[101]">
-            <X size={32} />
-        </button>
-        <div className="relative w-auto h-[90vh] aspect-[9/16]" onClick={e => e.stopPropagation()}>
-            <video src={src} autoPlay controls loop className="w-full h-full rounded-xl" />
+const FullscreenVideoPlayer: FC<{ src: string; onClose: () => void }> = ({ src, onClose }) => {
+    const ytEmbed = getYouTubeEmbedUrl(src);
+    return (
+        <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-[100]" onClick={onClose}>
+            <button onClick={onClose} className="absolute top-4 right-4 text-white hover:text-gray-300 transition z-[101]">
+                <X size={32} />
+            </button>
+            <div className="relative w-auto h-[90vh] aspect-[9/16]" onClick={e => e.stopPropagation()}>
+                {ytEmbed ? (
+                    <iframe src={ytEmbed.replace('mute=1', 'mute=0').replace('controls=0', 'controls=1')} allow="autoplay; encrypted-media; fullscreen" allowFullScreen className="w-full h-full rounded-xl border-0" />
+                ) : (
+                    <video src={src} autoPlay controls loop className="w-full h-full rounded-xl" />
+                )}
+            </div>
         </div>
-    </div>
-);
+    );
+};
 
 // ─── Blog Detail Modal ──────────────────────────────────────────────
 const BlogDetailModal: FC<{ blog: any; onClose: () => void }> = ({ blog, onClose }) => (
@@ -56,8 +131,28 @@ export const TrendingPage: FC<TrendingPageProps> = (props) => {
     const [isLoading, setIsLoading] = useState(true);
     const [currentBanner, setCurrentBanner] = useState(0);
     const [fullscreenVideo, setFullscreenVideo] = useState<string | null>(null);
+    const [isBannerMuted, setIsBannerMuted] = useState(true);
     const [selectedBlog, setSelectedBlog] = useState<any>(null);
     const [productFilter, setProductFilter] = useState<string>('all');
+    const [isBannerHovered, setIsBannerHovered] = useState(false);
+    const [ctaHoveredIdx, setCtaHoveredIdx] = useState<number | null>(null);
+    const [prevBanner, setPrevBanner] = useState<number | null>(null);
+
+    // Wrap setCurrentBanner to track the exiting slide
+    const changeBanner = useCallback((nextOrFn: number | ((prev: number) => number)) => {
+        setCurrentBanner(prev => {
+            const next = typeof nextOrFn === 'function' ? nextOrFn(prev) : nextOrFn;
+            if (next !== prev) setPrevBanner(prev);
+            return next;
+        });
+    }, []);
+
+    // Clear prevBanner after transition completes
+    useEffect(() => {
+        if (prevBanner === null) return;
+        const timer = setTimeout(() => setPrevBanner(null), 800);
+        return () => clearTimeout(timer);
+    }, [prevBanner]);
 
     const fetchAll = useCallback(async () => {
         setIsLoading(true);
@@ -85,12 +180,25 @@ export const TrendingPage: FC<TrendingPageProps> = (props) => {
 
     useEffect(() => { fetchAll(); }, [fetchAll]);
 
-    // Auto-rotate banners
+    // Auto-rotate banners with configurable timer & hover pause
     useEffect(() => {
         if (banners.length <= 1) return;
-        const interval = setInterval(() => setCurrentBanner(prev => (prev + 1) % banners.length), 5000);
-        return () => clearInterval(interval);
-    }, [banners.length]);
+        const activeBanner = banners[currentBanner];
+        const interval = activeBanner?.auto_scroll_interval ?? 5;
+        if (interval <= 0) return;
+        const pauseOnHover = activeBanner?.pause_on_hover ?? true;
+        if (pauseOnHover && isBannerHovered) return;
+
+        // Check if current slide is a video with play_full
+        const slides = activeBanner?.slides || [];
+        const isSlideshow = activeBanner?.is_slideshow && slides.length > 0;
+        if (isSlideshow) {
+            // Individual slide timers are handled within BannerSlide
+        }
+
+        const timer = setInterval(() => changeBanner(prev => (prev + 1) % banners.length), interval * 1000);
+        return () => clearInterval(timer);
+    }, [banners.length, currentBanner, isBannerHovered, banners, changeBanner]);
 
     const productCategories = ['all', ...Array.from(new Set(products.map(p => p.category).filter(Boolean)))];
     const filteredProducts = productFilter === 'all' ? products : products.filter(p => p.category === productFilter);
@@ -142,23 +250,24 @@ export const TrendingPage: FC<TrendingPageProps> = (props) => {
                         'top-right': 'items-end justify-start text-right',
                     };
                     const isMobileView = window.innerWidth < 768;
-                    // Legacy height maps for old sm/md/lg/xl values
-                    const LEGACY_HEIGHT_MAP: Record<string, number> = { sm: 240, md: 320, lg: 400, xl: 500 };
-                    const LEGACY_MOBILE_HEIGHT_MAP: Record<string, number> = { sm: 192, md: 240, lg: 288, xl: 320 };
                     const activeBanner = banners[currentBanner];
                     const mob = activeBanner?.mobile || {};
-                    const rawDesktopHeight = activeBanner?.banner_height || 320;
-                    const rawMobileHeight = mob.banner_height || rawDesktopHeight;
-                    // Resolve to px: support both new numeric px and legacy string keys
-                    const resolveHeight = (val: any, legacyMap: Record<string, number>, fallback: number) => {
+                    const LEGACY_HEIGHT_MAP: Record<string, number> = { sm: 240, md: 320, lg: 400, xl: 500 };
+                    const LEGACY_MOBILE_HEIGHT_MAP: Record<string, number> = { sm: 192, md: 240, lg: 288, xl: 320 };
+                    const resolveHeight = (val: any, legacyMap: Record<string, number>, fallback: number): number => {
                         if (typeof val === 'number') return val;
-                        if (typeof val === 'string' && legacyMap[val]) return legacyMap[val];
+                        if (typeof val === 'string') {
+                            const num = parseInt(val, 10);
+                            if (!isNaN(num)) return num;
+                            if (legacyMap[val]) return legacyMap[val];
+                        }
                         return fallback;
                     };
+                    const rawDesktopHeight = activeBanner?.banner_height ?? 320;
+                    const rawMobileHeight = mob.banner_height ?? rawDesktopHeight;
                     const bannerHeightPx = isMobileView
                         ? resolveHeight(rawMobileHeight, LEGACY_MOBILE_HEIGHT_MAP, 240)
                         : resolveHeight(rawDesktopHeight, LEGACY_HEIGHT_MAP, 320);
-                    // Helper for font size: supports both px numbers and legacy Tailwind classes
                     const fontSizeStyle = (size: any): React.CSSProperties => {
                         if (typeof size === 'number') return { fontSize: `${size}px` };
                         if (typeof size === 'string' && /^\d+$/.test(size)) return { fontSize: `${size}px` };
@@ -169,31 +278,83 @@ export const TrendingPage: FC<TrendingPageProps> = (props) => {
                         return size || '';
                     };
 
+                    // Animation settings from banner
+                    const slideAnimation = activeBanner?.slide_animation || 'fade';
+                    const transitionDuration = activeBanner?.transition_duration ?? 700;
+                    const hoverAnimation = activeBanner?.hover_animation || 'scale';
+
                     // Per-banner slideshow state
-                    const BannerSlide: FC<{ banner: any; isActive: boolean }> = ({ banner, isActive }) => {
+                    const BannerSlide: FC<{ banner: any; isActive: boolean; isExiting: boolean; bannerIdx: number }> = ({ banner, isActive, isExiting, bannerIdx }) => {
+                        const videoRef = React.useRef<HTMLVideoElement>(null);
                         const [slideIdx, setSlideIdx] = useState(0);
                         const allSlides: any[] = banner.slides || [];
-                        // Filter to only selected slides
                         const bSlides = allSlides.filter((s: any) => s.selected !== false);
                         const bIsSlideshow = banner.is_slideshow && bSlides.length > 0;
                         const currentSlide = bIsSlideshow ? bSlides[slideIdx % bSlides.length] : null;
-                        const mediaUrl = bIsSlideshow ? currentSlide?.url : banner.image_url;
-                        const mediaType = bIsSlideshow ? currentSlide?.type : 'image';
+                        const slideFallback = !bIsSlideshow && bSlides.length > 0 ? bSlides[0] : null;
+                        const mediaUrl = bIsSlideshow ? currentSlide?.url : (slideFallback?.url || banner.image_url);
+                        const mediaType = bIsSlideshow ? currentSlide?.type : (slideFallback ? slideFallback.type : 'image');
 
+                        // Check YouTube
+                        const slideData = bIsSlideshow ? currentSlide : slideFallback;
+                        const isYt = slideData?.is_youtube || (mediaUrl && isYouTubeUrl(mediaUrl));
+                        const ytEmbedUrl = isYt && mediaUrl ? getYouTubeEmbedUrl(mediaUrl) : null;
+
+                        // Inner slideshow auto-rotate with video play_full support
                         useEffect(() => {
                             if (!bIsSlideshow || bSlides.length <= 1) return;
-                            const interval = setInterval(() => setSlideIdx(p => (p + 1) % bSlides.length), 5000);
-                            return () => clearInterval(interval);
-                        }, [bIsSlideshow, bSlides.length]);
+                            const cs = bSlides[slideIdx % bSlides.length];
+                            // If current slide is video with play_full, wait for video ended event
+                            if (cs?.type === 'video' && cs?.video_play_full && !cs?.is_youtube) return;
+                            const interval = banner.auto_scroll_interval ?? 5;
+                            if (interval <= 0) return;
+                            // Pause on hover
+                            if ((banner.pause_on_hover ?? true) && isBannerHovered) return;
+                            const timer = setInterval(() => setSlideIdx(p => (p + 1) % bSlides.length), interval * 1000);
+                            return () => clearInterval(timer);
+                        }, [bIsSlideshow, bSlides.length, slideIdx, isBannerHovered, banner.auto_scroll_interval, banner.pause_on_hover]);
 
-                        // Resolve per-slide settings with banner-level fallback, then mobile override
-                        const mob = banner.mobile || {};
+                        // Play/pause video when slide becomes active/inactive
+                        useEffect(() => {
+                            const vid = videoRef.current;
+                            if (!vid) return;
+                            if (isActive) {
+                                const tryPlay = () => vid.play().catch(() => {});
+                                if (vid.readyState >= 3) {
+                                    tryPlay();
+                                } else {
+                                    vid.addEventListener('canplay', tryPlay, { once: true });
+                                    vid.load();
+                                    return () => vid.removeEventListener('canplay', tryPlay);
+                                }
+                            } else {
+                                vid.pause();
+                            }
+                        }, [isActive, mediaUrl]);
+
+                        // Video ended handler for play_full
+                        useEffect(() => {
+                            const vid = videoRef.current;
+                            if (!vid || !bIsSlideshow) return;
+                            const cs = bSlides[slideIdx % bSlides.length];
+                            if (!cs?.video_play_full) return;
+                            const onEnded = () => setSlideIdx(p => (p + 1) % bSlides.length);
+                            vid.addEventListener('ended', onEnded);
+                            // Don't loop if play_full
+                            vid.loop = false;
+                            return () => { vid.removeEventListener('ended', onEnded); vid.loop = true; };
+                        }, [bIsSlideshow, slideIdx, bSlides]);
+
+                        const mobB = banner.mobile || {};
                         const resolve = (key: string, fallback: any) => {
                             const slideVal = currentSlide?.[key];
                             const bannerVal = banner[key];
                             const base = slideVal != null ? slideVal : (bannerVal != null ? bannerVal : fallback);
-                            // Apply mobile override if on mobile
-                            if (isMobileView && mob[key] != null) return mob[key];
+                            if (isMobileView) {
+                                const slideMob = currentSlide?.mobile || {};
+                                if (slideMob[key] != null) return slideMob[key];
+                                if (mobB[key] != null) return mobB[key];
+                            }
                             return base;
                         };
 
@@ -212,30 +373,58 @@ export const TrendingPage: FC<TrendingPageProps> = (props) => {
                         const useCustomPos = tp === 'custom' && tx != null;
                         const posClass = TEXT_POS_MAP[tp] || TEXT_POS_MAP['bottom-left'];
 
-                        // Per-slide text overrides
                         const title = currentSlide?.title || banner.title;
                         const subtitle = currentSlide?.subtitle || banner.subtitle;
                         const ctaText = currentSlide?.cta_text || banner.cta_text;
+                        const ctaLink = currentSlide?.cta_link || banner.cta_link;
+
+                        // CTA style
+                        const ctaS = { ...DEFAULT_CTA_STYLE, ...(banner.cta_style || {}) };
+                        const isCtaHovered = ctaHoveredIdx === bannerIdx;
 
                         const textContent = (
                             <div className="max-w-2xl">
                                 <h2 className={`${fontSizeClass(hs)} font-bold mb-2 text-white`} style={fontSizeStyle(hs)}>{title}</h2>
                                 {subtitle && <p className={`${fontSizeClass(ss)} text-white/90 mb-4`} style={fontSizeStyle(ss)}>{subtitle}</p>}
                                 {ctaText && (
-                                    <button className="bg-white text-black font-semibold py-2.5 px-6 rounded-lg hover:bg-opacity-90 transition flex items-center gap-2">
-                                        {ctaText} <ArrowRight size={16} />
-                                    </button>
+                                    <a
+                                        href={ctaLink || '#'}
+                                        onClick={e => { if (!ctaLink) e.preventDefault(); }}
+                                        onMouseEnter={() => setCtaHoveredIdx(bannerIdx)}
+                                        onMouseLeave={() => setCtaHoveredIdx(null)}
+                                        className="inline-flex items-center gap-2 font-semibold transition-all no-underline"
+                                        style={{
+                                            backgroundColor: isCtaHovered ? ctaS.hover_bg_color : ctaS.bg_color,
+                                            color: isCtaHovered ? ctaS.hover_text_color : ctaS.text_color,
+                                            borderRadius: `${ctaS.border_radius === 9999 ? 9999 : ctaS.border_radius}px`,
+                                            border: ctaS.border_width ? `${ctaS.border_width}px solid ${ctaS.border_color}` : 'none',
+                                            fontSize: `${ctaS.font_size}px`,
+                                            paddingLeft: `${ctaS.padding_x}px`,
+                                            paddingRight: `${ctaS.padding_x}px`,
+                                            paddingTop: `${ctaS.padding_y}px`,
+                                            paddingBottom: `${ctaS.padding_y}px`,
+                                            boxShadow: ctaS.shadow ? '0 4px 14px rgba(0,0,0,0.25)' : 'none',
+                                            transform: isCtaHovered ? `scale(${(ctaS.hover_scale || 100) / 100})` : 'scale(1)',
+                                        }}
+                                    >
+                                        {ctaText} {ctaS.icon !== false && <ArrowRight size={14} />}
+                                    </a>
                                 )}
                             </div>
                         );
 
+                        const slideState: 'active' | 'exiting' | 'queued' = isActive ? 'active' : isExiting ? 'exiting' : 'queued';
+                        const hoverStyles = getHoverAnimationStyles(hoverAnimation, isBannerHovered && isActive);
+
                         return (
-                            <div className={`absolute inset-0 transition-opacity duration-700 ${isActive ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                            <div style={getSlideAnimationStyles(slideAnimation, slideState, transitionDuration)}>
                                 {mediaUrl && (
-                                    mediaType === 'video' ? (
-                                        <video src={mediaUrl} autoPlay muted loop playsInline className="absolute inset-0 w-full h-full object-cover transition-transform duration-[8000ms] group-hover:scale-105" />
+                                    isYt && ytEmbedUrl ? (
+                                        <iframe key={mediaUrl} src={ytEmbedUrl} allow="autoplay; encrypted-media" allowFullScreen className="absolute inset-0 w-full h-full border-0" />
+                                    ) : mediaType === 'video' ? (
+                                        <video ref={(el) => { (videoRef as React.MutableRefObject<HTMLVideoElement | null>).current = el; if (el) el.muted = isBannerMuted; }} key={mediaUrl} src={mediaUrl} autoPlay muted={isBannerMuted} loop playsInline className="absolute inset-0 w-full h-full object-cover" style={hoverStyles} />
                                     ) : (
-                                        <img src={mediaUrl} alt={title} className="absolute inset-0 w-full h-full transition-transform duration-[8000ms] group-hover:scale-105" style={{ objectFit: fit as any, objectPosition: fp }} />
+                                        <img src={mediaUrl} alt={title} className="absolute inset-0 w-full h-full" style={{ objectFit: fit as any, objectPosition: fp, ...hoverStyles }} />
                                     )
                                 )}
                                 <div className="absolute inset-0" style={{ background: `linear-gradient(${gd}, rgba(${gc},${opacity}), rgba(${gc},${opacity * 0.3}), transparent)` }} />
@@ -248,10 +437,9 @@ export const TrendingPage: FC<TrendingPageProps> = (props) => {
                                         {textContent}
                                     </div>
                                 )}
-                                {/* Inner slideshow dots */}
                                 {bIsSlideshow && bSlides.length > 1 && (
                                     <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-20">
-                                        {bSlides.map((_, i) => (
+                                        {bSlides.map((_: any, i: number) => (
                                             <button key={i} onClick={(e) => { e.stopPropagation(); setSlideIdx(i); }} className={`h-1.5 rounded-full transition-all ${i === slideIdx % bSlides.length ? 'bg-white w-4' : 'bg-white/40 w-1.5'}`} />
                                         ))}
                                     </div>
@@ -262,18 +450,36 @@ export const TrendingPage: FC<TrendingPageProps> = (props) => {
 
                     return (
                         <section className="mb-12">
-                            <div className="relative rounded-2xl overflow-hidden group" style={{ height: `${bannerHeightPx}px` }}>
+                            <div
+                                className="relative rounded-2xl overflow-hidden group"
+                                style={{ height: `${bannerHeightPx}px`, perspective: slideAnimation === 'flip' ? '1200px' : undefined }}
+                                onMouseEnter={() => setIsBannerHovered(true)}
+                                onMouseLeave={() => setIsBannerHovered(false)}
+                            >
                                 {banners.map((banner, idx) => (
-                                    <BannerSlide key={banner.id} banner={banner} isActive={idx === currentBanner} />
+                                    <BannerSlide key={banner.id} banner={banner} isActive={idx === currentBanner} isExiting={idx === prevBanner} bannerIdx={idx} />
                                 ))}
-                                {/* Nav arrows (between banners) */}
+                                {/* Mute/unmute for video slides */}
+                                {(() => {
+                                    const ab = banners[currentBanner];
+                                    const abSlides = (ab?.slides || []).filter((s: any) => s.selected !== false);
+                                    const hasNonYtVideo = ab?.is_slideshow
+                                        ? abSlides.some((s: any) => s.type === 'video' && !s.is_youtube && !isYouTubeUrl(s.url || ''))
+                                        : (!!ab?.video_url && !isYouTubeUrl(ab?.video_url || ''));
+                                    if (!hasNonYtVideo) return null;
+                                    return (
+                                        <button onClick={() => setIsBannerMuted(!isBannerMuted)} className="absolute top-3 right-3 bg-black/50 backdrop-blur-sm hover:bg-black/70 text-white p-2 rounded-full transition opacity-0 group-hover:opacity-100 z-30">
+                                            {isBannerMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+                                        </button>
+                                    );
+                                })()}
                                 {banners.length > 1 && (
                                     <>
-                                        <button onClick={() => setCurrentBanner(prev => (prev - 1 + banners.length) % banners.length)} className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/20 backdrop-blur-sm hover:bg-white/40 text-white p-2 rounded-full transition opacity-0 group-hover:opacity-100 z-30"><ChevronLeft size={20} /></button>
-                                        <button onClick={() => setCurrentBanner(prev => (prev + 1) % banners.length)} className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/20 backdrop-blur-sm hover:bg-white/40 text-white p-2 rounded-full transition opacity-0 group-hover:opacity-100 z-30"><ChevronRight size={20} /></button>
+                                        <button onClick={() => changeBanner(prev => (prev - 1 + banners.length) % banners.length)} className="absolute left-3 top-1/2 -translate-y-1/2 bg-black/30 backdrop-blur-sm hover:bg-black/50 text-white p-2 rounded-full transition z-30"><ChevronLeft size={20} /></button>
+                                        <button onClick={() => changeBanner(prev => (prev + 1) % banners.length)} className="absolute right-3 top-1/2 -translate-y-1/2 bg-black/30 backdrop-blur-sm hover:bg-black/50 text-white p-2 rounded-full transition z-30"><ChevronRight size={20} /></button>
                                         <div className="absolute bottom-4 right-4 flex gap-2 z-30">
-                                            {banners.map((_, idx) => (
-                                                <button key={idx} onClick={() => setCurrentBanner(idx)} className={`w-2.5 h-2.5 rounded-full transition-all ${idx === currentBanner ? 'bg-white w-6' : 'bg-white/50 hover:bg-white/70'}`} />
+                                            {banners.map((_: any, idx: number) => (
+                                                <button key={idx} onClick={() => changeBanner(idx)} className={`w-2.5 h-2.5 rounded-full transition-all ${idx === currentBanner ? 'bg-white w-6' : 'bg-white/50 hover:bg-white/70'}`} />
                                             ))}
                                         </div>
                                     </>
@@ -391,26 +597,31 @@ export const TrendingPage: FC<TrendingPageProps> = (props) => {
                     <section className="mb-8">
                         <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-6">Fashion Shorts</h2>
                         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                            {shorts.map(short => (
-                                <div key={short.id} className="relative rounded-xl overflow-hidden shadow-lg border border-gray-200 dark:border-white/10 group cursor-pointer aspect-[9/16] hover:shadow-xl transition-all hover:-translate-y-1" onClick={() => setFullscreenVideo(short.video_url)}>
-                                    {short.thumbnail_url ? (
-                                        <img src={short.thumbnail_url} alt={short.title || short.creator} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                                    ) : (
-                                        <div className="absolute inset-0 bg-gradient-to-br from-purple-600 to-pink-500" />
-                                    )}
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                        <div className="bg-white/20 backdrop-blur-sm rounded-full p-3 group-hover:scale-110 group-hover:bg-white/30 transition-all">
-                                            <PlayCircle size={36} className="text-white" />
+                            {shorts.map(short => {
+                                // Auto-pick YouTube thumbnail if no thumbnail_url set
+                                const ytId = extractYouTubeId(short.video_url || '');
+                                const thumbUrl = short.thumbnail_url || (ytId ? getYouTubeThumbnail(ytId) : null);
+                                return (
+                                    <div key={short.id} className="relative rounded-xl overflow-hidden shadow-lg border border-gray-200 dark:border-white/10 group cursor-pointer aspect-[9/16] hover:shadow-xl transition-all hover:-translate-y-1" onClick={() => setFullscreenVideo(short.video_url)}>
+                                        {thumbUrl ? (
+                                            <img src={thumbUrl} alt={short.title || short.creator} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                        ) : (
+                                            <div className="absolute inset-0 bg-gradient-to-br from-purple-600 to-pink-500" />
+                                        )}
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+                                        <div className="absolute inset-0 flex items-center justify-center">
+                                            <div className="bg-white/20 backdrop-blur-sm rounded-full p-3 group-hover:scale-110 group-hover:bg-white/30 transition-all">
+                                                <PlayCircle size={36} className="text-white" />
+                                            </div>
+                                        </div>
+                                        <div className="absolute bottom-0 left-0 p-4 text-white">
+                                            {short.title && <p className="font-semibold text-sm mb-0.5">{short.title}</p>}
+                                            {short.creator && <p className="text-xs opacity-80">{short.creator}</p>}
+                                            {short.views && short.views !== '0' && <p className="text-[10px] opacity-60 mt-0.5">{short.views} views</p>}
                                         </div>
                                     </div>
-                                    <div className="absolute bottom-0 left-0 p-4 text-white">
-                                        {short.title && <p className="font-semibold text-sm mb-0.5">{short.title}</p>}
-                                        {short.creator && <p className="text-xs opacity-80">{short.creator}</p>}
-                                        {short.views && short.views !== '0' && <p className="text-[10px] opacity-60 mt-0.5">{short.views} views</p>}
-                                    </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </section>
                 )}
