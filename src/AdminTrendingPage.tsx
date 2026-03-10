@@ -833,6 +833,10 @@ const BannerBuilder: FC<{
     const [isPanelHidden, setIsPanelHidden] = useState(false);
     const [inlineEditing, setInlineEditing] = useState<'title' | 'subtitle' | 'cta' | null>(null);
     const inlineInputRef = useRef<HTMLInputElement>(null);
+    const [prevPreviewSlideIdx, setPrevPreviewSlideIdx] = useState<number | null>(null);
+    const [isPreviewHovered, setIsPreviewHovered] = useState(false);
+    const [isCtaPreviewHovered, setIsCtaPreviewHovered] = useState(false);
+    const [isCtaPanelHovered, setIsCtaPanelHovered] = useState(false);
 
     const set = (key: string, val: any) => onChange({ ...item, [key]: val });
     const setMulti = (updates: Record<string, any>) => onChange({ ...item, ...updates });
@@ -1058,7 +1062,59 @@ const BannerBuilder: FC<{
         return item.cta_text || '';
     };
 
-    // No auto-rotate in editor — user controls slide navigation manually
+    // Slide change helper to track previous for transitions
+    const changePreviewSlide = useCallback((nextOrFn: number | ((prev: number) => number)) => {
+        setPreviewSlideIdx(prev => {
+            const next = typeof nextOrFn === 'function' ? nextOrFn(prev) : nextOrFn;
+            if (next !== prev) setPrevPreviewSlideIdx(prev);
+            return next;
+        });
+    }, []);
+
+    // Clear prevPreviewSlideIdx after transition completes
+    useEffect(() => {
+        if (prevPreviewSlideIdx === null) return;
+        const dur = item.transition_duration ?? 700;
+        const timer = setTimeout(() => setPrevPreviewSlideIdx(null), dur + 100);
+        return () => clearTimeout(timer);
+    }, [prevPreviewSlideIdx, item.transition_duration]);
+
+    // Auto-advance preview slideshow
+    useEffect(() => {
+        if (!isSlideshow || slides.length <= 1) return;
+        const interval = item.auto_scroll_interval ?? 5;
+        if (interval <= 0) return;
+        if ((item.pause_on_hover ?? true) && isPreviewHovered) return;
+        const timer = setInterval(() => changePreviewSlide(p => (p + 1) % slides.length), interval * 1000);
+        return () => clearInterval(timer);
+    }, [isSlideshow, slides.length, item.auto_scroll_interval, item.pause_on_hover, isPreviewHovered, changePreviewSlide]);
+
+    // Hover animation helper for preview
+    const getPreviewHoverStyle = (animation: string, hovered: boolean): React.CSSProperties => {
+        const base: React.CSSProperties = { transition: 'transform 0.5s ease, filter 0.5s ease' };
+        if (!hovered || animation === 'none') return base;
+        if (animation === 'scale') return { ...base, transform: 'scale(1.05)' };
+        if (animation === 'brightness') return { ...base, filter: 'brightness(1.1)' };
+        if (animation === 'grayscale') return { ...base, filter: 'grayscale(0)' };
+        if (animation === 'blur-edge') return { ...base, filter: 'blur(0.5px)' };
+        return base;
+    };
+
+    // Slide animation helper for preview
+    const getPreviewSlideStyle = (animation: string, state: 'active' | 'exiting' | 'queued', duration: number): React.CSSProperties => {
+        const base: React.CSSProperties = { transition: state === 'queued' ? 'none' : `all ${duration}ms ease-in-out`, position: 'absolute' as const, inset: 0 };
+        const pe = state === 'active' ? 'auto' as const : 'none' as const;
+        const op = state === 'active' ? 1 : 0;
+        if (animation === 'fade') return { ...base, opacity: op, pointerEvents: pe };
+        if (animation === 'slide-left') return { ...base, opacity: op, transform: state === 'active' ? 'translateX(0)' : state === 'exiting' ? 'translateX(-100%)' : 'translateX(100%)', pointerEvents: pe };
+        if (animation === 'slide-right') return { ...base, opacity: op, transform: state === 'active' ? 'translateX(0)' : state === 'exiting' ? 'translateX(100%)' : 'translateX(-100%)', pointerEvents: pe };
+        if (animation === 'slide-up') return { ...base, opacity: op, transform: state === 'active' ? 'translateY(0)' : state === 'exiting' ? 'translateY(-100%)' : 'translateY(100%)', pointerEvents: pe };
+        if (animation === 'slide-down') return { ...base, opacity: op, transform: state === 'active' ? 'translateY(0)' : state === 'exiting' ? 'translateY(100%)' : 'translateY(-100%)', pointerEvents: pe };
+        if (animation === 'zoom-in') return { ...base, opacity: op, transform: state === 'active' ? 'scale(1)' : 'scale(0.8)', pointerEvents: pe };
+        if (animation === 'zoom-out') return { ...base, opacity: op, transform: state === 'active' ? 'scale(1)' : 'scale(1.2)', pointerEvents: pe };
+        if (animation === 'flip') return { ...base, opacity: op, transform: state === 'active' ? 'rotateY(0deg)' : 'rotateY(90deg)', pointerEvents: pe };
+        return { ...base, opacity: op, pointerEvents: pe };
+    };
 
     // Preview data
     const previewBanners = allBanners.filter(b => b.is_active).map(b =>
@@ -1083,227 +1139,282 @@ const BannerBuilder: FC<{
     const renderBannerPreview = (banner: any, height: number, interactive = false) => {
         const bSlides: SlideItem[] = banner.slides || [];
         const bIsSlideshow = banner.is_slideshow && bSlides.length > 0;
-        const activeSlide = bIsSlideshow ? bSlides[previewSlideIdx % bSlides.length] : null;
         const bMobile = banner.mobile || {};
-
-        // Resolve per-slide then mobile overrides
-        const rSlide = (key: string, fallback: any) => {
-            const sv = activeSlide?.[key as keyof SlideItem];
-            return sv != null ? sv : (banner[key] ?? fallback);
-        };
-        const rMobile = (key: string, val: any) => previewDevice === 'mobile' && bMobile[key] != null ? bMobile[key] : val;
-
-        const fpx = rMobile('focal_point_x', bIsSlideshow ? rSlide('focal_point_x', 50) : (banner.focal_point_x ?? 50));
-        const fpy = rMobile('focal_point_y', bIsSlideshow ? rSlide('focal_point_y', 50) : (banner.focal_point_y ?? 50));
-        const fp = `${fpx}% ${fpy}%`;
-        const fit = bIsSlideshow ? rSlide('image_fit', 'cover') : (banner.image_fit || 'cover');
-        const opacity = rMobile('overlay_opacity', bIsSlideshow ? rSlide('overlay_opacity', 60) : (banner.overlay_opacity ?? 60));
-        const gc = bIsSlideshow ? rSlide('gradient_color', '0,0,0') : (banner.gradient_color || '0,0,0');
-        const gd = bIsSlideshow ? rSlide('gradient_direction', 'to top') : (banner.gradient_direction || 'to top');
-        const rTextPos = rMobile('text_position', bIsSlideshow ? rSlide('text_position', 'bottom-left') : (banner.text_position || 'bottom-left'));
-        const pos = TEXT_POSITIONS[rTextPos];
-        const hs = (() => {
-            if (bIsSlideshow && activeSlide) {
-                const slideDesktop = activeSlide.heading_size != null ? activeSlide.heading_size : (banner.heading_size || 36);
-                if (previewDevice === 'mobile') {
-                    const sMob = (activeSlide as any).mobile || {};
-                    return sMob.heading_size != null ? sMob.heading_size : slideDesktop;
-                }
-                return slideDesktop;
-            }
-            return rMobile('heading_size', banner.heading_size || 36);
-        })();
-        const ss = (() => {
-            if (bIsSlideshow && activeSlide) {
-                const slideDesktop = activeSlide.subtitle_size != null ? activeSlide.subtitle_size : (banner.subtitle_size || 18);
-                if (previewDevice === 'mobile') {
-                    const sMob = (activeSlide as any).mobile || {};
-                    return sMob.subtitle_size != null ? sMob.subtitle_size : slideDesktop;
-                }
-                return slideDesktop;
-            }
-            return rMobile('subtitle_size', banner.subtitle_size || 18);
-        })();
-        const rTx = rMobile('text_x', bIsSlideshow ? rSlide('text_x', null) : (banner.text_x ?? null));
-        const rTy = rMobile('text_y', bIsSlideshow ? rSlide('text_y', null) : (banner.text_y ?? null));
-        const useCustomPos = rTextPos === 'custom' && rTx != null;
-
-        // Per-slide title/subtitle/cta overrides
-        const displayTitle = (bIsSlideshow && activeSlide?.title) ? activeSlide.title : banner.title;
-        const displaySubtitle = (bIsSlideshow && activeSlide?.subtitle) ? activeSlide.subtitle : banner.subtitle;
-        const displayCtaText = (bIsSlideshow && activeSlide?.cta_text) ? activeSlide.cta_text : banner.cta_text;
-
-        // Filter to selected slides only for navigation
-        const visibleSlides = bSlides.filter(s => s.selected !== false);
-        const bSlideFallback = !bIsSlideshow && bSlides.length > 0 ? bSlides[0] : null;
-        const mediaUrl = bIsSlideshow ? bSlides[previewSlideIdx % bSlides.length]?.url : (bSlideFallback?.url || banner.image_url);
-        const mediaType = bIsSlideshow ? bSlides[previewSlideIdx % bSlides.length]?.type : (bSlideFallback ? bSlideFallback.type : 'image');
-
-        // Check if current slide is YouTube
-        const currentSlideData = bIsSlideshow ? bSlides[previewSlideIdx % bSlides.length] : bSlideFallback;
-        const isYt = currentSlideData?.is_youtube || (mediaUrl && isYouTubeUrl(mediaUrl));
-        const ytEmbedUrl = isYt && mediaUrl ? getYouTubeEmbedUrl(mediaUrl) : null;
+        const slideAnim = banner.slide_animation || 'fade';
+        const transDur = banner.transition_duration ?? 700;
+        const hoverAnim = banner.hover_animation || 'scale';
 
         // CTA style
         const ctaS: CtaStyle = { ...DEFAULT_CTA_STYLE, ...(banner.cta_style || {}) };
 
-        return (
-            <div ref={interactive ? previewBannerRef : undefined} className="relative w-full overflow-hidden rounded-2xl" style={{ height }}>
-                {mediaUrl ? (
-                    isYt && ytEmbedUrl ? (
-                        <iframe key={mediaUrl} src={ytEmbedUrl} allow="autoplay; encrypted-media" allowFullScreen className="absolute inset-0 w-full h-full border-0" style={{ pointerEvents: interactive ? 'none' : 'auto' }} />
-                    ) : mediaType === 'video' ? (
-                        <video key={mediaUrl} src={mediaUrl} autoPlay muted={isVideoMuted} loop playsInline className="absolute inset-0 w-full h-full object-cover" />
+        // Resolve for a given slide index
+        const resolveForSlide = (slideIdx: number) => {
+            const slide = bIsSlideshow ? bSlides[slideIdx % bSlides.length] : null;
+            const rSlide = (key: string, fallback: any) => {
+                const sv = slide?.[key as keyof SlideItem];
+                return sv != null ? sv : (banner[key] ?? fallback);
+            };
+            const rMobile = (key: string, val: any) => previewDevice === 'mobile' && bMobile[key] != null ? bMobile[key] : val;
+
+            const bSlideFallback = !bIsSlideshow && bSlides.length > 0 ? bSlides[0] : null;
+            const mediaUrl = bIsSlideshow ? bSlides[slideIdx % bSlides.length]?.url : (bSlideFallback?.url || banner.image_url);
+            const mediaType = bIsSlideshow ? bSlides[slideIdx % bSlides.length]?.type : (bSlideFallback ? bSlideFallback.type : 'image');
+            const slideData = bIsSlideshow ? bSlides[slideIdx % bSlides.length] : bSlideFallback;
+            const isYt = slideData?.is_youtube || (mediaUrl && isYouTubeUrl(mediaUrl));
+            const ytEmbedUrl = isYt && mediaUrl ? getYouTubeEmbedUrl(mediaUrl) : null;
+
+            const fpx = rMobile('focal_point_x', bIsSlideshow ? rSlide('focal_point_x', 50) : (banner.focal_point_x ?? 50));
+            const fpy = rMobile('focal_point_y', bIsSlideshow ? rSlide('focal_point_y', 50) : (banner.focal_point_y ?? 50));
+            const fp = `${fpx}% ${fpy}%`;
+            const fit = bIsSlideshow ? rSlide('image_fit', 'cover') : (banner.image_fit || 'cover');
+            const opacity = rMobile('overlay_opacity', bIsSlideshow ? rSlide('overlay_opacity', 60) : (banner.overlay_opacity ?? 60));
+            const gc = bIsSlideshow ? rSlide('gradient_color', '0,0,0') : (banner.gradient_color || '0,0,0');
+            const gd = bIsSlideshow ? rSlide('gradient_direction', 'to top') : (banner.gradient_direction || 'to top');
+            const rTextPos = rMobile('text_position', bIsSlideshow ? rSlide('text_position', 'bottom-left') : (banner.text_position || 'bottom-left'));
+            const hs = (() => {
+                if (bIsSlideshow && slide) {
+                    const slideDesktop = slide.heading_size != null ? slide.heading_size : (banner.heading_size || 36);
+                    if (previewDevice === 'mobile') {
+                        const sMob = (slide as any).mobile || {};
+                        return sMob.heading_size != null ? sMob.heading_size : slideDesktop;
+                    }
+                    return slideDesktop;
+                }
+                return rMobile('heading_size', banner.heading_size || 36);
+            })();
+            const ss = (() => {
+                if (bIsSlideshow && slide) {
+                    const slideDesktop = slide.subtitle_size != null ? slide.subtitle_size : (banner.subtitle_size || 18);
+                    if (previewDevice === 'mobile') {
+                        const sMob = (slide as any).mobile || {};
+                        return sMob.subtitle_size != null ? sMob.subtitle_size : slideDesktop;
+                    }
+                    return slideDesktop;
+                }
+                return rMobile('subtitle_size', banner.subtitle_size || 18);
+            })();
+            const rTx = rMobile('text_x', bIsSlideshow ? rSlide('text_x', null) : (banner.text_x ?? null));
+            const rTy = rMobile('text_y', bIsSlideshow ? rSlide('text_y', null) : (banner.text_y ?? null));
+            const displayTitle = (bIsSlideshow && slide?.title) ? slide.title : banner.title;
+            const displaySubtitle = (bIsSlideshow && slide?.subtitle) ? slide.subtitle : banner.subtitle;
+            const displayCtaText = (bIsSlideshow && slide?.cta_text) ? slide.cta_text : banner.cta_text;
+            const headingColor = bIsSlideshow ? rSlide('heading_color', '#ffffff') : (banner.heading_color || '#ffffff');
+            const subtitleColor = bIsSlideshow ? rSlide('subtitle_color', 'rgba(255,255,255,0.9)') : (banner.subtitle_color || 'rgba(255,255,255,0.9)');
+
+            return { mediaUrl, mediaType, isYt, ytEmbedUrl, fp, fit, opacity, gc, gd, rTextPos, hs, ss, rTx, rTy, displayTitle, displaySubtitle, displayCtaText, headingColor, subtitleColor };
+        };
+
+        const activeIdx = previewSlideIdx % Math.max(bSlides.length, 1);
+        const active = resolveForSlide(activeIdx);
+        const pos = TEXT_POSITIONS[active.rTextPos];
+        const useCustomPos = active.rTextPos === 'custom' && active.rTx != null;
+
+        // Render a single slide's media + gradient
+        const renderSlideMedia = (r: ReturnType<typeof resolveForSlide>, isActiveSlide: boolean) => {
+            const hoverStyle = getPreviewHoverStyle(hoverAnim, isPreviewHovered && isActiveSlide);
+            const baseGrayscale = hoverAnim === 'grayscale' && !(isPreviewHovered && isActiveSlide) ? { filter: 'grayscale(1)' } : {};
+            return (
+                <>
+                    {r.mediaUrl ? (
+                        r.isYt && r.ytEmbedUrl ? (
+                            <iframe key={r.mediaUrl} src={r.ytEmbedUrl} allow="autoplay; encrypted-media" allowFullScreen className="absolute inset-0 w-full h-full border-0" style={{ pointerEvents: interactive ? 'none' : 'auto' }} />
+                        ) : r.mediaType === 'video' ? (
+                            <video key={r.mediaUrl} src={r.mediaUrl} autoPlay muted={isVideoMuted} loop playsInline className="absolute inset-0 w-full h-full object-cover" style={{ ...hoverStyle, ...baseGrayscale }} />
+                        ) : (
+                            <img src={r.mediaUrl} alt={r.displayTitle || ''} className="absolute inset-0 w-full h-full" style={{ objectFit: r.fit as any, objectPosition: r.fp, ...hoverStyle, ...baseGrayscale }} />
+                        )
                     ) : (
-                        <img src={mediaUrl} alt={banner.title} className="absolute inset-0 w-full h-full" style={{ objectFit: fit as any, objectPosition: fp }} />
-                    )
+                        <div className="absolute inset-0 bg-gradient-to-br from-gray-300 to-gray-400 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center">
+                            <ImageIcon size={48} className="text-gray-400 dark:text-gray-500" />
+                        </div>
+                    )}
+                    <div className="absolute inset-0" style={{ background: buildGradient(r.opacity, r.gc, r.gd) }} />
+                </>
+            );
+        };
+
+        // Text overlay with inline editing
+        const renderTextOverlay = () => {
+            const r = active;
+            const renderInlineTitle = () => (
+                interactive && inlineEditing === 'title' ? (
+                    <input
+                        ref={inlineInputRef}
+                        type="text"
+                        value={getInlineValue('title')}
+                        onChange={e => handleInlineChange('title', e.target.value)}
+                        onBlur={() => setInlineEditing(null)}
+                        onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setInlineEditing(null); }}
+                        className={`${fontSizeClass(r.hs)} font-bold mb-2 bg-transparent border-b-2 border-white/60 outline-none w-full placeholder-white/40`}
+                        style={{ ...fontSizeStyle(r.hs), color: r.headingColor, caretColor: 'white' }}
+                        placeholder="Banner Title"
+                    />
                 ) : (
-                    <div className="absolute inset-0 bg-gradient-to-br from-gray-300 to-gray-400 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center">
-                        <ImageIcon size={48} className="text-gray-400 dark:text-gray-500" />
+                    <h2
+                        className={`${fontSizeClass(r.hs)} font-bold mb-2 ${interactive ? 'cursor-text hover:ring-2 hover:ring-white/40 hover:ring-offset-0 rounded px-1 -mx-1 transition-all' : ''}`}
+                        style={{ ...fontSizeStyle(r.hs), color: r.headingColor }}
+                        onClick={interactive ? (e) => { e.stopPropagation(); setInlineEditing('title'); } : undefined}
+                        title={interactive ? 'Click to edit title' : undefined}
+                    >
+                        {r.displayTitle || 'Banner Title'}
+                    </h2>
+                )
+            );
+            const renderInlineSubtitle = () => (
+                interactive && inlineEditing === 'subtitle' ? (
+                    <input
+                        ref={inlineInputRef}
+                        type="text"
+                        value={getInlineValue('subtitle')}
+                        onChange={e => handleInlineChange('subtitle', e.target.value)}
+                        onBlur={() => setInlineEditing(null)}
+                        onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setInlineEditing(null); }}
+                        className={`${fontSizeClass(r.ss)} mb-4 bg-transparent border-b-2 border-white/40 outline-none w-full placeholder-white/30`}
+                        style={{ ...fontSizeStyle(r.ss), color: r.subtitleColor, caretColor: 'white' }}
+                        placeholder="Add subtitle..."
+                    />
+                ) : (
+                    (r.displaySubtitle || interactive) && (
+                        <p
+                            className={`${fontSizeClass(r.ss)} mb-4 ${interactive ? 'cursor-text hover:ring-2 hover:ring-white/30 hover:ring-offset-0 rounded px-1 -mx-1 transition-all' : ''} ${!r.displaySubtitle && interactive ? 'italic opacity-30' : ''}`}
+                            style={{ ...fontSizeStyle(r.ss), color: r.displaySubtitle ? r.subtitleColor : undefined }}
+                            onClick={interactive ? (e) => { e.stopPropagation(); setInlineEditing('subtitle'); } : undefined}
+                            title={interactive ? 'Click to edit subtitle' : undefined}
+                        >
+                            {r.displaySubtitle || 'Add subtitle...'}
+                        </p>
+                    )
+                )
+            );
+            const renderInlineCta = () => {
+                const isHov = interactive ? isCtaPreviewHovered : false;
+                return interactive && inlineEditing === 'cta' ? (
+                    <div className="inline-flex items-center gap-2" style={{ backgroundColor: ctaS.bg_color, borderRadius: `${ctaS.border_radius}px`, paddingLeft: `${ctaS.padding_x}px`, paddingRight: `${ctaS.padding_x}px`, paddingTop: `${ctaS.padding_y}px`, paddingBottom: `${ctaS.padding_y}px`, border: ctaS.border_width ? `${ctaS.border_width}px solid ${ctaS.border_color}` : 'none' }}>
+                        <input
+                            ref={inlineInputRef}
+                            type="text"
+                            value={getInlineValue('cta')}
+                            onChange={e => handleInlineChange('cta', e.target.value)}
+                            onBlur={() => setInlineEditing(null)}
+                            onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setInlineEditing(null); }}
+                            className="font-semibold bg-transparent outline-none placeholder-gray-400 w-28"
+                            style={{ color: ctaS.text_color, fontSize: `${ctaS.font_size}px` }}
+                            placeholder="CTA text..."
+                        />
+                        {ctaS.icon !== false && <ArrowRight size={14} style={{ color: ctaS.text_color }} />}
                     </div>
+                ) : (
+                    (r.displayCtaText || interactive) && (
+                        <button
+                            className={`font-semibold flex items-center gap-2 transition-all ${!r.displayCtaText && interactive ? 'opacity-40' : ''}`}
+                            style={{
+                                backgroundColor: isHov ? ctaS.hover_bg_color : ctaS.bg_color,
+                                color: isHov ? ctaS.hover_text_color : ctaS.text_color,
+                                borderRadius: `${ctaS.border_radius}px`,
+                                border: ctaS.border_width ? `${ctaS.border_width}px solid ${ctaS.border_color}` : 'none',
+                                fontSize: `${ctaS.font_size}px`,
+                                paddingLeft: `${ctaS.padding_x}px`,
+                                paddingRight: `${ctaS.padding_x}px`,
+                                paddingTop: `${ctaS.padding_y}px`,
+                                paddingBottom: `${ctaS.padding_y}px`,
+                                boxShadow: ctaS.shadow ? '0 4px 14px rgba(0,0,0,0.25)' : 'none',
+                                transform: isHov ? `scale(${(ctaS.hover_scale || 100) / 100})` : 'scale(1)',
+                            }}
+                            onMouseEnter={() => setIsCtaPreviewHovered(true)}
+                            onMouseLeave={() => setIsCtaPreviewHovered(false)}
+                            onClick={interactive ? (e) => { e.preventDefault(); e.stopPropagation(); setInlineEditing('cta'); } : undefined}
+                            title={interactive ? 'Click to edit CTA' : undefined}
+                        >
+                            {r.displayCtaText || 'Add CTA...'} {ctaS.icon !== false && <ArrowRight size={14} />}
+                        </button>
+                    )
+                );
+            };
+
+            const textContent = (
+                <div className="max-w-2xl" onClick={e => e.stopPropagation()}>
+                    {renderInlineTitle()}
+                    {renderInlineSubtitle()}
+                    {renderInlineCta()}
+                </div>
+            );
+
+            return useCustomPos ? (
+                <div
+                    className={`absolute z-10 max-w-[60%] ${interactive && !inlineEditing ? 'cursor-move' : ''}`}
+                    style={{ left: `${r.rTx}%`, top: `${r.rTy}%`, transform: 'translate(-50%, -50%)' }}
+                    onMouseDown={interactive && !inlineEditing ? handleTextMouseDown : undefined}
+                >
+                    {interactive && <div className="absolute -inset-2 border border-dashed border-white/40 rounded-lg pointer-events-none" />}
+                    {textContent}
+                </div>
+            ) : (
+                <div className={`absolute inset-0 flex flex-col p-8 ${pos?.cls || ''}`}>
+                    <div
+                        className={`max-w-2xl ${interactive && !inlineEditing ? 'cursor-move' : ''}`}
+                        onMouseDown={interactive && !inlineEditing ? handleTextMouseDown : undefined}
+                    >
+                        {interactive && <div className="absolute -inset-2 border border-dashed border-white/30 rounded-lg pointer-events-none opacity-0 hover:opacity-100 transition-opacity" />}
+                        {textContent}
+                    </div>
+                </div>
+            );
+        };
+
+        return (
+            <div
+                ref={interactive ? previewBannerRef : undefined}
+                className="relative w-full overflow-hidden rounded-2xl"
+                style={{ height, perspective: slideAnim === 'flip' ? '1200px' : undefined }}
+                onMouseEnter={interactive ? () => setIsPreviewHovered(true) : undefined}
+                onMouseLeave={interactive ? () => { setIsPreviewHovered(false); setIsCtaPreviewHovered(false); } : undefined}
+            >
+                {bIsSlideshow && bSlides.length > 1 ? (
+                    /* Render ALL slides with transition animations */
+                    <>
+                        {bSlides.map((_, i) => {
+                            const isActiveSlide = i === activeIdx;
+                            const isExitingSlide = i === prevPreviewSlideIdx;
+                            const state: 'active' | 'exiting' | 'queued' = isActiveSlide ? 'active' : isExitingSlide ? 'exiting' : 'queued';
+                            const r = resolveForSlide(i);
+                            return (
+                                <div key={i} style={getPreviewSlideStyle(slideAnim, state, transDur)}>
+                                    {renderSlideMedia(r, isActiveSlide)}
+                                </div>
+                            );
+                        })}
+                        {/* Text overlay (always on top, uses active slide data) */}
+                        <div className="absolute inset-0 z-10">
+                            {renderTextOverlay()}
+                        </div>
+                    </>
+                ) : (
+                    /* Single image/video (no slideshow) */
+                    <>
+                        {renderSlideMedia(active, true)}
+                        {renderTextOverlay()}
+                    </>
                 )}
-                {mediaType === 'video' && mediaUrl && !isYt && (
+
+                {/* Video mute button */}
+                {active.mediaType === 'video' && active.mediaUrl && !active.isYt && (
                     <button type="button" onClick={(e) => { e.stopPropagation(); setIsVideoMuted(!isVideoMuted); }} className="absolute top-3 right-3 bg-black/50 backdrop-blur-sm hover:bg-black/70 text-white p-2 rounded-full transition z-20">
                         {isVideoMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
                     </button>
                 )}
-                <div className="absolute inset-0" style={{ background: buildGradient(opacity, gc, gd) }} />
 
                 {/* Slideshow nav */}
                 {bIsSlideshow && bSlides.length > 1 && (
                     <>
-                        <button type="button" onClick={(e) => { e.stopPropagation(); setPreviewSlideIdx(p => (p - 1 + bSlides.length) % bSlides.length); }} className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/20 backdrop-blur-sm hover:bg-white/40 text-white p-1.5 rounded-full transition z-20"><ChevronLeft size={16} /></button>
-                        <button type="button" onClick={(e) => { e.stopPropagation(); setPreviewSlideIdx(p => (p + 1) % bSlides.length); }} className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/20 backdrop-blur-sm hover:bg-white/40 text-white p-1.5 rounded-full transition z-20"><ChevronRight size={16} /></button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); changePreviewSlide(p => (p - 1 + bSlides.length) % bSlides.length); }} className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/20 backdrop-blur-sm hover:bg-white/40 text-white p-1.5 rounded-full transition z-20"><ChevronLeft size={16} /></button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); changePreviewSlide(p => (p + 1) % bSlides.length); }} className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/20 backdrop-blur-sm hover:bg-white/40 text-white p-1.5 rounded-full transition z-20"><ChevronRight size={16} /></button>
                         <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-20">
                             {bSlides.map((_, i) => (
-                                <button key={i} type="button" onClick={(e) => { e.stopPropagation(); setPreviewSlideIdx(i); }} className={`h-1.5 rounded-full transition-all ${i === previewSlideIdx % bSlides.length ? 'bg-white w-5' : 'bg-white/50 w-1.5'}`} />
+                                <button key={i} type="button" onClick={(e) => { e.stopPropagation(); changePreviewSlide(i); }} className={`h-1.5 rounded-full transition-all ${i === activeIdx ? 'bg-white w-5' : 'bg-white/50 w-1.5'}`} />
                             ))}
                         </div>
                     </>
                 )}
-
-                {/* Text overlay with inline editing */}
-                {(() => {
-                    const renderInlineTitle = () => (
-                        interactive && inlineEditing === 'title' ? (
-                            <input
-                                ref={inlineInputRef}
-                                type="text"
-                                value={getInlineValue('title')}
-                                onChange={e => handleInlineChange('title', e.target.value)}
-                                onBlur={() => setInlineEditing(null)}
-                                onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setInlineEditing(null); }}
-                                className={`${fontSizeClass(hs)} font-bold text-white mb-2 bg-transparent border-b-2 border-white/60 outline-none w-full placeholder-white/40`}
-                                style={{ ...fontSizeStyle(hs), caretColor: 'white' }}
-                                placeholder="Banner Title"
-                            />
-                        ) : (
-                            <h2
-                                className={`${fontSizeClass(hs)} font-bold text-white mb-2 ${interactive ? 'cursor-text hover:ring-2 hover:ring-white/40 hover:ring-offset-0 rounded px-1 -mx-1 transition-all' : ''}`}
-                                style={fontSizeStyle(hs)}
-                                onClick={interactive ? (e) => { e.stopPropagation(); setInlineEditing('title'); } : undefined}
-                                title={interactive ? 'Click to edit title' : undefined}
-                            >
-                                {displayTitle || 'Banner Title'}
-                            </h2>
-                        )
-                    );
-                    const renderInlineSubtitle = () => (
-                        interactive && inlineEditing === 'subtitle' ? (
-                            <input
-                                ref={inlineInputRef}
-                                type="text"
-                                value={getInlineValue('subtitle')}
-                                onChange={e => handleInlineChange('subtitle', e.target.value)}
-                                onBlur={() => setInlineEditing(null)}
-                                onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setInlineEditing(null); }}
-                                className={`${fontSizeClass(ss)} text-white/90 mb-4 bg-transparent border-b-2 border-white/40 outline-none w-full placeholder-white/30`}
-                                style={{ ...fontSizeStyle(ss), caretColor: 'white' }}
-                                placeholder="Add subtitle..."
-                            />
-                        ) : (
-                            (displaySubtitle || interactive) && (
-                                <p
-                                    className={`${fontSizeClass(ss)} text-white/90 mb-4 ${interactive ? 'cursor-text hover:ring-2 hover:ring-white/30 hover:ring-offset-0 rounded px-1 -mx-1 transition-all' : ''} ${!displaySubtitle && interactive ? 'text-white/30 italic' : ''}`}
-                                    style={fontSizeStyle(ss)}
-                                    onClick={interactive ? (e) => { e.stopPropagation(); setInlineEditing('subtitle'); } : undefined}
-                                    title={interactive ? 'Click to edit subtitle' : undefined}
-                                >
-                                    {displaySubtitle || 'Add subtitle...'}
-                                </p>
-                            )
-                        )
-                    );
-                    const renderInlineCta = () => (
-                        interactive && inlineEditing === 'cta' ? (
-                            <div className="inline-flex items-center gap-2" style={{ backgroundColor: ctaS.bg_color, borderRadius: `${ctaS.border_radius}px`, paddingLeft: `${ctaS.padding_x}px`, paddingRight: `${ctaS.padding_x}px`, paddingTop: `${ctaS.padding_y}px`, paddingBottom: `${ctaS.padding_y}px`, border: ctaS.border_width ? `${ctaS.border_width}px solid ${ctaS.border_color}` : 'none' }}>
-                                <input
-                                    ref={inlineInputRef}
-                                    type="text"
-                                    value={getInlineValue('cta')}
-                                    onChange={e => handleInlineChange('cta', e.target.value)}
-                                    onBlur={() => setInlineEditing(null)}
-                                    onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setInlineEditing(null); }}
-                                    className="font-semibold bg-transparent outline-none placeholder-gray-400 w-28"
-                                    style={{ color: ctaS.text_color, fontSize: `${ctaS.font_size}px` }}
-                                    placeholder="CTA text..."
-                                />
-                                {ctaS.icon !== false && <ArrowRight size={14} style={{ color: ctaS.text_color }} />}
-                            </div>
-                        ) : (
-                            (displayCtaText || interactive) && (
-                                <button
-                                    className={`font-semibold flex items-center gap-2 transition-all ${interactive ? 'hover:ring-2 hover:ring-white/40' : ''} ${!displayCtaText && interactive ? 'opacity-40' : ''}`}
-                                    style={{
-                                        backgroundColor: ctaS.bg_color,
-                                        color: ctaS.text_color,
-                                        borderRadius: `${ctaS.border_radius}px`,
-                                        border: ctaS.border_width ? `${ctaS.border_width}px solid ${ctaS.border_color}` : 'none',
-                                        fontSize: `${ctaS.font_size}px`,
-                                        paddingLeft: `${ctaS.padding_x}px`,
-                                        paddingRight: `${ctaS.padding_x}px`,
-                                        paddingTop: `${ctaS.padding_y}px`,
-                                        paddingBottom: `${ctaS.padding_y}px`,
-                                        boxShadow: ctaS.shadow ? '0 4px 14px rgba(0,0,0,0.25)' : 'none',
-                                    }}
-                                    onClick={interactive ? (e) => { e.preventDefault(); e.stopPropagation(); setInlineEditing('cta'); } : undefined}
-                                    title={interactive ? 'Click to edit CTA' : undefined}
-                                >
-                                    {displayCtaText || 'Add CTA...'} {ctaS.icon !== false && <ArrowRight size={14} />}
-                                </button>
-                            )
-                        )
-                    );
-
-                    const textContent = (
-                        <div className="max-w-2xl" onClick={e => e.stopPropagation()}>
-                            {renderInlineTitle()}
-                            {renderInlineSubtitle()}
-                            {renderInlineCta()}
-                        </div>
-                    );
-
-                    return useCustomPos ? (
-                        <div
-                            className={`absolute z-10 max-w-[60%] ${interactive && !inlineEditing ? 'cursor-move' : ''}`}
-                            style={{ left: `${rTx}%`, top: `${rTy}%`, transform: 'translate(-50%, -50%)' }}
-                            onMouseDown={interactive && !inlineEditing ? handleTextMouseDown : undefined}
-                        >
-                            {interactive && <div className="absolute -inset-2 border border-dashed border-white/40 rounded-lg pointer-events-none" />}
-                            {textContent}
-                        </div>
-                    ) : (
-                        <div className={`absolute inset-0 flex flex-col p-8 ${pos?.cls || ''}`}>
-                            <div
-                                className={`max-w-2xl ${interactive && !inlineEditing ? 'cursor-move' : ''}`}
-                                onMouseDown={interactive && !inlineEditing ? handleTextMouseDown : undefined}
-                            >
-                                {interactive && <div className="absolute -inset-2 border border-dashed border-white/30 rounded-lg pointer-events-none opacity-0 hover:opacity-100 transition-opacity" />}
-                                {textContent}
-                            </div>
-                        </div>
-                    );
-                })()}
             </div>
         );
     };
@@ -1755,6 +1866,23 @@ const BannerBuilder: FC<{
                                 })()}
                             </div>
                         </div>
+                        {/* Font Colors */}
+                        <div className="grid grid-cols-2 gap-2">
+                            <div>
+                                <label className="text-[10px] text-gray-500 dark:text-gray-400 mb-0.5 block">Heading Color</label>
+                                <div className="flex items-center gap-1.5">
+                                    <input type="color" value={item.heading_color || '#ffffff'} onChange={e => set('heading_color', e.target.value)} className="w-7 h-7 rounded border border-gray-300 dark:border-gray-600 cursor-pointer" />
+                                    <input type="text" value={item.heading_color || '#ffffff'} onChange={e => set('heading_color', e.target.value)} className="flex-1 p-1 text-[10px] border dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-mono" />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-gray-500 dark:text-gray-400 mb-0.5 block">Subtitle Color</label>
+                                <div className="flex items-center gap-1.5">
+                                    <input type="color" value={item.subtitle_color || '#ffffffe6'} onChange={e => set('subtitle_color', e.target.value)} className="w-7 h-7 rounded border border-gray-300 dark:border-gray-600 cursor-pointer" />
+                                    <input type="text" value={item.subtitle_color || 'rgba(255,255,255,0.9)'} onChange={e => set('subtitle_color', e.target.value)} className="flex-1 p-1 text-[10px] border dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-mono" />
+                                </div>
+                            </div>
+                        </div>
                         <div>
                             <label className="text-xs text-gray-500 dark:text-gray-400 mb-1.5 flex items-center justify-between">
                                 <span>Text Position{previewDevice === 'mobile' ? ' (Mobile)' : ''}</span>
@@ -1843,22 +1971,30 @@ const BannerBuilder: FC<{
                             };
                             return (
                                 <>
-                                    {/* Live CTA Preview */}
-                                    <div className="p-4 bg-gray-800 rounded-lg flex items-center justify-center">
-                                        <button type="button" className="transition-all flex items-center gap-2 font-semibold" style={{
-                                            backgroundColor: ctaStyle.bg_color,
-                                            color: ctaStyle.text_color,
-                                            borderRadius: `${ctaStyle.border_radius}px`,
-                                            border: ctaStyle.border_width ? `${ctaStyle.border_width}px solid ${ctaStyle.border_color}` : 'none',
-                                            fontSize: `${ctaStyle.font_size}px`,
-                                            paddingLeft: `${ctaStyle.padding_x}px`,
-                                            paddingRight: `${ctaStyle.padding_x}px`,
-                                            paddingTop: `${ctaStyle.padding_y}px`,
-                                            paddingBottom: `${ctaStyle.padding_y}px`,
-                                            boxShadow: ctaStyle.shadow ? '0 4px 14px rgba(0,0,0,0.25)' : 'none',
-                                        }}>
+                                    {/* Live CTA Preview with hover effects */}
+                                    <div className="p-4 bg-gray-800 rounded-lg flex flex-col items-center justify-center gap-2">
+                                        <button
+                                            type="button"
+                                            className="transition-all flex items-center gap-2 font-semibold"
+                                            onMouseEnter={() => setIsCtaPanelHovered(true)}
+                                            onMouseLeave={() => setIsCtaPanelHovered(false)}
+                                            style={{
+                                                backgroundColor: isCtaPanelHovered ? ctaStyle.hover_bg_color : ctaStyle.bg_color,
+                                                color: isCtaPanelHovered ? ctaStyle.hover_text_color : ctaStyle.text_color,
+                                                borderRadius: `${ctaStyle.border_radius}px`,
+                                                border: ctaStyle.border_width ? `${ctaStyle.border_width}px solid ${ctaStyle.border_color}` : 'none',
+                                                fontSize: `${ctaStyle.font_size}px`,
+                                                paddingLeft: `${ctaStyle.padding_x}px`,
+                                                paddingRight: `${ctaStyle.padding_x}px`,
+                                                paddingTop: `${ctaStyle.padding_y}px`,
+                                                paddingBottom: `${ctaStyle.padding_y}px`,
+                                                boxShadow: ctaStyle.shadow ? '0 4px 14px rgba(0,0,0,0.25)' : 'none',
+                                                transform: isCtaPanelHovered ? `scale(${(ctaStyle.hover_scale || 100) / 100})` : 'scale(1)',
+                                            }}
+                                        >
                                             {item.cta_text || 'Explore Now'} {ctaStyle.icon !== false && <ArrowRight size={14} />}
                                         </button>
+                                        <span className="text-[9px] text-gray-500">Hover to preview effects</span>
                                     </div>
 
                                     <div className="grid grid-cols-2 gap-2">
