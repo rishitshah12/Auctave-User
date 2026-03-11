@@ -1,3 +1,33 @@
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
+
+/* ─── TipTap Editor Styles ─────────────────────────────────────── */
+.tiptap {
+    outline: none;
+}
+.tiptap p.is-editor-empty:first-child::before {
+    color: #9ca3af;
+    content: attr(data-placeholder);
+    float: left;
+    height: 0;
+    pointer-events: none;
+}
+.tiptap .ProseMirror-selectednode {
+    outline: none;
+}
+
+/* Resizable image node view */
+.resizable-image-wrapper {
+    margin: 1rem 0;
+}
+.resizable-image-container {
+    transition: box-shadow 0.15s ease;
+}
+.resizable-image-container.show-handles {
+    box-shadow: 0 0 0 1px rgba(194, 12, 11, 0.3);
+    border-radius: 0.5rem;
+}
+.resizable-image-container.is-resizing {
+    user-select: none;
+}

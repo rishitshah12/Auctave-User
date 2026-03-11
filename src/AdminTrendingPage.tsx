@@ -1,8 +1,20 @@
 import React, { useState, useEffect, FC, useRef, useCallback } from 'react';
-import { Plus, Trash2, Edit, Image, ShoppingBag, FileText, Video, X, GripVertical, Eye, EyeOff, ChevronUp, ChevronDown, Bold, Italic, Heading1, Heading2, List, ListOrdered, Link, ImageIcon, Quote, Code, Undo2, Redo2, AlignLeft, AlignCenter, AlignRight, Type, Maximize2, Minimize2, Move, ZoomIn, ZoomOut, Monitor, Smartphone, Crosshair, ArrowRight, PlayCircle, Sparkles, TrendingUp, Clock, User, Tag, Upload, Palette, Layers, ChevronLeft, ChevronRight, RotateCcw, Volume2, VolumeX, PanelLeftClose, PanelLeftOpen, Timer, Pause, Play, MousePointer, Youtube, Square, RectangleHorizontal, LayoutTemplate, Smartphone as MobileIcon, Monitor as DesktopIcon, Crop } from 'lucide-react';
+import { Plus, Minus, Trash2, Edit, Image, ShoppingBag, FileText, Video, X, GripVertical, Eye, EyeOff, ChevronUp, ChevronDown, Bold, Italic, Heading1, Heading2, List, ListOrdered, Link, ImageIcon, Quote, Code, Undo2, Redo2, AlignLeft, AlignCenter, AlignRight, Type, Maximize2, Minimize2, Move, ZoomIn, ZoomOut, Monitor, Smartphone, Crosshair, ArrowRight, PlayCircle, Sparkles, TrendingUp, Clock, User, Tag, Upload, Palette, Layers, ChevronLeft, ChevronRight, RotateCcw, Volume2, VolumeX, PanelLeftClose, PanelLeftOpen, Timer, Pause, Play, MousePointer, Youtube, Square, RectangleHorizontal, LayoutTemplate, Smartphone as MobileIcon, Monitor as DesktopIcon, Crop, Highlighter, Indent, Outdent, Baseline, Underline } from 'lucide-react';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import TextAlign from '@tiptap/extension-text-align';
+import UnderlineExt from '@tiptap/extension-underline';
+import LinkExt from '@tiptap/extension-link';
+import Color from '@tiptap/extension-color';
+import { TextStyle } from '@tiptap/extension-text-style';
+import Highlight from '@tiptap/extension-highlight';
+import FontFamily from '@tiptap/extension-font-family';
+import Placeholder from '@tiptap/extension-placeholder';
+import Dropcursor from '@tiptap/extension-dropcursor';
+import { ResizableImage } from './ResizableImageExtension';
 import { MainLayout } from './MainLayout';
 import { bannerService, trendingProductService, blogService, shortsService } from './trending.service';
-import { supabase } from './supabaseClient';
+import { supabase as supabaseClient } from './supabaseClient';
 import { useToast } from './ToastContext';
 
 interface AdminTrendingPageProps {
@@ -15,29 +27,32 @@ interface AdminTrendingPageProps {
     setIsSidebarCollapsed: (isCollapsed: boolean) => void;
     handleSetCurrentPage: (page: string, data?: any) => void;
     handleSignOut: () => void;
-    isAdmin: boolean;
+    isAdmin: boolean; // Add supabase to props
+    supabase: any;
 }
 
 type TabKey = 'banners' | 'products' | 'blogs' | 'shorts';
 
 const GOOGLE_FONTS = ['Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Oswald', 'Raleway', 'Merriweather', 'Playfair Display', 'Poppins', 'Nunito'];
 
+declare module '@tiptap/core' {
+    interface Commands<ReturnType> {
+        setFontSize: (size: string) => ReturnType;
+        unsetFontSize: () => ReturnType;
+    }
+}
+
 // ─── Image Cropper Modal ───────────────────────────────────────────
 const CropModal: FC<{ src: string; onClose: () => void; onSave: (newSrc: string) => void }> = ({ src, onClose, onSave }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const imgRef = useRef<HTMLImageElement>(null);
-    const [crop, setCrop] = useState({ x: 10, y: 10, w: 80, h: 80 }); // Percentages
+    const [crop, setCrop] = useState({ x: 10, y: 10, w: 80, h: 80 });
     const dragRef = useRef<{ startX: number; startY: number; startCrop: typeof crop; type: string } | null>(null);
 
     const handleMouseDown = (e: React.MouseEvent, type: string) => {
         e.preventDefault();
         e.stopPropagation();
-        dragRef.current = {
-            startX: e.clientX,
-            startY: e.clientY,
-            startCrop: { ...crop },
-            type
-        };
+        dragRef.current = { startX: e.clientX, startY: e.clientY, startCrop: { ...crop }, type };
     };
 
     useEffect(() => {
@@ -47,9 +62,7 @@ const CropModal: FC<{ src: string; onClose: () => void; onSave: (newSrc: string)
             const rect = containerRef.current.getBoundingClientRect();
             const dx = ((e.clientX - startX) / rect.width) * 100;
             const dy = ((e.clientY - startY) / rect.height) * 100;
-
             let newCrop = { ...startCrop };
-
             if (type === 'move') {
                 newCrop.x = Math.max(0, Math.min(100 - newCrop.w, startCrop.x + dx));
                 newCrop.y = Math.max(0, Math.min(100 - newCrop.h, startCrop.y + dy));
@@ -94,376 +107,475 @@ const CropModal: FC<{ src: string; onClose: () => void; onSave: (newSrc: string)
     );
 };
 
-// ─── Rich Text Blog Editor ─────────────────────────────────────────
+// ─── Font Size Extension (custom) ───────────────────────────────────
+import { Extension, Mark, mergeAttributes } from '@tiptap/core';
+
+const FontSize = Mark.create({
+    name: 'fontSize',
+    
+    addOptions() {
+        return {
+            types: ['textStyle'],
+        };
+    },
+
+    addAttributes() {
+        return {
+            size: {
+                default: null,
+                parseHTML: element => element.style.fontSize,
+                renderHTML: attributes => {
+                    if (!attributes.size) {
+                        return {};
+                    }
+                    return {
+                        style: `font-size: ${attributes.size}`,
+                    };
+                },
+            },
+        };
+    },
+
+    parseHTML() {
+        return [
+            {
+                tag: 'span',
+                getAttrs: element => {
+                    const hasFontSize = (element as HTMLElement).style.fontSize !== '';
+                    return hasFontSize ? null : false;
+                },
+            },
+        ];
+    },
+
+    renderHTML({ HTMLAttributes }) {
+        return ['span', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0];
+    },
+    addCommands() {
+        return {
+            setFontSize: (size: string) => ({ chain }: any) => {
+                return chain()
+                    .setMark('fontSize', { size })
+                    .run();
+            },
+            unsetFontSize: () => ({ chain }: any) => {
+                return chain()
+                    .unsetMark('fontSize')
+                    .removeEmptyTextStyle()
+                    .run();
+            },
+        };
+    }
+});
+
+// ─── Rich Text Blog Editor (TipTap) ─────────────────────────────────
 const BlogEditor: FC<{ value: string; onChange: (v: string) => void; className?: string }> = ({ value, onChange, className }) => {
-    const editorRef = useRef<HTMLDivElement>(null);
     const [showLinkModal, setShowLinkModal] = useState(false);
     const [linkUrl, setLinkUrl] = useState('');
     const [showImageModal, setShowImageModal] = useState(false);
     const [imageUrl, setImageUrl] = useState('');
     const [imageUploadTab, setImageUploadTab] = useState<'url' | 'upload'>('url');
     const [isUploading, setIsUploading] = useState(false);
-    const [selectedImg, setSelectedImg] = useState<HTMLImageElement | null>(null);
-    const [savedRange, setSavedRange] = useState<Range | null>(null);
-    const [imageControlStyle, setImageControlStyle] = useState<React.CSSProperties>({});
+    const [isDraggingOver, setIsDraggingOver] = useState(false);
     const [showCropModal, setShowCropModal] = useState(false);
-
-    // State for toolbar active states
-    const [isBold, setIsBold] = useState(false);
-    const [isItalic, setIsItalic] = useState(false);
-    const [isUL, setIsUL] = useState(false);
-    const [isOL, setIsOL] = useState(false);
-    const [currentAlign, setCurrentAlign] = useState('left'); // 'left', 'center', 'right'
-    const [currentBlock, setCurrentBlock] = useState('p');
-    const [currentFontFamily, setCurrentFontFamily] = useState('Roboto');
-    const [currentFontSize, setCurrentFontSize] = useState('16'); // Storing as number string
+    const [cropImageSrc, setCropImageSrc] = useState('');
+    const [currentFontFamily, setCurrentFontFamily] = useState('');
+    const [fontSizeInput, setFontSizeInput] = useState('16');
+    const [isFontSizeMixed, setIsFontSizeMixed] = useState(false);
+    const [currentColor, setCurrentColor] = useState('#000000');
+    const [currentHighlight, setCurrentHighlight] = useState('#ffffff');
+    const editorWrapperRef = useRef<HTMLDivElement>(null);
+    const fontSizeInputFocusedRef = useRef(false);
 
     const FONT_FAMILIES = ['Arial', 'Verdana', 'Helvetica', 'Times New Roman', 'Georgia', 'Courier New', 'monospace', ...GOOGLE_FONTS];
-    const FONT_SIZES_PX = ['12px', '14px', '16px', '18px', '24px', '32px'];
 
-    const updateImageControlPosition = useCallback(() => {
-        if (selectedImg && editorRef.current) {
-            const imgRect = selectedImg.getBoundingClientRect();
-            const editorRect = editorRef.current.getBoundingClientRect();
-            setImageControlStyle({
-                position: 'absolute',
-                top: `${imgRect.top - editorRect.top + editorRef.current.scrollTop}px`,
-                left: `${imgRect.left - editorRect.left + editorRef.current.scrollLeft}px`,
-                width: `${imgRect.width}px`,
-                height: `${imgRect.height}px`,
-            });
-        }
-    }, [selectedImg]);
-
-    useEffect(() => {
-        if (selectedImg) {
-            updateImageControlPosition();
-            const editor = editorRef.current;
-            const observer = new MutationObserver(updateImageControlPosition);
-            observer.observe(selectedImg, { attributes: true, attributeFilter: ['style', 'class'] });
-            window.addEventListener('resize', updateImageControlPosition);
-            editor?.addEventListener('scroll', updateImageControlPosition);
-            return () => {
-                observer.disconnect();
-                window.removeEventListener('resize', updateImageControlPosition);
-                editor?.removeEventListener('scroll', updateImageControlPosition);
-            };
-        } else {
-            setImageControlStyle({ display: 'none' });
-        }
-    }, [selectedImg, updateImageControlPosition]);
-
-    useEffect(() => {
-        if (editorRef.current && editorRef.current.innerHTML !== value) {
-            editorRef.current.innerHTML = value || '';
-        }
-    }, []);
-
-    const exec = (cmd: string, val?: string) => {
-        document.execCommand(cmd, false, val); // eslint-disable-line
-        editorRef.current?.focus();
-        if (editorRef.current) onChange(editorRef.current.innerHTML);
-        updateToolbarState(); // Update toolbar state after command
+    const rgbToHex = (rgb: string) => {
+        if (!rgb || rgb === 'transparent' || rgb === 'rgba(0, 0, 0, 0)') return '#000000';
+        if (rgb.startsWith('#')) return rgb;
+        const m = rgb.match(/\d+/g);
+        if (!m) return '#000000';
+        return '#' + m.slice(0, 3).map(x => parseInt(x).toString(16).padStart(2, '0')).join('');
     };
 
-    const applyStyle = (style: string, value: string) => {
-        const selection = window.getSelection();
-        if (!selection || !selection.rangeCount) return;
-        const range = selection.getRangeAt(0);
-        if (range.collapsed) return;
-
-        const span = document.createElement('span');
-        // @ts-ignore
-        span.style[style] = value;
-        
-        const content = range.extractContents();
-        span.appendChild(content);
-        range.insertNode(span);
-        
-        if (editorRef.current) onChange(editorRef.current.innerHTML);
-    };
-
-    // Function to update toolbar states based on current selection
-    const updateToolbarState = useCallback(() => {
-        if (!editorRef.current) return;
-        setIsBold(document.queryCommandState('bold'));
-        setIsItalic(document.queryCommandState('italic'));
-        setIsUL(document.queryCommandState('insertUnorderedList'));
-        setIsOL(document.queryCommandState('insertOrderedList'));
-        setCurrentAlign(document.queryCommandValue('justifyLeft') ? 'left' : document.queryCommandValue('justifyCenter') ? 'center' : document.queryCommandValue('justifyRight') ? 'right' : 'left');
-        setCurrentBlock(document.queryCommandValue('formatBlock').toLowerCase());
-
-        const selection = window.getSelection();
-        if (selection && selection.rangeCount > 0) {
-            let node = selection.anchorNode;
-            // Traverse up to find relevant style
-            while (node && node !== editorRef.current) {
-                if (node.nodeType === Node.ELEMENT_NODE) {
-                    const element = node as HTMLElement;
-                    const computedStyle = window.getComputedStyle(element);
-
-                    const fontFamily = computedStyle.fontFamily.split(',')[0].replace(/['"]/g, '').trim();
-                    if (fontFamily && FONT_FAMILIES.includes(fontFamily)) {
-                        setCurrentFontFamily(fontFamily);
-                    } else if (node === editorRef.current) {
-                        setCurrentFontFamily('Roboto'); // Default if no specific font found
-                    }
-
-                    const fontSize = computedStyle.fontSize;
-                    if (fontSize) {
-                        setCurrentFontSize(fontSize.replace('px', ''));
-                    } else if (node === editorRef.current) {
-                        setCurrentFontSize('16'); // Default if no specific size found
-                    }
+    const editor = useEditor({
+        extensions: [
+            StarterKit.configure({ dropcursor: false }),
+            TextAlign.configure({ types: ['heading', 'paragraph'] }),
+            UnderlineExt,
+            LinkExt.configure({ openOnClick: false }),
+            TextStyle,
+            Color,
+            Highlight.configure({ multicolor: true }),
+            FontFamily,
+            FontSize,
+            Placeholder.configure({ placeholder: 'Start writing your blog post...' }),
+            Dropcursor.configure({ color: '#c20c0b', width: 2 }),
+            ResizableImage,
+        ],
+        content: value || '',
+        onUpdate: ({ editor: ed }) => {
+            onChange(ed.getHTML());
+        },
+        editorProps: {
+            handleDrop: (view, event, _slice, moved) => {
+                if (!moved && event.dataTransfer?.files?.length) {
+                    event.preventDefault();
+                    Array.from(event.dataTransfer.files).forEach(file => {
+                        if (file.type.startsWith('image/')) uploadAndInsertImage(file);
+                    });
+                    return true;
                 }
-                node = node.parentNode;
-            }
-        } else {
-            setCurrentFontFamily('Roboto');
-            setCurrentFontSize('16');
-        }
-    }, []);
+                return false;
+            },
+            handlePaste: (view, event) => {
+                const files = event.clipboardData?.files;
+                if (files?.length) {
+                    event.preventDefault();
+                    Array.from(files).forEach(file => {
+                        if (file.type.startsWith('image/')) uploadAndInsertImage(file);
+                    });
+                    return true;
+                }
+                return false;
+            },
+        },
+    });
 
-    useEffect(() => {
-        const editor = editorRef.current;
-        if (!editor) return;
-        editor.addEventListener('mouseup', updateToolbarState);
-        editor.addEventListener('keyup', updateToolbarState);
-        editor.addEventListener('input', updateToolbarState);
-        updateToolbarState(); // Initial state update
-        return () => { editor.removeEventListener('mouseup', updateToolbarState); editor.removeEventListener('keyup', updateToolbarState); editor.removeEventListener('input', updateToolbarState); };
-    }, [updateToolbarState]);
+    // Sync toolbar state from editor
+    const isBold = editor?.isActive('bold') ?? false;
+    const isItalic = editor?.isActive('italic') ?? false;
+    const isUnderlineActive = editor?.isActive('underline') ?? false;
+    const isUL = editor?.isActive('bulletList') ?? false;
+    const isOL = editor?.isActive('orderedList') ?? false;
+    const currentAlign = editor?.isActive({ textAlign: 'center' }) ? 'center' : editor?.isActive({ textAlign: 'right' }) ? 'right' : 'left';
+    const isBlockquote = editor?.isActive('blockquote') ?? false;
+    const isCodeBlock = editor?.isActive('codeBlock') ?? false;
+    const currentHeading = editor?.isActive('heading', { level: 1 }) ? 'h1' : editor?.isActive('heading', { level: 2 }) ? 'h2' : editor?.isActive('heading', { level: 3 }) ? 'h3' : editor?.isActive('heading', { level: 4 }) ? 'h4' : editor?.isActive('heading', { level: 5 }) ? 'h5' : editor?.isActive('heading', { level: 6 }) ? 'h6' : isBlockquote ? 'blockquote' : isCodeBlock ? 'pre' : 'p';
 
-    const handleInput = () => {
-        if (editorRef.current) onChange(editorRef.current.innerHTML);
-    };
-
-    const saveSelection = () => {
-        const selection = window.getSelection();
-        if (selection && selection.rangeCount > 0) {
-            const range = selection.getRangeAt(0);
-            if (editorRef.current && editorRef.current.contains(range.commonAncestorContainer)) {
-                setSavedRange(range);
-            }
-        }
-    };
-
-    const restoreSelection = () => {
-        if (savedRange) {
-            const selection = window.getSelection();
-            if (selection) {
-                selection.removeAllRanges();
-                selection.addRange(savedRange);
-            }
-        } else {
-            editorRef.current?.focus();
-        }
-    };
-
-    const insertLink = () => {
-        restoreSelection();
-        if (linkUrl) exec('createLink', linkUrl);
-        setLinkUrl('');
-        setShowLinkModal(false);
-    };
-
-    const insertImageHTML = (url: string) => {
-        restoreSelection();
-        const html = `<img src="${url}" style="max-width: 100%; height: auto; border-radius: 0.5rem;" />`;
-        exec('insertHTML', html);
-        setImageUrl('');
-        setShowImageModal(false);
-    };
-
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+    const uploadAndInsertImage = async (file: File) => {
+        if (!file.type.startsWith('image/')) return;
         setIsUploading(true);
         try {
-            const ext = file.name.split('.').pop();
-            const fileName = `blog/${Date.now()}-${Math.random().toString(36).substring(7)}.${ext}`;
-            const { error } = await supabase.storage.from('trending-media').upload(fileName, file);
+            const ext = file.name.split('.').pop() || 'jpg';
+            const fileName = `blog/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+            const { error } = await supabaseClient.storage.from('trending-media').upload(fileName, file);
             if (error) throw error;
-            const { data } = supabase.storage.from('trending-media').getPublicUrl(fileName);
-            if (data?.publicUrl) insertImageHTML(data.publicUrl);
+            const { data } = supabaseClient.storage.from('trending-media').getPublicUrl(fileName);
+            if (data?.publicUrl && editor) {
+                editor.chain().focus().insertContent({
+                    type: 'resizableImage',
+                    attrs: { src: data.publicUrl, alignment: 'center' },
+                }).run();
+            }
         } catch (err) {
             console.error('Upload failed:', err);
             alert('Failed to upload image');
         } finally {
             setIsUploading(false);
+            setShowImageModal(false);
         }
     };
 
-    const repositionImage = (alignment: 'left' | 'center' | 'right' | 'none') => {
-        if (selectedImg) {
-            // Reset styles first
-            selectedImg.style.float = 'none';
-            selectedImg.style.display = 'block';
-            selectedImg.style.marginLeft = '';
-            selectedImg.style.marginRight = '';
-            selectedImg.style.marginBottom = '';
+    const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files) {
+            Array.from(e.target.files).forEach(file => uploadAndInsertImage(file));
+        }
+        if (e.target) e.target.value = '';
+    };
 
-            if (alignment === 'left') {
-                selectedImg.style.float = 'left';
-                selectedImg.style.marginRight = '1rem';
-                selectedImg.style.marginBottom = '0.5rem';
-            } else if (alignment === 'right') {
-                selectedImg.style.float = 'right';
-                selectedImg.style.marginLeft = '1rem';
-                selectedImg.style.marginBottom = '0.5rem';
-            } else if (alignment === 'center') {
-                selectedImg.style.marginLeft = 'auto';
-                selectedImg.style.marginRight = 'auto';
-            }
-            if (editorRef.current) onChange(editorRef.current.innerHTML);
+    const insertImageFromUrl = (url: string) => {
+        if (!url || !editor) return;
+        editor.chain().focus().insertContent({
+            type: 'resizableImage',
+            attrs: { src: url, alignment: 'center' },
+        }).run();
+        setImageUrl('');
+        setShowImageModal(false);
+    };
+
+    const exec = (cmd: string, val?: any) => {
+        if (!editor) return;
+        switch (cmd) {
+            case 'bold': editor.chain().focus().toggleBold().run(); break;
+            case 'italic': editor.chain().focus().toggleItalic().run(); break;
+            case 'underline': editor.chain().focus().toggleUnderline().run(); break;
+            case 'justifyLeft': editor.chain().focus().setTextAlign('left').run(); break;
+            case 'justifyCenter': editor.chain().focus().setTextAlign('center').run(); break;
+            case 'justifyRight': editor.chain().focus().setTextAlign('right').run(); break;
+            case 'insertUnorderedList': editor.chain().focus().toggleBulletList().run(); break;
+            case 'insertOrderedList': editor.chain().focus().toggleOrderedList().run(); break;
+            case 'indent': editor.chain().focus().sinkListItem('listItem').run(); break;
+            case 'outdent': editor.chain().focus().liftListItem('listItem').run(); break;
+            case 'formatBlock':
+                if (val === 'blockquote') { editor.chain().focus().toggleBlockquote().run(); }
+                else if (val === 'pre') { editor.chain().focus().toggleCodeBlock().run(); }
+                else if (val?.startsWith('h')) {
+                    const level = parseInt(val.replace('h', '')) as 1 | 2 | 3 | 4 | 5 | 6;
+                    editor.chain().focus().toggleHeading({ level }).run();
+                } else { editor.chain().focus().setParagraph().run(); }
+                break;
+            case 'foreColor': editor.chain().focus().setColor(val).run(); break;
+            case 'hiliteColor': editor.chain().focus().toggleHighlight({ color: val }).run(); break;
+            case 'createLink': editor.chain().focus().setLink({ href: val }).run(); break;
         }
     };
 
-    const resizeImage = (width: string) => {
-        if (selectedImg) {
-            selectedImg.style.width = width;
-            if (editorRef.current) onChange(editorRef.current.innerHTML);
-            setSelectedImg(null);
+    const applyFontSize = (sizeStr: string, options?: { focus?: boolean }) => {
+        const sizeNum = Math.max(8, Math.min(120, parseInt(sizeStr) || 16));
+        setFontSizeInput(String(sizeNum));
+        if (!editor) return;
+        const chain = editor.chain();
+        if (options?.focus !== false) {
+            chain.focus();
         }
+        (chain as any).setFontSize(`${sizeNum}px`).run();
     };
 
-    const handleResizeMouseDown = (e: React.MouseEvent<HTMLDivElement>, corner: 'se' | 'sw' | 'ne' | 'nw') => {
-        if (!selectedImg) return;
-        e.preventDefault();
-        e.stopPropagation();
-        const startX = e.clientX;
-        const startWidth = selectedImg.offsetWidth;
-        const aspect = startWidth / selectedImg.offsetHeight;
-
-        const doDrag = (moveEvent: MouseEvent) => {
-            const dx = moveEvent.clientX - startX;
-            let newWidth = startWidth + (corner.includes('e') ? dx : -dx);
-            newWidth = Math.max(50, newWidth); // min width 50px
-            
-            selectedImg.style.width = `${newWidth}px`;
-            selectedImg.style.height = 'auto'; // maintain aspect ratio
-            
-            updateImageControlPosition();
-        };
-
-        const stopDrag = () => {
-            window.removeEventListener('mousemove', doDrag);
-            window.removeEventListener('mouseup', stopDrag);
-            if (editorRef.current) onChange(editorRef.current.innerHTML);
-        };
-        window.addEventListener('mousemove', doDrag);
-        window.addEventListener('mouseup', stopDrag);
+    const adjustFontSize = (delta: number) => {
+        const val = parseInt(fontSizeInput) || 16;
+        const newSize = String(val + delta);
+        applyFontSize(newSize, { focus: true });
     };
 
     const handleFontFamilyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const font = e.target.value;
         setCurrentFontFamily(font);
-        applyStyle('fontFamily', font);
+        if (editor) editor.chain().focus().setFontFamily(font).run();
     };
 
-    const handleFontSizeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const size = e.target.value;
-        setCurrentFontSize(size);
-        applyStyle('fontSize', `${size}px`);
+    const handleColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setCurrentColor(e.target.value);
+        exec('foreColor', e.target.value);
     };
 
-    const ToolBtn: FC<{ onClick: () => void; title: string; children: React.ReactNode; active?: boolean }> = ({ onClick, title, children, active }) => (
-        <button type="button" onClick={onClick} title={title} className={`p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors ${active ? 'bg-gray-200 dark:bg-gray-600 text-[#c20c0b]' : 'text-gray-600 dark:text-gray-300'}`}>
+    const handleHighlightChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setCurrentHighlight(e.target.value);
+        exec('hiliteColor', e.target.value);
+    };
+
+    const insertLink = () => {
+        if (linkUrl) exec('createLink', linkUrl);
+        setLinkUrl('');
+        setShowLinkModal(false);
+    };
+
+    // ─── Sync toolbar state from editor on every selection/transaction ───
+    const [, forceUpdate] = useState(0);
+    useEffect(() => {
+        if (!editor) return;
+        const syncState = () => {
+            forceUpdate(n => n + 1);
+
+            // Sync Font Size (mixed check)
+            if (!fontSizeInputFocusedRef.current) {
+                const { selection, doc } = editor.state;
+                const { from, to, empty } = selection;
+
+                if (empty) {
+                    const attrs = editor.getAttributes('fontSize');
+                    const size = attrs.size ? parseInt(attrs.size, 10).toString() : '16';
+                    setFontSizeInput(size);
+                    setIsFontSizeMixed(false);
+                } else {
+                    let firstSize: string | null = null;
+                    let mixed = false;
+                    
+                    doc.nodesBetween(from, to, (node) => {
+                        if (mixed) return false;
+                        if (node.isText) {
+                            const mark = node.marks.find(m => m.type.name === 'fontSize');
+                            const size = mark ? mark.attrs.size : '16px';
+                            if (firstSize === null) firstSize = size;
+                            else if (firstSize !== size) mixed = true;
+                        }
+                    });
+
+                    if (mixed) {
+                        setFontSizeInput('');
+                        setIsFontSizeMixed(true);
+                    } else {
+                        setFontSizeInput(firstSize ? parseInt(firstSize, 10).toString() : '16');
+                        setIsFontSizeMixed(false);
+                    }
+                }
+            }
+            
+            // Sync other styles
+            const { color } = editor.getAttributes('textStyle');
+            if (color) setCurrentColor(color);
+            
+            const { fontFamily } = editor.getAttributes('textStyle');
+            if (fontFamily) setCurrentFontFamily(fontFamily);
+        };
+        editor.on('selectionUpdate', syncState);
+        editor.on('transaction', syncState);
+        return () => {
+            editor.off('selectionUpdate', syncState);
+            editor.off('transaction', syncState);
+        };
+    }, [editor]);
+
+    // Listen for crop requests from the image node view
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const detail = (e as CustomEvent).detail;
+            if (detail?.src) {
+                setCropImageSrc(detail.src);
+                setShowCropModal(true);
+            }
+        };
+        window.addEventListener('tiptap-crop-image', handler);
+        return () => window.removeEventListener('tiptap-crop-image', handler);
+    }, []);
+
+    const ToolBtn: FC<{ onClick: () => void; title: string; children: React.ReactNode; active?: boolean; disabled?: boolean }> = ({ onClick, title, children, active, disabled }) => (
+        <button type="button" onClick={onClick} title={title} disabled={disabled} className={`p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors ${active ? 'bg-gray-200 dark:bg-gray-600 text-[#c20c0b]' : 'text-gray-600 dark:text-gray-300'} ${disabled ? 'opacity-30 cursor-not-allowed' : ''}`}>
             {children}
         </button>
     );
 
     return (
-        <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden relative">
+        <div ref={editorWrapperRef} className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden relative">
             {/* Toolbar */}
-            <div className="flex flex-wrap items-center gap-0.5 p-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-600">
-                <ToolBtn onClick={() => exec('undo')} title="Undo" active={document.queryCommandState('undo')}><Undo2 size={16} /></ToolBtn>
-                <ToolBtn onClick={() => exec('redo')} title="Redo" active={document.queryCommandState('redo')}><Redo2 size={16} /></ToolBtn>
-                <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
-                
-                <select value={currentFontFamily} onChange={handleFontFamilyChange} className="p-1.5 text-xs rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 focus:ring-0 focus:border-[#c20c0b] outline-none w-32">
+            <div className="flex flex-wrap items-center gap-0.5 p-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-600" onMouseDown={(e) => { if ((e.target as HTMLElement).tagName !== 'INPUT' && (e.target as HTMLElement).tagName !== 'SELECT') e.preventDefault(); }}>
+                <ToolBtn onClick={() => editor?.chain().focus().undo().run()} title="Undo (Ctrl+Z)" disabled={!editor?.can().undo()}><Undo2 size={16} /></ToolBtn>
+                <ToolBtn onClick={() => editor?.chain().focus().redo().run()} title="Redo (Ctrl+Shift+Z)" disabled={!editor?.can().redo()}><Redo2 size={16} /></ToolBtn>
+
+                <select value={currentFontFamily} onChange={handleFontFamilyChange} className="p-1.5 text-xs rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 focus:ring-0 focus:border-[#c20c0b] outline-none w-32" style={{ fontFamily: currentFontFamily || 'inherit' }}>
+                    {currentFontFamily && !FONT_FAMILIES.includes(currentFontFamily) && (
+                        <option key={currentFontFamily} value={currentFontFamily}>{currentFontFamily}</option>
+                    )}
                     {FONT_FAMILIES.map(font => (
-                        <option key={font} value={font}>{font}</option>
+                        <option key={font} value={font} style={{ fontFamily: font }}>{font}</option>
                     ))}
                 </select>
 
                 {/* Font Size */}
-                <div className="flex items-center gap-1 mx-1">
-                    <input type="number" min="8" max="120" value={currentFontSize} onChange={handleFontSizeChange} className="w-12 p-1.5 text-xs rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 focus:ring-0 focus:border-[#c20c0b] outline-none text-center" />
-                    <span className="text-[10px] text-gray-500">px</span>
+                <div className="flex items-center mx-1">
+                    <button type="button" onClick={() => adjustFontSize(-1)} className="px-2 py-1 text-xs rounded-l-lg bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-r-0 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors" title="Decrease font size"><Minus size={12} /></button>
+                    <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={isFontSizeMixed && !fontSizeInputFocusedRef.current ? '--' : fontSizeInput}
+                        onChange={(e) => { 
+                            const v = e.target.value; 
+                            if (v === '' || /^[0-9]+$/.test(v)) setFontSizeInput(v); 
+                        }}
+                        onFocus={(e) => { fontSizeInputFocusedRef.current = true; if (isFontSizeMixed) setFontSizeInput(''); e.target.select(); }}
+                        onBlur={() => { 
+                            fontSizeInputFocusedRef.current = false; 
+                            if (fontSizeInput) applyFontSize(fontSizeInput, { focus: false }); 
+                        }}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') { e.preventDefault(); applyFontSize(fontSizeInput, { focus: true }); (e.target as HTMLInputElement).blur(); }
+                            if (e.key === 'ArrowUp') { 
+                                e.preventDefault(); 
+                                setFontSizeInput(prev => {
+                                    const val = parseInt(prev) || 16;
+                                    return String(Math.min(120, val + 1));
+                                });
+                            }
+                            if (e.key === 'ArrowDown') { 
+                                e.preventDefault(); 
+                                setFontSizeInput(prev => {
+                                    const val = parseInt(prev) || 16;
+                                    return String(Math.max(8, val - 1));
+                                });
+                            }
+                            e.stopPropagation();
+                        }}
+                        className="w-10 py-1 text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-y border-gray-300 dark:border-gray-600 focus:ring-1 focus:ring-[#c20c0b] outline-none text-center font-mono"
+                    />
+                    <button type="button" onClick={() => adjustFontSize(1)} className="px-2 py-1 text-xs rounded-r-lg bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-l-0 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors" title="Increase font size"><Plus size={12} /></button>
+                    <span className="text-[10px] text-gray-500 ml-0.5">px</span>
                 </div>
 
                 <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
-                <ToolBtn onClick={() => exec('formatBlock', 'h1')} title="Heading 1" active={currentBlock === 'h1'}><Heading1 size={16} /></ToolBtn>
-                <ToolBtn onClick={() => exec('formatBlock', 'h2')} title="Heading 2" active={currentBlock === 'h2'}><Heading2 size={16} /></ToolBtn>
-                <ToolBtn onClick={() => exec('formatBlock', 'p')} title="Paragraph" active={currentBlock === 'p'}><Type size={16} /></ToolBtn>
+
+                <div className="flex items-center gap-1" title="Text Color">
+                    <Palette size={16} className="text-gray-600 dark:text-gray-300" />
+                    <input type="color" value={currentColor} onChange={handleColorChange} className="w-6 h-6 p-0 border-0 rounded cursor-pointer bg-transparent" />
+                </div>
+                <div className="flex items-center gap-1" title="Highlight Color">
+                    <Highlighter size={16} className="text-gray-600 dark:text-gray-300" />
+                    <input type="color" value={currentHighlight} onChange={handleHighlightChange} className="w-6 h-6 p-0 border-0 rounded cursor-pointer bg-transparent" />
+                </div>
+
+                <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+
+                <ToolBtn onClick={() => exec('outdent')} title="Decrease Indent (Shift+Tab)"><Outdent size={16} /></ToolBtn>
+                <ToolBtn onClick={() => exec('indent')} title="Increase Indent (Tab)"><Indent size={16} /></ToolBtn>
+
+                <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+                <select
+                    value={['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'blockquote', 'pre'].includes(currentHeading) ? currentHeading : 'p'}
+                    onChange={(e) => exec('formatBlock', e.target.value)}
+                    className="p-1.5 text-xs rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 focus:ring-0 focus:border-[#c20c0b] outline-none w-28 h-8"
+                >
+                    <option value="p">Paragraph</option>
+                    <option value="h1">Heading 1</option>
+                    <option value="h2">Heading 2</option>
+                    <option value="h3">Heading 3</option>
+                    <option value="h4">Heading 4</option>
+                    <option value="h5">Heading 5</option>
+                    <option value="h6">Heading 6</option>
+                    <option value="blockquote">Quote</option>
+                    <option value="pre">Code</option>
+                </select>
                 <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
                 <ToolBtn onClick={() => exec('bold')} title="Bold" active={isBold}><Bold size={16} /></ToolBtn>
                 <ToolBtn onClick={() => exec('italic')} title="Italic" active={isItalic}><Italic size={16} /></ToolBtn>
+                <ToolBtn onClick={() => exec('underline')} title="Underline" active={isUnderlineActive}><Underline size={16} /></ToolBtn>
                 <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
                 <ToolBtn onClick={() => exec('justifyLeft')} title="Align Left" active={currentAlign === 'left'}><AlignLeft size={16} /></ToolBtn>
                 <ToolBtn onClick={() => exec('justifyCenter')} title="Align Center" active={currentAlign === 'center'}><AlignCenter size={16} /></ToolBtn>
                 <ToolBtn onClick={() => exec('justifyRight')} title="Align Right" active={currentAlign === 'right'}><AlignRight size={16} /></ToolBtn>
                 <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
-                <ToolBtn onClick={() => exec('insertUnorderedList')} title="Bullet List" active={isUL}><List size={16} /></ToolBtn>
-                <ToolBtn onClick={() => exec('insertOrderedList')} title="Numbered List" active={isOL}><ListOrdered size={16} /></ToolBtn>
-                <ToolBtn onClick={() => exec('formatBlock', 'blockquote')} title="Quote" active={currentBlock === 'blockquote'}><Quote size={16} /></ToolBtn>
-                <ToolBtn onClick={() => exec('formatBlock', 'pre')} title="Code Block" active={currentBlock === 'pre'}><Code size={16} /></ToolBtn>
+                <ToolBtn onClick={() => exec('insertUnorderedList')} title="Bullet List (Ctrl+Shift+8)" active={isUL}><List size={16} /></ToolBtn>
+                <ToolBtn onClick={() => exec('insertOrderedList')} title="Numbered List (Ctrl+Shift+7)" active={isOL}><ListOrdered size={16} /></ToolBtn>
                 <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
-                <ToolBtn onClick={() => { saveSelection(); setShowLinkModal(true); }} title="Insert Link"><Link size={16} /></ToolBtn>
-                <ToolBtn onClick={() => { saveSelection(); setShowImageModal(true); }} title="Insert Image"><ImageIcon size={16} /></ToolBtn>
+                <ToolBtn onClick={() => setShowLinkModal(true)} title="Insert Link"><Link size={16} /></ToolBtn>
+                <ToolBtn onClick={() => setShowImageModal(true)} title="Insert Image"><ImageIcon size={16} /></ToolBtn>
             </div>
-            
-            {/* Image Controls (Toolbar + Resizable Frame) */}
-            {selectedImg && (
-                <div style={imageControlStyle} className="z-20 pointer-events-none">
-                    {/* Toolbar */}
-                    <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700 rounded-lg p-1.5 flex items-center gap-1 animate-in fade-in slide-in-from-top-2 pointer-events-auto">
-                        <button onClick={() => repositionImage('left')} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded" title="Align Left"><AlignLeft size={16} /></button>
-                        <button onClick={() => repositionImage('center')} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded" title="Align Center"><AlignCenter size={16} /></button>
-                        <button onClick={() => repositionImage('right')} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded" title="Align Right"><AlignRight size={16} /></button>
-                        <button onClick={() => repositionImage('none')} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded" title="Full Width"><RectangleHorizontal size={16} /></button>
-                        <div className="w-px h-4 bg-gray-300 dark:bg-gray-600 mx-1" />
-                        <button onClick={() => setShowCropModal(true)} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded" title="Crop"><Crop size={16} /></button>
-                        <button onClick={() => resizeImage('25%')} className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">25%</button>
-                        <button onClick={() => resizeImage('50%')} className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">50%</button>
-                        <button onClick={() => resizeImage('100%')} className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">100%</button>
-                        <div className="w-px h-4 bg-gray-300 dark:bg-gray-600 mx-1" />
-                        <button onClick={() => setSelectedImg(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1.5"><X size={14} /></button>
+
+            {/* TipTap Editor */}
+            <div
+                onDragEnter={(e) => { e.preventDefault(); if (e.dataTransfer.types.includes('Files')) setIsDraggingOver(true); }}
+                onDragOver={(e) => e.preventDefault()}
+                onDragLeave={(e) => { if (!editorWrapperRef.current?.contains(e.relatedTarget as Node)) setIsDraggingOver(false); }}
+                className={`relative ${className || ''}`}
+            >
+                <EditorContent editor={editor} className={`blog-rich-editor min-h-[300px] p-8 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none max-w-none`} />
+                {isDraggingOver && (
+                    <div className="absolute inset-0 bg-red-500/10 border-4 border-dashed border-red-500/50 rounded-lg flex flex-col items-center justify-center pointer-events-none z-30">
+                        <Upload size={48} className="text-red-500/70 mb-4" />
+                        <p className="font-bold text-red-500/90">Drop images to upload</p>
                     </div>
-                    {/* Resizable Frame */}
-                    <div className="absolute inset-0 border-2 border-dashed border-[#c20c0b] rounded-lg" />
-                    <div onMouseDown={(e) => handleResizeMouseDown(e, 'se')} className="absolute bottom-0 right-0 translate-x-1/2 translate-y-1/2 w-3.5 h-3.5 bg-[#c20c0b] rounded-full border-2 border-white dark:border-gray-800 cursor-se-resize pointer-events-auto" />
-                    <div onMouseDown={(e) => handleResizeMouseDown(e, 'sw')} className="absolute bottom-0 left-0 -translate-x-1/2 translate-y-1/2 w-3.5 h-3.5 bg-[#c20c0b] rounded-full border-2 border-white dark:border-gray-800 cursor-sw-resize pointer-events-auto" />
-                    <div onMouseDown={(e) => handleResizeMouseDown(e, 'ne')} className="absolute top-0 right-0 translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-[#c20c0b] rounded-full border-2 border-white dark:border-gray-800 cursor-ne-resize pointer-events-auto" />
-                    <div onMouseDown={(e) => handleResizeMouseDown(e, 'nw')} className="absolute top-0 left-0 -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-[#c20c0b] rounded-full border-2 border-white dark:border-gray-800 cursor-nw-resize pointer-events-auto" />
-                </div>
-            )}
-            
-            {showCropModal && selectedImg && (
-                <CropModal 
-                    src={selectedImg.src} 
+                )}
+            </div>
+
+            {/* Crop Modal */}
+            {showCropModal && cropImageSrc && (
+                <CropModal
+                    src={cropImageSrc}
                     onClose={() => setShowCropModal(false)}
-                    onSave={(newUrl) => { selectedImg.src = newUrl; if (editorRef.current) onChange(editorRef.current.innerHTML); setShowCropModal(false); }}
+                    onSave={(newUrl) => {
+                        // Find the image node with matching src and replace it with cropped version
+                        if (editor) {
+                            editor.state.doc.descendants((node, pos) => {
+                                if (node.type.name === 'resizableImage' && node.attrs.src === cropImageSrc) {
+                                    editor.chain().focus().setNodeSelection(pos).updateAttributes('resizableImage', { src: newUrl }).run();
+                                    return false;
+                                }
+                            });
+                        }
+                        setShowCropModal(false);
+                        setCropImageSrc('');
+                    }}
                 />
             )}
 
-            {/* Editor area */}
-            <div
-                ref={editorRef}
-                contentEditable
-                onInput={handleInput}
-                onClick={(e) => {
-                    const target = e.target as HTMLElement;
-                    if (target.tagName === 'IMG') {
-                        setSelectedImg(target as HTMLImageElement);
-                    } else {
-                        setSelectedImg(null);
-                    }
-                }}
-                className={`min-h-[300px] p-8 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none prose prose-lg dark:prose-invert max-w-none [&_h1]:text-4xl [&_h1]:font-bold [&_h1]:mb-4 [&_h1]:break-words [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:mb-3 [&_h2]:break-words [&_p]:mb-4 [&_blockquote]:border-l-4 [&_blockquote]:border-[#c20c0b] [&_blockquote]:pl-4 [&_blockquote]:italic [&_pre]:bg-gray-100 [&_pre]:dark:bg-gray-800 [&_pre]:p-4 [&_pre]:rounded [&_img]:max-w-full [&_img]:rounded-lg [&_a]:text-blue-600 [&_a]:underline ${className || ''}`}
-                data-placeholder="Start writing your blog post..."
-            />
             {/* Link Modal */}
             {showLinkModal && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
@@ -482,7 +594,7 @@ const BlogEditor: FC<{ value: string; onChange: (v: string) => void; className?:
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
                     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl w-96">
                         <h3 className="font-semibold mb-3 text-gray-900 dark:text-white">Insert Image</h3>
-                        
+
                         <div className="flex gap-2 mb-4 border-b border-gray-200 dark:border-gray-700">
                             <button onClick={() => setImageUploadTab('url')} className={`pb-2 text-sm font-medium ${imageUploadTab === 'url' ? 'text-[#c20c0b] border-b-2 border-[#c20c0b]' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}>From URL</button>
                             <button onClick={() => setImageUploadTab('upload')} className={`pb-2 text-sm font-medium ${imageUploadTab === 'upload' ? 'text-[#c20c0b] border-b-2 border-[#c20c0b]' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}>Upload</button>
@@ -493,15 +605,15 @@ const BlogEditor: FC<{ value: string; onChange: (v: string) => void; className?:
                         ) : (
                             <div className="mb-3">
                                 <label className="block w-full p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-center cursor-pointer hover:border-[#c20c0b] transition-colors">
-                                    <span className="text-sm text-gray-500 dark:text-gray-400">{isUploading ? 'Uploading...' : 'Click to upload image'}</span>
-                                    <input type="file" accept="image/*" className="hidden" onChange={handleFileUpload} disabled={isUploading} />
+                                    <span className="text-sm text-gray-500 dark:text-gray-400">{isUploading ? 'Uploading...' : 'Click to upload or drag & drop'}</span>
+                                    <input type="file" accept="image/*" className="hidden" onChange={handleFileInputChange} disabled={isUploading} />
                                 </label>
                             </div>
                         )}
 
                         <div className="flex justify-end gap-2 mt-2">
                             <button type="button" onClick={() => setShowImageModal(false)} className="px-3 py-1.5 text-sm bg-gray-200 dark:bg-gray-700 rounded">Cancel</button>
-                            {imageUploadTab === 'url' && <button type="button" onClick={() => insertImageHTML(imageUrl)} className="px-3 py-1.5 text-sm bg-[#c20c0b] text-white rounded">Insert</button>}
+                            {imageUploadTab === 'url' && <button type="button" onClick={() => insertImageFromUrl(imageUrl)} className="px-3 py-1.5 text-sm bg-[#c20c0b] text-white rounded">Insert</button>}
                         </div>
                     </div>
                 </div>
@@ -509,6 +621,7 @@ const BlogEditor: FC<{ value: string; onChange: (v: string) => void; className?:
         </div>
     );
 };
+
 
 // ─── Blog Builder (Wix-style Full Page) ─────────────────────────────
 const BlogBuilder: FC<{
@@ -518,12 +631,41 @@ const BlogBuilder: FC<{
     onClose: () => void;
     isSaving?: boolean;
 }> = ({ item, onChange, onSave, onClose, isSaving }) => {
+    // Load Google Fonts for the editor and preview
+    useEffect(() => {
+        const link = document.createElement('link');
+        link.href = `https://fonts.googleapis.com/css2?family=${GOOGLE_FONTS.join('&family=').replace(/ /g, '+')}&display=swap`;
+        link.rel = 'stylesheet';
+        document.head.appendChild(link);
+        return () => {
+            document.head.removeChild(link);
+        };
+    }, []);
+
     const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit');
     const [isPanelHidden, setIsPanelHidden] = useState(false);
 
     const set = (key: string, val: any) => onChange({ ...item, [key]: val });
 
     return (
+        <>
+            <style>{`
+                .blog-rich-editor h1 { font-size: 2.25rem; font-weight: 800; margin-bottom: 1rem; }
+                .blog-rich-editor h2 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.75rem; }
+                .blog-rich-editor h3 { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; }
+                .blog-rich-editor h4 { font-size: 1.125rem; font-weight: 600; margin-bottom: 0.5rem; }
+                .blog-rich-editor h5 { font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem; }
+                .blog-rich-editor h6 { font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem; text-transform: uppercase; }
+                .blog-rich-editor p { margin-bottom: 1rem; line-height: 1.6; }
+                .blog-rich-editor blockquote { border-left: 4px solid #c20c0b; padding-left: 1rem; margin-left: 0; font-style: italic; color: #6b7280; }
+                .dark .blog-rich-editor blockquote { color: #9ca3af; }
+                .blog-rich-editor pre { background-color: #f3f4f6; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+                .dark .blog-rich-editor pre { background-color: #1f2937; }
+                .blog-rich-editor img { max-width: 100%; border-radius: 0.5rem; }
+                .blog-rich-editor a { color: #2563eb; text-decoration: underline; }
+                .blog-rich-editor ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1rem; }
+                .blog-rich-editor ol { list-style-type: decimal; padding-left: 1.5rem; margin-bottom: 1rem; }
+            `}</style>
         <div className="fixed inset-0 bg-gray-100 dark:bg-gray-950 z-50 flex flex-col">
             {/* Top Bar */}
             <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shadow-sm z-20">
@@ -600,16 +742,17 @@ const BlogBuilder: FC<{
                                 </div>
                                 {item.cover_image_url && (
                                     <div className="mb-10 rounded-2xl overflow-hidden shadow-lg">
-                                        <img src={item.cover_image_url} alt={item.title} className="w-full h-[400px] object-cover" />
+                                        <img src={item.cover_image_url} alt={item.title || ''} className="w-full h-[400px] object-cover" />
                                     </div>
                                 )}
-                                <div className="prose prose-lg dark:prose-invert max-w-none mx-auto" dangerouslySetInnerHTML={{ __html: item.content || '<p class="text-gray-400 italic text-center">Start writing to see content here...</p>' }} />
+                                <div className="blog-rich-editor max-w-none mx-auto" dangerouslySetInnerHTML={{ __html: item.content || '<p class="text-gray-400 italic text-center">Start writing to see content here...</p>' }} />
                             </div>
                         )}
                     </div>
                 </div>
             </div>
         </div>
+        </>
     );
 };
 
@@ -936,9 +1079,9 @@ const BannerBuilder: FC<{
         try {
             const ext = file.name.split('.').pop() || 'jpg';
             const filePath = `banners/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-            const { error: uploadError } = await supabase.storage.from('trending-media').upload(filePath, file);
+            const { error: uploadError } = await supabaseClient.storage.from('trending-media').upload(filePath, file);
             if (uploadError) throw uploadError;
-            const { data: { publicUrl } } = supabase.storage.from('trending-media').getPublicUrl(filePath);
+            const { data: { publicUrl } } = supabaseClient.storage.from('trending-media').getPublicUrl(filePath);
             return publicUrl;
         } catch (err: any) {
             console.error('Upload failed:', err);
@@ -1206,8 +1349,6 @@ const BannerBuilder: FC<{
 
         const activeIdx = previewSlideIdx % Math.max(bSlides.length, 1);
         const active = resolveForSlide(activeIdx);
-        const pos = TEXT_POSITIONS[active.rTextPos];
-        const useCustomPos = active.rTextPos === 'custom' && active.rTx != null;
 
         // Render a single slide's media + gradient
         const renderSlideMedia = (r: ReturnType<typeof resolveForSlide>, isActiveSlide: boolean) => {
@@ -1234,10 +1375,12 @@ const BannerBuilder: FC<{
         };
 
         // Text overlay with inline editing
-        const renderTextOverlay = () => {
-            const r = active;
+        const renderTextOverlay = (r: ReturnType<typeof resolveForSlide>, isActive: boolean) => {
+            const pos = TEXT_POSITIONS[r.rTextPos];
+            const useCustomPos = r.rTextPos === 'custom' && r.rTx != null;
+
             const renderInlineTitle = () => (
-                interactive && inlineEditing === 'title' ? (
+                interactive && inlineEditing === 'title' && isActive ? (
                     <input
                         ref={inlineInputRef}
                         type="text"
@@ -1261,7 +1404,7 @@ const BannerBuilder: FC<{
                 )
             );
             const renderInlineSubtitle = () => (
-                interactive && inlineEditing === 'subtitle' ? (
+                interactive && inlineEditing === 'subtitle' && isActive ? (
                     <input
                         ref={inlineInputRef}
                         type="text"
@@ -1288,7 +1431,7 @@ const BannerBuilder: FC<{
             );
             const renderInlineCta = () => {
                 const isHov = interactive ? isCtaPreviewHovered : false;
-                return interactive && inlineEditing === 'cta' ? (
+                return interactive && inlineEditing === 'cta' && isActive ? (
                     <div className="inline-flex items-center gap-2" style={{ backgroundColor: ctaS.bg_color, borderRadius: `${ctaS.border_radius}px`, paddingLeft: `${ctaS.padding_x}px`, paddingRight: `${ctaS.padding_x}px`, paddingTop: `${ctaS.padding_y}px`, paddingBottom: `${ctaS.padding_y}px`, border: ctaS.border_width ? `${ctaS.border_width}px solid ${ctaS.border_color}` : 'none' }}>
                         <input
                             ref={inlineInputRef}
@@ -1380,19 +1523,20 @@ const BannerBuilder: FC<{
                             return (
                                 <div key={i} style={getPreviewSlideStyle(slideAnim, state, transDur)}>
                                     {renderSlideMedia(r, isActiveSlide)}
+                                    <div className="absolute inset-0 z-10">
+                                        {renderTextOverlay(r, isActiveSlide)}
+                                    </div>
                                 </div>
                             );
                         })}
-                        {/* Text overlay (always on top, uses active slide data) */}
-                        <div className="absolute inset-0 z-10">
-                            {renderTextOverlay()}
-                        </div>
                     </>
                 ) : (
                     /* Single image/video (no slideshow) */
                     <>
                         {renderSlideMedia(active, true)}
-                        {renderTextOverlay()}
+                        <div className="absolute inset-0 z-10">
+                            {renderTextOverlay(active, true)}
+                        </div>
                     </>
                 )}
 
@@ -2381,7 +2525,7 @@ export const AdminTrendingPage: FC<AdminTrendingPageProps> = (props) => {
             'focal_point_x', 'focal_point_y', 'image_fit', 'banner_height', 'overlay_opacity',
             'text_position', 'heading_size', 'subtitle_size', 'gradient_color', 'gradient_direction',
             'is_slideshow', 'slides', 'text_x', 'text_y', 'mobile',
-            'cta_style', 'auto_scroll_interval', 'pause_on_hover', 'slide_animation', 'transition_duration', 'hover_animation',
+            'cta_style', 'auto_scroll_interval', 'pause_on_hover', 'slide_animation', 'transition_duration', 'hover_animation', 'heading_color', 'subtitle_color',
         ],
         products: [
             'name', 'category', 'image_url', 'price_range', 'description', 'tags', 'moq',
@@ -2789,7 +2933,7 @@ export const AdminTrendingPage: FC<AdminTrendingPageProps> = (props) => {
                             {previewBlog.category && <span className="text-xs font-semibold bg-red-100 text-[#c20c0b] px-2 py-1 rounded-full">{previewBlog.category}</span>}
                             <h1 className="text-3xl font-bold text-gray-900 dark:text-white mt-3 mb-2">{previewBlog.title}</h1>
                             <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">By {previewBlog.author || 'Unknown'} {previewBlog.published_at ? `· ${new Date(previewBlog.published_at).toLocaleDateString()}` : ''}</p>
-                            <div className="prose prose-sm dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: previewBlog.content || '<p class="text-gray-400">No content yet.</p>' }} />
+                            <div className="blog-rich-editor prose prose-sm dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: previewBlog.content || '<p class="text-gray-400">No content yet.</p>' }} />
                         </div>
                     </div>
                 </div>
