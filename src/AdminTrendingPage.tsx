@@ -1,6 +1,7 @@
 import React, { useState, useEffect, FC, useRef, useCallback } from 'react';
-import { Plus, Minus, Trash2, Edit, Image, ShoppingBag, FileText, Video, X, GripVertical, Eye, EyeOff, ChevronUp, ChevronDown, Bold, Italic, Heading1, Heading2, List, ListOrdered, Link, ImageIcon, Quote, Code, Undo2, Redo2, AlignLeft, AlignCenter, AlignRight, Type, Maximize2, Minimize2, Move, ZoomIn, ZoomOut, Monitor, Smartphone, Crosshair, ArrowRight, PlayCircle, Sparkles, TrendingUp, Clock, User, Tag, Upload, Palette, Layers, ChevronLeft, ChevronRight, RotateCcw, Volume2, VolumeX, PanelLeftClose, PanelLeftOpen, Timer, Pause, Play, MousePointer, Youtube, Square, RectangleHorizontal, LayoutTemplate, Smartphone as MobileIcon, Monitor as DesktopIcon, Crop, Highlighter, Indent, Outdent, Baseline, Underline } from 'lucide-react';
-import { useEditor, EditorContent } from '@tiptap/react';
+import { Plus, Minus, Trash2, Edit, Image, ShoppingBag, FileText, Video, X, GripVertical, Eye, EyeOff, ChevronUp, ChevronDown, Bold, Italic, Heading1, Heading2, List, ListOrdered, Link, ImageIcon, Quote, Code, Undo2, Redo2, AlignLeft, AlignCenter, AlignRight, Type, Maximize2, Minimize2, Move, ZoomIn, ZoomOut, Monitor, Smartphone, Crosshair, ArrowRight, PlayCircle, Sparkles, TrendingUp, Clock, User, Tag, Upload, Palette, Layers, ChevronLeft, ChevronRight, RotateCcw, Volume2, VolumeX, PanelLeftClose, PanelLeftOpen, Timer, Pause, Play, MousePointer, Youtube, Square, RectangleHorizontal, LayoutTemplate, Smartphone as MobileIcon, Monitor as DesktopIcon, Crop, Highlighter, Indent as IndentIcon, Outdent, Baseline, Underline, ArrowUpDown, ArrowLeftRight } from 'lucide-react';
+import { useEditor, EditorContent, NodeViewProps } from '@tiptap/react';
+import { Editor, Extension, Mark, mergeAttributes } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import TextAlign from '@tiptap/extension-text-align';
 import UnderlineExt from '@tiptap/extension-underline';
@@ -11,11 +12,51 @@ import Highlight from '@tiptap/extension-highlight';
 import FontFamily from '@tiptap/extension-font-family';
 import Placeholder from '@tiptap/extension-placeholder';
 import Dropcursor from '@tiptap/extension-dropcursor';
-import { ResizableImage } from './ResizableImageExtension';
+import { ResizableImage, ResizableImageComponent } from './ResizableImageExtension';
 import { MainLayout } from './MainLayout';
 import { bannerService, trendingProductService, blogService, shortsService } from './trending.service';
 import { supabase as supabaseClient } from './supabaseClient';
 import { useToast } from './ToastContext';
+
+const GOOGLE_FONTS = [
+    'Roboto',
+    'Inter',
+    'Montserrat',
+    'Lora',
+    'Playfair Display',
+    'Merriweather',
+];
+
+const BLOG_STYLES = `
+/* Minimal blog editor styles used by BlogBuilder / BlogEditor */
+.blog-rich-editor {
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+  color: #000000;
+  line-height: 1.6;
+}
+
+/* Basic content styling */
+.blog-rich-editor h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 0.5rem; }
+.blog-rich-editor h2 { font-size: 1.75rem; font-weight: 700; margin: 0 0 0.5rem; }
+.blog-rich-editor p { margin: 0 0 1rem; }
+.blog-rich-editor img { max-width: 100%; height: auto; border-radius: 0.5rem; }
+.blog-rich-editor blockquote { border-left: 4px solid #c20c0b; padding: 0.5rem 1rem; color: rgba(0,0,0,0.65); background: rgba(0,0,0,0.02); margin: 0 0 1rem; font-style: italic; }
+.blog-rich-editor pre { background: #0f172a; color: #e6eef8; padding: 1rem; border-radius: 0.5rem; overflow: auto; margin: 0 0 1rem; }
+.blog-rich-editor code { background: rgba(0,0,0,0.04); padding: 0.15rem 0.3rem; border-radius: 0.25rem; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace; }
+
+/* Light/dark support hooks used elsewhere in the app */
+.dark .blog-rich-editor {
+  color: #ffffff;
+}
+.dark .blog-rich-editor blockquote {
+  background: rgba(255,255,255,0.02);
+  color: rgba(255,255,255,0.85);
+  border-left-color: #c20c0b;
+}
+.dark .blog-rich-editor pre {
+  background: #0b1220;
+}
+`;
 
 interface AdminTrendingPageProps {
     pageKey: number;
@@ -32,8 +73,6 @@ interface AdminTrendingPageProps {
 }
 
 type TabKey = 'banners' | 'products' | 'blogs' | 'shorts';
-
-const GOOGLE_FONTS = ['Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Oswald', 'Raleway', 'Merriweather', 'Playfair Display', 'Poppins', 'Nunito'];
 
 declare module '@tiptap/core' {
     interface Commands<ReturnType> {
@@ -108,7 +147,6 @@ const CropModal: FC<{ src: string; onClose: () => void; onSave: (newSrc: string)
 };
 
 // ─── Font Size Extension (custom) ───────────────────────────────────
-import { Extension, Mark, mergeAttributes } from '@tiptap/core';
 
 const FontSize = Mark.create({
     name: 'fontSize',
@@ -168,6 +206,172 @@ const FontSize = Mark.create({
     }
 });
 
+// --- Indent Extension ---
+declare module '@tiptap/core' {
+    interface Commands<ReturnType> {
+        indent: () => ReturnType;
+        outdent: () => ReturnType;
+        setLetterSpacing: (spacing: string) => ReturnType;
+        unsetLetterSpacing: () => ReturnType;
+        setLineHeight: (height: string) => ReturnType;
+        unsetLineHeight: () => ReturnType;
+    }
+}
+
+const Indent = Extension.create({
+    name: 'indent',
+
+    addOptions() {
+        return {
+            types: ['heading', 'paragraph'],
+            minIndent: 0,
+            maxIndent: 7,
+        };
+    },
+
+    addGlobalAttributes() {
+        return [
+            {
+                types: this.options.types,
+                attributes: {
+                    indent: {
+                        default: 0,
+                        parseHTML: element => {
+                            const value = element.style.marginLeft;
+                            if (value && value.endsWith('rem')) {
+                                return Math.round(parseFloat(value) / 2);
+                            }
+                            return 0;
+                        },
+                        renderHTML: attributes => {
+                            if (!attributes.indent || attributes.indent === 0) {
+                                return {};
+                            }
+                            return {
+                                style: `margin-left: ${attributes.indent * 2}rem`,
+                            };
+                        },
+                    },
+                },
+            },
+        ];
+    },
+
+    addCommands() {
+        return {
+            indent: () => ({ editor }: { editor: Editor }) => {
+                if (editor.isActive('listItem')) {
+                    return editor.commands.sinkListItem('listItem');
+                }
+                return this.options.types.some((type: string) => editor.isActive(type))
+                    ? editor.commands.updateAttributes(this.options.types, { indent: (editor.getAttributes(this.options.types[0]).indent || 0) + 1 })
+                    : false;
+            },
+            outdent: () => ({ editor }: { editor: Editor }) => {
+                if (editor.isActive('listItem')) {
+                    return editor.commands.liftListItem('listItem');
+                }
+                return this.options.types.some((type: string) => editor.isActive(type))
+                    ? editor.commands.updateAttributes(this.options.types, { indent: Math.max(0, (editor.getAttributes(this.options.types[0]).indent || 0) - 1) })
+                    : false;
+            },
+        } as any;
+    },
+
+    addKeyboardShortcuts() {
+        return {
+            'Tab': () => (this.editor.commands as any).indent(),
+            'Shift-Tab': () => (this.editor.commands as any).outdent(),
+        };
+    },
+});
+
+const LineHeight = Extension.create({
+    name: 'lineHeight',
+
+    addOptions() {
+        return {
+            types: ['paragraph', 'heading'],
+            defaultLineHeight: '1.6',
+        };
+    },
+
+    addGlobalAttributes() {
+        return [
+            {
+                types: this.options.types,
+                attributes: {
+                    lineHeight: {
+                        default: this.options.defaultLineHeight,
+                        parseHTML: element => element.style.lineHeight || this.options.defaultLineHeight,
+                        renderHTML: attributes => {
+                            if (!attributes.lineHeight) {
+                                return {};
+                            }
+                            return {
+                                style: `line-height: ${attributes.lineHeight}`,
+                            };
+                        },
+                    },
+                },
+            },
+        ];
+    },
+
+    addCommands() {
+        return {
+            setLineHeight: (lineHeight: string) => ({ commands }: { commands: any }) => {
+                return this.options.types.every((type: string) => commands.updateAttributes(type, { lineHeight }));
+            },
+            unsetLineHeight: () => ({ commands }: { commands: any }) => {
+                return this.options.types.every((type: string) => commands.resetAttributes(type, 'lineHeight'));
+            },
+        } as any;
+    },
+});
+
+const LetterSpacing = Extension.create({
+    name: 'letterSpacing',
+
+    addOptions() {
+        return {
+            types: ['textStyle'],
+        };
+    },
+
+    addGlobalAttributes() {
+        return [
+            {
+                types: this.options.types,
+                attributes: {
+                    letterSpacing: {
+                        default: null,
+                        parseHTML: element => element.style.letterSpacing,
+                        renderHTML: attributes => {
+                            if (!attributes.letterSpacing) {
+                                return {};
+                            }
+                            return { style: `letter-spacing: ${attributes.letterSpacing}` };
+                        },
+                    },
+                },
+            },
+        ];
+    },
+
+    addCommands() {
+        return {
+            setLetterSpacing: (letterSpacing: string) => ({ chain }: { chain: any }) => {
+                return chain().setMark('textStyle', { letterSpacing }).run();
+            },
+            unsetLetterSpacing: () => ({ chain }: { chain: any }) => {
+                return chain().setMark('textStyle', { letterSpacing: null }).removeEmptyTextStyle().run();
+            },
+        } as any;
+    },
+});
+// --- End Indent Extension ---
+
 // ─── Rich Text Blog Editor (TipTap) ─────────────────────────────────
 const BlogEditor: FC<{ value: string; onChange: (v: string) => void; className?: string }> = ({ value, onChange, className }) => {
     const [showLinkModal, setShowLinkModal] = useState(false);
@@ -180,6 +384,8 @@ const BlogEditor: FC<{ value: string; onChange: (v: string) => void; className?:
     const [showCropModal, setShowCropModal] = useState(false);
     const [cropImageSrc, setCropImageSrc] = useState('');
     const [currentFontFamily, setCurrentFontFamily] = useState('');
+    const [currentLetterSpacing, setCurrentLetterSpacing] = useState('normal');
+    const [currentLineHeight, setCurrentLineHeight] = useState('1.6');
     const [fontSizeInput, setFontSizeInput] = useState('16');
     const [isFontSizeMixed, setIsFontSizeMixed] = useState(false);
     const [currentColor, setCurrentColor] = useState('#000000');
@@ -211,6 +417,9 @@ const BlogEditor: FC<{ value: string; onChange: (v: string) => void; className?:
             Placeholder.configure({ placeholder: 'Start writing your blog post...' }),
             Dropcursor.configure({ color: '#c20c0b', width: 2 }),
             ResizableImage,
+            Indent,
+            LetterSpacing,
+            LineHeight,
         ],
         content: value || '',
         onUpdate: ({ editor: ed }) => {
@@ -406,6 +615,14 @@ const BlogEditor: FC<{ value: string; onChange: (v: string) => void; className?:
             
             const { fontFamily } = editor.getAttributes('textStyle');
             if (fontFamily) setCurrentFontFamily(fontFamily);
+
+            const { letterSpacing } = editor.getAttributes('textStyle');
+            if (letterSpacing) setCurrentLetterSpacing(letterSpacing);
+            else setCurrentLetterSpacing('normal');
+
+            const lh = editor.getAttributes('paragraph').lineHeight || editor.getAttributes('heading').lineHeight;
+            if (lh) setCurrentLineHeight(lh);
+            else setCurrentLineHeight('1.6');
         };
         editor.on('selectionUpdate', syncState);
         editor.on('transaction', syncState);
@@ -435,9 +652,9 @@ const BlogEditor: FC<{ value: string; onChange: (v: string) => void; className?:
     );
 
     return (
-        <div ref={editorWrapperRef} className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden relative">
+        <div ref={editorWrapperRef} className="border border-gray-300 dark:border-gray-600 rounded-lg relative">
             {/* Toolbar */}
-            <div className="flex flex-wrap items-center gap-0.5 p-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-600" onMouseDown={(e) => { if ((e.target as HTMLElement).tagName !== 'INPUT' && (e.target as HTMLElement).tagName !== 'SELECT') e.preventDefault(); }}>
+            <div className="sticky top-0 z-30 flex flex-wrap items-center gap-0.5 p-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-600 rounded-t-lg" onMouseDown={(e) => { if ((e.target as HTMLElement).tagName !== 'INPUT' && (e.target as HTMLElement).tagName !== 'SELECT') e.preventDefault(); }}>
                 <ToolBtn onClick={() => editor?.chain().focus().undo().run()} title="Undo (Ctrl+Z)" disabled={!editor?.can().undo()}><Undo2 size={16} /></ToolBtn>
                 <ToolBtn onClick={() => editor?.chain().focus().redo().run()} title="Redo (Ctrl+Shift+Z)" disabled={!editor?.can().redo()}><Redo2 size={16} /></ToolBtn>
 
@@ -504,8 +721,44 @@ const BlogEditor: FC<{ value: string; onChange: (v: string) => void; className?:
 
                 <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
 
-                <ToolBtn onClick={() => exec('outdent')} title="Decrease Indent (Shift+Tab)"><Outdent size={16} /></ToolBtn>
-                <ToolBtn onClick={() => exec('indent')} title="Increase Indent (Tab)"><Indent size={16} /></ToolBtn>
+                <div className="flex items-center gap-1" title="Character Spacing">
+                    <ArrowLeftRight size={16} className="text-gray-600 dark:text-gray-300" />
+                    <select
+                        value={currentLetterSpacing}
+                        onChange={(e) => {
+                            const val = e.target.value;
+                            setCurrentLetterSpacing(val);
+                            (editor?.chain().focus() as any).setLetterSpacing(val).run();
+                        }}
+                        className="p-1.5 text-xs rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 focus:ring-0 focus:border-[#c20c0b] outline-none h-8 w-20"
+                    >
+                        {['normal', '-1.5px', '-1px', '-0.5px', '0.5px', '1px', '1.5px', '2px'].map(ls => (
+                            <option key={ls} value={ls}>{ls}</option>
+                        ))}
+                    </select>
+                </div>
+
+                <div className="flex items-center gap-1" title="Line Spacing">
+                    <ArrowUpDown size={16} className="text-gray-600 dark:text-gray-300" />
+                    <select
+                        value={currentLineHeight}
+                        onChange={(e) => {
+                            const val = e.target.value;
+                            setCurrentLineHeight(val);
+                            (editor?.chain().focus() as any).setLineHeight(val).run();
+                        }}
+                        className="p-1.5 text-xs rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 focus:ring-0 focus:border-[#c20c0b] outline-none h-8 w-16"
+                    >
+                        {['1.0', '1.15', '1.2', '1.5', '1.6', '2.0', '2.5', '3.0'].map(lh => (
+                            <option key={lh} value={lh}>{lh}</option>
+                        ))}
+                    </select>
+                </div>
+
+                <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+
+                <ToolBtn onClick={() => { if (!editor) return; (editor as any).chain().focus().outdent().run(); }} title="Outdent (Shift+Tab)"><Outdent size={16} /></ToolBtn>
+                <ToolBtn onClick={() => { if (!editor) return; (editor as any).chain().focus().indent().run(); }} title="Indent (Tab)"><IndentIcon size={16} /></ToolBtn>
 
                 <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
                 <select
@@ -546,7 +799,7 @@ const BlogEditor: FC<{ value: string; onChange: (v: string) => void; className?:
                 onDragLeave={(e) => { if (!editorWrapperRef.current?.contains(e.relatedTarget as Node)) setIsDraggingOver(false); }}
                 className={`relative ${className || ''}`}
             >
-                <EditorContent editor={editor} className={`blog-rich-editor min-h-[300px] p-8 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none max-w-none`} />
+                <EditorContent editor={editor} className={`blog-rich-editor min-h-[300px] p-8 bg-white dark:bg-gray-900 focus:outline-none max-w-none rounded-b-lg`} />
                 {isDraggingOver && (
                     <div className="absolute inset-0 bg-red-500/10 border-4 border-dashed border-red-500/50 rounded-lg flex flex-col items-center justify-center pointer-events-none z-30">
                         <Upload size={48} className="text-red-500/70 mb-4" />
@@ -649,23 +902,7 @@ const BlogBuilder: FC<{
 
     return (
         <>
-            <style>{`
-                .blog-rich-editor h1 { font-size: 2.25rem; font-weight: 800; margin-bottom: 1rem; }
-                .blog-rich-editor h2 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.75rem; }
-                .blog-rich-editor h3 { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; }
-                .blog-rich-editor h4 { font-size: 1.125rem; font-weight: 600; margin-bottom: 0.5rem; }
-                .blog-rich-editor h5 { font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem; }
-                .blog-rich-editor h6 { font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem; text-transform: uppercase; }
-                .blog-rich-editor p { margin-bottom: 1rem; line-height: 1.6; }
-                .blog-rich-editor blockquote { border-left: 4px solid #c20c0b; padding-left: 1rem; margin-left: 0; font-style: italic; color: #6b7280; }
-                .dark .blog-rich-editor blockquote { color: #9ca3af; }
-                .blog-rich-editor pre { background-color: #f3f4f6; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-                .dark .blog-rich-editor pre { background-color: #1f2937; }
-                .blog-rich-editor img { max-width: 100%; border-radius: 0.5rem; }
-                .blog-rich-editor a { color: #2563eb; text-decoration: underline; }
-                .blog-rich-editor ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1rem; }
-                .blog-rich-editor ol { list-style-type: decimal; padding-left: 1.5rem; margin-bottom: 1rem; }
-            `}</style>
+            <style>{BLOG_STYLES}</style>
         <div className="fixed inset-0 bg-gray-100 dark:bg-gray-950 z-50 flex flex-col">
             {/* Top Bar */}
             <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shadow-sm z-20">
@@ -725,7 +962,7 @@ const BlogBuilder: FC<{
                         </button>
                     )}
                     
-                    <div className="max-w-4xl mx-auto min-h-full bg-white dark:bg-gray-900 shadow-xl my-8 rounded-xl overflow-hidden">
+                    <div className="max-w-4xl mx-auto min-h-full bg-white dark:bg-gray-900 shadow-xl my-8 rounded-xl">
                         {viewMode === 'edit' ? (
                             <BlogEditor value={item.content || ''} onChange={v => set('content', v)} className="min-h-[800px]" />
                         ) : (

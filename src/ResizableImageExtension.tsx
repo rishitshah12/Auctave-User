@@ -4,7 +4,7 @@ import React, { useRef, useState, useCallback } from 'react';
 import { AlignLeft, AlignCenter, AlignRight, RectangleHorizontal, Crop, Trash2 } from 'lucide-react';
 
 // ─── Resizable Image Component (NodeView) ───────────────────────────
-const ResizableImageComponent: React.FC<NodeViewProps> = ({ node, updateAttributes, selected, editor, deleteNode, getPos }) => {
+export const ResizableImageComponent: React.FC<NodeViewProps> = ({ node, updateAttributes, selected, editor, deleteNode, getPos }) => {
     const wrapperRef = useRef<HTMLDivElement>(null);
     const [isResizing, setIsResizing] = useState(false);
     const [showToolbar, setShowToolbar] = useState(false);
@@ -85,13 +85,21 @@ const ResizableImageComponent: React.FC<NodeViewProps> = ({ node, updateAttribut
 
     const visible = showToolbar || selected;
 
+    const wrapperStyle: React.CSSProperties = {
+        display: alignment === 'center' ? 'flex' : 'inline-block',
+        justifyContent: alignment === 'center' ? 'center' : undefined,
+        float: alignment === 'left' ? 'left' : alignment === 'right' ? 'right' : 'none',
+        marginRight: alignment === 'left' ? '1rem' : undefined,
+        marginLeft: alignment === 'right' ? '1rem' : undefined,
+        marginBottom: '0.5rem',
+        clear: alignment === 'center' ? 'both' : 'none',
+        maxWidth: '100%',
+    };
+
     return (
         <NodeViewWrapper
             className="resizable-image-wrapper"
-            style={{
-                display: 'flex',
-                justifyContent: alignment === 'center' ? 'center' : alignment === 'right' ? 'flex-end' : 'flex-start',
-            }}
+            style={wrapperStyle}
         >
             <div
                 ref={wrapperRef}
@@ -320,7 +328,13 @@ export const ResizableImage = Node.create({
             alt: { default: null },
             width: { default: null },
             height: { default: null },
-            alignment: { default: 'center' },
+            alignment: {
+                default: 'center',
+                parseHTML: element => element.getAttribute('data-alignment') || element.parentElement?.style.float,
+                renderHTML: attributes => ({
+                    'data-alignment': attributes.alignment,
+                }),
+            },
         };
     },
 
@@ -328,14 +342,51 @@ export const ResizableImage = Node.create({
         return [{ tag: 'img[src]' }];
     },
 
-    renderHTML({ HTMLAttributes }) {
-        const { alignment, ...rest } = HTMLAttributes;
-        const style = [];
-        if (rest.width) style.push(`width: ${rest.width}px`);
-        if (rest.height) style.push(`height: ${rest.height}px`);
-        style.push('max-width: 100%');
-        style.push('border-radius: 0.5rem');
-        return ['img', mergeAttributes(rest, { style: style.join('; ') })];
+    renderHTML({ node, HTMLAttributes }) {
+        const { alignment } = node.attrs;
+        const { width } = node.attrs;
+        const imgAttrs = { ...HTMLAttributes };
+
+        const imgStyle: string[] = [
+            'display: block',
+            'border-radius: 0.5rem',
+            'height: auto',
+            'max-width: 100%',
+            'margin: 0',
+        ];
+
+        const wrapperStyle: string[] = [
+            'max-width: 100%',
+        ];
+
+        if (alignment === 'center') {
+            // Center: Wrapper is full width flex container, Image has specific width
+            wrapperStyle.push('display: flex');
+            wrapperStyle.push('justify-content: center');
+            wrapperStyle.push('width: 100%');
+            wrapperStyle.push('clear: both');
+            wrapperStyle.push('margin: 1rem 0');
+            if (width) imgStyle.push(`width: ${width}px`);
+        } else {
+            // Left/Right: Wrapper floats and has specific width, Image fills wrapper
+            wrapperStyle.push('display: inline-block');
+            if (width) wrapperStyle.push(`width: ${width}px`);
+            imgStyle.push('width: 100%');
+
+            if (alignment === 'left') {
+                wrapperStyle.push('float: left');
+                wrapperStyle.push('margin-right: 1rem');
+                wrapperStyle.push('margin-bottom: 0.5rem');
+            } else if (alignment === 'right') {
+                wrapperStyle.push('float: right');
+                wrapperStyle.push('margin-left: 1rem');
+                wrapperStyle.push('margin-bottom: 0.5rem');
+            }
+        }
+
+        return ['div', { style: wrapperStyle.join('; '), class: 'resizable-image-wrapper', 'data-alignment': alignment },
+            ['img', mergeAttributes(imgAttrs, { style: imgStyle.join('; ') })]
+        ];
     },
 
     addNodeView() {

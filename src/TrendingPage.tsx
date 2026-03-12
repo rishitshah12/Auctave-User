@@ -71,6 +71,48 @@ const DEFAULT_CTA_STYLE = {
     shadow: false, icon: true,
 };
 
+// Fallback/default fonts to load for blog posts — ensures GOOGLE_FONTS is defined
+const GOOGLE_FONTS = [
+    'Roboto',
+    'Inter',
+    'Montserrat',
+    'Lora',
+    'Playfair Display',
+    'Merriweather',
+];
+
+// Minimal fallback blog styles to avoid undefined variable errors; can be extended as needed.
+const BLOG_STYLES = `
+/* Minimal blog editor styles used by BlogBuilder / BlogEditor */
+.blog-rich-editor {
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+  color: #000000;
+  line-height: 1.6;
+}
+
+/* Basic content styling */
+.blog-rich-editor h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 0.5rem; }
+.blog-rich-editor h2 { font-size: 1.75rem; font-weight: 700; margin: 0 0 0.5rem; }
+.blog-rich-editor p { margin: 0 0 1rem; }
+.blog-rich-editor img { max-width: 100%; height: auto; border-radius: 0.5rem; }
+.blog-rich-editor blockquote { border-left: 4px solid #c20c0b; padding: 0.5rem 1rem; color: rgba(0,0,0,0.65); background: rgba(0,0,0,0.02); margin: 0 0 1rem; font-style: italic; }
+.blog-rich-editor pre { background: #0f172a; color: #e6eef8; padding: 1rem; border-radius: 0.5rem; overflow: auto; margin: 0 0 1rem; }
+.blog-rich-editor code { background: rgba(0,0,0,0.04); padding: 0.15rem 0.3rem; border-radius: 0.25rem; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace; }
+
+/* Light/dark support hooks used elsewhere in the app */
+.dark .blog-rich-editor {
+  color: #ffffff;
+}
+.dark .blog-rich-editor blockquote {
+  background: rgba(255,255,255,0.02);
+  color: rgba(255,255,255,0.85);
+  border-left-color: #c20c0b;
+}
+.dark .blog-rich-editor pre {
+  background: #0b1220;
+}
+`;
+
 interface TrendingPageProps {
     pageKey: number;
     user: any;
@@ -103,24 +145,81 @@ const FullscreenVideoPlayer: FC<{ src: string; onClose: () => void }> = ({ src, 
     );
 };
 
-// ─── Blog Detail Modal ──────────────────────────────────────────────
-const BlogDetailModal: FC<{ blog: any; onClose: () => void }> = ({ blog, onClose }) => (
-    <div className="fixed inset-0 bg-black/50 flex items-start justify-center z-[80] p-4 overflow-y-auto" onClick={onClose}>
-        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-3xl my-8 overflow-hidden" onClick={e => e.stopPropagation()}>
-            <button onClick={onClose} className="absolute top-6 right-6 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 z-10"><X size={24} /></button>
-            {blog.cover_image_url && <img src={blog.cover_image_url} alt={blog.title} className="w-full h-72 object-cover" />}
-            <div className="p-8">
-                <div className="flex items-center gap-2 mb-3">
-                    {blog.category && <span className="text-xs font-semibold bg-red-100 dark:bg-red-900/30 text-[#c20c0b] px-3 py-1 rounded-full">{blog.category}</span>}
-                    {blog.published_at && <span className="text-xs text-gray-400 flex items-center gap-1"><Clock size={12} /> {new Date(blog.published_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>}
+// ─── Blog Full Page View ────────────────────────────────────────────
+const BlogFullPageView: FC<{ blog: any; onBack: () => void }> = ({ blog, onBack }) => {
+    useEffect(() => {
+        // Load Google Fonts dynamically for the blog post
+        const link = document.createElement('link');
+        link.href = `https://fonts.googleapis.com/css2?family=${GOOGLE_FONTS.join('&family=').replace(/ /g, '+')}&display=swap`;
+        link.rel = 'stylesheet';
+        document.head.appendChild(link);
+        return () => {
+            document.head.removeChild(link);
+        };
+    }, []);
+
+    return (
+        <div className="animate-fade-in min-h-screen bg-white dark:bg-black">
+            <style>{BLOG_STYLES}</style>
+            
+            {/* Header / Back Button */}
+            <div className="sticky top-0 z-20 bg-white/80 dark:bg-black/80 backdrop-blur-md border-b border-gray-200 dark:border-white/10">
+                <div className="max-w-4xl mx-auto px-4 py-4">
+                    <button 
+                        onClick={onBack}
+                        className="flex items-center gap-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors"
+                    >
+                        <ChevronLeft size={20} />
+                        <span className="font-medium">Back to Trending</span>
+                    </button>
                 </div>
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{blog.title}</h1>
-                {blog.author && <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 flex items-center gap-1"><User size={14} /> By {blog.author}</p>}
-                <div className="prose prose-lg dark:prose-invert max-w-none [&_h1]:text-2xl [&_h1]:font-bold [&_h2]:text-xl [&_h2]:font-semibold [&_img]:rounded-lg [&_a]:text-[#c20c0b] [&_blockquote]:border-l-4 [&_blockquote]:border-[#c20c0b] [&_blockquote]:pl-4" dangerouslySetInnerHTML={{ __html: blog.content || '' }} />
+            </div>
+
+            <div className="max-w-4xl mx-auto px-6 py-12 pb-32">
+                <div className="text-center mb-10">
+                    {blog.category && (
+                        <span className="inline-block px-3 py-1 mb-4 text-xs font-bold text-[#c20c0b] bg-red-50 dark:bg-red-900/20 rounded-full uppercase tracking-wider">
+                            {blog.category}
+                        </span>
+                    )}
+                    <h1 className="text-3xl md:text-5xl font-extrabold text-gray-900 dark:text-white mb-6 leading-tight">
+                        {blog.title}
+                    </h1>
+                    <div className="flex items-center justify-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+                        {blog.author && (
+                            <span className="flex items-center gap-1.5">
+                                <User size={16} />
+                                {blog.author}
+                            </span>
+                        )}
+                        <span>•</span>
+                        {blog.published_at && (
+                            <span className="flex items-center gap-1.5">
+                                <Clock size={16} />
+                                {new Date(blog.published_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                            </span>
+                        )}
+                    </div>
+                </div>
+
+                {blog.cover_image_url && (
+                    <div className="mb-12 rounded-2xl overflow-hidden shadow-xl aspect-video relative">
+                        <img 
+                            src={blog.cover_image_url} 
+                            alt={blog.title} 
+                            className="absolute inset-0 w-full h-full object-cover"
+                        />
+                    </div>
+                )}
+
+                <div 
+                    className="blog-rich-editor" 
+                    dangerouslySetInnerHTML={{ __html: blog.content || '' }} 
+                />
             </div>
         </div>
-    </div>
-);
+    );
+};
 
 // ─── Main Trending Page ─────────────────────────────────────────────
 export const TrendingPage: FC<TrendingPageProps> = (props) => {
@@ -199,6 +298,15 @@ export const TrendingPage: FC<TrendingPageProps> = (props) => {
         const timer = setInterval(() => changeBanner(prev => (prev + 1) % banners.length), interval * 1000);
         return () => clearInterval(timer);
     }, [banners.length, currentBanner, isBannerHovered, banners, changeBanner]);
+
+    // If a blog is selected, render the full page view directly
+    if (selectedBlog) {
+        return (
+            <MainLayout {...props}>
+                <BlogFullPageView blog={selectedBlog} onBack={() => setSelectedBlog(null)} />
+            </MainLayout>
+        );
+    }
 
     const productCategories = ['all', ...Array.from(new Set(products.map(p => p.category).filter(Boolean)))];
     const filteredProducts = productFilter === 'all' ? products : products.filter(p => p.category === productFilter);
@@ -629,7 +737,6 @@ export const TrendingPage: FC<TrendingPageProps> = (props) => {
 
             {/* Modals */}
             {fullscreenVideo && <FullscreenVideoPlayer src={fullscreenVideo} onClose={() => setFullscreenVideo(null)} />}
-            {selectedBlog && <BlogDetailModal blog={selectedBlog} onClose={() => setSelectedBlog(null)} />}
         </MainLayout>
     );
 };
