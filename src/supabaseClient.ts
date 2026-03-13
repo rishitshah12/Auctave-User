@@ -4,6 +4,10 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
+console.log('[Supabase Debug] URL length:', supabaseUrl?.length, 'Key length:', supabaseAnonKey?.length);
+console.log('[Supabase Debug] URL:', supabaseUrl);
+console.log('[Supabase Debug] Key first 20 chars:', supabaseAnonKey?.substring(0, 20));
+
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error("Supabase URL and/or Anon Key are missing from your .env.local file. Please add them.");
 }
