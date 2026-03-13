@@ -1,12 +1,8 @@
 /// <reference types="vite/client" />
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-
-console.log('[Supabase Debug] URL length:', supabaseUrl?.length, 'Key length:', supabaseAnonKey?.length);
-console.log('[Supabase Debug] URL:', supabaseUrl);
-console.log('[Supabase Debug] Key first 20 chars:', supabaseAnonKey?.substring(0, 20));
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim() || 'https://nhvbnfpzykdokqcnljth.supabase.co'
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim() || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5odmJuZnB6eWtkb2txY25sanRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc2MDYxODUsImV4cCI6MjA4MzE4MjE4NX0.BYzfvjZlE2ppW7JKC8yU-WrG4m8gfDprIonU96XK59U'
 
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error("Supabase URL and/or Anon Key are missing from your .env.local file. Please add them.");
