@@ -14,6 +14,7 @@ node_modules
 
 # Build output
 dist
+build
 dist-ssr
 
 # Environment Variables (IMPORTANT)
@@ -26,3 +27,6 @@ dist-ssr
 
 # System Files
 .DS_Store
+
+# Wrangler
+.wrangler
