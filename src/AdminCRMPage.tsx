@@ -10,7 +10,7 @@ import {
     Search, Building2, Mail, Users, Edit, ChevronRight, ShieldCheck,
     Flag, Clock, TrendingUp, CheckCircle, ChevronDown, FileText,
     Download, Save, MapPin, PencilLine, Zap, MessageSquare,
-    CalendarDays, User, AlertTriangle, ChevronUp
+    CalendarDays, User, AlertTriangle, ChevronUp, Send
 } from 'lucide-react';
 import { DashboardView, ListView, BoardView, GanttChartView, TNAView, OrderDetailsView } from './CRMPage';
 import CrmOrderCard from './CrmOrderCard';
@@ -1862,6 +1862,8 @@ function AdminGanttChartView({
     );
 }
 
+const getDraftKey = (orderId: string) => `crm_draft_order_${orderId}`;
+
 // ── Main component ─────────────────────────────────────────────────────────────
 export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
     const CLIENTS_CACHE_KEY = 'garment_erp_admin_clients';
@@ -1919,6 +1921,8 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
     const [isUploading, setIsUploading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+    const [draftSavedAt, setDraftSavedAt] = useState<Date | null>(null);
+    const [showSendConfirm, setShowSendConfirm] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const handleSaveOrderRef = useRef<(silent?: boolean) => Promise<void>>(async () => {});
@@ -2024,14 +2028,30 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
     useEffect(() => {
         if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
         setLastSavedAt(null);
+        setDraftSavedAt(null);
         if (selectedOrderId) {
             const order = orders.find(o => o.id === selectedOrderId);
             if (order) {
                 const str = JSON.stringify(order);
-                setEditingOrder(JSON.parse(str));
                 setOriginalOrderStr(str);
-                setHasChanges(false);
-                setFactoryMode(order.custom_factory_name ? 'manual' : 'list');
+                const savedDraft = localStorage.getItem(getDraftKey(selectedOrderId));
+                if (savedDraft) {
+                    try {
+                        const { order: draftOrder, savedAt } = JSON.parse(savedDraft);
+                        setEditingOrder(draftOrder);
+                        setDraftSavedAt(new Date(savedAt));
+                        setHasChanges(true);
+                        setFactoryMode(draftOrder.custom_factory_name ? 'manual' : 'list');
+                    } catch {
+                        setEditingOrder(JSON.parse(str));
+                        setHasChanges(false);
+                        setFactoryMode(order.custom_factory_name ? 'manual' : 'list');
+                    }
+                } else {
+                    setEditingOrder(JSON.parse(str));
+                    setHasChanges(false);
+                    setFactoryMode(order.custom_factory_name ? 'manual' : 'list');
+                }
                 setExpandedTaskId(null);
                 setTaskSearch('');
                 setTaskStatusFilter('ALL');
@@ -2052,17 +2072,19 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
         }
     }, [editingOrder, originalOrderStr]);
 
-    // ── auto-save: debounce 1.5s after each edit ───────────────────────────────
+    // ── auto-save draft to localStorage: debounce 1.5s after each edit ──────────
     useEffect(() => {
-        if (!hasChanges || isSaving) return;
+        if (!hasChanges || !editingOrder || !selectedOrderId) return;
         if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
         autoSaveTimerRef.current = setTimeout(() => {
-            handleSaveOrderRef.current(true);
-        }, 5000);
+            const now = new Date();
+            localStorage.setItem(getDraftKey(selectedOrderId), JSON.stringify({ order: editingOrder, savedAt: now.toISOString() }));
+            setDraftSavedAt(now);
+        }, 1500);
         return () => {
             if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
         };
-    }, [hasChanges, editingOrder]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [hasChanges, editingOrder, selectedOrderId]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── client selection ───────────────────────────────────────────────────────
     const handleSelectClient = (client: any) => {
@@ -2147,6 +2169,15 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
         }
     };
     handleSaveOrderRef.current = handleSaveOrder;
+
+    const handleSendToClient = async () => {
+        await handleSaveOrder(false);
+        if (selectedOrderId) {
+            localStorage.removeItem(getDraftKey(selectedOrderId));
+            setDraftSavedAt(null);
+        }
+        setShowSendConfirm(false);
+    };
 
     const handleDeleteOrder = async (orderId: string) => {
         if (!confirm('Are you sure you want to delete this order? This action cannot be undone.')) return;
@@ -2718,21 +2749,20 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                         {transformedOrder.product}
                                     </h2>
                                     <RiskBadge score={calculateOrderRiskScore(transformedOrder.tasks || [])} />
-                                    {/* Save status — single static element, only text content changes, no layout shift */}
+                                    {/* Draft status — single static element, only text content changes, no layout shift */}
                                     <span className="hidden sm:inline-flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 flex-shrink-0 whitespace-nowrap">
-                                        <CheckCircle size={10} className={lastSavedAt ? 'text-emerald-500 dark:text-emerald-400' : 'text-gray-300 dark:text-gray-600'} />
-                                        {lastSavedAt ? `Saved ${lastSavedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}` : hasChanges ? 'Unsaved' : 'No changes'}
+                                        <Save size={10} className={draftSavedAt ? 'text-amber-500 dark:text-amber-400' : 'text-gray-300 dark:text-gray-600'} />
+                                        {draftSavedAt ? `Draft saved ${draftSavedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}` : lastSavedAt ? `Sent ${lastSavedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}` : hasChanges ? 'Unsaved draft' : 'No changes'}
                                     </span>
                                 </div>
                                 <div className="flex items-center gap-2 flex-shrink-0">
-                                    {/* Save Now — always in DOM, invisible when not needed, no layout shift */}
+                                    {/* Send to Client — always in DOM, disabled when nothing to send */}
                                     <button
-                                        onClick={() => handleSaveOrder(false)}
-                                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#c20c0b] to-red-600 text-white text-sm font-bold rounded-xl shadow hover:shadow-lg transition-all"
-                                        style={{ opacity: hasChanges && !isSaving ? 1 : 0, pointerEvents: hasChanges && !isSaving ? 'auto' : 'none' }}
-                                        tabIndex={hasChanges && !isSaving ? 0 : -1}
+                                        onClick={() => setShowSendConfirm(true)}
+                                        disabled={!hasChanges || isSaving}
+                                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#c20c0b] to-red-600 text-white text-sm font-bold rounded-xl shadow hover:shadow-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
                                     >
-                                        <Save size={15} /> Save Now
+                                        <Send size={15} /> Send
                                     </button>
                                     <button
                                         onClick={() => handleDeleteOrder(selectedOrderId)}
@@ -3401,6 +3431,45 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                         </form>
                     </div>
                 </div>
+            )}
+
+            {/* Send to Client confirmation dialog */}
+            {showSendConfirm && createPortal(
+                <div
+                    className="fixed inset-0 bg-black/50 flex items-center justify-center z-[90]"
+                    onClick={() => setShowSendConfirm(false)}
+                >
+                    <div
+                        className="bg-white dark:bg-gray-900 rounded-2xl p-6 shadow-2xl max-w-sm w-full mx-4 border border-gray-200 dark:border-white/10"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="p-2 bg-red-50 dark:bg-red-900/20 rounded-xl">
+                                <Send size={20} className="text-[#c20c0b]" />
+                            </div>
+                            <h3 className="text-lg font-bold text-gray-800 dark:text-white">Send to Client</h3>
+                        </div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                            This will save all draft changes to the database and make them visible to the client. Are you sure you want to proceed?
+                        </p>
+                        <div className="flex items-center gap-3 justify-end">
+                            <button
+                                onClick={() => setShowSendConfirm(false)}
+                                className="px-4 py-2 text-sm font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSendToClient}
+                                disabled={isSaving}
+                                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#c20c0b] to-red-600 text-white text-sm font-bold rounded-xl shadow hover:shadow-lg transition-all disabled:opacity-50"
+                            >
+                                <Send size={15} /> {isSaving ? 'Sending…' : 'Send'}
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
             )}
 
         </MainLayout>
