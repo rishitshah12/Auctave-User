@@ -10,7 +10,7 @@ import {
     Search, Building2, Mail, Users, Edit, ChevronRight, ShieldCheck,
     Flag, Clock, TrendingUp, CheckCircle, ChevronDown, FileText,
     Download, Save, MapPin, PencilLine, Zap, MessageSquare,
-    CalendarDays, User, AlertTriangle, ChevronUp, Loader2
+    CalendarDays, User, AlertTriangle, ChevronUp
 } from 'lucide-react';
 import { DashboardView, ListView, BoardView, GanttChartView, TNAView, OrderDetailsView } from './CRMPage';
 import CrmOrderCard from './CrmOrderCard';
@@ -2058,7 +2058,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
         if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
         autoSaveTimerRef.current = setTimeout(() => {
             handleSaveOrderRef.current(true);
-        }, 1500);
+        }, 5000);
         return () => {
             if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
         };
@@ -2394,11 +2394,12 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
 
     // ── derived state ──────────────────────────────────────────────────────────
     const selectedClient = useMemo(() => clients.find(c => c.id === selectedClientId), [clients, selectedClientId]);
-    const activeOrder = useMemo(() => orders.find(o => o.id === selectedOrderId), [orders, selectedOrderId]);
-    const transformedOrder = useMemo(() => activeOrder ? {
-        ...normalizeOrder(activeOrder),
+    // Derive transformedOrder from editingOrder (not orders[]) so that setOrders() during
+    // autosave does NOT invalidate this memo and does NOT re-render the detail view.
+    const transformedOrder = useMemo(() => editingOrder ? {
+        ...normalizeOrder(editingOrder),
         customer: selectedClient?.name || 'Unknown Client',
-    } : null, [activeOrder, selectedClient]);
+    } : null, [editingOrder, selectedClient]);
 
     const activeOrderCount = useMemo(() =>
         orders.filter(o => o.status === 'In Production' || o.status === 'Quality Check').length
@@ -2717,29 +2718,22 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                         {transformedOrder.product}
                                     </h2>
                                     <RiskBadge score={calculateOrderRiskScore(transformedOrder.tasks || [])} />
-                                    {isSaving ? (
-                                        <span className="hidden sm:inline flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex-shrink-0">
-                                            <Loader2 size={11} className="animate-spin" /> Saving…
-                                        </span>
-                                    ) : lastSavedAt ? (
-                                        <span className="hidden sm:inline flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex-shrink-0">
-                                            <CheckCircle size={11} /> Saved {lastSavedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
-                                        </span>
-                                    ) : hasChanges ? (
-                                        <span className="hidden sm:inline px-2.5 py-0.5 text-xs font-semibold rounded-full bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 animate-pulse flex-shrink-0">
-                                            Unsaved changes
-                                        </span>
-                                    ) : null}
+                                    {/* Save status — single static element, only text content changes, no layout shift */}
+                                    <span className="hidden sm:inline-flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 flex-shrink-0 whitespace-nowrap">
+                                        <CheckCircle size={10} className={lastSavedAt ? 'text-emerald-500 dark:text-emerald-400' : 'text-gray-300 dark:text-gray-600'} />
+                                        {lastSavedAt ? `Saved ${lastSavedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}` : hasChanges ? 'Unsaved' : 'No changes'}
+                                    </span>
                                 </div>
                                 <div className="flex items-center gap-2 flex-shrink-0">
-                                    {hasChanges && !isSaving && (
-                                        <button
-                                            onClick={() => handleSaveOrder(false)}
-                                            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#c20c0b] to-red-600 text-white text-sm font-bold rounded-xl shadow hover:shadow-lg hover:scale-105 transition-all"
-                                        >
-                                            <Save size={15} /> Save Now
-                                        </button>
-                                    )}
+                                    {/* Save Now — always in DOM, invisible when not needed, no layout shift */}
+                                    <button
+                                        onClick={() => handleSaveOrder(false)}
+                                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#c20c0b] to-red-600 text-white text-sm font-bold rounded-xl shadow hover:shadow-lg transition-all"
+                                        style={{ opacity: hasChanges && !isSaving ? 1 : 0, pointerEvents: hasChanges && !isSaving ? 'auto' : 'none' }}
+                                        tabIndex={hasChanges && !isSaving ? 0 : -1}
+                                    >
+                                        <Save size={15} /> Save Now
+                                    </button>
                                     <button
                                         onClick={() => handleDeleteOrder(selectedOrderId)}
                                         className="flex items-center gap-2 px-3 py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm font-bold rounded-xl hover:bg-red-100 dark:hover:bg-red-900/40 transition-all border border-red-200 dark:border-red-800"
@@ -3206,19 +3200,9 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                             </div>
 
                                             {/* Auto-save status */}
-                                            {(isSaving || lastSavedAt || hasChanges) && (
-                                                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10 text-xs font-medium">
-                                                    {isSaving ? (
-                                                        <><Loader2 size={12} className="animate-spin text-blue-500" /><span className="text-blue-600 dark:text-blue-400">Saving…</span></>
-                                                    ) : lastSavedAt ? (
-                                                        <><CheckCircle size={12} className="text-emerald-500" /><span className="text-emerald-600 dark:text-emerald-400">Saved {lastSavedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</span></>
-                                                    ) : (
-                                                        <><Loader2 size={12} className="animate-spin text-amber-500" /><span className="text-amber-600 dark:text-amber-400">Auto-saving…</span></>
-                                                    )}
-                                                </div>
-                                            )}
+                                             
                                         </div>
-                                    )}
+                                    )} 
 
                                     {/* ── DOCUMENTS TAB ── */}
                                     {activeView === 'Documents' && (
@@ -3292,18 +3276,6 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                                     )}
                                                 </div>
                                             </div>
-
-                                            {(isSaving || lastSavedAt || hasChanges) && (
-                                                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10 text-xs font-medium">
-                                                    {isSaving ? (
-                                                        <><Loader2 size={12} className="animate-spin text-blue-500" /><span className="text-blue-600 dark:text-blue-400">Saving…</span></>
-                                                    ) : lastSavedAt ? (
-                                                        <><CheckCircle size={12} className="text-emerald-500" /><span className="text-emerald-600 dark:text-emerald-400">Saved {lastSavedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</span></>
-                                                    ) : (
-                                                        <><Loader2 size={12} className="animate-spin text-amber-500" /><span className="text-amber-600 dark:text-amber-400">Auto-saving…</span></>
-                                                    )}
-                                                </div>
-                                            )}
                                         </div>
                                     )}
 

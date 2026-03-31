@@ -187,15 +187,21 @@ const ProductionFloorLayout: FC<ProductionFloorLayoutProps> = ({ lines: rawLines
                         return (
                             <div
                                 key={idx}
-                                className={`flex flex-col cursor-pointer transition-colors duration-150 ${
+                                className={`flex flex-col cursor-pointer transition-all duration-200 ${
+                                    isVacant
+                                        ? 'opacity-100'
+                                        : 'opacity-40 hover:opacity-60'
+                                } ${
                                     isSelected
                                         ? `${cfg.headerBg}`
                                         : 'hover:bg-white dark:hover:bg-gray-800/60'
-                                } ${cfg.glow}`}
+                                }`}
                                 onClick={() => setSelectedLine(isSelected ? null : idx)}
                             >
                                 {/* Column header */}
-                                <div className={`${compact ? 'px-2 py-2' : 'px-3 py-2.5'} border-b border-gray-200 dark:border-gray-700 ${cfg.headerBg} text-center`}>
+                                <div className={`${compact ? 'px-2 py-2' : 'px-3 py-2.5'} border-b border-gray-200 dark:border-gray-700 ${cfg.headerBg} text-center relative`}>
+                                    {/* Vacant accent stripe */}
+                                    {isVacant && <div className="absolute top-0 left-0 right-0 h-[3px] bg-emerald-500 dark:bg-emerald-400 rounded-t-none" />}
                                     {/* Line badge */}
                                     <div className={`${compact ? 'w-7 h-7 text-[9px]' : 'w-8 h-8 text-[10px]'} rounded-lg ${cfg.badgeBg} flex items-center justify-center text-white font-bold mx-auto mb-1.5 shadow-sm`}>
                                         L{idx + 1}
