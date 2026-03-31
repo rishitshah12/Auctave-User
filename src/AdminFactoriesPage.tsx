@@ -8,11 +8,12 @@ import {
 } from 'lucide-react';
 import { MainLayout } from './MainLayout';
 import { factoryService } from './factory.service';
-import { Factory, MachineSlot, CatalogProduct, FabricOption } from './types';
+import { Factory, ProductionLine, CatalogProduct, FabricOption } from './types';
 import { FactoryCard, TrustTierBadge } from './FactoryCard';
 import ProductCatalog, { migrateCatalog } from './ProductCatalog';
 import { seedAllFactories } from './seedFactories';
 import { useToast } from './ToastContext';
+import ProductionFloorLayout from './ProductionFloorLayout';
 
 interface AdminFactoriesPageProps {
     pageKey: number;
@@ -400,63 +401,12 @@ const FactoryPreview: FC<{ factory: Factory }> = ({ factory }) => {
                                                 </div>
                                             )}
 
-                                            {/* Production Capacity */}
+                                            {/* Production Floor Layout */}
                                             <div>
                                                 <h3 className="text-base font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                                                    <Activity size={16} className="text-[#c20c0b]" /> Production Capacity
+                                                    <Activity size={16} className="text-[#c20c0b]" /> Production Lines
                                                 </h3>
-                                                {factory.machineSlots?.length > 0 ? (
-                                                    <>
-                                                        {/* Summary */}
-                                                        {(() => {
-                                                            const totalAll = factory.machineSlots.reduce((s, m) => s + (m.totalSlots || 0), 0);
-                                                            const availAll = factory.machineSlots.reduce((s, m) => s + (m.availableSlots || 0), 0);
-                                                            const pct = totalAll > 0 ? Math.round((availAll / totalAll) * 100) : 0;
-                                                            const colorCls = pct > 50 ? 'bg-green-500' : pct > 20 ? 'bg-yellow-500' : 'bg-red-500';
-                                                            return (
-                                                                <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-white/10 p-3 mb-3">
-                                                                    <div className="flex items-center justify-between mb-1.5">
-                                                                        <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">Overall Capacity</span>
-                                                                        <span className="text-xs font-bold text-gray-900 dark:text-white">{availAll} / {totalAll} slots</span>
-                                                                    </div>
-                                                                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                                                                        <div className={`h-2 rounded-full transition-all ${colorCls}`} style={{ width: `${pct}%` }} />
-                                                                    </div>
-                                                                </div>
-                                                            );
-                                                        })()}
-                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                                            {factory.machineSlots.map(slot => {
-                                                                const pct = slot.totalSlots > 0 ? Math.round((slot.availableSlots / slot.totalSlots) * 100) : 0;
-                                                                const colorCls = pct > 50 ? 'bg-green-500' : pct > 20 ? 'bg-yellow-500' : slot.totalSlots === 0 ? 'bg-gray-400' : 'bg-red-500';
-                                                                return (
-                                                                    <div key={slot.machineType} className="bg-white dark:bg-gray-800/60 rounded-lg border border-gray-200 dark:border-white/10 p-3">
-                                                                        <div className="flex items-center gap-2 mb-2">
-                                                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-[10px] font-bold shrink-0 ${colorCls}`}>
-                                                                                {slot.totalSlots > 0 ? `${pct}%` : '—'}
-                                                                            </div>
-                                                                            <div className="min-w-0">
-                                                                                <h4 className="text-xs font-bold text-gray-900 dark:text-white truncate">{slot.machineType}</h4>
-                                                                                {slot.nextAvailable && <p className="text-[10px] text-gray-400 flex items-center gap-0.5"><Clock size={8} /> {slot.nextAvailable}</p>}
-                                                                            </div>
-                                                                        </div>
-                                                                        <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-1.5">
-                                                                            <div className={`h-1.5 rounded-full ${colorCls}`} style={{ width: `${pct}%` }} />
-                                                                        </div>
-                                                                        <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">
-                                                                            <span className="font-bold text-gray-700 dark:text-gray-200">{slot.availableSlots}</span> / {slot.totalSlots} slots
-                                                                        </p>
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    </>
-                                                ) : (
-                                                    <div className="text-center py-6 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-white/10">
-                                                        <Cog size={28} className="mx-auto mb-2 text-gray-300 dark:text-gray-600" />
-                                                        <p className="text-xs text-gray-500 dark:text-gray-400">No capacity information available</p>
-                                                    </div>
-                                                )}
+                                                <ProductionFloorLayout lines={factory.productionLines || []} compact />
                                             </div>
                                         </div>
 
@@ -543,7 +493,7 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
         name: '', location: '', description: '', minimumOrderQuantity: 0, rating: 0, imageUrl: '',
         turnaround: '', offer: '',
         specialties: [], tags: [], certifications: [], gallery: [],
-        machineSlots: [], catalog: { products: [], fabricOptions: [] }
+        productionLines: [], catalog: { products: [], fabricOptions: [] }
     });
 
     const [currentStep, setCurrentStep] = useState(0);
@@ -706,25 +656,22 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
     };
     const handleDragEnd = () => setDraggedImageIndex(null);
 
-    // --- Machine Slots ---
-    const MACHINE_PRESETS = ['Lockstitch', 'Overlock', 'Flatlock', 'Coverstitch', 'Bartack', 'Button Hole', 'Button Attach', 'Snap Button', 'Heat Press', 'Cutting Table', 'Embroidery', 'Screen Print'];
-
-    const addMachineSlot = (type = '') => setEditingFactory(prev => ({ ...prev, machineSlots: [...(prev.machineSlots || []), { machineType: type, totalSlots: 0, availableSlots: 0, nextAvailable: '' }] }));
-    const updateMachineSlot = (index: number, field: keyof MachineSlot, value: any) => {
-        const s = [...(editingFactory.machineSlots || [])];
+    // --- Production Lines ---
+    const addProductionLine = (name = '') => setEditingFactory(prev => ({ ...prev, productionLines: [...(prev.productionLines || []), { name, machinesCount: 0, capacityPerMonth: 0, status: 'vacant' as const }] }));
+    const updateProductionLine = (index: number, field: keyof ProductionLine, value: any) => {
+        const s = [...(editingFactory.productionLines || [])];
         s[index] = { ...s[index], [field]: value };
-        if (field === 'totalSlots' && s[index].availableSlots > value) s[index].availableSlots = value;
-        setEditingFactory(prev => ({ ...prev, machineSlots: s }));
+        setEditingFactory(prev => ({ ...prev, productionLines: s }));
     };
-    const removeMachineSlot = (index: number) => {
-        const s = [...(editingFactory.machineSlots || [])];
+    const removeProductionLine = (index: number) => {
+        const s = [...(editingFactory.productionLines || [])];
         s.splice(index, 1);
-        setEditingFactory(prev => ({ ...prev, machineSlots: s }));
+        setEditingFactory(prev => ({ ...prev, productionLines: s }));
     };
-    const duplicateMachineSlot = (index: number) => {
-        const s = [...(editingFactory.machineSlots || [])];
+    const duplicateProductionLine = (index: number) => {
+        const s = [...(editingFactory.productionLines || [])];
         s.splice(index + 1, 0, { ...s[index] });
-        setEditingFactory(prev => ({ ...prev, machineSlots: s }));
+        setEditingFactory(prev => ({ ...prev, productionLines: s }));
     };
 
     // --- Catalog ---
@@ -838,7 +785,7 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
             setEditingFactory({
                 name: '', location: '', description: '', minimumOrderQuantity: 0, rating: 0, imageUrl: '',
                 turnaround: '', offer: '', specialties: [], tags: [], certifications: [], gallery: [],
-                machineSlots: [], catalog: { products: [], fabricOptions: [] }
+                productionLines: [], catalog: { products: [], fabricOptions: [] }
             });
             setOriginalFactory(null);
         }
@@ -1128,115 +1075,83 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
                                             <div>
                                                 <div className="flex items-center gap-2 mb-1">
                                                     <Cog size={18} className="text-[#c20c0b]" />
-                                                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">Production Capacity</h3>
+                                                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">Production Lines</h3>
                                                 </div>
-                                                <p className="text-sm text-gray-400">Click a machine type to quick-add, or add a custom one below.</p>
+                                                <p className="text-sm text-gray-400">Add production lines with machine count and monthly capacity.</p>
                                             </div>
 
-                                            {/* Quick-add presets */}
-                                            <div>
-                                                <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 block">Quick Add</label>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {MACHINE_PRESETS.filter(p => !(editingFactory.machineSlots || []).some(s => s.machineType === p)).map(preset => (
-                                                        <button key={preset} type="button" onClick={() => addMachineSlot(preset)}
-                                                            className="text-xs bg-gray-100 dark:bg-gray-800 hover:bg-[#c20c0b] hover:text-white text-gray-600 dark:text-gray-300 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-[#c20c0b] transition-all font-medium cursor-pointer">
-                                                            + {preset}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
+                                            {/* Live floor layout preview */}
+                                            {(editingFactory.productionLines?.length || 0) > 0 && (
+                                                <ProductionFloorLayout lines={editingFactory.productionLines || []} compact />
+                                            )}
 
-                                            {/* Summary bar */}
-                                            {(editingFactory.machineSlots?.length || 0) > 0 && (() => {
-                                                const totalAll = (editingFactory.machineSlots || []).reduce((s, m) => s + (m.totalSlots || 0), 0);
-                                                const availAll = (editingFactory.machineSlots || []).reduce((s, m) => s + (m.availableSlots || 0), 0);
-                                                const pct = totalAll > 0 ? Math.round((availAll / totalAll) * 100) : 0;
-                                                return (
-                                                    <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-                                                        <div className="flex items-center justify-between mb-2">
-                                                            <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">Overall Capacity</span>
-                                                            <span className="text-sm font-bold text-gray-900 dark:text-white">{availAll} / {totalAll} slots available</span>
-                                                        </div>
-                                                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
-                                                            <div className={`h-2.5 rounded-full transition-all duration-500 ${pct > 50 ? 'bg-green-500' : pct > 20 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${pct}%` }} />
-                                                        </div>
-                                                        <div className="flex justify-between mt-1.5">
-                                                            <span className="text-[10px] text-gray-400 uppercase font-semibold">{editingFactory.machineSlots?.length} machine type{(editingFactory.machineSlots?.length || 0) !== 1 ? 's' : ''}</span>
-                                                            <span className={`text-[10px] font-bold uppercase ${pct > 50 ? 'text-green-600' : pct > 20 ? 'text-yellow-600' : 'text-red-600'}`}>{pct}% available</span>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })()}
-
-                                            {/* Machine slot cards */}
+                                            {/* Production line cards */}
                                             <div className="space-y-3">
-                                                {editingFactory.machineSlots?.map((slot, idx) => {
-                                                    const pct = slot.totalSlots > 0 ? Math.round((slot.availableSlots / slot.totalSlots) * 100) : 0;
+                                                {editingFactory.productionLines?.map((line, idx) => {
+                                                    const statusColor = line.status === 'in-use' ? 'bg-blue-500' : line.status === 'maintenance' ? 'bg-yellow-500' : 'bg-green-500';
+                                                    const needsDate = line.status === 'in-use' || line.status === 'maintenance';
                                                     return (
                                                         <div key={idx} className="bg-white dark:bg-gray-800/80 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow space-y-4">
                                                             {/* Header */}
                                                             <div className="flex items-center justify-between">
                                                                 <div className="flex items-center gap-3 flex-grow">
-                                                                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0 ${pct > 50 ? 'bg-green-500' : pct > 20 ? 'bg-yellow-500' : slot.totalSlots === 0 ? 'bg-gray-400' : 'bg-red-500'}`}>
-                                                                        {slot.totalSlots > 0 ? `${pct}%` : '—'}
+                                                                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0 ${statusColor}`}>
+                                                                        L{idx + 1}
                                                                     </div>
-                                                                    <input type="text" value={slot.machineType} onChange={e => updateMachineSlot(idx, 'machineType', e.target.value)}
+                                                                    <input type="text" value={line.name} onChange={e => updateProductionLine(idx, 'name', e.target.value)}
                                                                         className="text-sm font-semibold text-gray-900 dark:text-white bg-transparent border-0 border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-[#c20c0b] focus:ring-0 outline-none py-0.5 px-0 w-full transition-colors"
-                                                                        placeholder="Machine type name..." />
+                                                                        placeholder="Production line name (e.g. Line A, Stitching Line)..." />
                                                                 </div>
                                                                 <div className="flex items-center gap-1 shrink-0 ml-2">
-                                                                    <button type="button" onClick={() => duplicateMachineSlot(idx)} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors" title="Duplicate"><Copy size={14} /></button>
-                                                                    <button type="button" onClick={() => removeMachineSlot(idx)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Remove"><Trash2 size={14} /></button>
+                                                                    <button type="button" onClick={() => duplicateProductionLine(idx)} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors" title="Duplicate"><Copy size={14} /></button>
+                                                                    <button type="button" onClick={() => removeProductionLine(idx)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Remove"><Trash2 size={14} /></button>
                                                                 </div>
                                                             </div>
 
-                                                            {/* Capacity visual */}
-                                                            <div>
-                                                                <div className="flex items-center justify-between mb-1.5">
-                                                                    <span className="text-xs text-gray-500 dark:text-gray-400">Available: <span className="font-bold text-gray-700 dark:text-gray-200">{slot.availableSlots}</span> / {slot.totalSlots}</span>
-                                                                    {slot.nextAvailable && <span className="text-[10px] text-gray-400 flex items-center gap-1"><Clock size={10} />Next: {slot.nextAvailable}</span>}
-                                                                </div>
-                                                                <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2">
-                                                                    <div className={`h-2 rounded-full transition-all duration-300 ${pct > 50 ? 'bg-green-500' : pct > 20 ? 'bg-yellow-500' : slot.totalSlots === 0 ? 'bg-gray-300' : 'bg-red-500'}`}
-                                                                        style={{ width: `${slot.totalSlots > 0 ? pct : 0}%` }} />
-                                                                </div>
-                                                            </div>
-
-                                                            {/* Inputs */}
+                                                            {/* Row 1: Machines, Capacity / mo, Status */}
                                                             <div className="grid grid-cols-3 gap-3">
                                                                 <div>
-                                                                    <label className="text-[10px] text-gray-500 dark:text-gray-400 mb-1 block uppercase font-semibold tracking-wider">Total Slots</label>
-                                                                    <input type="number" min="0" value={slot.totalSlots} onChange={e => updateMachineSlot(idx, 'totalSlots', Math.max(0, parseInt(e.target.value) || 0))} className={smallInputCls} />
+                                                                    <label className="text-[10px] text-gray-500 dark:text-gray-400 mb-1 block uppercase font-semibold tracking-wider">Machines</label>
+                                                                    <input type="number" min="0" value={line.machinesCount} onChange={e => updateProductionLine(idx, 'machinesCount', Math.max(0, parseInt(e.target.value) || 0))} className={smallInputCls} />
                                                                 </div>
                                                                 <div>
-                                                                    <label className="text-[10px] text-gray-500 dark:text-gray-400 mb-1 block uppercase font-semibold tracking-wider">Available</label>
-                                                                    <div className="relative">
-                                                                        <input type="range" min="0" max={slot.totalSlots || 0} value={slot.availableSlots}
-                                                                            onChange={e => updateMachineSlot(idx, 'availableSlots', parseInt(e.target.value))}
-                                                                            className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full appearance-none cursor-pointer accent-[#c20c0b] mt-3"
-                                                                            disabled={!slot.totalSlots} />
-                                                                    </div>
+                                                                    <label className="text-[10px] text-gray-500 dark:text-gray-400 mb-1 block uppercase font-semibold tracking-wider">Capacity / Month</label>
+                                                                    <input type="number" min="0" value={line.capacityPerMonth} onChange={e => updateProductionLine(idx, 'capacityPerMonth', Math.max(0, parseInt(e.target.value) || 0))} className={smallInputCls} placeholder="units" />
                                                                 </div>
                                                                 <div>
-                                                                    <label className="text-[10px] text-gray-500 dark:text-gray-400 mb-1 block uppercase font-semibold tracking-wider">Next Available</label>
-                                                                    <input type="date" value={slot.nextAvailable} onChange={e => updateMachineSlot(idx, 'nextAvailable', e.target.value)} className={smallInputCls} />
+                                                                    <label className="text-[10px] text-gray-500 dark:text-gray-400 mb-1 block uppercase font-semibold tracking-wider">Status</label>
+                                                                    <select value={line.status} onChange={e => updateProductionLine(idx, 'status', e.target.value)} className={smallInputCls}>
+                                                                        <option value="vacant">Vacant</option>
+                                                                        <option value="in-use">In Use</option>
+                                                                        <option value="maintenance">Maintenance</option>
+                                                                    </select>
                                                                 </div>
                                                             </div>
+
+                                                            {/* Row 2: Next Available Date (only when In Use or Maintenance) */}
+                                                            {needsDate && (
+                                                                <div className="grid grid-cols-2 gap-3">
+                                                                    <div>
+                                                                        <label className="text-[10px] text-gray-500 dark:text-gray-400 mb-1 block uppercase font-semibold tracking-wider">Next Available Date</label>
+                                                                        <input type="date" value={line.nextAvailableDate || ''} onChange={e => updateProductionLine(idx, 'nextAvailableDate', e.target.value)} className={smallInputCls} />
+                                                                    </div>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     );
                                                 })}
                                             </div>
 
-                                            {/* Custom add button */}
-                                            <button type="button" onClick={() => addMachineSlot('')} className="flex items-center gap-2 text-sm text-[#c20c0b] font-semibold hover:text-[#a50a09] transition-colors px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-[#c20c0b] w-full justify-center">
-                                                <Plus size={16} /> Add Custom Machine
+                                            {/* Add button */}
+                                            <button type="button" onClick={() => addProductionLine('')} className="flex items-center gap-2 text-sm text-[#c20c0b] font-semibold hover:text-[#a50a09] transition-colors px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-[#c20c0b] w-full justify-center">
+                                                <Plus size={16} /> Add Production Line
                                             </button>
 
-                                            {(editingFactory.machineSlots?.length || 0) === 0 && (
+                                            {(editingFactory.productionLines?.length || 0) === 0 && (
                                                 <div className="text-center py-6 text-gray-400 dark:text-gray-500">
                                                     <Cog size={40} className="mx-auto mb-3 opacity-30" />
-                                                    <p className="text-sm font-medium">No machines added yet</p>
-                                                    <p className="text-xs mt-1">Use the quick-add buttons above or add a custom machine</p>
+                                                    <p className="text-sm font-medium">No production lines added yet</p>
+                                                    <p className="text-xs mt-1">Click the button above to add a production line</p>
                                                 </div>
                                             )}
                                         </div>

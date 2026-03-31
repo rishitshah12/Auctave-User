@@ -37,12 +37,16 @@ export interface OrderFormData {
     draftId?: string;
 }
 
-export interface MachineSlot {
-    machineType: string;
-    availableSlots: number;
-    totalSlots: number;
-    nextAvailable: string;
+export interface ProductionLine {
+    name: string;
+    machinesCount: number;
+    capacityPerMonth: number;
+    status: 'vacant' | 'in-use' | 'maintenance';
+    nextAvailableDate?: string; // ISO date string, relevant when in-use or maintenance
 }
+
+/** @deprecated Use ProductionLine instead */
+export type MachineSlot = ProductionLine;
 
 export interface CatalogProduct {
     id: string;
@@ -96,7 +100,7 @@ export interface Factory {
     description: string;
     minimumOrderQuantity: number;
     certifications: string[];
-    machineSlots: MachineSlot[];
+    productionLines: ProductionLine[];
     catalog: FactoryCatalog;
     trustTier?: 'unverified' | 'bronze' | 'silver' | 'gold';
     completedOrdersCount?: number;

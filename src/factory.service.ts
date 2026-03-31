@@ -53,9 +53,9 @@ export class FactoryService extends BaseService<Factory> {
             delete dbFactory.imageUrl;
         }
 
-        if (factory.machineSlots !== undefined) {
-            dbFactory.machine_slots = factory.machineSlots;
-            delete dbFactory.machineSlots;
+        if (factory.productionLines !== undefined) {
+            dbFactory.machine_slots = factory.productionLines;
+            delete dbFactory.productionLines;
         }
 
         if (factory.trustTier !== undefined) {
@@ -97,7 +97,7 @@ export class FactoryService extends BaseService<Factory> {
             tags: dbFactory.tags || [],
             certifications: dbFactory.certifications || [],
             specialties: dbFactory.specialties || [],
-            machineSlots: dbFactory.machine_slots || [],
+            productionLines: dbFactory.machine_slots || [],
             catalog: dbFactory.catalog || { productCategories: [], fabricOptions: [] },
             trustTier: (dbFactory.trust_tier as Factory['trustTier']) || 'unverified',
             completedOrdersCount: dbFactory.completed_orders_count ?? 0,

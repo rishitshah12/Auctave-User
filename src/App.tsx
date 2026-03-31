@@ -18,7 +18,7 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Pie, Cell, PieChart
 } from 'recharts';
 // Import TypeScript interfaces/types for data structures used in the app
-import { UserProfile, OrderFormData, Factory, QuoteRequest, CrmOrder, CrmProduct, CrmTask, ToastState, MachineSlot } from './types';
+import { UserProfile, OrderFormData, Factory, QuoteRequest, CrmOrder, CrmProduct, CrmTask, ToastState } from './types';
 // Import custom components for specific pages and UI elements
 import { MainLayout } from '../src/MainLayout';
 import { LoginPage } from '../src/LoginPage';

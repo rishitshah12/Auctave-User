@@ -1,11 +1,12 @@
 import React, { FC, useState, useEffect } from 'react';
 import {
-    Star, MapPin, ChevronLeft, ChevronRight, BookOpen, Activity, ShieldCheck, LayoutGrid, Scroll, X, ZoomIn, TrendingUp, AlertCircle, CheckCircle2, Clock, Cog
+    Star, MapPin, ChevronLeft, ChevronRight, BookOpen, Activity, ShieldCheck, LayoutGrid, Scroll, X, ZoomIn, TrendingUp, AlertCircle, CheckCircle2
 } from 'lucide-react';
 import { MainLayout } from '../src/MainLayout';
-import { Factory, MachineSlot } from '../src/types';
+import { Factory } from '../src/types';
 import { TrustTierBadge } from '../src/FactoryCard';
 import ProductCatalog from '../src/ProductCatalog';
+import ProductionFloorLayout from '../src/ProductionFloorLayout';
 
 interface FactoryDetailPageProps {
     // Props for MainLayout
@@ -35,65 +36,6 @@ const CertificationBadge: FC<{ cert: string }> = ({ cert }) => {
     return <span className={`text-xs font-bold px-2.5 py-1 rounded-md border ${certStyles[cert] || 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-white border-gray-200 dark:border-gray-700'}`}>{cert}</span>
 }
 
-const MachineSlotCard: FC<{ slot: MachineSlot }> = ({ slot }) => {
-    const pct = slot.totalSlots > 0 ? Math.round((slot.availableSlots / slot.totalSlots) * 100) : 0;
-    const colorCls = pct > 50 ? 'bg-green-500' : pct > 20 ? 'bg-yellow-500' : slot.totalSlots === 0 ? 'bg-gray-400' : 'bg-red-500';
-    const textColorCls = pct > 50 ? 'text-green-600 dark:text-green-400' : pct > 20 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400';
-
-    return (
-        <div className="bg-white dark:bg-gray-800/60 rounded-xl border border-gray-200 dark:border-white/10 p-4 hover:shadow-md transition-shadow">
-            <div className="flex items-center gap-3 mb-3">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0 ${colorCls}`}>
-                    {slot.totalSlots > 0 ? `${pct}%` : '—'}
-                </div>
-                <div className="flex-grow min-w-0">
-                    <h4 className="text-sm font-bold text-gray-900 dark:text-white truncate">{slot.machineType}</h4>
-                    {slot.nextAvailable && (
-                        <p className="text-[11px] text-gray-400 dark:text-gray-500 flex items-center gap-1 mt-0.5">
-                            <Clock size={10} /> Next available: {slot.nextAvailable}
-                        </p>
-                    )}
-                </div>
-            </div>
-            <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2 mb-2">
-                <div className={`h-2 rounded-full transition-all duration-500 ${colorCls}`} style={{ width: `${pct}%` }} />
-            </div>
-            <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-500 dark:text-gray-400">
-                    <span className="font-bold text-gray-700 dark:text-gray-200">{slot.availableSlots}</span> / {slot.totalSlots} slots available
-                </span>
-                <span className={`text-[10px] font-bold uppercase ${textColorCls}`}>
-                    {pct > 50 ? 'High' : pct > 20 ? 'Medium' : slot.totalSlots === 0 ? 'N/A' : 'Low'}
-                </span>
-            </div>
-        </div>
-    );
-};
-
-const CapacitySummary: FC<{ slots: MachineSlot[] }> = ({ slots }) => {
-    if (!slots || slots.length === 0) return null;
-    const totalAll = slots.reduce((s, m) => s + (m.totalSlots || 0), 0);
-    const availAll = slots.reduce((s, m) => s + (m.availableSlots || 0), 0);
-    const pct = totalAll > 0 ? Math.round((availAll / totalAll) * 100) : 0;
-    const colorCls = pct > 50 ? 'bg-green-500' : pct > 20 ? 'bg-yellow-500' : 'bg-red-500';
-    const textColorCls = pct > 50 ? 'text-green-600 dark:text-green-400' : pct > 20 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400';
-
-    return (
-        <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-white/10 p-4 mb-4">
-            <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">Overall Capacity</span>
-                <span className="text-sm font-bold text-gray-900 dark:text-white">{availAll} / {totalAll} slots available</span>
-            </div>
-            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
-                <div className={`h-2.5 rounded-full transition-all duration-500 ${colorCls}`} style={{ width: `${pct}%` }} />
-            </div>
-            <div className="flex justify-between mt-1.5">
-                <span className="text-[10px] text-gray-400 uppercase font-semibold">{slots.length} machine type{slots.length !== 1 ? 's' : ''}</span>
-                <span className={`text-[10px] font-bold uppercase ${textColorCls}`}>{pct}% available</span>
-            </div>
-        </div>
-    );
-};
 
 export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
     const { selectedFactory, handleSetCurrentPage, suggestedFactories, initialTab = 'overview' } = props;
@@ -288,23 +230,9 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
 
                                 <div>
                                     <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                                        <Activity size={20} className="text-[#c20c0b]"/> Production Capacity
+                                        <Activity size={20} className="text-[#c20c0b]"/> Production Lines
                                     </h3>
-                                    {selectedFactory.machineSlots?.length > 0 ? (
-                                        <>
-                                            <CapacitySummary slots={selectedFactory.machineSlots} />
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                {selectedFactory.machineSlots.map(slot => (
-                                                    <MachineSlotCard key={slot.machineType} slot={slot} />
-                                                ))}
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <div className="text-center py-8 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-white/10">
-                                            <Cog size={32} className="mx-auto mb-2 text-gray-300 dark:text-gray-600" />
-                                            <p className="text-sm text-gray-500 dark:text-gray-400">No capacity information available</p>
-                                        </div>
-                                    )}
+                                    <ProductionFloorLayout lines={selectedFactory.productionLines || []} />
                                 </div>
                             </div>
 

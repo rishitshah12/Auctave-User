@@ -120,10 +120,10 @@ const FACTORIES = [
     on_time_delivery_rate: 96.5,
     quality_rejection_rate: 1.2,
     machine_slots: [
-      { machineType: 'Single Needle Lockstitch', availableSlots: 40, totalSlots: 300, nextAvailable: '2026-03-20' },
-      { machineType: 'Overlock 5-Thread', availableSlots: 15, totalSlots: 120, nextAvailable: '2026-03-15' },
-      { machineType: 'Flatlock', availableSlots: 10, totalSlots: 60, nextAvailable: '2026-03-18' },
-      { machineType: 'Heat Press', availableSlots: 5, totalSlots: 20, nextAvailable: '2026-03-22' },
+      { name: 'Stitching Line', machinesCount: 40, capacityPerMonth: 16000, status: 'in-use' },
+      { name: 'Overlock Line', machinesCount: 16, capacityPerMonth: 6400, status: 'in-use' },
+      { name: 'Flatlock Line', machinesCount: 8, capacityPerMonth: 3200, status: 'in-use' },
+      { name: 'Finishing Line', machinesCount: 4, capacityPerMonth: 1600, status: 'maintenance' },
     ],
     catalog: {
       products: [
@@ -195,10 +195,10 @@ const FACTORIES = [
     on_time_delivery_rate: 94.2,
     quality_rejection_rate: 0.8,
     machine_slots: [
-      { machineType: 'Denim Loom (Sulzer)', availableSlots: 8, totalSlots: 50, nextAvailable: '2026-04-01' },
-      { machineType: 'Laser Finishing', availableSlots: 3, totalSlots: 10, nextAvailable: '2026-03-25' },
-      { machineType: 'Single Needle Lockstitch', availableSlots: 25, totalSlots: 200, nextAvailable: '2026-03-18' },
-      { machineType: 'Bartack Machine', availableSlots: 6, totalSlots: 30, nextAvailable: '2026-03-20' },
+      { name: 'Weaving Line', machinesCount: 8, capacityPerMonth: 2400, status: 'in-use' },
+      { name: 'Laser Finishing Line', machinesCount: 2, capacityPerMonth: 800, status: 'in-use' },
+      { name: 'Stitching Line', machinesCount: 28, capacityPerMonth: 11200, status: 'in-use' },
+      { name: 'Specialty Line', machinesCount: 5, capacityPerMonth: 2000, status: 'in-use' },
     ],
     catalog: {
       products: [
@@ -263,10 +263,10 @@ const FACTORIES = [
     on_time_delivery_rate: 92.0,
     quality_rejection_rate: 1.5,
     machine_slots: [
-      { machineType: 'Heavy Duty Lockstitch', availableSlots: 12, totalSlots: 80, nextAvailable: '2026-03-22' },
-      { machineType: 'Seam Sealing Machine', availableSlots: 4, totalSlots: 15, nextAvailable: '2026-04-01' },
-      { machineType: 'Down Filling Machine', availableSlots: 2, totalSlots: 6, nextAvailable: '2026-03-28' },
-      { machineType: 'Ultrasonic Welding', availableSlots: 3, totalSlots: 8, nextAvailable: '2026-03-25' },
+      { name: 'Stitching Line', machinesCount: 12, capacityPerMonth: 3600, status: 'in-use' },
+      { name: 'Seam Sealing Line', machinesCount: 3, capacityPerMonth: 900, status: 'in-use' },
+      { name: 'Filling Line', machinesCount: 2, capacityPerMonth: 600, status: 'maintenance' },
+      { name: 'Specialty Line', machinesCount: 2, capacityPerMonth: 500, status: 'in-use' },
     ],
     catalog: {
       products: [
@@ -330,10 +330,10 @@ const FACTORIES = [
     on_time_delivery_rate: 95.1,
     quality_rejection_rate: 1.0,
     machine_slots: [
-      { machineType: 'Flatlock 4-Needle', availableSlots: 18, totalSlots: 80, nextAvailable: '2026-03-14' },
-      { machineType: 'Sublimation Printer', availableSlots: 4, totalSlots: 12, nextAvailable: '2026-03-16' },
-      { machineType: 'Ultrasonic Cutter', availableSlots: 3, totalSlots: 8, nextAvailable: '2026-03-18' },
-      { machineType: 'Coverlock', availableSlots: 10, totalSlots: 50, nextAvailable: '2026-03-15' },
+      { name: 'Flatlock Line', machinesCount: 12, capacityPerMonth: 4800, status: 'in-use' },
+      { name: 'Printing Line', machinesCount: 2, capacityPerMonth: 800, status: 'in-use' },
+      { name: 'Cutting Line', machinesCount: 2, capacityPerMonth: 600, status: 'in-use' },
+      { name: 'Coverlock Line', machinesCount: 8, capacityPerMonth: 3200, status: 'in-use' },
     ],
     catalog: {
       products: [
@@ -397,9 +397,9 @@ const FACTORIES = [
     on_time_delivery_rate: 97.8,
     quality_rejection_rate: 0.3,
     machine_slots: [
-      { machineType: 'Shima Seiki Whole Garment', availableSlots: 4, totalSlots: 12, nextAvailable: '2026-04-05' },
-      { machineType: 'Stoll Flat Knitting', availableSlots: 6, totalSlots: 20, nextAvailable: '2026-03-28' },
-      { machineType: 'Linking Machine', availableSlots: 3, totalSlots: 10, nextAvailable: '2026-04-01' },
+      { name: 'Whole Garment Line', machinesCount: 2, capacityPerMonth: 400, status: 'in-use' },
+      { name: 'Flat Knitting Line', machinesCount: 4, capacityPerMonth: 1200, status: 'in-use' },
+      { name: 'Linking Line', machinesCount: 2, capacityPerMonth: 500, status: 'maintenance' },
     ],
     catalog: {
       products: [
@@ -461,10 +461,10 @@ const FACTORIES = [
     on_time_delivery_rate: 93.5,
     quality_rejection_rate: 1.8,
     machine_slots: [
-      { machineType: 'Zigzag Stretch Machine', availableSlots: 15, totalSlots: 60, nextAvailable: '2026-03-14' },
-      { machineType: 'Digital Fabric Printer', availableSlots: 3, totalSlots: 8, nextAvailable: '2026-03-16' },
-      { machineType: 'Laser Cutter', availableSlots: 2, totalSlots: 6, nextAvailable: '2026-03-18' },
-      { machineType: 'Moulding Press (Bra)', availableSlots: 4, totalSlots: 12, nextAvailable: '2026-03-20' },
+      { name: 'Stitching Line', machinesCount: 10, capacityPerMonth: 4000, status: 'in-use' },
+      { name: 'Printing Line', machinesCount: 2, capacityPerMonth: 600, status: 'in-use' },
+      { name: 'Cutting Line', machinesCount: 2, capacityPerMonth: 500, status: 'in-use' },
+      { name: 'Moulding Line', machinesCount: 2, capacityPerMonth: 800, status: 'in-use' },
     ],
     catalog: {
       products: [
@@ -528,10 +528,10 @@ const FACTORIES = [
     on_time_delivery_rate: 89.5,
     quality_rejection_rate: 2.1,
     machine_slots: [
-      { machineType: 'Heavy Duty Lockstitch', availableSlots: 20, totalSlots: 150, nextAvailable: '2026-03-16' },
-      { machineType: 'Bar Tack Machine', availableSlots: 8, totalSlots: 30, nextAvailable: '2026-03-14' },
-      { machineType: 'Reflective Tape Sealer', availableSlots: 4, totalSlots: 10, nextAvailable: '2026-03-20' },
-      { machineType: 'Automatic Pocket Setter', availableSlots: 5, totalSlots: 20, nextAvailable: '2026-03-18' },
+      { name: 'Stitching Line', machinesCount: 22, capacityPerMonth: 8800, status: 'in-use' },
+      { name: 'Bartack Line', machinesCount: 5, capacityPerMonth: 2000, status: 'in-use' },
+      { name: 'Specialty Line', machinesCount: 2, capacityPerMonth: 600, status: 'maintenance' },
+      { name: 'Finishing Line', machinesCount: 4, capacityPerMonth: 1600, status: 'in-use' },
     ],
     catalog: {
       products: [
@@ -593,10 +593,10 @@ const FACTORIES = [
     on_time_delivery_rate: 93.8,
     quality_rejection_rate: 0.9,
     machine_slots: [
-      { machineType: 'Single Needle Lockstitch', availableSlots: 15, totalSlots: 100, nextAvailable: '2026-03-18' },
-      { machineType: 'Embroidery Machine (6-Head)', availableSlots: 2, totalSlots: 8, nextAvailable: '2026-03-22' },
-      { machineType: 'Blind Hem Machine', availableSlots: 4, totalSlots: 15, nextAvailable: '2026-03-16' },
-      { machineType: 'Pleating Machine', availableSlots: 2, totalSlots: 6, nextAvailable: '2026-03-20' },
+      { name: 'Stitching Line', machinesCount: 14, capacityPerMonth: 5600, status: 'in-use' },
+      { name: 'Embroidery Line', machinesCount: 2, capacityPerMonth: 400, status: 'in-use' },
+      { name: 'Finishing Line', machinesCount: 3, capacityPerMonth: 1200, status: 'in-use' },
+      { name: 'Specialty Line', machinesCount: 2, capacityPerMonth: 500, status: 'in-use' },
     ],
     catalog: {
       products: [
@@ -657,10 +657,10 @@ const FACTORIES = [
     on_time_delivery_rate: 90.5,
     quality_rejection_rate: 2.0,
     machine_slots: [
-      { machineType: 'Overlock 5-Thread', availableSlots: 20, totalSlots: 100, nextAvailable: '2026-03-14' },
-      { machineType: 'Coverlock', availableSlots: 12, totalSlots: 50, nextAvailable: '2026-03-16' },
-      { machineType: 'Screen Print (Auto)', availableSlots: 3, totalSlots: 8, nextAvailable: '2026-03-18' },
-      { machineType: 'Embroidery Machine', availableSlots: 2, totalSlots: 6, nextAvailable: '2026-03-20' },
+      { name: 'Overlock Line', machinesCount: 14, capacityPerMonth: 5600, status: 'in-use' },
+      { name: 'Coverlock Line', machinesCount: 8, capacityPerMonth: 3200, status: 'in-use' },
+      { name: 'Screen Print Line', machinesCount: 2, capacityPerMonth: 600, status: 'in-use' },
+      { name: 'Embroidery Line', machinesCount: 2, capacityPerMonth: 400, status: 'maintenance' },
     ],
     catalog: {
       products: [
@@ -721,10 +721,10 @@ const FACTORIES = [
     on_time_delivery_rate: 87.0,
     quality_rejection_rate: 2.5,
     machine_slots: [
-      { machineType: 'Single Needle Lockstitch', availableSlots: 15, totalSlots: 80, nextAvailable: '2026-03-20' },
-      { machineType: 'Overlock 4-Thread', availableSlots: 10, totalSlots: 50, nextAvailable: '2026-03-18' },
-      { machineType: 'Snap Button Press', availableSlots: 4, totalSlots: 10, nextAvailable: '2026-03-16' },
-      { machineType: 'Label Sewing Machine', availableSlots: 3, totalSlots: 8, nextAvailable: '2026-03-14' },
+      { name: 'Stitching Line', machinesCount: 12, capacityPerMonth: 4800, status: 'in-use' },
+      { name: 'Overlock Line', machinesCount: 8, capacityPerMonth: 3200, status: 'in-use' },
+      { name: 'Finishing Line', machinesCount: 2, capacityPerMonth: 600, status: 'in-use' },
+      { name: 'Specialty Line', machinesCount: 2, capacityPerMonth: 500, status: 'in-use' },
     ],
     catalog: {
       products: [

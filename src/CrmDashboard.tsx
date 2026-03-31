@@ -436,7 +436,7 @@ export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user
                             tags: f.tags || [],
                             certifications: f.certifications || [],
                             specialties: f.specialties || [],
-                            machineSlots: f.machine_slots || [],
+                            productionLines: f.machine_slots || [],
                             catalog: f.catalog || { products: [], fabricOptions: [] }
                         })) || [];
                         return { data: transformed, error: null };

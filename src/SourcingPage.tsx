@@ -327,7 +327,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                         tags: f.tags || [],
                         certifications: f.certifications || [],
                         specialties: f.specialties || [],
-                        machineSlots: f.machine_slots || [],
+                        productionLines: f.machine_slots || [],
                         catalog: f.catalog || { products: [], fabricOptions: [] },
                         trustTier: (f.trust_tier as Factory['trustTier']) || 'unverified',
                         completedOrdersCount: f.completed_orders_count ?? 0,
