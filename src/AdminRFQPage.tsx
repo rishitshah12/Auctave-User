@@ -283,6 +283,12 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
     });
     const [isSelectionMode, setIsSelectionMode] = useState(() => selectedQuoteIds.length > 0);
     const [hoveredQuoteId, setHoveredQuoteId] = useState<string | null>(null);
+    // Mail-like read/unread tracking: stores { quoteId: lastReadAt ISO timestamp }
+    const [adminReadState, setAdminReadState] = useState<Record<string, string>>(() => {
+        const saved = localStorage.getItem('admin_quote_read_state');
+        if (!saved) return {};
+        try { return JSON.parse(saved); } catch { return {}; }
+    });
     const abortControllerRef = useRef<AbortController | null>(null);
     const fileLinksAbortController = useRef<AbortController | null>(null);
     const clientDropdownRef = useRef<HTMLDivElement>(null);
@@ -721,6 +727,20 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
         return { label, date: formatFriendlyDate(date) };
     };
 
+    const isQuoteUnread = (quote: QuoteRequest) => {
+        const lastReadAt = adminReadState[quote.id];
+        if (!lastReadAt) return true; // never opened
+        return new Date(getQuoteTimestamp(quote)).getTime() > new Date(lastReadAt).getTime();
+    };
+
+    const markAsRead = (quoteId: string) => {
+        setAdminReadState(prev => {
+            const updated = { ...prev, [quoteId]: new Date().toISOString() };
+            localStorage.setItem('admin_quote_read_state', JSON.stringify(updated));
+            return updated;
+        });
+    };
+
     const getPriority = (status: string) => {
         switch (status) {
             case 'Client Accepted': return 0; // Highest priority - needs admin action
@@ -808,12 +828,26 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
         // In trash mode, ignore the hidden filter logic to show all trashed items
         return matchesStatus && (viewMode === 'trash' || (showHidden ? isHidden : !isHidden)) && checkDateFilter(quote) && matchesSearch && matchesClient && matchesViewMode;
     }).sort((a, b) => {
+        // Unread quotes always float to top
+        const aUnread = isQuoteUnread(a) ? 0 : 1;
+        const bUnread = isQuoteUnread(b) ? 0 : 1;
+        if (aUnread !== bUnread) return aUnread - bUnread;
         const priorityA = getPriority(a.status);
         const priorityB = getPriority(b.status);
         if (priorityA !== priorityB) return priorityA - priorityB;
         return new Date(getQuoteTimestamp(b)).getTime() - new Date(getQuoteTimestamp(a)).getTime();
     });
     const filterOptions = ['All', 'Pending', 'Responded', 'In Negotiation', 'Accepted', 'Declined'];
+
+    const unreadCount = filteredQuotes.filter(isQuoteUnread).length;
+
+    const markAllAsRead = () => {
+        const updated: Record<string, string> = { ...adminReadState };
+        const now = new Date().toISOString();
+        filteredQuotes.forEach(q => { updated[q.id] = now; });
+        localStorage.setItem('admin_quote_read_state', JSON.stringify(updated));
+        setAdminReadState(updated);
+    };
 
     // Reset page when filters change
     useEffect(() => {
@@ -3711,6 +3745,17 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                         <CheckSquare size={20} />
                     </button>
                     <button onClick={fetchQuotes} className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors ${isLoading ? 'animate-spin' : ''}`} title="Refresh Quotes"><RefreshCw size={20}/></button>
+                    {unreadCount > 0 && viewMode === 'active' && (
+                        <button
+                            onClick={markAllAsRead}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-800/40 border border-blue-200/70 dark:border-blue-700/50 transition-colors"
+                            title="Mark all as read"
+                        >
+                            <CheckCheck size={14} />
+                            Mark all read
+                            <span className="bg-blue-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center leading-none">{unreadCount}</span>
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -3879,28 +3924,36 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                         const isHovered = hoveredQuoteId === quote.id;
                         const progressStep = getProgressStep(quote.status);
                         const initials = (quote.clientName || 'U').slice(0, 2).toUpperCase();
+                        const isUnread = isQuoteUnread(quote);
+                        // Detect if it's a new quote (Pending, never read) vs an update (read before but modified)
+                        const isNewQuote = isUnread && !adminReadState[quote.id];
+                        const isUpdated = isUnread && !!adminReadState[quote.id];
                         return (
                         <div
                             key={quote.id}
-                            onClick={() => setSelectedQuote(quote)}
+                            onClick={() => { markAsRead(quote.id); setSelectedQuote(quote); }}
                             onMouseEnter={() => setHoveredQuoteId(quote.id)}
                             onMouseLeave={() => setHoveredQuoteId(null)}
-                            className={`${theme.cardBg} backdrop-blur-sm rounded-2xl border ${theme.border} transition-all duration-300 cursor-pointer group relative overflow-hidden flex flex-col hover:-translate-y-1.5`}
+                            className={`${theme.cardBg} backdrop-blur-sm rounded-2xl border transition-all duration-300 cursor-pointer group relative overflow-hidden flex flex-col hover:-translate-y-1.5 ${isUnread ? 'border-blue-300 dark:border-blue-600/60' : theme.border}`}
                             style={{
                                 boxShadow: isHovered
-                                    ? `0 20px 40px -8px ${theme.glowHover}, 0 8px 16px -4px ${theme.glow}, 0 1px 4px rgba(0,0,0,0.08)`
-                                    : `0 4px 20px -4px ${theme.glow}, 0 1px 3px rgba(0,0,0,0.06)`,
+                                    ? isUnread
+                                        ? `0 20px 40px -8px rgba(59,130,246,0.35), 0 8px 16px -4px rgba(59,130,246,0.18), 0 1px 4px rgba(0,0,0,0.08)`
+                                        : `0 20px 40px -8px ${theme.glowHover}, 0 8px 16px -4px ${theme.glow}, 0 1px 4px rgba(0,0,0,0.08)`
+                                    : isUnread
+                                        ? `0 4px 20px -4px rgba(59,130,246,0.22), 0 1px 3px rgba(0,0,0,0.06), inset 3px 0 0 #3b82f6`
+                                        : `0 4px 20px -4px ${theme.glow}, 0 1px 3px rgba(0,0,0,0.06)`,
                                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                                 animationDelay: `${index * 50}ms`,
                             }}
                         >
                             {/* Status gradient top bar */}
-                            <div className={`h-[3px] w-full bg-gradient-to-r ${getStatusGradientBorder(quote.status)} flex-shrink-0`} />
+                            <div className={`h-[3px] w-full bg-gradient-to-r ${isUnread ? 'from-blue-400 via-blue-500 to-indigo-500' : getStatusGradientBorder(quote.status)} flex-shrink-0`} />
 
                             {/* Mesh gradient ambient overlay */}
                             <div
                                 className="absolute inset-0 pointer-events-none"
-                                style={{ background: theme.meshGradient, top: '3px' }}
+                                style={{ background: isUnread ? 'radial-gradient(ellipse at 85% 10%, rgba(59,130,246,0.08) 0%, transparent 55%)' : theme.meshGradient, top: '3px' }}
                             />
 
                             <div className="p-5 flex flex-col flex-grow relative">
@@ -3921,7 +3974,17 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                         </span>
                                     </div>
                                     <div className="flex items-center gap-1.5">
-                                        {(quote.modification_count || 0) > 0 && (
+                                        {isNewQuote && (
+                                            <span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full border border-blue-300/70 dark:border-blue-600/50 bg-blue-50/90 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center gap-1 backdrop-blur-sm animate-pulse">
+                                                <Circle size={6} className="fill-blue-500 text-blue-500" /> New
+                                            </span>
+                                        )}
+                                        {isUpdated && (
+                                            <span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full border border-indigo-300/70 dark:border-indigo-600/50 bg-indigo-50/90 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center gap-1 backdrop-blur-sm">
+                                                <Activity size={9} /> Updated
+                                            </span>
+                                        )}
+                                        {!isUnread && (quote.modification_count || 0) > 0 && (
                                             <span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full border border-amber-300/70 dark:border-amber-600/50 bg-amber-50/90 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center gap-1 backdrop-blur-sm">
                                                 <Edit size={10} /> Mod
                                             </span>
@@ -3937,16 +4000,19 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                 {/* Client info */}
                                 <div className="flex items-center gap-3 mb-4">
                                     <div
-                                        className="h-10 w-10 rounded-xl flex items-center justify-center font-bold text-white text-sm shadow-md flex-shrink-0"
-                                        style={{ backgroundColor: theme.progressColor, boxShadow: `0 4px 12px -2px ${theme.glow}` }}
+                                        className="h-10 w-10 rounded-xl flex items-center justify-center font-bold text-white text-sm shadow-md flex-shrink-0 relative"
+                                        style={{ backgroundColor: isUnread ? '#3b82f6' : theme.progressColor, boxShadow: isUnread ? '0 4px 12px -2px rgba(59,130,246,0.4)' : `0 4px 12px -2px ${theme.glow}` }}
                                     >
                                         {initials}
+                                        {isUnread && (
+                                            <span className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full border-2 border-white dark:border-gray-900 shadow-sm" />
+                                        )}
                                     </div>
                                     <div className="min-w-0">
-                                        <p className="font-bold text-gray-900 dark:text-white text-sm leading-tight group-hover:text-[#c20c0b] transition-colors truncate">
+                                        <p className={`text-sm leading-tight group-hover:text-[#c20c0b] transition-colors truncate ${isUnread ? 'font-extrabold text-gray-900 dark:text-white' : 'font-bold text-gray-900 dark:text-white'}`}>
                                             {quote.clientName || 'Unknown Client'}
                                         </p>
-                                        <p className="text-[10px] text-gray-400 dark:text-gray-500 flex items-center gap-1 mt-0.5">
+                                        <p className={`text-[10px] flex items-center gap-1 mt-0.5 ${isUnread ? 'text-gray-600 dark:text-gray-300 font-medium' : 'text-gray-400 dark:text-gray-500'}`}>
                                             <Building size={9} />{quote.companyName || 'Unknown Company'}
                                         </p>
                                     </div>
@@ -3954,12 +4020,12 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
 
                                 {/* Product name + date */}
                                 <div className="mb-4">
-                                    <h3 className="text-base font-bold text-gray-900 dark:text-white mb-1 leading-snug group-hover:text-[#c20c0b] transition-colors">
+                                    <h3 className={`text-base mb-1 leading-snug group-hover:text-[#c20c0b] transition-colors ${isUnread ? 'font-extrabold text-gray-900 dark:text-white' : 'font-bold text-gray-900 dark:text-white'}`}>
                                         {quote.order?.lineItems?.length > 1
                                             ? `${quote.order.lineItems.length} Product Types`
                                             : (quote.order?.lineItems?.[0]?.category || 'Unknown Product')}
                                     </h3>
-                                    <p className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1.5">
+                                    <p className={`text-xs flex items-center gap-1.5 ${isUnread ? 'text-blue-500 dark:text-blue-400 font-medium' : 'text-gray-400 dark:text-gray-500'}`}>
                                         <Clock size={11} />
                                         {getDisplayDateInfo(quote).label} · {getDisplayDateInfo(quote).date}
                                     </p>

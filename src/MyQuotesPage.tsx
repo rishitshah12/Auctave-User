@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { MainLayout } from './MainLayout';
 import { QuoteRequest } from './types';
 import {
-    Plus, MapPin, Globe, Shirt, Package, Clock, ChevronRight, FileQuestion, RefreshCw, MessageSquare, Bell, Calendar, DollarSign, CheckCircle, Check, CheckCheck, FileText, Trash2, AlertCircle, Filter, Search, Eye, X, ChevronDown, ClipboardList, Inbox, Archive, CheckSquare, Pencil
+    Plus, MapPin, Globe, Shirt, Package, Clock, ChevronRight, FileQuestion, RefreshCw, MessageSquare, Bell, Calendar, DollarSign, CheckCircle, Check, CheckCheck, FileText, Trash2, AlertCircle, Filter, Search, Eye, X, ChevronDown, ClipboardList, Inbox, Archive, CheckSquare, Pencil, Circle
 } from 'lucide-react';
 import { formatFriendlyDate, getStatusColor, getStatusGradientBorder, getStatusHoverShadow } from './utils';
 import { useToast } from './ToastContext';
@@ -183,6 +183,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
     const [isDateModalOpen, setIsDateModalOpen] = useState(false);
     const [previewQuote, setPreviewQuote] = useState<QuoteRequest | null>(null);
     const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
+    const [readTick, setReadTick] = useState(0); // bump to force re-render after marking as read
     const todayString = new Date().toISOString().split('T')[0];
     const [draftQuotes, setDraftQuotes] = useState<QuoteRequest[]>([]);
     const { showToast } = useToast();
@@ -338,15 +339,36 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
             const term = searchTerm.toLowerCase();
             return quote.id.toLowerCase().includes(term) || (quote.factory?.name?.toLowerCase() || '').includes(term);
         })
-        .sort((a, b) => new Date(getQuoteTimestamp(b)).getTime() - new Date(getQuoteTimestamp(a)).getTime());
+        .sort((a, b) => {
+            // Unread quotes always float to top
+            const aUnread = (a.status !== 'Draft' && isUnread(a)) ? 0 : 1;
+            const bUnread = (b.status !== 'Draft' && isUnread(b)) ? 0 : 1;
+            if (aUnread !== bUnread) return aUnread - bUnread;
+            return new Date(getQuoteTimestamp(b)).getTime() - new Date(getQuoteTimestamp(a)).getTime();
+        });
 
-    const needsAttentionQuotes = filterStatus === 'All' 
-        ? filteredQuotes.filter(q => ['Responded', 'In Negotiation'].includes(q.status))
+    const unreadQuotes = filterStatus === 'All'
+        ? filteredQuotes.filter(q => q.status !== 'Draft' && isUnread(q))
         : [];
-    
+
+    const needsAttentionQuotes = filterStatus === 'All'
+        ? filteredQuotes.filter(q => ['Responded', 'In Negotiation'].includes(q.status) && !isUnread(q))
+        : [];
+
     const regularQuotes = filterStatus === 'All'
-        ? filteredQuotes.filter(q => !['Responded', 'In Negotiation'].includes(q.status))
+        ? filteredQuotes.filter(q => !unreadQuotes.includes(q) && !needsAttentionQuotes.includes(q))
         : filteredQuotes;
+
+    const unreadCount = filteredQuotes.filter(q => q.status !== 'Draft' && isUnread(q)).length;
+
+    const markAllAsRead = () => {
+        filteredQuotes.forEach(q => {
+            if (q.status !== 'Draft') {
+                localStorage.setItem(`quote_read_${q.id}`, getQuoteTimestamp(q));
+            }
+        });
+        setReadTick(t => t + 1);
+    };
 
     const renderCard = (quote: QuoteRequest, index: number) => {
         const theme = STATUS_THEMES[quote.status] ?? DEFAULT_THEME;
@@ -360,22 +382,26 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                 onClick={() => quote.status === 'Draft' ? handleResumeDraft(quote) : handleCardClick(quote)}
                 onMouseEnter={() => setHoveredCardId(quote.id)}
                 onMouseLeave={() => setHoveredCardId(null)}
-                className={`${theme.cardBg} backdrop-blur-sm rounded-2xl border ${theme.border} transition-all duration-300 cursor-pointer group relative overflow-hidden flex flex-col hover:-translate-y-1.5`}
+                className={`${theme.cardBg} backdrop-blur-sm rounded-2xl border transition-all duration-300 cursor-pointer group relative overflow-hidden flex flex-col hover:-translate-y-1.5 ${isUnreadCard ? 'border-blue-300 dark:border-blue-600/60' : theme.border}`}
                 style={{
                     boxShadow: isHovered
-                        ? `0 20px 40px -8px ${theme.glowHover}, 0 8px 16px -4px ${theme.glow}, 0 1px 4px rgba(0,0,0,0.08)`
-                        : `0 4px 20px -4px ${theme.glow}, 0 1px 3px rgba(0,0,0,0.06)`,
+                        ? isUnreadCard
+                            ? `0 20px 40px -8px rgba(59,130,246,0.35), 0 8px 16px -4px rgba(59,130,246,0.18), 0 1px 4px rgba(0,0,0,0.08)`
+                            : `0 20px 40px -8px ${theme.glowHover}, 0 8px 16px -4px ${theme.glow}, 0 1px 4px rgba(0,0,0,0.08)`
+                        : isUnreadCard
+                            ? `0 4px 20px -4px rgba(59,130,246,0.22), 0 1px 3px rgba(0,0,0,0.06), inset 3px 0 0 #3b82f6`
+                            : `0 4px 20px -4px ${theme.glow}, 0 1px 3px rgba(0,0,0,0.06)`,
                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                     animationDelay: `${index * 50}ms`,
                 }}
             >
                 {/* Status gradient top bar */}
-                <div className={`h-[3px] w-full bg-gradient-to-r ${getStatusGradientBorder(quote.status)} flex-shrink-0`} />
+                <div className={`h-[3px] w-full bg-gradient-to-r ${isUnreadCard ? 'from-blue-400 via-blue-500 to-indigo-500' : getStatusGradientBorder(quote.status)} flex-shrink-0`} />
 
                 {/* Mesh gradient ambient overlay */}
                 <div
                     className="absolute inset-0 pointer-events-none"
-                    style={{ background: theme.meshGradient, top: '3px' }}
+                    style={{ background: isUnreadCard ? 'radial-gradient(ellipse at 85% 10%, rgba(59,130,246,0.08) 0%, transparent 55%)' : theme.meshGradient, top: '3px' }}
                 />
 
                 <div className="p-5 flex flex-col flex-grow relative">
@@ -386,15 +412,13 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                                 #{quote.id.slice(0, 8)}
                             </span>
                             {isUnreadCard && (
-                                <span
-                                    className="h-2 w-2 rounded-full animate-pulse"
-                                    style={{ backgroundColor: theme.progressColor, boxShadow: `0 0 0 3px ${theme.glow}` }}
-                                    title="New activity"
-                                />
+                                <span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full border border-blue-300/70 dark:border-blue-600/50 bg-blue-50/90 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center gap-1 backdrop-blur-sm animate-pulse">
+                                    <Circle size={6} className="fill-blue-500 text-blue-500" /> New
+                                </span>
                             )}
                         </div>
                         <div className="flex items-center gap-1.5">
-                            {(quote.modification_count || 0) > 0 && (
+                            {!isUnreadCard && (quote.modification_count || 0) > 0 && (
                                 <span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full border border-amber-300/70 dark:border-amber-600/50 bg-amber-50/90 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center gap-1 backdrop-blur-sm">
                                     <Pencil size={10} /> Mod
                                 </span>
@@ -433,10 +457,10 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                                 />
                             </div>
                             <div className="min-w-0">
-                                <p className="font-bold text-gray-900 dark:text-white text-sm leading-tight group-hover:text-[#c20c0b] transition-colors truncate">
+                                <p className={`text-sm leading-tight group-hover:text-[#c20c0b] transition-colors truncate ${isUnreadCard ? 'font-extrabold text-gray-900 dark:text-white' : 'font-bold text-gray-900 dark:text-white'}`}>
                                     {quote.factory.name}
                                 </p>
-                                <p className="text-[10px] text-gray-400 dark:text-gray-500 flex items-center gap-1 mt-0.5">
+                                <p className={`text-[10px] flex items-center gap-1 mt-0.5 ${isUnreadCard ? 'text-gray-600 dark:text-gray-300 font-medium' : 'text-gray-400 dark:text-gray-500'}`}>
                                     <MapPin size={9} />{quote.factory.location}
                                 </p>
                             </div>
@@ -445,12 +469,12 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
 
                     {/* Product name + date */}
                     <div className="mb-4">
-                        <h3 className="text-base font-bold text-gray-900 dark:text-white mb-1 leading-snug group-hover:text-[#c20c0b] transition-colors">
+                        <h3 className={`text-base mb-1 leading-snug group-hover:text-[#c20c0b] transition-colors ${isUnreadCard ? 'font-extrabold text-gray-900 dark:text-white' : 'font-bold text-gray-900 dark:text-white'}`}>
                             {quote.order?.lineItems?.length > 1
                                 ? `${quote.order.lineItems.length} Product Types`
                                 : (quote.order?.lineItems?.[0]?.category || 'Unknown Product')}
                         </h3>
-                        <p className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1.5">
+                        <p className={`text-xs flex items-center gap-1.5 ${isUnreadCard ? 'text-blue-500 dark:text-blue-400 font-medium' : 'text-gray-400 dark:text-gray-500'}`}>
                             <Clock size={11} />
                             {getDisplayDateInfo(quote).label} · {getDisplayDateInfo(quote).date}
                         </p>
@@ -634,6 +658,17 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                     <p className="text-gray-500 dark:text-gray-200 mt-1">Track and manage your quotes with factories.</p>
                     </div>
                     <button onClick={onRefresh} className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-colors ${isLoading ? 'animate-spin' : ''}`} title="Refresh Quotes"><RefreshCw size={20}/></button>
+                    {unreadCount > 0 && (
+                        <button
+                            onClick={markAllAsRead}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-800/40 border border-blue-200/70 dark:border-blue-700/50 transition-colors"
+                            title="Mark all as read"
+                        >
+                            <CheckCheck size={14} />
+                            Mark all read
+                            <span className="bg-blue-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center leading-none">{unreadCount}</span>
+                        </button>
+                    )}
                 </div>
                 <button onClick={handleRequestNewQuote} className="bg-[#c20c0b] text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 hover:bg-[#a50a09] transition shadow-md">
                     <Plus size={18} />
@@ -723,17 +758,31 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                     ))}
                 </div>
             ) : filteredQuotes.length > 0 ? (
-                filterStatus === 'All' && needsAttentionQuotes.length > 0 ? (
+                filterStatus === 'All' && (unreadQuotes.length > 0 || needsAttentionQuotes.length > 0) ? (
                     <div className="space-y-8">
-                        <div>
-                            <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
-                                <AlertCircle className="text-amber-500" size={24} />
-                                Needs Attention
-                            </h2>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {needsAttentionQuotes.map((quote, index) => renderCard(quote, index))}
+                        {unreadQuotes.length > 0 && (
+                            <div>
+                                <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                                    <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse inline-block" />
+                                    Unread
+                                    <span className="ml-1 bg-blue-500 text-white text-xs font-bold rounded-full px-2 py-0.5">{unreadQuotes.length}</span>
+                                </h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {unreadQuotes.map((quote, index) => renderCard(quote, index))}
+                                </div>
                             </div>
-                        </div>
+                        )}
+                        {needsAttentionQuotes.length > 0 && (
+                            <div>
+                                <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                                    <AlertCircle className="text-amber-500" size={24} />
+                                    Needs Attention
+                                </h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {needsAttentionQuotes.map((quote, index) => renderCard(quote, index))}
+                                </div>
+                            </div>
+                        )}
                         {regularQuotes.length > 0 && (
                             <div>
                                 <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4">All Quotes</h2>
