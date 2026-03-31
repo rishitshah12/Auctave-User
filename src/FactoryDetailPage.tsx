@@ -1,12 +1,14 @@
 import React, { FC, useState, useEffect } from 'react';
 import {
-    Star, MapPin, ChevronLeft, ChevronRight, BookOpen, Activity, ShieldCheck, LayoutGrid, Scroll, X, ZoomIn, TrendingUp, AlertCircle, CheckCircle2
+    Star, MapPin, ChevronLeft, ChevronRight, BookOpen, Activity, ShieldCheck, X, ZoomIn, TrendingUp, AlertCircle, CheckCircle2
 } from 'lucide-react';
 import { MainLayout } from '../src/MainLayout';
 import { Factory } from '../src/types';
 import { TrustTierBadge } from '../src/FactoryCard';
 import ProductCatalog from '../src/ProductCatalog';
 import ProductionFloorLayout from '../src/ProductionFloorLayout';
+import { factoryService } from '../src/factory.service';
+import { supabase } from '../src/supabaseClient';
 
 interface FactoryDetailPageProps {
     // Props for MainLayout
@@ -38,10 +40,38 @@ const CertificationBadge: FC<{ cert: string }> = ({ cert }) => {
 
 
 export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
-    const { selectedFactory, handleSetCurrentPage, suggestedFactories, initialTab = 'overview' } = props;
+    const { selectedFactory: propFactory, handleSetCurrentPage, suggestedFactories, initialTab = 'overview' } = props;
+    const [factory, setFactory] = useState<Factory>(propFactory);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [activeTab, setActiveTab] = useState<'overview' | 'catalog'>(initialTab);
     const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+
+    // Fetch fresh data on mount and subscribe to real-time updates
+    useEffect(() => {
+        if (!propFactory?.id) return;
+
+        // Initial fresh fetch
+        factoryService.getById(propFactory.id).then(({ data }) => {
+            if (data) setFactory(data);
+        });
+
+        // Real-time subscription — reflects admin changes instantly
+        const channel = supabase
+            .channel(`factory-detail-${propFactory.id}`)
+            .on('postgres_changes', {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'factories',
+                filter: `id=eq.${propFactory.id}`,
+            }, () => {
+                factoryService.getById(propFactory.id).then(({ data }) => {
+                    if (data) setFactory(data);
+                });
+            })
+            .subscribe();
+
+        return () => { channel.unsubscribe(); };
+    }, [propFactory?.id]);
 
     useEffect(() => {
         setActiveTab(initialTab);
@@ -51,19 +81,19 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
         if (!isLightboxOpen) return;
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') setIsLightboxOpen(false);
-            if (e.key === 'ArrowLeft') setCurrentImageIndex((prev) => (prev - 1 + selectedFactory.gallery.length) % selectedFactory.gallery.length);
-            if (e.key === 'ArrowRight') setCurrentImageIndex((prev) => (prev + 1) % selectedFactory.gallery.length);
+            if (e.key === 'ArrowLeft') setCurrentImageIndex((prev) => (prev - 1 + factory.gallery.length) % factory.gallery.length);
+            if (e.key === 'ArrowRight') setCurrentImageIndex((prev) => (prev + 1) % factory.gallery.length);
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isLightboxOpen, selectedFactory]);
+    }, [isLightboxOpen, factory]);
 
-    if (!selectedFactory) {
+    if (!factory) {
         handleSetCurrentPage('sourcing');
         return null;
     }
 
-    const { gallery } = selectedFactory;
+    const { gallery } = factory;
 
     const nextImage = () => {
         setCurrentImageIndex((prevIndex) => (prevIndex + 1) % gallery.length);
@@ -92,7 +122,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                     >
                         <img 
                             src={gallery[currentImageIndex]} 
-                            alt={selectedFactory.name} 
+                            alt={factory.name} 
                             className="w-full h-full object-cover transition-transform duration-700" 
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent"></div>
@@ -124,18 +154,18 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                                 <div>
                                     <div className="flex items-center gap-3 mb-2 flex-wrap">
-                                        <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">{selectedFactory.name}</h1>
-                                        {selectedFactory.rating >= 4.5 && (
+                                        <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">{factory.name}</h1>
+                                        {factory.rating >= 4.5 && (
                                             <span className="px-2 py-0.5 rounded bg-[#c20c0b] text-white text-[10px] font-bold uppercase tracking-wider shadow-sm">Top Rated</span>
                                         )}
-                                        <TrustTierBadge tier={selectedFactory.trustTier} />
+                                        <TrustTierBadge tier={factory.trustTier} />
                                     </div>
                                     <p className="text-gray-200 flex items-center text-sm md:text-base font-medium">
-                                        <MapPin size={18} className="mr-1.5 text-[#c20c0b]" /> {selectedFactory.location}
+                                        <MapPin size={18} className="mr-1.5 text-[#c20c0b]" /> {factory.location}
                                     </p>
                                 </div>
                                 <div className="flex items-center bg-green-600/90 backdrop-blur-sm text-white px-4 py-2 rounded-xl shadow-lg border border-white/10">
-                                    <span className="font-bold text-2xl mr-1.5">{selectedFactory.rating}</span>
+                                    <span className="font-bold text-2xl mr-1.5">{factory.rating}</span>
                                     <div className="flex flex-col leading-none">
                                         <Star size={14} className="fill-current mb-0.5" />
                                         <span className="text-[10px] opacity-90 font-medium">Quality Score</span>
@@ -168,7 +198,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                             <>
                                 {/* Tags */}
                                 <div className="flex flex-wrap gap-2 mb-8">
-                                    {selectedFactory.tags?.map(tag => {
+                                    {factory.tags?.map(tag => {
                                         const [text, tagColor] = tag.split(':');
                                         return (
                                             <span
@@ -192,37 +222,37 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                             <div className="lg:col-span-2 space-y-8">
                                 <div>
                                     <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-3">About Factory</h3>
-                                    <p className="text-gray-600 dark:text-gray-200 leading-relaxed text-sm md:text-base">{selectedFactory.description}</p>
+                                    <p className="text-gray-600 dark:text-gray-200 leading-relaxed text-sm md:text-base">{factory.description}</p>
                                 </div>
 
-                                {selectedFactory.onTimeDeliveryRate !== undefined && (
+                                {factory.onTimeDeliveryRate !== undefined && (
                                     <div>
                                         <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
                                             <TrendingUp size={18} className="text-[#c20c0b]" /> Performance Metrics
                                         </h3>
                                         <div className="grid grid-cols-3 gap-3">
                                             <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-white/10 text-center">
-                                                <div className={`text-2xl font-bold ${selectedFactory.onTimeDeliveryRate >= 90 ? 'text-green-600' : selectedFactory.onTimeDeliveryRate >= 75 ? 'text-yellow-500' : 'text-red-500'}`}>
-                                                    {selectedFactory.onTimeDeliveryRate}%
+                                                <div className={`text-2xl font-bold ${factory.onTimeDeliveryRate >= 90 ? 'text-green-600' : factory.onTimeDeliveryRate >= 75 ? 'text-yellow-500' : 'text-red-500'}`}>
+                                                    {factory.onTimeDeliveryRate}%
                                                 </div>
                                                 <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 font-medium">On-Time Delivery</div>
-                                                {selectedFactory.onTimeDeliveryRate >= 90 ? <CheckCircle2 size={14} className="text-green-500 mx-auto mt-1" /> : <AlertCircle size={14} className="text-yellow-500 mx-auto mt-1" />}
+                                                {factory.onTimeDeliveryRate >= 90 ? <CheckCircle2 size={14} className="text-green-500 mx-auto mt-1" /> : <AlertCircle size={14} className="text-yellow-500 mx-auto mt-1" />}
                                             </div>
-                                            {selectedFactory.qualityRejectionRate !== undefined && (
+                                            {factory.qualityRejectionRate !== undefined && (
                                                 <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-white/10 text-center">
-                                                    <div className={`text-2xl font-bold ${selectedFactory.qualityRejectionRate <= 2 ? 'text-green-600' : selectedFactory.qualityRejectionRate <= 5 ? 'text-yellow-500' : 'text-red-500'}`}>
-                                                        {selectedFactory.qualityRejectionRate}%
+                                                    <div className={`text-2xl font-bold ${factory.qualityRejectionRate <= 2 ? 'text-green-600' : factory.qualityRejectionRate <= 5 ? 'text-yellow-500' : 'text-red-500'}`}>
+                                                        {factory.qualityRejectionRate}%
                                                     </div>
                                                     <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 font-medium">Quality Rejection</div>
-                                                    {selectedFactory.qualityRejectionRate <= 2 ? <CheckCircle2 size={14} className="text-green-500 mx-auto mt-1" /> : <AlertCircle size={14} className="text-yellow-500 mx-auto mt-1" />}
+                                                    {factory.qualityRejectionRate <= 2 ? <CheckCircle2 size={14} className="text-green-500 mx-auto mt-1" /> : <AlertCircle size={14} className="text-yellow-500 mx-auto mt-1" />}
                                                 </div>
                                             )}
                                             <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-white/10 text-center">
                                                 <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                                                    {selectedFactory.completedOrdersCount ?? 0}+
+                                                    {factory.completedOrdersCount ?? 0}+
                                                 </div>
                                                 <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 font-medium">Completed Orders</div>
-                                                <TrustTierBadge tier={selectedFactory.trustTier} />
+                                                <TrustTierBadge tier={factory.trustTier} />
                                             </div>
                                         </div>
                                     </div>
@@ -232,7 +262,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                                     <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                                         <Activity size={20} className="text-[#c20c0b]"/> Production Lines
                                     </h3>
-                                    <ProductionFloorLayout lines={selectedFactory.productionLines || []} />
+                                    <ProductionFloorLayout lines={factory.productionLines || []} />
                                 </div>
                             </div>
 
@@ -244,16 +274,16 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                                     <div className="space-y-4">
                                         <div className="flex justify-between items-center">
                                             <span className="text-sm text-gray-500 dark:text-gray-200">Min. Order Qty</span>
-                                            <span className="font-bold text-gray-900 dark:text-white">{selectedFactory.minimumOrderQuantity.toLocaleString()} units</span>
+                                            <span className="font-bold text-gray-900 dark:text-white">{factory.minimumOrderQuantity.toLocaleString()} units</span>
                                         </div>
                                         <div className="flex justify-between items-center">
                                             <span className="text-sm text-gray-500 dark:text-gray-200">Turnaround</span>
-                                            <span className="font-bold text-gray-900 dark:text-white">{selectedFactory.turnaround}</span>
+                                            <span className="font-bold text-gray-900 dark:text-white">{factory.turnaround}</span>
                                         </div>
                                         <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
                                             <span className="text-xs font-bold text-gray-500 dark:text-gray-200 uppercase tracking-wider block mb-2">Specialties</span>
                                             <div className="flex flex-wrap gap-1.5">
-                                                {selectedFactory.specialties.map(s => (
+                                                {factory.specialties.map(s => (
                                                     <span key={s} className="text-xs px-2 py-1 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded text-gray-600 dark:text-gray-200 font-medium">
                                                         {s}
                                                     </span>
@@ -269,7 +299,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                                         <ShieldCheck size={14}/> Certifications
                                     </h3>
                                     <div className="flex flex-wrap gap-2">
-                                        {selectedFactory.certifications?.map(cert => <CertificationBadge key={cert} cert={cert} />)}
+                                        {factory.certifications?.map(cert => <CertificationBadge key={cert} cert={cert} />)}
                                     </div>
                                 </div>
                                 
@@ -280,7 +310,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                         </div>
                             </>
                         ) : (
-                            <ProductCatalog catalog={selectedFactory.catalog} />
+                            <ProductCatalog catalog={factory.catalog} />
                         )}
                     </div>
 
@@ -292,10 +322,10 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                                 <p className="text-sm text-gray-500 dark:text-gray-200">Start a conversation or get an AI-assisted brief.</p>
                         </div>
                             <div className="flex gap-3 w-full sm:w-auto">
-                                <button onClick={() => handleSetCurrentPage('factoryTools', selectedFactory)} className="flex-1 sm:flex-none px-6 py-3 bg-white dark:bg-gray-800 text-gray-700 dark:text-white font-bold rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm">
+                                <button onClick={() => handleSetCurrentPage('factoryTools', factory)} className="flex-1 sm:flex-none px-6 py-3 bg-white dark:bg-gray-800 text-gray-700 dark:text-white font-bold rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm">
                                     AI Tools
                             </button>
-                                <button onClick={() => handleSetCurrentPage('quoteRequest', selectedFactory)} className="flex-1 sm:flex-none px-6 py-3 bg-[#c20c0b] text-white font-bold rounded-xl hover:bg-[#a50a09] transition-colors shadow-md flex items-center justify-center gap-2">
+                                <button onClick={() => handleSetCurrentPage('quoteRequest', factory)} className="flex-1 sm:flex-none px-6 py-3 bg-[#c20c0b] text-white font-bold rounded-xl hover:bg-[#a50a09] transition-colors shadow-md flex items-center justify-center gap-2">
                                     Request Quote <ChevronRight size={18} />
                             </button>
                             </div>
@@ -321,7 +351,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                                 </button>
                             </>
                         )}
-                        <img src={gallery[currentImageIndex]} alt={selectedFactory.name} className="max-h-[85vh] max-w-[90vw] object-contain rounded-lg shadow-2xl select-none" />
+                        <img src={gallery[currentImageIndex]} alt={factory.name} className="max-h-[85vh] max-w-[90vw] object-contain rounded-lg shadow-2xl select-none" />
                         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex space-x-3 bg-black/50 px-4 py-2 rounded-full backdrop-blur-sm border border-white/10">
                             {gallery.map((_, index) => (
                                 <button key={index} onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(index); }} className={`w-2.5 h-2.5 rounded-full transition-all cursor-pointer ${index === currentImageIndex ? 'bg-white scale-125' : 'bg-white/40 hover:bg-white/60'}`}></button>
