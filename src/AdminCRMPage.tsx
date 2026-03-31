@@ -2202,6 +2202,15 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
         if (taskIndex === -1) return;
         order.tasks[taskIndex] = { ...order.tasks[taskIndex], plannedStartDate: newStart, plannedEndDate: newEnd };
         setOrders(updatedOrders);
+        // Also update editingOrder so transformedOrder/filteredTasks reflect the new dates immediately
+        setEditingOrder((prev: any) => {
+            if (!prev) return prev;
+            const prevTasks = [...(prev.tasks || [])];
+            const ti = prevTasks.findIndex((t: any) => t.id === taskId);
+            if (ti === -1) return prev;
+            prevTasks[ti] = { ...prevTasks[ti], plannedStartDate: newStart, plannedEndDate: newEnd };
+            return { ...prev, tasks: prevTasks };
+        });
         const { error } = await crmService.update(order.id, { tasks: order.tasks });
         if (error) { showToast('Failed to update task date: ' + error.message, 'error'); fetchOrders(); }
     };
