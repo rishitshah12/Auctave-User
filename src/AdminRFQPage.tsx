@@ -869,6 +869,15 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
         currentPageIndex * itemsPerPage
     );
 
+    const unreadQuotesAll = filteredQuotes.filter(isQuoteUnread);
+    const readQuotesAll = filteredQuotes.filter(q => !isQuoteUnread(q));
+    const showUnreadSection = filterStatus === 'All' && unreadQuotesAll.length > 0 && viewMode === 'active';
+    const readTotalPages = Math.ceil(readQuotesAll.length / itemsPerPage);
+    const displayedReadQuotes = readQuotesAll.slice(
+        (currentPageIndex - 1) * itemsPerPage,
+        currentPageIndex * itemsPerPage
+    );
+
     const handleSubmitResponse = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedQuote) return;
@@ -3736,6 +3745,260 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
         );
     }
 
+    const renderQuoteCard = (quote: QuoteRequest, index: number) => {
+        const theme = STATUS_THEMES[quote.status] ?? DEFAULT_THEME;
+        const isHovered = hoveredQuoteId === quote.id;
+        const progressStep = getProgressStep(quote.status);
+        const initials = (quote.clientName || 'U').slice(0, 2).toUpperCase();
+        const isUnread = isQuoteUnread(quote);
+        const isNewQuote = isUnread && !adminReadState[quote.id];
+        const isUpdated = isUnread && !!adminReadState[quote.id];
+        return (
+        <div
+            key={quote.id}
+            onClick={() => { markAsRead(quote.id); setSelectedQuote(quote); }}
+            onMouseEnter={() => setHoveredQuoteId(quote.id)}
+            onMouseLeave={() => setHoveredQuoteId(null)}
+            className={`${theme.cardBg} backdrop-blur-sm rounded-2xl border transition-all duration-300 cursor-pointer group relative overflow-hidden flex flex-col hover:-translate-y-1.5 ${isUnread ? 'border-blue-300 dark:border-blue-600/60' : theme.border}`}
+            style={{
+                boxShadow: isHovered
+                    ? isUnread
+                        ? `0 20px 40px -8px rgba(59,130,246,0.35), 0 8px 16px -4px rgba(59,130,246,0.18), 0 1px 4px rgba(0,0,0,0.08)`
+                        : `0 20px 40px -8px ${theme.glowHover}, 0 8px 16px -4px ${theme.glow}, 0 1px 4px rgba(0,0,0,0.08)`
+                    : isUnread
+                        ? `0 4px 20px -4px rgba(59,130,246,0.22), 0 1px 3px rgba(0,0,0,0.06), inset 3px 0 0 #3b82f6`
+                        : `0 4px 20px -4px ${theme.glow}, 0 1px 3px rgba(0,0,0,0.06)`,
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                animationDelay: `${index * 50}ms`,
+            }}
+        >
+            {/* Status gradient top bar */}
+            <div className={`h-[3px] w-full bg-gradient-to-r ${isUnread ? 'from-blue-400 via-blue-500 to-indigo-500' : getStatusGradientBorder(quote.status)} flex-shrink-0`} />
+
+            {/* Mesh gradient ambient overlay */}
+            <div
+                className="absolute inset-0 pointer-events-none"
+                style={{ background: isUnread ? 'radial-gradient(ellipse at 85% 10%, rgba(59,130,246,0.08) 0%, transparent 55%)' : theme.meshGradient, top: '3px' }}
+            />
+
+            <div className="p-5 flex flex-col flex-grow relative">
+                {/* Card Header */}
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                        {isSelectionMode && (
+                            <input
+                                type="checkbox"
+                                checked={selectedQuoteIds.includes(quote.id)}
+                                onChange={() => toggleSelectQuote(quote.id)}
+                                onClick={(e) => e.stopPropagation()}
+                                className="rounded text-[#c20c0b] focus:ring-[#c20c0b] h-4 w-4 cursor-pointer"
+                            />
+                        )}
+                        <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-white/80 dark:bg-gray-800/80 text-gray-500 dark:text-gray-400 border border-gray-200/70 dark:border-gray-700/70 backdrop-blur-sm font-mono tracking-tight">
+                            #{quote.id.slice(0, 8)}
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                        {isNewQuote && (
+                            <span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full border border-blue-300/70 dark:border-blue-600/50 bg-blue-50/90 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center gap-1 backdrop-blur-sm animate-pulse">
+                                <Circle size={6} className="fill-blue-500 text-blue-500" /> New
+                            </span>
+                        )}
+                        {isUpdated && (
+                            <span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full border border-indigo-300/70 dark:border-indigo-600/50 bg-indigo-50/90 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center gap-1 backdrop-blur-sm">
+                                <Activity size={9} /> Updated
+                            </span>
+                        )}
+                        {!isUnread && (quote.modification_count || 0) > 0 && (
+                            <span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full border border-amber-300/70 dark:border-amber-600/50 bg-amber-50/90 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center gap-1 backdrop-blur-sm">
+                                <Edit size={10} /> Mod
+                            </span>
+                        )}
+                        <span className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full border ${getStatusColor(quote.status)} flex items-center gap-1 backdrop-blur-sm`}>
+                            {quote.status === 'Accepted' && <CheckCheck size={12} />}
+                            {(quote.status === 'Admin Accepted' || quote.status === 'Client Accepted') && <Check size={12} />}
+                            {quote.status === 'Admin Accepted' ? 'Admin Acc.' : quote.status === 'Client Accepted' ? 'Client Acc.' : quote.status}
+                        </span>
+                    </div>
+                </div>
+
+                {/* Client info */}
+                <div className="flex items-center gap-3 mb-4">
+                    <div
+                        className="h-10 w-10 rounded-xl flex items-center justify-center font-bold text-white text-sm shadow-md flex-shrink-0 relative"
+                        style={{ backgroundColor: isUnread ? '#3b82f6' : theme.progressColor, boxShadow: isUnread ? '0 4px 12px -2px rgba(59,130,246,0.4)' : `0 4px 12px -2px ${theme.glow}` }}
+                    >
+                        {initials}
+                        {isUnread && (
+                            <span className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full border-2 border-white dark:border-gray-900 shadow-sm" />
+                        )}
+                    </div>
+                    <div className="min-w-0">
+                        <p className={`text-sm leading-tight group-hover:text-[#c20c0b] transition-colors truncate ${isUnread ? 'font-extrabold text-gray-900 dark:text-white' : 'font-bold text-gray-900 dark:text-white'}`}>
+                            {quote.clientName || 'Unknown Client'}
+                        </p>
+                        <p className={`text-[10px] flex items-center gap-1 mt-0.5 ${isUnread ? 'text-gray-600 dark:text-gray-300 font-medium' : 'text-gray-400 dark:text-gray-500'}`}>
+                            <Building size={9} />{quote.companyName || 'Unknown Company'}
+                        </p>
+                    </div>
+                </div>
+
+                {/* Product name + date */}
+                <div className="mb-4">
+                    <h3 className={`text-base mb-1 leading-snug group-hover:text-[#c20c0b] transition-colors ${isUnread ? 'font-extrabold text-gray-900 dark:text-white' : 'font-bold text-gray-900 dark:text-white'}`}>
+                        {quote.order?.lineItems?.length > 1
+                            ? `${quote.order.lineItems.length} Product Types`
+                            : (quote.order?.lineItems?.[0]?.category || 'Unknown Product')}
+                    </h3>
+                    <p className={`text-xs flex items-center gap-1.5 ${isUnread ? 'text-blue-500 dark:text-blue-400 font-medium' : 'text-gray-400 dark:text-gray-500'}`}>
+                        <Clock size={11} />
+                        {getDisplayDateInfo(quote).label} · {getDisplayDateInfo(quote).date}
+                    </p>
+                </div>
+
+                {/* Stats chips */}
+                <div className="grid grid-cols-2 gap-2.5 mb-4">
+                    <div className="bg-white/70 dark:bg-gray-800/50 rounded-xl p-3 border border-white/90 dark:border-gray-700/50 backdrop-blur-sm">
+                        <p className="text-[9px] uppercase tracking-wider font-bold text-gray-400 dark:text-gray-500 mb-1.5 flex items-center gap-1">
+                            <Package size={9} /> Quantity
+                        </p>
+                        <p className="text-sm font-bold text-gray-800 dark:text-gray-100 truncate">
+                            {(() => {
+                                const items = quote.order?.lineItems || [];
+                                if (items.length === 0) return '0 units';
+                                if (items.length === 1) {
+                                    const item = items[0];
+                                    return item.quantityType === 'container' ? item.containerType : `${item.qty} units`;
+                                }
+                                const allUnits = items.every((i: any) => !i.quantityType || i.quantityType === 'units');
+                                if (allUnits) return `${items.reduce((a: number, i: any) => a + (i.qty || 0), 0)} units`;
+                                return 'Various';
+                            })()}
+                        </p>
+                    </div>
+                    <div className={`rounded-xl p-3 border backdrop-blur-sm ${
+                        quote.status === 'Accepted'
+                            ? 'bg-emerald-50/80 dark:bg-emerald-900/25 border-emerald-200/70 dark:border-emerald-700/40'
+                            : 'bg-white/70 dark:bg-gray-800/50 border-white/90 dark:border-gray-700/50'
+                    }`}>
+                        <p className="text-[9px] uppercase tracking-wider font-bold text-gray-400 dark:text-gray-500 mb-1.5 flex items-center gap-1">
+                            <DollarSign size={9} /> {quote.status === 'Accepted' ? 'Agreed' : 'Target'}
+                        </p>
+                        <p className={`text-sm font-bold truncate ${quote.status === 'Accepted' ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-800 dark:text-gray-100'}`}>
+                            {(() => {
+                                const isAcc = quote.status === 'Accepted';
+                                if (isAcc) {
+                                    if (quote.response_details?.price) return `$${quote.response_details.price}`;
+                                    return 'See Details';
+                                }
+                                if (quote.order?.lineItems?.length === 1) return `$${quote.order.lineItems[0].targetPrice}`;
+                                return 'See Details';
+                            })()}
+                        </p>
+                    </div>
+                </div>
+
+                {/* Progress tracker */}
+                {quote.status !== 'Trashed' && (
+                    <div className="mb-4 bg-white/50 dark:bg-gray-800/30 rounded-xl px-3 py-2.5 border border-white/70 dark:border-gray-700/30 backdrop-blur-sm">
+                        <div className="flex items-center">
+                            {QUOTE_PROGRESS_STEPS.map((step, i) => {
+                                const isCompleted = progressStep > i;
+                                const isCurrent = progressStep === i;
+                                return (
+                                    <React.Fragment key={step.label}>
+                                        <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                                            <div
+                                                className="rounded-full transition-all duration-300"
+                                                style={{
+                                                    width: isCurrent ? 10 : 7,
+                                                    height: isCurrent ? 10 : 7,
+                                                    backgroundColor: (isCompleted || isCurrent) ? theme.progressColor : '#d1d5db',
+                                                    boxShadow: isCurrent ? `0 0 0 2.5px white, 0 0 0 4px ${theme.progressColor}` : 'none',
+                                                }}
+                                            />
+                                            <span
+                                                className="text-[8px] font-semibold leading-none"
+                                                style={{ color: (isCompleted || isCurrent) ? theme.progressColor : '#9ca3af', opacity: (isCompleted || isCurrent) ? 1 : 0.6 }}
+                                            >
+                                                {step.short}
+                                            </span>
+                                        </div>
+                                        {i < QUOTE_PROGRESS_STEPS.length - 1 && (
+                                            <div
+                                                className="flex-1 h-[2px] mx-1 rounded-full transition-all duration-500"
+                                                style={{
+                                                    backgroundColor: progressStep > i ? theme.progressColor : '#e5e7eb',
+                                                    opacity: progressStep > i ? 0.6 : 1,
+                                                }}
+                                            />
+                                        )}
+                                    </React.Fragment>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {/* Card Footer */}
+                <div className="mt-auto pt-3.5 border-t border-white/60 dark:border-white/5 flex items-center justify-between">
+                    {viewMode === 'active' ? (
+                        <div className="flex gap-1">
+                            <button
+                                onClick={(e) => toggleHideQuote(quote.id, e)}
+                                className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-white/80 dark:hover:bg-gray-700/60 rounded-lg transition-colors"
+                                title={showHidden ? 'Unhide Quote' : 'Hide Quote'}
+                            >
+                                {showHidden ? <Eye size={15} /> : <EyeOff size={15} />}
+                            </button>
+                            <button
+                                onClick={(e) => handleSoftDelete(quote.id, e)}
+                                className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50/80 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                title="Move to Trash"
+                            >
+                                <Trash2 size={15} />
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="flex gap-2">
+                            <button onClick={(e) => handleRestore(quote, e)} className="text-green-600 dark:text-green-400 hover:text-green-800 p-1.5 flex items-center gap-1 text-xs font-semibold hover:bg-green-50/80 dark:hover:bg-green-900/20 rounded-lg transition-colors" title="Restore Quote">
+                                <RotateCcw size={13} /> Restore
+                            </button>
+                            <button onClick={(e) => handlePermanentDelete(quote.id, e)} className="text-red-500 hover:text-red-700 p-1.5 flex items-center gap-1 text-xs font-semibold hover:bg-red-50/80 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Delete Permanently">
+                                <Trash2 size={13} /> Delete
+                            </button>
+                        </div>
+                    )}
+
+                    {viewMode === 'active' && (
+                        <div className="flex items-center gap-1 ml-auto">
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    window.dispatchEvent(new CustomEvent('openAdminChatForRfq', { detail: { rfqId: quote.id } }));
+                                }}
+                                className="p-1.5 text-gray-400 hover:text-[#c20c0b] hover:bg-red-50/80 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                title="Open Chat"
+                            >
+                                <MessageSquare size={15} />
+                            </button>
+                            <div
+                                className="h-7 w-7 rounded-lg flex items-center justify-center transition-all duration-300 shadow-sm"
+                                style={{
+                                    backgroundColor: isHovered ? theme.progressColor : '#f3f4f6',
+                                    color: isHovered ? 'white' : '#9ca3af',
+                                }}
+                            >
+                                <ChevronRight size={14} />
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+        );
+    };
+
     return (
         <MainLayout {...props}>
             <div className="flex justify-between items-center mb-6">
@@ -3925,250 +4188,56 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
             {isLoading ? (
                 <div className="text-center py-12 text-gray-500">Loading quotes...</div>
             ) : filteredQuotes.length > 0 ? (
-                <>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
-                    {displayedQuotes.map((quote, index) => {
-                        const theme = STATUS_THEMES[quote.status] ?? DEFAULT_THEME;
-                        const isHovered = hoveredQuoteId === quote.id;
-                        const progressStep = getProgressStep(quote.status);
-                        const initials = (quote.clientName || 'U').slice(0, 2).toUpperCase();
-                        const isUnread = isQuoteUnread(quote);
-                        // Detect if it's a new quote (Pending, never read) vs an update (read before but modified)
-                        const isNewQuote = isUnread && !adminReadState[quote.id];
-                        const isUpdated = isUnread && !!adminReadState[quote.id];
-                        return (
-                        <div
-                            key={quote.id}
-                            onClick={() => { markAsRead(quote.id); setSelectedQuote(quote); }}
-                            onMouseEnter={() => setHoveredQuoteId(quote.id)}
-                            onMouseLeave={() => setHoveredQuoteId(null)}
-                            className={`${theme.cardBg} backdrop-blur-sm rounded-2xl border transition-all duration-300 cursor-pointer group relative overflow-hidden flex flex-col hover:-translate-y-1.5 ${isUnread ? 'border-blue-300 dark:border-blue-600/60' : theme.border}`}
-                            style={{
-                                boxShadow: isHovered
-                                    ? isUnread
-                                        ? `0 20px 40px -8px rgba(59,130,246,0.35), 0 8px 16px -4px rgba(59,130,246,0.18), 0 1px 4px rgba(0,0,0,0.08)`
-                                        : `0 20px 40px -8px ${theme.glowHover}, 0 8px 16px -4px ${theme.glow}, 0 1px 4px rgba(0,0,0,0.08)`
-                                    : isUnread
-                                        ? `0 4px 20px -4px rgba(59,130,246,0.22), 0 1px 3px rgba(0,0,0,0.06), inset 3px 0 0 #3b82f6`
-                                        : `0 4px 20px -4px ${theme.glow}, 0 1px 3px rgba(0,0,0,0.06)`,
-                                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                                animationDelay: `${index * 50}ms`,
-                            }}
-                        >
-                            {/* Status gradient top bar */}
-                            <div className={`h-[3px] w-full bg-gradient-to-r ${isUnread ? 'from-blue-400 via-blue-500 to-indigo-500' : getStatusGradientBorder(quote.status)} flex-shrink-0`} />
-
-                            {/* Mesh gradient ambient overlay */}
-                            <div
-                                className="absolute inset-0 pointer-events-none"
-                                style={{ background: isUnread ? 'radial-gradient(ellipse at 85% 10%, rgba(59,130,246,0.08) 0%, transparent 55%)' : theme.meshGradient, top: '3px' }}
-                            />
-
-                            <div className="p-5 flex flex-col flex-grow relative">
-                                {/* Card Header */}
-                                <div className="flex items-center justify-between mb-4">
-                                    <div className="flex items-center gap-2">
-                                        {isSelectionMode && (
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedQuoteIds.includes(quote.id)}
-                                                onChange={() => toggleSelectQuote(quote.id)}
-                                                onClick={(e) => e.stopPropagation()}
-                                                className="rounded text-[#c20c0b] focus:ring-[#c20c0b] h-4 w-4 cursor-pointer"
-                                            />
-                                        )}
-                                        <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-white/80 dark:bg-gray-800/80 text-gray-500 dark:text-gray-400 border border-gray-200/70 dark:border-gray-700/70 backdrop-blur-sm font-mono tracking-tight">
-                                            #{quote.id.slice(0, 8)}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center gap-1.5">
-                                        {isNewQuote && (
-                                            <span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full border border-blue-300/70 dark:border-blue-600/50 bg-blue-50/90 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center gap-1 backdrop-blur-sm animate-pulse">
-                                                <Circle size={6} className="fill-blue-500 text-blue-500" /> New
-                                            </span>
-                                        )}
-                                        {isUpdated && (
-                                            <span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full border border-indigo-300/70 dark:border-indigo-600/50 bg-indigo-50/90 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center gap-1 backdrop-blur-sm">
-                                                <Activity size={9} /> Updated
-                                            </span>
-                                        )}
-                                        {!isUnread && (quote.modification_count || 0) > 0 && (
-                                            <span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full border border-amber-300/70 dark:border-amber-600/50 bg-amber-50/90 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center gap-1 backdrop-blur-sm">
-                                                <Edit size={10} /> Mod
-                                            </span>
-                                        )}
-                                        <span className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full border ${getStatusColor(quote.status)} flex items-center gap-1 backdrop-blur-sm`}>
-                                            {quote.status === 'Accepted' && <CheckCheck size={12} />}
-                                            {(quote.status === 'Admin Accepted' || quote.status === 'Client Accepted') && <Check size={12} />}
-                                            {quote.status === 'Admin Accepted' ? 'Admin Acc.' : quote.status === 'Client Accepted' ? 'Client Acc.' : quote.status}
-                                        </span>
-                                    </div>
+                showUnreadSection ? (
+                    <div className="space-y-8">
+                        <div>
+                            <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                                <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse inline-block" />
+                                Unread
+                                <span className="ml-1 bg-blue-500 text-white text-xs font-bold rounded-full px-2 py-0.5">{unreadQuotesAll.length}</span>
+                            </h2>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
+                                {unreadQuotesAll.map(renderQuoteCard)}
+                            </div>
+                        </div>
+                        {readQuotesAll.length > 0 && (
+                            <div>
+                                <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4">All Quotes</h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
+                                    {displayedReadQuotes.map(renderQuoteCard)}
                                 </div>
-
-                                {/* Client info */}
-                                <div className="flex items-center gap-3 mb-4">
-                                    <div
-                                        className="h-10 w-10 rounded-xl flex items-center justify-center font-bold text-white text-sm shadow-md flex-shrink-0 relative"
-                                        style={{ backgroundColor: isUnread ? '#3b82f6' : theme.progressColor, boxShadow: isUnread ? '0 4px 12px -2px rgba(59,130,246,0.4)' : `0 4px 12px -2px ${theme.glow}` }}
-                                    >
-                                        {initials}
-                                        {isUnread && (
-                                            <span className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full border-2 border-white dark:border-gray-900 shadow-sm" />
-                                        )}
-                                    </div>
-                                    <div className="min-w-0">
-                                        <p className={`text-sm leading-tight group-hover:text-[#c20c0b] transition-colors truncate ${isUnread ? 'font-extrabold text-gray-900 dark:text-white' : 'font-bold text-gray-900 dark:text-white'}`}>
-                                            {quote.clientName || 'Unknown Client'}
-                                        </p>
-                                        <p className={`text-[10px] flex items-center gap-1 mt-0.5 ${isUnread ? 'text-gray-600 dark:text-gray-300 font-medium' : 'text-gray-400 dark:text-gray-500'}`}>
-                                            <Building size={9} />{quote.companyName || 'Unknown Company'}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                {/* Product name + date */}
-                                <div className="mb-4">
-                                    <h3 className={`text-base mb-1 leading-snug group-hover:text-[#c20c0b] transition-colors ${isUnread ? 'font-extrabold text-gray-900 dark:text-white' : 'font-bold text-gray-900 dark:text-white'}`}>
-                                        {quote.order?.lineItems?.length > 1
-                                            ? `${quote.order.lineItems.length} Product Types`
-                                            : (quote.order?.lineItems?.[0]?.category || 'Unknown Product')}
-                                    </h3>
-                                    <p className={`text-xs flex items-center gap-1.5 ${isUnread ? 'text-blue-500 dark:text-blue-400 font-medium' : 'text-gray-400 dark:text-gray-500'}`}>
-                                        <Clock size={11} />
-                                        {getDisplayDateInfo(quote).label} · {getDisplayDateInfo(quote).date}
-                                    </p>
-                                </div>
-
-                                {/* Stats chips */}
-                                <div className="grid grid-cols-2 gap-2.5 mb-4">
-                                    <div className="bg-white/70 dark:bg-gray-800/50 rounded-xl p-3 border border-white/90 dark:border-gray-700/50 backdrop-blur-sm">
-                                        <p className="text-[9px] uppercase tracking-wider font-bold text-gray-400 dark:text-gray-500 mb-1.5 flex items-center gap-1">
-                                            <Package size={9} /> Quantity
-                                        </p>
-                                        <p className="text-sm font-bold text-gray-800 dark:text-gray-100 truncate">
-                                            {(() => {
-                                                const items = quote.order?.lineItems || [];
-                                                if (items.length === 0) return '0 units';
-                                                if (items.length === 1) {
-                                                    const item = items[0];
-                                                    return item.quantityType === 'container' ? item.containerType : `${item.qty} units`;
-                                                }
-                                                const allUnits = items.every((i: any) => !i.quantityType || i.quantityType === 'units');
-                                                if (allUnits) return `${items.reduce((a: number, i: any) => a + (i.qty || 0), 0)} units`;
-                                                return 'Various';
-                                            })()}
-                                        </p>
-                                    </div>
-                                    <div className={`rounded-xl p-3 border backdrop-blur-sm ${
-                                        quote.status === 'Accepted'
-                                            ? 'bg-emerald-50/80 dark:bg-emerald-900/25 border-emerald-200/70 dark:border-emerald-700/40'
-                                            : 'bg-white/70 dark:bg-gray-800/50 border-white/90 dark:border-gray-700/50'
-                                    }`}>
-                                        <p className="text-[9px] uppercase tracking-wider font-bold text-gray-400 dark:text-gray-500 mb-1.5 flex items-center gap-1">
-                                            <DollarSign size={9} /> {quote.status === 'Accepted' ? 'Agreed' : 'Target'}
-                                        </p>
-                                        <p className={`text-sm font-bold truncate ${quote.status === 'Accepted' ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-800 dark:text-gray-100'}`}>
-                                            {(() => {
-                                                const isAcc = quote.status === 'Accepted';
-                                                if (isAcc) {
-                                                    if (quote.response_details?.price) return `$${quote.response_details.price}`;
-                                                    return 'See Details';
-                                                }
-                                                if (quote.order?.lineItems?.length === 1) return `$${quote.order.lineItems[0].targetPrice}`;
-                                                return 'See Details';
-                                            })()}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                {/* Progress tracker */}
-                                {quote.status !== 'Trashed' && (
-                                    <div className="mb-4 bg-white/50 dark:bg-gray-800/30 rounded-xl px-3 py-2.5 border border-white/70 dark:border-gray-700/30 backdrop-blur-sm">
-                                        <div className="flex items-center">
-                                            {QUOTE_PROGRESS_STEPS.map((step, i) => {
-                                                const isCompleted = progressStep > i;
-                                                const isCurrent = progressStep === i;
-                                                return (
-                                                    <React.Fragment key={step.label}>
-                                                        <div className="flex flex-col items-center gap-1 flex-shrink-0">
-                                                            <div
-                                                                className="rounded-full transition-all duration-300"
-                                                                style={{
-                                                                    width: isCurrent ? 10 : 7,
-                                                                    height: isCurrent ? 10 : 7,
-                                                                    backgroundColor: (isCompleted || isCurrent) ? theme.progressColor : '#d1d5db',
-                                                                    boxShadow: isCurrent ? `0 0 0 2.5px white, 0 0 0 4px ${theme.progressColor}` : 'none',
-                                                                }}
-                                                            />
-                                                            <span
-                                                                className="text-[8px] font-semibold leading-none"
-                                                                style={{ color: (isCompleted || isCurrent) ? theme.progressColor : '#9ca3af', opacity: (isCompleted || isCurrent) ? 1 : 0.6 }}
-                                                            >
-                                                                {step.short}
-                                                            </span>
-                                                        </div>
-                                                        {i < QUOTE_PROGRESS_STEPS.length - 1 && (
-                                                            <div
-                                                                className="flex-1 h-[2px] mx-1 rounded-full transition-all duration-500"
-                                                                style={{
-                                                                    backgroundColor: progressStep > i ? theme.progressColor : '#e5e7eb',
-                                                                    opacity: progressStep > i ? 0.6 : 1,
-                                                                }}
-                                                            />
-                                                        )}
-                                                    </React.Fragment>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Card Footer */}
-                                <div className="mt-auto pt-3.5 border-t border-white/60 dark:border-white/5 flex items-center justify-between">
-                                    {viewMode === 'active' ? (
-                                        <div className="flex gap-1">
-                                            <button
-                                                onClick={(e) => toggleHideQuote(quote.id, e)}
-                                                className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-white/80 dark:hover:bg-gray-700/60 rounded-lg transition-colors"
-                                                title={showHidden ? 'Unhide Quote' : 'Hide Quote'}
-                                            >
-                                                {showHidden ? <Eye size={15} /> : <EyeOff size={15} />}
-                                            </button>
-                                            <button
-                                                onClick={(e) => handleSoftDelete(quote.id, e)}
-                                                className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50/80 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                                title="Move to Trash"
-                                            >
-                                                <Trash2 size={15} />
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <div className="flex gap-2">
-                                            <button onClick={(e) => handleRestore(quote, e)} className="text-green-600 dark:text-green-400 hover:text-green-800 p-1.5 flex items-center gap-1 text-xs font-semibold hover:bg-green-50/80 dark:hover:bg-green-900/20 rounded-lg transition-colors" title="Restore Quote">
-                                                <RotateCcw size={13} /> Restore
-                                            </button>
-                                            <button onClick={(e) => handlePermanentDelete(quote.id, e)} className="text-red-500 hover:text-red-700 p-1.5 flex items-center gap-1 text-xs font-semibold hover:bg-red-50/80 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Delete Permanently">
-                                                <Trash2 size={13} /> Delete
-                                            </button>
-                                        </div>
-                                    )}
-
-                                    {viewMode === 'active' && (
-                                        <div
-                                            className="h-7 w-7 rounded-lg flex items-center justify-center transition-all duration-300 ml-auto shadow-sm"
-                                            style={{
-                                                backgroundColor: isHovered ? theme.progressColor : '#f3f4f6',
-                                                color: isHovered ? 'white' : '#9ca3af',
-                                            }}
+                                <div className="flex flex-col sm:flex-row justify-between items-center mt-8 pb-8 gap-4">
+                                    <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                                        <span>Rows per page:</span>
+                                        <select
+                                            value={itemsPerPage}
+                                            onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPageIndex(1); }}
+                                            className="border border-gray-300 dark:border-gray-600 rounded-md p-1 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-[#c20c0b]"
                                         >
-                                            <ChevronRight size={14} />
+                                            {[9, 18, 54, 99].map(size => (
+                                                <option key={size} value={size}>{size}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    {readTotalPages > 1 && (
+                                        <div className="flex items-center gap-4">
+                                            <button onClick={() => setCurrentPageIndex(p => Math.max(1, p - 1))} disabled={currentPageIndex === 1} className="p-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer">
+                                                <ChevronLeft size={20} className="text-gray-600 dark:text-gray-200" />
+                                            </button>
+                                            <span className="text-sm font-medium text-gray-600 dark:text-gray-200">Page {currentPageIndex} of {readTotalPages}</span>
+                                            <button onClick={() => setCurrentPageIndex(p => Math.min(readTotalPages, p + 1))} disabled={currentPageIndex === readTotalPages} className="p-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer">
+                                                <ChevronRight size={20} className="text-gray-600 dark:text-gray-200" />
+                                            </button>
                                         </div>
                                     )}
                                 </div>
                             </div>
-                        </div>
-                        );
-                    })}
+                        )}
+                    </div>
+                ) : (
+                <>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
+                    {displayedQuotes.map(renderQuoteCard)}
                 </div>
                 <div className="flex flex-col sm:flex-row justify-between items-center mt-8 pb-8 gap-4">
                     <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
@@ -4209,6 +4278,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                     )}
                 </div>
                 </>
+                )
             ) : (
                 <div className="text-center py-16 bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-lg border border-gray-200 dark:border-white/10">
                     <FileQuestion className="mx-auto h-16 w-16 text-gray-300" />

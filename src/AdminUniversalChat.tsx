@@ -223,6 +223,7 @@ export const AdminUniversalChat: React.FC<AdminUniversalChatProps> = ({ onNaviga
     const [attachFiles, setAttachFiles] = useState<File[]>([]);
     const [attachPreviews, setAttachPreviews] = useState<string[]>([]);
     const [orderDetailsExpanded, setOrderDetailsExpanded] = useState(false);
+    const [pendingOpenRfqId, setPendingOpenRfqId] = useState<string | null>(null);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -247,6 +248,34 @@ export const AdminUniversalChat: React.FC<AdminUniversalChatProps> = ({ onNaviga
     useEffect(() => {
         if (view === 'chat') setTimeout(() => inputRef.current?.focus(), 60);
     }, [view, activeLineItemId]);
+
+    // ── External open trigger (from RFQ cards) ────────────────────────────────
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const rfqId = (e as CustomEvent<{ rfqId: string }>).detail?.rfqId;
+            if (!rfqId) return;
+            setPendingOpenRfqId(rfqId);
+            setIsOpen(true);
+        };
+        window.addEventListener('openAdminChatForRfq', handler);
+        return () => window.removeEventListener('openAdminChatForRfq', handler);
+    }, []);
+
+    // ── Navigate to pending RFQ once quotes are loaded ────────────────────────
+    useEffect(() => {
+        if (!pendingOpenRfqId || !quotes.length) return;
+        const rfq = quotes.find(q => q.id === pendingOpenRfqId);
+        if (!rfq) return;
+        const client = groupByClient(quotes).find(c => c.rfqs.some(r => r.id === rfq.id));
+        if (client) setSelectedClient(client);
+        const items = rfq.order?.lineItems || [];
+        setSelectedRFQ(rfq);
+        setActiveLineItemId(items[0]?.id ?? null);
+        markRead(rfq.id);
+        setView('chat');
+        setOrderDetailsExpanded(false);
+        setPendingOpenRfqId(null);
+    }, [quotes, pendingOpenRfqId]);
 
     // ── File select ───────────────────────────────────────────────────────────
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {

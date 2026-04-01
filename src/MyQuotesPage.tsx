@@ -630,6 +630,15 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                             >
                                 <Eye size={15} />
                             </button>
+                            {quote.status !== 'Draft' && (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); handleCardClick(quote); }}
+                                    className="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50/80 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                                    title="Open Chat"
+                                >
+                                    <MessageSquare size={15} />
+                                </button>
+                            )}
                             <div
                                 className="h-7 w-7 rounded-lg flex items-center justify-center transition-all duration-300 ml-1 shadow-sm"
                                 style={{
