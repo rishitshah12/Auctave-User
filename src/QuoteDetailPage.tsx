@@ -156,6 +156,68 @@ const StatusTimeline: FC<{ status: string }> = ({ status }) => {
     );
 };
 
+// ── Chat attachment preview (inline in message bubbles) ──────────────────────
+const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'];
+function isImagePath(path: string) {
+    return IMAGE_EXTS.includes(path.split('.').pop()?.toLowerCase() || '');
+}
+function chatFileName(path: string) {
+    return (path.split('/').pop() || path).replace(/^\d+_[a-z0-9]+\./, '').replace(/^\d+_/, '');
+}
+
+const ChatAttachmentPreview: React.FC<{ path: string; supabase: any }> = ({ path, supabase }) => {
+    const [url, setUrl] = useState('');
+    const [lightbox, setLightbox] = useState(false);
+    useEffect(() => {
+        const cleanPath = path.startsWith('quote-attachments/') ? path.replace('quote-attachments/', '') : path;
+        supabase.storage.from('quote-attachments').createSignedUrl(cleanPath, 3600)
+            .then(({ data }: any) => { if (data?.signedUrl) setUrl(data.signedUrl); });
+    }, [path, supabase]);
+
+    if (!url) return (
+        <div className="mt-2 w-full h-10 bg-white/20 rounded-lg animate-pulse" />
+    );
+
+    if (isImagePath(path)) return (
+        <>
+            <div
+                className="mt-2 relative group cursor-pointer rounded-xl overflow-hidden border border-white/20"
+                onClick={() => setLightbox(true)}
+            >
+                <img src={url} alt={chatFileName(path)} className="w-full max-h-40 object-cover" />
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors flex items-center justify-center">
+                    <Eye size={18} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+            </div>
+            {lightbox && createPortal(
+                <div className="fixed inset-0 z-[300] bg-black/85 flex items-center justify-center p-4" onClick={() => setLightbox(false)}>
+                    <img src={url} alt={chatFileName(path)} className="max-w-full max-h-full rounded-xl shadow-2xl" onClick={e => e.stopPropagation()} />
+                    <button className="absolute top-4 right-4 text-white bg-black/50 rounded-full p-2 hover:bg-black/70 transition-colors" onClick={() => setLightbox(false)}>
+                        <X size={20} />
+                    </button>
+                    <a href={url} download={chatFileName(path)} className="absolute top-4 right-16 text-white bg-black/50 rounded-full p-2 hover:bg-black/70 transition-colors" onClick={e => e.stopPropagation()}>
+                        <Download size={20} />
+                    </a>
+                </div>,
+                document.body
+            )}
+        </>
+    );
+
+    return (
+        <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 flex items-center gap-2 px-3 py-2 bg-white/20 hover:bg-white/30 rounded-xl border border-white/20 transition-colors"
+        >
+            <FileText size={14} className="flex-shrink-0" />
+            <span className="text-xs truncate flex-1">{chatFileName(path)}</span>
+            <Download size={12} className="flex-shrink-0 opacity-70" />
+        </a>
+    );
+};
+
 export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
     selectedQuote: initialQuote,
     handleSetCurrentPage,
@@ -1783,14 +1845,9 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                                         </div>
                                                                         {h.price && <div className="font-bold text-lg mb-1">${h.price}</div>}
                                                                         {h.message && <p className="text-xs opacity-90 whitespace-pre-wrap">{h.message}</p>}
-                                                                        {h.attachments && h.attachments.length > 0 && (
-                                                                            <div className="mt-2 pt-2 border-t border-white/20">
-                                                                                <div className="flex items-center gap-1 text-xs opacity-80">
-                                                                                    <Paperclip size={12} />
-                                                                                    <span>Attachment</span>
-                                                                                </div>
-                                                                            </div>
-                                                                        )}
+                                                                        {h.attachments && h.attachments.length > 0 && h.attachments.map((att, ai) => (
+                                                                            <ChatAttachmentPreview key={ai} path={att} supabase={layoutProps.supabase} />
+                                                                        ))}
                                                                     </div>
                                                                 </div>
                                                             ))
@@ -2394,6 +2451,9 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                                     </div>
                                                                     {h.price && <div className="font-bold text-lg mb-1">${h.price}</div>}
                                                                     {h.message && <p className="text-sm opacity-90 whitespace-pre-wrap">{h.message}</p>}
+                                                                    {h.attachments && h.attachments.length > 0 && h.attachments.map((att, ai) => (
+                                                                        <ChatAttachmentPreview key={ai} path={att} supabase={layoutProps.supabase} />
+                                                                    ))}
                                                                 </div>
                                                             </div>
                                                         ))
