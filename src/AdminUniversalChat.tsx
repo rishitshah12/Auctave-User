@@ -249,14 +249,22 @@ export const AdminUniversalChat: React.FC<AdminUniversalChatProps> = ({ onNaviga
         if (!selectedRFQ || (!message.trim() && !attachFile)) return;
         setSending(true);
 
+        const msgText = message.trim();
+        const fileToUpload = attachFile;
+
+        // Clear input immediately so user can type the next message
+        setMessage('');
+        clearAttachment();
+
         let storagePath = '';
-        if (attachFile) {
-            const ext = attachFile.name.split('.').pop();
+        if (fileToUpload) {
+            const ext = fileToUpload.name.split('.').pop();
             const storageName = `${selectedRFQ.userId}/${selectedRFQ.id}/chat/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
             const { data: uploadData, error: uploadError } = await supabase.storage
                 .from('quote-attachments')
-                .upload(storageName, attachFile);
+                .upload(storageName, fileToUpload);
             if (uploadError) {
+                console.error('[Chat] Attachment upload failed:', uploadError.message);
                 setSending(false);
                 return;
             }
@@ -266,7 +274,7 @@ export const AdminUniversalChat: React.FC<AdminUniversalChatProps> = ({ onNaviga
         const newMsg: NegotiationHistoryItem = {
             id: Date.now().toString(),
             sender: 'factory',
-            message: message.trim(),
+            message: msgText,
             timestamp: new Date().toISOString(),
             action: 'info',
             relatedLineItemId: activeLineItemId ?? undefined,
@@ -280,29 +288,33 @@ export const AdminUniversalChat: React.FC<AdminUniversalChatProps> = ({ onNaviga
             ? [...(selectedRFQ.files || []), storagePath]
             : selectedRFQ.files || [];
 
+        // Optimistic update — message appears immediately
+        const optimisticRFQ: QuoteRequest = {
+            ...selectedRFQ,
+            files: updatedFiles,
+            negotiation_details: { ...selectedRFQ.negotiation_details, history: updatedHistory },
+        };
+        setSelectedRFQ(optimisticRFQ);
+        setQuotes(prev => prev.map(q => q.id === selectedRFQ.id ? optimisticRFQ : q));
+        if (selectedClient) {
+            setSelectedClient(prev => prev ? {
+                ...prev,
+                rfqs: prev.rfqs.map(r => r.id === selectedRFQ.id ? optimisticRFQ : r),
+                latestTime: new Date().toISOString(),
+            } : null);
+        }
+
         const updatePayload: any = {
             negotiation_details: { ...selectedRFQ.negotiation_details, history: updatedHistory },
         };
         if (storagePath) updatePayload.files = updatedFiles;
 
         const { error } = await quoteService.update(selectedRFQ.id, updatePayload);
-        if (!error) {
-            const updatedRFQ: QuoteRequest = {
-                ...selectedRFQ,
-                files: updatedFiles,
-                negotiation_details: { ...selectedRFQ.negotiation_details, history: updatedHistory },
-            };
-            setSelectedRFQ(updatedRFQ);
-            setQuotes(prev => prev.map(q => q.id === selectedRFQ.id ? updatedRFQ : q));
-            if (selectedClient) {
-                setSelectedClient(prev => prev ? {
-                    ...prev,
-                    rfqs: prev.rfqs.map(r => r.id === selectedRFQ.id ? updatedRFQ : r),
-                    latestTime: new Date().toISOString(),
-                } : null);
-            }
-            setMessage('');
-            clearAttachment();
+        if (error) {
+            console.error('[Chat] Failed to persist message:', error);
+            // Rollback optimistic update on failure
+            setSelectedRFQ(selectedRFQ);
+            setQuotes(prev => prev.map(q => q.id === selectedRFQ.id ? selectedRFQ : q));
         }
         setSending(false);
     };
@@ -359,7 +371,7 @@ export const AdminUniversalChat: React.FC<AdminUniversalChatProps> = ({ onNaviga
 
     const headerTitle = view === 'users' ? 'RFQ Messages'
         : view === 'rfqs' ? (selectedClient?.clientName || 'RFQs')
-        : `RFQ #${selectedRFQ?.id.slice(-8).toUpperCase()}`;
+        : `RFQ #${selectedRFQ?.id.slice(0, 8).toUpperCase()}`;
     const headerSub = view === 'users'
         ? `${clientGroups.length} client${clientGroups.length !== 1 ? 's' : ''}`
         : view === 'rfqs'
@@ -511,7 +523,7 @@ export const AdminUniversalChat: React.FC<AdminUniversalChatProps> = ({ onNaviga
                             <button key={rfq.id} onClick={() => openRFQ(rfq)}
                                 className="w-full text-left px-4 py-3.5 border-b border-gray-100 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
                                 <div className="flex items-center gap-2 mb-1.5">
-                                    <span className="text-xs font-bold text-gray-700 dark:text-gray-200 font-mono">#{rfq.id.slice(-8).toUpperCase()}</span>
+                                    <span className="text-xs font-bold text-gray-700 dark:text-gray-200 font-mono">#{rfq.id.slice(0, 8).toUpperCase()}</span>
                                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${statusBadge(rfq.status)}`}>{rfq.status}</span>
                                     {unread > 0 && (
                                         <span className="ml-auto min-w-[18px] h-[18px] px-1 bg-[#c20c0b] text-white text-[9px] font-bold rounded-full flex items-center justify-center">
@@ -552,7 +564,7 @@ export const AdminUniversalChat: React.FC<AdminUniversalChatProps> = ({ onNaviga
                                 Order Details
                                 <span className="ml-1.5 font-normal text-gray-400">
                                     · {lineItems.length} item{lineItems.length !== 1 ? 's' : ''}
-                                    {selectedRFQ.order?.shippingInfo?.deliveryDate ? ` · ${selectedRFQ.order.shippingInfo.deliveryDate}` : ''}
+                                    {selectedRFQ.order?.shippingCountry ? ` · ${selectedRFQ.order.shippingCountry}` : ''}
                                 </span>
                             </span>
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${statusBadge(selectedRFQ.status)}`}>{selectedRFQ.status}</span>
@@ -573,11 +585,11 @@ export const AdminUniversalChat: React.FC<AdminUniversalChatProps> = ({ onNaviga
                                         {li.targetPrice && <span className="text-[11px] font-bold text-gray-700 dark:text-gray-200 flex-shrink-0">${li.targetPrice}</span>}
                                     </div>
                                 ))}
-                                {selectedRFQ.order?.shippingInfo && (
+                                {(selectedRFQ.order?.shippingCountry || selectedRFQ.order?.shippingPort) && (
                                     <p className="text-[10px] text-gray-400 px-1">
                                         {[
-                                            selectedRFQ.order.shippingInfo.destination && `📍 ${selectedRFQ.order.shippingInfo.destination}`,
-                                            selectedRFQ.order.shippingInfo.deliveryDate && `📅 ${selectedRFQ.order.shippingInfo.deliveryDate}`,
+                                            selectedRFQ.order.shippingCountry && `📍 ${selectedRFQ.order.shippingCountry}`,
+                                            selectedRFQ.order.shippingPort && `🚢 ${selectedRFQ.order.shippingPort}`,
                                         ].filter(Boolean).join('  ·  ')}
                                     </p>
                                 )}
