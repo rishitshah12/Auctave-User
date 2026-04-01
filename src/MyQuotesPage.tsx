@@ -630,15 +630,34 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                             >
                                 <Eye size={15} />
                             </button>
-                            {quote.status !== 'Draft' && (
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); handleCardClick(quote); }}
-                                    className="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50/80 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                                    title="Open Chat"
-                                >
-                                    <MessageSquare size={15} />
-                                </button>
-                            )}
+                            {quote.status !== 'Draft' && (() => {
+                                const chatUnread = (() => {
+                                    try {
+                                        const lastRead = localStorage.getItem(`chat_read_${quote.id}`) || '';
+                                        return (quote.negotiation_details?.history || [])
+                                            .filter((h: any) => h.sender === 'admin' && h.timestamp > lastRead).length;
+                                    } catch { return 0; }
+                                })();
+                                return (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            localStorage.setItem('quote_detail_auto_open_chat', 'true');
+                                            handleCardClick(quote);
+                                        }}
+                                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors relative ${chatUnread > 0 ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40' : 'bg-gray-100 dark:bg-gray-700/60 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                                        title="Open Chat"
+                                    >
+                                        <MessageSquare size={13} />
+                                        Chat
+                                        {chatUnread > 0 && (
+                                            <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 bg-blue-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
+                                                {chatUnread > 9 ? '9+' : chatUnread}
+                                            </span>
+                                        )}
+                                    </button>
+                                );
+                            })()}
                             <div
                                 className="h-7 w-7 rounded-lg flex items-center justify-center transition-all duration-300 ml-1 shadow-sm"
                                 style={{

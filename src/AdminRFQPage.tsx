@@ -3970,29 +3970,45 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                         </div>
                     )}
 
-                    {viewMode === 'active' && (
-                        <div className="flex items-center gap-1 ml-auto">
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    window.dispatchEvent(new CustomEvent('openAdminChatForRfq', { detail: { rfqId: quote.id } }));
-                                }}
-                                className="p-1.5 text-gray-400 hover:text-[#c20c0b] hover:bg-red-50/80 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                title="Open Chat"
-                            >
-                                <MessageSquare size={15} />
-                            </button>
-                            <div
-                                className="h-7 w-7 rounded-lg flex items-center justify-center transition-all duration-300 shadow-sm"
-                                style={{
-                                    backgroundColor: isHovered ? theme.progressColor : '#f3f4f6',
-                                    color: isHovered ? 'white' : '#9ca3af',
-                                }}
-                            >
-                                <ChevronRight size={14} />
+                    {viewMode === 'active' && (() => {
+                        const chatUnread = (() => {
+                            try {
+                                const map = JSON.parse(localStorage.getItem('admin_rfq_chat_last_read') || '{}');
+                                const lastRead = map[quote.id] || '';
+                                return (quote.negotiation_details?.history || [])
+                                    .filter((h: any) => h.sender === 'client' && h.timestamp > lastRead).length;
+                            } catch { return 0; }
+                        })();
+                        return (
+                            <div className="flex items-center gap-1.5 ml-auto">
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        window.dispatchEvent(new CustomEvent('openAdminChatForRfq', { detail: { rfqId: quote.id } }));
+                                    }}
+                                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors relative ${chatUnread > 0 ? 'bg-red-50 dark:bg-red-900/20 text-[#c20c0b] dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40' : 'bg-gray-100 dark:bg-gray-700/60 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                                    title="Open Chat"
+                                >
+                                    <MessageSquare size={13} />
+                                    Chat
+                                    {chatUnread > 0 && (
+                                        <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 bg-[#c20c0b] text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
+                                            {chatUnread > 9 ? '9+' : chatUnread}
+                                        </span>
+                                    )}
+                                </button>
+                                <div
+                                    className="h-7 w-7 rounded-lg flex items-center justify-center transition-all duration-300 shadow-sm flex-shrink-0"
+                                    style={{
+                                        backgroundColor: isHovered ? theme.progressColor : '#f3f4f6',
+                                        color: isHovered ? 'white' : '#9ca3af',
+                                    }}
+                                >
+                                    <ChevronRight size={14} />
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        );
+                    })()}
                 </div>
             </div>
         </div>

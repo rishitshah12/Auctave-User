@@ -325,6 +325,15 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
     const chatPanelRef = useRef<HTMLDivElement>(null);
     const chatMessagesEndRef = useRef<HTMLDivElement>(null);
 
+    // ── Auto-open chat panel when navigated from the chat button on quote cards ──
+    useEffect(() => {
+        const flag = localStorage.getItem('quote_detail_auto_open_chat');
+        if (flag) {
+            localStorage.removeItem('quote_detail_auto_open_chat');
+            setIsChatPanelOpen(true);
+        }
+    }, []);
+
     // ── Unread chat tracking (factory messages the client hasn't seen) ─────────
     const CHAT_READ_KEY = `chat_read_${quote?.id || ''}`;
     const [lastReadTime, setLastReadTime] = useState<string>(() => {
