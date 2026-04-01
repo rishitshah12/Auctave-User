@@ -220,8 +220,8 @@ export const AdminUniversalChat: React.FC<AdminUniversalChatProps> = ({ onNaviga
 
     const [message, setMessage] = useState('');
     const [sending, setSending] = useState(false);
-    const [attachFile, setAttachFile] = useState<File | null>(null);
-    const [attachPreview, setAttachPreview] = useState<string>(''); // local object URL for image preview
+    const [attachFiles, setAttachFiles] = useState<File[]>([]);
+    const [attachPreviews, setAttachPreviews] = useState<string[]>([]);
     const [orderDetailsExpanded, setOrderDetailsExpanded] = useState(false);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -250,48 +250,52 @@ export const AdminUniversalChat: React.FC<AdminUniversalChatProps> = ({ onNaviga
 
     // ── File select ───────────────────────────────────────────────────────────
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        setAttachFile(file);
-        if (file.type.startsWith('image/')) {
-            setAttachPreview(URL.createObjectURL(file));
-        } else {
-            setAttachPreview('');
-        }
+        const incoming = Array.from(e.target.files || []);
+        if (!incoming.length) return;
+        const newPreviews = incoming.map(f => f.type.startsWith('image/') ? URL.createObjectURL(f) : '');
+        setAttachFiles(prev => [...prev, ...incoming]);
+        setAttachPreviews(prev => [...prev, ...newPreviews]);
         e.target.value = '';
     };
 
-    const clearAttachment = () => {
-        if (attachPreview) URL.revokeObjectURL(attachPreview);
-        setAttachFile(null);
-        setAttachPreview('');
+    const removeAttachment = (idx: number) => {
+        setAttachPreviews(prev => { if (prev[idx]) URL.revokeObjectURL(prev[idx]); return prev.filter((_, i) => i !== idx); });
+        setAttachFiles(prev => prev.filter((_, i) => i !== idx));
+    };
+
+    const clearAttachments = () => {
+        attachPreviews.forEach(u => { if (u) URL.revokeObjectURL(u); });
+        setAttachFiles([]);
+        setAttachPreviews([]);
     };
 
     // ── Send ──────────────────────────────────────────────────────────────────
     const handleSend = async () => {
-        if (!selectedRFQ || (!message.trim() && !attachFile)) return;
+        if (!selectedRFQ || (!message.trim() && !attachFiles.length)) return;
         setSending(true);
 
         const msgText = message.trim();
-        const fileToUpload = attachFile;
+        const filesToUpload = attachFiles;
 
         // Clear input immediately so user can type the next message
         setMessage('');
-        clearAttachment();
+        clearAttachments();
 
-        let storagePath = '';
-        if (fileToUpload) {
-            const safeName = fileToUpload.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const uploadedPaths: string[] = [];
+        const uploadedNames: string[] = [];
+
+        for (const file of filesToUpload) {
+            const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
             const storageName = `${selectedRFQ.userId}/${selectedRFQ.id}/chat/${Date.now()}_${safeName}`;
             const { data: uploadData, error: uploadError } = await supabase.storage
                 .from('quote-attachments')
-                .upload(storageName, fileToUpload);
+                .upload(storageName, file);
             if (uploadError) {
                 console.error('[Chat] Attachment upload failed:', uploadError.message);
-                setSending(false);
-                return;
+                continue;
             }
-            storagePath = uploadData?.path || storageName;
+            uploadedPaths.push(uploadData?.path || storageName);
+            uploadedNames.push(file.name);
         }
 
         const newMsg: NegotiationHistoryItem = {
@@ -301,15 +305,13 @@ export const AdminUniversalChat: React.FC<AdminUniversalChatProps> = ({ onNaviga
             timestamp: new Date().toISOString(),
             action: 'info',
             relatedLineItemId: activeLineItemId ?? undefined,
-            attachments: storagePath ? [storagePath] : [],
-            attachmentNames: storagePath && fileToUpload ? [fileToUpload.name] : [],
+            attachments: uploadedPaths,
+            attachmentNames: uploadedNames,
         };
 
         const updatedHistory = [...(selectedRFQ.negotiation_details?.history || []), newMsg];
-
-        // Also append to quote's top-level files[] so it shows in the Attachments tab
-        const updatedFiles = storagePath
-            ? [...(selectedRFQ.files || []), storagePath]
+        const updatedFiles = uploadedPaths.length
+            ? [...(selectedRFQ.files || []), ...uploadedPaths]
             : selectedRFQ.files || [];
 
         // Optimistic update — message appears immediately
@@ -331,12 +333,11 @@ export const AdminUniversalChat: React.FC<AdminUniversalChatProps> = ({ onNaviga
         const updatePayload: any = {
             negotiation_details: { ...selectedRFQ.negotiation_details, history: updatedHistory },
         };
-        if (storagePath) updatePayload.files = updatedFiles;
+        if (uploadedPaths.length) updatePayload.files = updatedFiles;
 
         const { error } = await quoteService.update(selectedRFQ.id, updatePayload);
         if (error) {
             console.error('[Chat] Failed to persist message:', error);
-            // Rollback optimistic update on failure
             setSelectedRFQ(selectedRFQ);
             setQuotes(prev => prev.map(q => q.id === selectedRFQ.id ? selectedRFQ : q));
         }
@@ -354,12 +355,12 @@ export const AdminUniversalChat: React.FC<AdminUniversalChatProps> = ({ onNaviga
         setOrderDetailsExpanded(false);
     };
     const goBack = () => {
-        if (view === 'chat') { setSelectedRFQ(null); setMessage(''); clearAttachment(); setView('rfqs'); }
+        if (view === 'chat') { setSelectedRFQ(null); setMessage(''); clearAttachments(); setView('rfqs'); }
         else if (view === 'rfqs') { setSelectedClient(null); setSearch(''); setView('users'); }
     };
     const close = () => {
         setIsOpen(false); setView('users'); setSelectedClient(null);
-        setSelectedRFQ(null); setMessage(''); clearAttachment(); setSearch('');
+        setSelectedRFQ(null); setMessage(''); clearAttachments(); setSearch('');
     };
 
     // ── Derived ───────────────────────────────────────────────────────────────
@@ -674,32 +675,38 @@ export const AdminUniversalChat: React.FC<AdminUniversalChatProps> = ({ onNaviga
                         <div ref={messagesEndRef} />
                     </div>
 
-                    {/* Attachment preview above input */}
-                    {attachFile && (
-                        <div className="px-3 pb-1 flex-shrink-0">
-                            <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-xl px-3 py-2 border border-gray-200 dark:border-white/10">
-                                {attachPreview
-                                    ? <img src={attachPreview} alt="preview" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
-                                    : <FileText size={20} className="text-gray-500 flex-shrink-0" />
-                                }
-                                <span className="flex-1 text-xs text-gray-700 dark:text-gray-200 truncate">{attachFile.name}</span>
-                                <button onClick={clearAttachment} className="flex-shrink-0 text-gray-400 hover:text-red-500 transition-colors">
-                                    <X size={14} />
-                                </button>
-                            </div>
+                    {/* Attachment previews above input */}
+                    {attachFiles.length > 0 && (
+                        <div className="px-3 pb-1 flex-shrink-0 flex flex-wrap gap-2">
+                            {attachFiles.map((f, idx) => (
+                                <div key={idx} className="flex items-center gap-1.5 bg-gray-100 dark:bg-gray-800 rounded-xl pl-2 pr-1.5 py-1.5 border border-gray-200 dark:border-white/10 max-w-[180px]">
+                                    {attachPreviews[idx]
+                                        ? <img src={attachPreviews[idx]} alt="preview" className="w-8 h-8 rounded-lg object-cover flex-shrink-0" />
+                                        : <FileText size={16} className="text-gray-500 flex-shrink-0" />
+                                    }
+                                    <span className="flex-1 text-xs text-gray-700 dark:text-gray-200 truncate">{f.name}</span>
+                                    <button onClick={() => removeAttachment(idx)} className="flex-shrink-0 text-gray-400 hover:text-red-500 transition-colors">
+                                        <X size={12} />
+                                    </button>
+                                </div>
+                            ))}
                         </div>
                     )}
 
                     {/* Input */}
                     <div className="border-t border-gray-100 dark:border-white/10 px-3 py-2.5 flex-shrink-0 flex items-end gap-2 bg-white dark:bg-gray-900">
-                        <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileSelect} />
+                        <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileSelect} />
                         <button
                             onClick={() => fileInputRef.current?.click()}
                             className="p-2 text-gray-400 hover:text-[#c20c0b] transition-colors flex-shrink-0 relative"
-                            title="Attach file"
+                            title="Attach files"
                         >
                             <Paperclip size={18} />
-                            {attachFile && <span className="absolute top-1 right-1 w-2 h-2 bg-[#c20c0b] rounded-full" />}
+                            {attachFiles.length > 0 && (
+                                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-0.5 bg-[#c20c0b] text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                                    {attachFiles.length}
+                                </span>
+                            )}
                         </button>
                         <textarea
                             ref={inputRef}
@@ -713,7 +720,7 @@ export const AdminUniversalChat: React.FC<AdminUniversalChatProps> = ({ onNaviga
                         />
                         <button
                             onClick={handleSend}
-                            disabled={(!message.trim() && !attachFile) || sending}
+                            disabled={(!message.trim() && !attachFiles.length) || sending}
                             className="p-2.5 bg-[#c20c0b] text-white rounded-xl hover:bg-[#a50a09] disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-95 flex-shrink-0"
                         >
                             {sending ? <RefreshCw size={17} className="animate-spin" /> : <Send size={17} />}
