@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { NotificationBellButton, NotificationPanel } from './NotificationPanel';
 import { useNotifications } from './NotificationContext';
+import { AdminUniversalChat } from './AdminUniversalChat';
 
 interface MainLayoutProps {
     children: ReactNode;
@@ -292,5 +293,8 @@ export const MainLayout: FC<MainLayoutProps> = (props) => (
         {props.user && !props.hideSidebar && (
             <BottomNavBar currentPage={props.currentPage} handleSetCurrentPage={props.handleSetCurrentPage} />
         )}
+
+        {/* Universal RFQ chat — admin only */}
+        {props.isAdmin && props.user && <AdminUniversalChat />}
     </div>
 );
