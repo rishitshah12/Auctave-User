@@ -156,65 +156,136 @@ const StatusTimeline: FC<{ status: string }> = ({ status }) => {
     );
 };
 
-// ── Chat attachment preview (inline in message bubbles) ──────────────────────
-const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'];
+// ── Chat attachment helpers ───────────────────────────────────────────────────
+const CHAT_IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'];
 function isImagePath(path: string) {
-    return IMAGE_EXTS.includes(path.split('.').pop()?.toLowerCase() || '');
+    return CHAT_IMAGE_EXTS.includes(path.split('.').pop()?.toLowerCase() || '');
 }
+/** Strip the timestamp-dedup prefix (e.g. "1712345678_") to restore original name */
 function chatFileName(path: string) {
-    return (path.split('/').pop() || path).replace(/^\d+_[a-z0-9]+\./, '').replace(/^\d+_/, '');
+    return (path.split('/').pop() || path).replace(/^\d+_/, '');
 }
 
-const ChatAttachmentPreview: React.FC<{ path: string; supabase: any }> = ({ path, supabase }) => {
+interface ChatAttachmentPreviewProps {
+    path: string;
+    supabase: any;
+    isClient?: boolean;
+    displayName?: string;
+    onRename?: (newName: string) => Promise<void>;
+}
+
+const ChatAttachmentPreview: React.FC<ChatAttachmentPreviewProps> = ({
+    path, supabase, isClient = false, displayName, onRename
+}) => {
     const [url, setUrl] = useState('');
     const [lightbox, setLightbox] = useState(false);
+    const [renaming, setRenaming] = useState(false);
+    const [renameVal, setRenameVal] = useState('');
+
+    const name = displayName || chatFileName(path);
+    const isImg = isImagePath(path);
+
+    // Bubble-aware styles
+    const boxCls = isClient
+        ? 'bg-white/15 hover:bg-white/25 border-white/25 text-white'
+        : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-200';
+    const subTextCls = isClient ? 'text-red-100' : 'text-gray-400 dark:text-gray-400';
+    const iconCls = isClient ? 'text-white/70' : 'text-gray-400 dark:text-gray-400';
+
     useEffect(() => {
         const cleanPath = path.startsWith('quote-attachments/') ? path.replace('quote-attachments/', '') : path;
         supabase.storage.from('quote-attachments').createSignedUrl(cleanPath, 3600)
             .then(({ data }: any) => { if (data?.signedUrl) setUrl(data.signedUrl); });
     }, [path, supabase]);
 
+    const handleRenameSave = async () => {
+        if (onRename && renameVal.trim() && renameVal.trim() !== name) {
+            await onRename(renameVal.trim());
+        }
+        setRenaming(false);
+    };
+
     if (!url) return (
-        <div className="mt-2 w-full h-10 bg-white/20 rounded-lg animate-pulse" />
+        <div className={`mt-2 w-full h-12 rounded-xl animate-pulse ${isClient ? 'bg-white/15' : 'bg-gray-200 dark:bg-gray-700'}`} />
     );
 
-    if (isImagePath(path)) return (
+    return (
         <>
-            <div
-                className="mt-2 relative group cursor-pointer rounded-xl overflow-hidden border border-white/20"
-                onClick={() => setLightbox(true)}
-            >
-                <img src={url} alt={chatFileName(path)} className="w-full max-h-40 object-cover" />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors flex items-center justify-center">
-                    <Eye size={18} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className={`mt-2 rounded-xl border overflow-hidden ${boxCls}`}>
+                {/* Image thumbnail row */}
+                {isImg && (
+                    <div
+                        className="relative group cursor-pointer"
+                        onClick={() => setLightbox(true)}
+                    >
+                        <img src={url} alt={name} className="w-full max-h-36 object-cover" />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center gap-3">
+                            <Eye size={18} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                            <a
+                                href={url}
+                                download={name}
+                                onClick={e => e.stopPropagation()}
+                                className="text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                                <Download size={18} />
+                            </a>
+                        </div>
+                    </div>
+                )}
+
+                {/* Name row */}
+                <div className="flex items-center gap-2 px-2.5 py-2">
+                    <FileText size={14} className={`flex-shrink-0 ${iconCls}`} />
+                    {renaming ? (
+                        <input
+                            autoFocus
+                            value={renameVal}
+                            onChange={e => setRenameVal(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') handleRenameSave(); if (e.key === 'Escape') setRenaming(false); }}
+                            className="flex-1 text-xs bg-white/20 rounded px-1.5 py-0.5 focus:outline-none border border-white/30"
+                        />
+                    ) : (
+                        <span className="flex-1 text-xs truncate">{name}</span>
+                    )}
+                    {renaming ? (
+                        <button onClick={handleRenameSave} className={`text-xs font-bold px-1.5 py-0.5 rounded ${isClient ? 'bg-white/25 hover:bg-white/40' : 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'}`}>
+                            Save
+                        </button>
+                    ) : (
+                        <>
+                            {onRename && (
+                                <button
+                                    onClick={() => { setRenameVal(name); setRenaming(true); }}
+                                    className={`opacity-0 group-hover:opacity-100 transition-opacity ${iconCls} hover:opacity-100`}
+                                    title="Rename"
+                                >
+                                    <Edit size={11} />
+                                </button>
+                            )}
+                            {!isImg && (
+                                <a href={url} target="_blank" rel="noopener noreferrer" download={name} className={iconCls} title="Download">
+                                    <Download size={12} />
+                                </a>
+                            )}
+                        </>
+                    )}
                 </div>
             </div>
+
+            {/* Lightbox */}
             {lightbox && createPortal(
                 <div className="fixed inset-0 z-[300] bg-black/85 flex items-center justify-center p-4" onClick={() => setLightbox(false)}>
-                    <img src={url} alt={chatFileName(path)} className="max-w-full max-h-full rounded-xl shadow-2xl" onClick={e => e.stopPropagation()} />
+                    <img src={url} alt={name} className="max-w-full max-h-full rounded-xl shadow-2xl" onClick={e => e.stopPropagation()} />
                     <button className="absolute top-4 right-4 text-white bg-black/50 rounded-full p-2 hover:bg-black/70 transition-colors" onClick={() => setLightbox(false)}>
                         <X size={20} />
                     </button>
-                    <a href={url} download={chatFileName(path)} className="absolute top-4 right-16 text-white bg-black/50 rounded-full p-2 hover:bg-black/70 transition-colors" onClick={e => e.stopPropagation()}>
+                    <a href={url} download={name} className="absolute top-4 right-16 text-white bg-black/50 rounded-full p-2 hover:bg-black/70 transition-colors" onClick={e => e.stopPropagation()}>
                         <Download size={20} />
                     </a>
                 </div>,
                 document.body
             )}
         </>
-    );
-
-    return (
-        <a
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-2 flex items-center gap-2 px-3 py-2 bg-white/20 hover:bg-white/30 rounded-xl border border-white/20 transition-colors"
-        >
-            <FileText size={14} className="flex-shrink-0" />
-            <span className="text-xs truncate flex-1">{chatFileName(path)}</span>
-            <Download size={12} className="flex-shrink-0 opacity-70" />
-        </a>
     );
 };
 
@@ -238,6 +309,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
     const [fileLinks, setFileLinks] = useState<{ name: string; url: string }[]>([]);
     const [expandedItems, setExpandedItems] = useState<number[]>([]);
     const [chatStates, setChatStates] = useState<Record<number, { message: string; file: File | null }>>({});
+    const [filePreviewUrls, setFilePreviewUrls] = useState<Record<number, string>>({});
     const [uploadingChats, setUploadingChats] = useState<Record<number, boolean>>({});
     const cancellationRefs = useRef<Record<number, boolean>>({});
     const [expandedExecutionSteps, setExpandedExecutionSteps] = useState<number[]>([]);
@@ -1145,6 +1217,36 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         setIsChatPanelOpen(true);
     };
 
+    const handleChatFileSelect = (lineItemId: number, file: File | null) => {
+        setFilePreviewUrls(prev => {
+            if (prev[lineItemId]) URL.revokeObjectURL(prev[lineItemId]);
+            const next = { ...prev };
+            if (file && file.type.startsWith('image/')) {
+                next[lineItemId] = URL.createObjectURL(file);
+            } else {
+                delete next[lineItemId];
+            }
+            return next;
+        });
+        setChatStates(prev => ({ ...prev, [lineItemId]: { ...prev[lineItemId], file } }));
+    };
+
+    const handleRenameAttachment = async (msgId: string, attIdx: number, newName: string) => {
+        if (!quote) return;
+        const updatedHistory = (quote.negotiation_details?.history || []).map(h => {
+            if (h.id !== msgId) return h;
+            const names = [...(h.attachmentNames || (h.attachments || []).map(a => chatFileName(a)))];
+            names[attIdx] = newName;
+            return { ...h, attachmentNames: names };
+        });
+        const { error } = await quoteService.update(quote.id, {
+            negotiation_details: { ...quote.negotiation_details, history: updatedHistory }
+        });
+        if (!error) {
+            setQuote(prev => prev ? { ...prev, negotiation_details: { ...prev.negotiation_details, history: updatedHistory } } : null);
+        }
+    };
+
     const handleSendChat = async (lineItemId: number) => {
         const chatState = chatStates[lineItemId] || { message: '', file: null };
         if (!chatState.message.trim() && !chatState.file) return;
@@ -1152,15 +1254,17 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         cancellationRefs.current[lineItemId] = false;
         setUploadingChats(prev => ({ ...prev, [lineItemId]: true }));
 
+        const originalFileName = chatState.file?.name || '';
         let attachmentUrl = '';
         if (chatState.file) {
             try {
-                const fileExt = chatState.file.name.split('.').pop();
-                const fileName = `${quote.userId}/${quote.id}/chat/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+                // Preserve original filename with a timestamp prefix to avoid collisions
+                const safeName = originalFileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+                const storagePath = `${quote.userId}/${quote.id}/chat/${Date.now()}_${safeName}`;
                 const { data, error } = await layoutProps.supabase.storage
                     .from('quote-attachments')
-                    .upload(fileName, chatState.file);
-                
+                    .upload(storagePath, chatState.file);
+
                 if (cancellationRefs.current[lineItemId]) {
                     if (data?.path) {
                         await layoutProps.supabase.storage.from('quote-attachments').remove([data.path]);
@@ -1188,17 +1292,29 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
             timestamp: new Date().toISOString(),
             action: 'info',
             relatedLineItemId: lineItemId,
-            attachments: attachmentUrl ? [attachmentUrl] : []
+            attachments: attachmentUrl ? [attachmentUrl] : [],
+            attachmentNames: attachmentUrl ? [originalFileName] : [],
         };
 
         const updatedHistory = [...(quote.negotiation_details?.history || []), newHistoryItem];
-        const { error } = await quoteService.update(quote.id, {
-            negotiation_details: { ...quote.negotiation_details, history: updatedHistory }
-        });
+        // Also add to top-level files[] so it appears in the Attachments tab
+        const updatedFiles = attachmentUrl
+            ? [...(quote.files || []), attachmentUrl]
+            : quote.files || [];
+
+        const updatePayload: any = { negotiation_details: { ...quote.negotiation_details, history: updatedHistory } };
+        if (attachmentUrl) updatePayload.files = updatedFiles;
+
+        const { error } = await quoteService.update(quote.id, updatePayload);
 
         if (error) showToast('Failed to send message', 'error');
         else {
-            setQuote(prev => prev ? { ...prev, negotiation_details: { ...prev.negotiation_details, history: updatedHistory } } : null);
+            setQuote(prev => prev ? {
+                ...prev,
+                files: updatedFiles,
+                negotiation_details: { ...prev.negotiation_details, history: updatedHistory }
+            } : null);
+            handleChatFileSelect(lineItemId, null);
             setChatStates(prev => ({ ...prev, [lineItemId]: { message: '', file: null } }));
         }
         setUploadingChats(prev => ({ ...prev, [lineItemId]: false }));
@@ -1846,7 +1962,14 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                                         {h.price && <div className="font-bold text-lg mb-1">${h.price}</div>}
                                                                         {h.message && <p className="text-xs opacity-90 whitespace-pre-wrap">{h.message}</p>}
                                                                         {h.attachments && h.attachments.length > 0 && h.attachments.map((att, ai) => (
-                                                                            <ChatAttachmentPreview key={ai} path={att} supabase={layoutProps.supabase} />
+                                                                            <ChatAttachmentPreview
+                                                                                key={ai}
+                                                                                path={att}
+                                                                                supabase={layoutProps.supabase}
+                                                                                isClient={h.sender === 'client'}
+                                                                                displayName={h.attachmentNames?.[ai]}
+                                                                                onRename={(newName) => handleRenameAttachment(h.id, ai, newName)}
+                                                                            />
                                                                         ))}
                                                                     </div>
                                                                 </div>
@@ -1855,17 +1978,29 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                     </div>
 
                                                     {/* Input Area */}
+                                                    {chatStates[item.id]?.file && (
+                                                        <div className="mb-2 flex items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-xl px-3 py-2 border border-gray-200 dark:border-white/10">
+                                                            {filePreviewUrls[item.id]
+                                                                ? <img src={filePreviewUrls[item.id]} alt="preview" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
+                                                                : <FileText size={20} className="text-gray-500 flex-shrink-0" />
+                                                            }
+                                                            <span className="flex-1 text-xs text-gray-700 dark:text-gray-200 truncate">{chatStates[item.id].file?.name}</span>
+                                                            <button onClick={() => handleChatFileSelect(item.id, null)} className="flex-shrink-0 text-gray-400 hover:text-red-500 transition-colors">
+                                                                <X size={14} />
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                     <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-600 p-2 flex items-end gap-2">
                                                         <button className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors relative" onClick={() => document.getElementById(`file-upload-${item.id}`)?.click()}>
                                                             <Paperclip size={20} />
                                                             {chatStates[item.id]?.file && <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>}
                                                         </button>
-                                                        <input type="file" id={`file-upload-${item.id}`} className="hidden" onChange={(e) => e.target.files && setChatStates(prev => ({ ...prev, [item.id]: { ...prev[item.id], file: e.target.files![0] } }))} />
-                                                        
-                                                        <textarea 
+                                                        <input type="file" id={`file-upload-${item.id}`} className="hidden" onChange={(e) => { if (e.target.files?.[0]) handleChatFileSelect(item.id, e.target.files[0]); e.target.value = ''; }} />
+
+                                                        <textarea
                                                             value={chatStates[item.id]?.message || ''}
                                                             onChange={(e) => setChatStates(prev => ({ ...prev, [item.id]: { ...prev[item.id], message: e.target.value } }))}
-                                                            placeholder="Type a message..." 
+                                                            placeholder="Type a message..."
                                                             className="flex-1 bg-transparent border-none focus:ring-0 text-sm text-gray-800 dark:text-white resize-none max-h-24 py-2"
                                                             rows={1}
                                                             onKeyDown={(e) => {
@@ -1875,11 +2010,11 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                                 } else if (e.key === 'Escape') {
                                                                     e.preventDefault();
                                                                     if (uploadingChats[item.id]) handleCancelUpload(item.id);
-                                                                    else setChatStates(prev => ({ ...prev, [item.id]: { message: '', file: null } }));
+                                                                    else { handleChatFileSelect(item.id, null); setChatStates(prev => ({ ...prev, [item.id]: { message: '', file: null } })); }
                                                                 }
                                                             }}
                                                         />
-                                                        <button 
+                                                        <button
                                                             onClick={() => handleSendChat(item.id)}
                                                             disabled={(!chatStates[item.id]?.message?.trim() && !chatStates[item.id]?.file) || uploadingChats[item.id]}
                                                             className="p-2 bg-[#c20c0b] text-white rounded-lg hover:bg-[#a50a09] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
@@ -1887,7 +2022,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                             {uploadingChats[item.id] ? <RefreshCw size={18} className="animate-spin" /> : <Send size={18} />}
                                                         </button>
                                                         {uploadingChats[item.id] && (
-                                                            <button 
+                                                            <button
                                                                 onClick={() => handleCancelUpload(item.id)}
                                                                 className="p-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
                                                                 title="Cancel Upload"
@@ -1896,12 +2031,6 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                             </button>
                                                         )}
                                                     </div>
-                                                    {chatStates[item.id]?.file && (
-                                                        <div className="mt-2 text-xs text-gray-500 flex items-center justify-between bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
-                                                            <span className="truncate max-w-[200px]">{chatStates[item.id].file?.name}</span>
-                                                            <button onClick={() => setChatStates(prev => ({ ...prev, [item.id]: { ...prev[item.id], file: null } }))} className="text-red-500 hover:text-red-700"><X size={12}/></button>
-                                                        </div>
-                                                    )}
                                                 </div>
 
                                                 {/* Respond Button */}
@@ -2452,7 +2581,14 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                                     {h.price && <div className="font-bold text-lg mb-1">${h.price}</div>}
                                                                     {h.message && <p className="text-sm opacity-90 whitespace-pre-wrap">{h.message}</p>}
                                                                     {h.attachments && h.attachments.length > 0 && h.attachments.map((att, ai) => (
-                                                                        <ChatAttachmentPreview key={ai} path={att} supabase={layoutProps.supabase} />
+                                                                        <ChatAttachmentPreview
+                                                                            key={ai}
+                                                                            path={att}
+                                                                            supabase={layoutProps.supabase}
+                                                                            isClient={h.sender === 'client'}
+                                                                            displayName={h.attachmentNames?.[ai]}
+                                                                            onRename={(newName) => handleRenameAttachment(h.id, ai, newName)}
+                                                                        />
                                                                     ))}
                                                                 </div>
                                                             </div>
@@ -2463,6 +2599,18 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
 
                                                 {/* Input */}
                                                 <div className="p-3 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+                                                    {chatStates[item.id]?.file && (
+                                                        <div className="mb-2 flex items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-xl px-3 py-2 border border-gray-200 dark:border-white/10">
+                                                            {filePreviewUrls[item.id]
+                                                                ? <img src={filePreviewUrls[item.id]} alt="preview" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
+                                                                : <FileText size={20} className="text-gray-500 flex-shrink-0" />
+                                                            }
+                                                            <span className="flex-1 text-xs text-gray-700 dark:text-gray-200 truncate">{chatStates[item.id].file?.name}</span>
+                                                            <button onClick={() => handleChatFileSelect(item.id, null)} className="flex-shrink-0 text-gray-400 hover:text-red-500 transition-colors">
+                                                                <X size={14} />
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                     <div className="flex items-end gap-2">
                                                         <button
                                                             className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors relative"
@@ -2471,7 +2619,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                             <Paperclip size={20} />
                                                             {chatStates[item.id]?.file && <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>}
                                                         </button>
-                                                        <input type="file" id={`chat-file-${item.id}`} className="hidden" onChange={(e) => e.target.files && setChatStates(prev => ({ ...prev, [item.id]: { ...prev[item.id], file: e.target.files![0] } }))} />
+                                                        <input type="file" id={`chat-file-${item.id}`} className="hidden" onChange={(e) => { if (e.target.files?.[0]) handleChatFileSelect(item.id, e.target.files[0]); e.target.value = ''; }} />
 
                                                         <textarea
                                                             value={chatStates[item.id]?.message || ''}
@@ -2494,12 +2642,6 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                             {uploadingChats[item.id] ? <RefreshCw size={20} className="animate-spin" /> : <Send size={20} />}
                                                         </button>
                                                     </div>
-                                                    {chatStates[item.id]?.file && (
-                                                        <div className="mt-2 text-xs text-gray-500 flex items-center justify-between bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
-                                                            <span className="truncate max-w-[200px]">{chatStates[item.id].file?.name}</span>
-                                                            <button onClick={() => setChatStates(prev => ({ ...prev, [item.id]: { ...prev[item.id], file: null } }))} className="text-red-500 hover:text-red-700"><X size={12}/></button>
-                                                        </div>
-                                                    )}
                                                 </div>
                                             </>
                                         );

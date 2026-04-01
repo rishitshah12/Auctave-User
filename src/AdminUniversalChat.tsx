@@ -55,8 +55,9 @@ function isImage(path: string) {
     const ext = path.split('.').pop()?.toLowerCase() || '';
     return IMAGE_EXTS.includes(ext);
 }
+/** Strip timestamp-dedup prefix (e.g. "1712345678_") to restore original name */
 function fileName(path: string) {
-    return path.split('/').pop() || path;
+    return (path.split('/').pop() || path).replace(/^\d+_/, '');
 }
 async function getSignedUrl(path: string): Promise<string> {
     const { data } = await supabase.storage.from('quote-attachments').createSignedUrl(path, 3600);
@@ -142,36 +143,58 @@ function useResize() {
 }
 
 // ── Inline attachment preview ─────────────────────────────────────────────────
-const AttachmentPreview: React.FC<{ path: string }> = ({ path }) => {
+const AttachmentPreview: React.FC<{ path: string; isFactory?: boolean; displayName?: string }> = ({ path, isFactory = false, displayName }) => {
     const [url, setUrl] = useState('');
     const [lightbox, setLightbox] = useState(false);
+    const name = displayName || fileName(path);
+
     useEffect(() => { getSignedUrl(path).then(setUrl); }, [path]);
-    if (!url) return <div className="w-full h-16 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />;
+
+    if (!url) return (
+        <div className={`w-full h-12 rounded-xl animate-pulse ${isFactory ? 'bg-white/15' : 'bg-gray-200 dark:bg-gray-700'}`} />
+    );
+
+    // Bubble-aware styles
+    const boxCls = isFactory
+        ? 'bg-white/15 hover:bg-white/25 border-white/25 text-white'
+        : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 border-gray-300 dark:border-white/10 text-gray-700 dark:text-gray-200';
+    const iconCls = isFactory ? 'text-white/70' : 'text-gray-400 dark:text-gray-400';
+
     if (isImage(path)) return (
         <>
-            <div
-                className="relative group cursor-pointer rounded-xl overflow-hidden border border-gray-200 dark:border-white/10"
-                onClick={() => setLightbox(true)}
-            >
-                <img src={url} alt={fileName(path)} className="w-full max-h-40 object-cover" />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                    <Eye size={20} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className={`rounded-xl border overflow-hidden ${boxCls}`}>
+                <div
+                    className="relative group cursor-pointer"
+                    onClick={() => setLightbox(true)}
+                >
+                    <img src={url} alt={name} className="w-full max-h-40 object-cover" />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center gap-3">
+                        <Eye size={18} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <a href={url} download={name} onClick={e => e.stopPropagation()} className="text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Download size={18} />
+                        </a>
+                    </div>
+                </div>
+                <div className="flex items-center gap-2 px-2.5 py-1.5">
+                    <FileText size={12} className={`flex-shrink-0 ${iconCls}`} />
+                    <span className="text-[11px] truncate flex-1">{name}</span>
                 </div>
             </div>
             {lightbox && createPortal(
-                <div className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center p-4" onClick={() => setLightbox(false)}>
-                    <img src={url} alt={fileName(path)} className="max-w-full max-h-full rounded-xl shadow-2xl" onClick={e => e.stopPropagation()} />
-                    <button className="absolute top-4 right-4 text-white bg-black/50 rounded-full p-2 hover:bg-black/70" onClick={() => setLightbox(false)}><X size={20} /></button>
+                <div className="fixed inset-0 z-[200] bg-black/85 flex items-center justify-center p-4" onClick={() => setLightbox(false)}>
+                    <img src={url} alt={name} className="max-w-full max-h-full rounded-xl shadow-2xl" onClick={e => e.stopPropagation()} />
+                    <button className="absolute top-4 right-4 text-white bg-black/50 rounded-full p-2 hover:bg-black/70 transition-colors" onClick={() => setLightbox(false)}><X size={20} /></button>
+                    <a href={url} download={name} className="absolute top-4 right-16 text-white bg-black/50 rounded-full p-2 hover:bg-black/70 transition-colors" onClick={e => e.stopPropagation()}><Download size={20} /></a>
                 </div>,
                 document.body
             )}
         </>
     );
     return (
-        <a href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-white/10 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
-            <FileText size={15} className="text-gray-500 dark:text-gray-400 flex-shrink-0" />
-            <span className="text-xs text-gray-700 dark:text-gray-200 truncate flex-1">{fileName(path)}</span>
-            <Download size={13} className="text-gray-400 flex-shrink-0" />
+        <a href={url} target="_blank" rel="noopener noreferrer" download={name} className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-colors ${boxCls}`}>
+            <FileText size={14} className={`flex-shrink-0 ${iconCls}`} />
+            <span className="text-xs truncate flex-1">{name}</span>
+            <Download size={12} className={`flex-shrink-0 ${iconCls}`} />
         </a>
     );
 };
@@ -258,8 +281,8 @@ export const AdminUniversalChat: React.FC<AdminUniversalChatProps> = ({ onNaviga
 
         let storagePath = '';
         if (fileToUpload) {
-            const ext = fileToUpload.name.split('.').pop();
-            const storageName = `${selectedRFQ.userId}/${selectedRFQ.id}/chat/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+            const safeName = fileToUpload.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+            const storageName = `${selectedRFQ.userId}/${selectedRFQ.id}/chat/${Date.now()}_${safeName}`;
             const { data: uploadData, error: uploadError } = await supabase.storage
                 .from('quote-attachments')
                 .upload(storageName, fileToUpload);
@@ -279,6 +302,7 @@ export const AdminUniversalChat: React.FC<AdminUniversalChatProps> = ({ onNaviga
             action: 'info',
             relatedLineItemId: activeLineItemId ?? undefined,
             attachments: storagePath ? [storagePath] : [],
+            attachmentNames: storagePath && fileToUpload ? [fileToUpload.name] : [],
         };
 
         const updatedHistory = [...(selectedRFQ.negotiation_details?.history || []), newMsg];
@@ -636,7 +660,7 @@ export const AdminUniversalChat: React.FC<AdminUniversalChatProps> = ({ onNaviga
                                             {h.message && <p className="whitespace-pre-wrap leading-relaxed">{h.message}</p>}
                                             {h.attachments && h.attachments.map((path, ai) => (
                                                 <div key={ai} className="mt-2 w-full">
-                                                    <AttachmentPreview path={path} />
+                                                    <AttachmentPreview path={path} isFactory={isFactory} displayName={h.attachmentNames?.[ai]} />
                                                 </div>
                                             ))}
                                         </div>

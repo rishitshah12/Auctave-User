@@ -117,6 +117,7 @@ export interface NegotiationHistoryItem {
     action?: 'offer' | 'counter' | 'accept' | 'decline' | 'info';
     lineItemPrices?: { lineItemId: number; price: string }[];
     attachments?: string[];
+    attachmentNames?: string[];
     relatedLineItemId?: number;
 }
 
