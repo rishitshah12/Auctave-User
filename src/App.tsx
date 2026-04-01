@@ -2479,7 +2479,7 @@ const AppContent: FC = () => {
             {/* Render AI Chat Support for non-admin users */}
             {user && userProfile && !isAdmin && <AIChatSupport />}
             {/* Universal RFQ chat panel — admin only */}
-            {user && isAdmin && <AdminUniversalChat />}
+            {user && isAdmin && <AdminUniversalChat onNavigate={handleSetCurrentPage} />}
         </div>
     );
 };
