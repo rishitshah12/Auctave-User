@@ -39,6 +39,7 @@ import { AdminTrendingPage } from './AdminTrendingPage';
 import { TrendingPage as TrendingPageComponent } from './TrendingPage';
 import { AdminRFQPage } from './AdminRFQPage';
 import { AdminLoginSettingsPage } from './AdminLoginSettingsPage';
+import { AdminUniversalChat } from './AdminUniversalChat';
 import { quoteService } from './quote.service';
 import { crmService } from './crm.service';
 import { MyQuotesPage } from './MyQuotesPage';
@@ -2477,6 +2478,8 @@ const AppContent: FC = () => {
             {renderPage()}
             {/* Render AI Chat Support for non-admin users */}
             {user && userProfile && !isAdmin && <AIChatSupport />}
+            {/* Universal RFQ chat panel — admin only */}
+            {user && isAdmin && <AdminUniversalChat />}
         </div>
     );
 };
