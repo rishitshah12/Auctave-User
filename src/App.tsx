@@ -111,6 +111,8 @@ const AppContent: FC = () => {
     const tabHiddenAtRef = useRef<number>(0);
     // Tracks the created_at of the newest RFQ seen by the admin (for polling dedup)
     const lastAdminRFQAtRef = useRef<string>('');
+    // Quote ID to auto-open when navigating to adminRFQ
+    const [adminRFQInitialId, setAdminRFQInitialId] = useState<string | null>(null);
 
     // State for dark mode
     const [darkMode, setDarkMode] = useState<boolean>(() => {
@@ -258,6 +260,11 @@ const AppContent: FC = () => {
         if (page === 'quoteDetail') {
             console.log('[App.tsx] Setting selectedQuote, files:', (data as QuoteRequest)?.files);
             setSelectedQuote(data as QuoteRequest);
+        }
+        if (page === 'adminRFQ' && data?.quoteId) {
+            setAdminRFQInitialId(data.quoteId);
+        } else if (page === 'adminRFQ' && !data?.quoteId) {
+            setAdminRFQInitialId(null);
         }
         // Reset active CRM order if leaving CRM page
         if (page !== 'crm') {
@@ -2184,7 +2191,7 @@ const AppContent: FC = () => {
             case 'adminFactories': return <AdminFactoriesPage {...layoutProps} />;
             case 'adminCRM': return <AdminCRMPage {...layoutProps} />;
             case 'adminTrending': return <AdminTrendingPage {...layoutProps} />;
-            case 'adminRFQ': return <AdminRFQPage {...layoutProps} />;
+            case 'adminRFQ': return <AdminRFQPage {...layoutProps} initialQuoteId={adminRFQInitialId} />;
             case 'adminLoginSettings': return <AdminLoginSettingsPage {...layoutProps} />;
             default: return <SourcingPage
                 {...layoutProps}

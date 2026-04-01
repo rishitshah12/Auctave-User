@@ -23,6 +23,7 @@ interface AdminRFQPageProps {
     handleSignOut: () => void;
     isAdmin: boolean;
     supabase: any;
+    initialQuoteId?: string | null;
 }
 
 const SIZE_ORDER = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL'];
@@ -443,6 +444,13 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
         }
         setSelectedQuoteIds([]);
     }, [filterStatus, showHidden, dateFilter, selectedClientId, viewMode, searchTerm]);
+
+    // Auto-open a specific quote when navigated from the universal chat
+    useEffect(() => {
+        if (!props.initialQuoteId || quotes.length === 0) return;
+        const target = quotes.find(q => q.id === props.initialQuoteId);
+        if (target) setSelectedQuote(target);
+    }, [props.initialQuoteId, quotes]);
 
     // Close client dropdown on outside click
     useEffect(() => {
