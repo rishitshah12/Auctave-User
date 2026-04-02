@@ -668,32 +668,45 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
             tempContainer.appendChild(clone);
             document.body.appendChild(tempContainer);
 
-            // Helper to convert modern CSS colors (like oklch) to standard RGB/Hex for html2canvas
-            const ctx = document.createElement('canvas').getContext('2d');
-            const sanitizeColors = (element: HTMLElement) => {
-                if (!ctx) return;
-                const style = window.getComputedStyle(element);
-                const processProperty = (prop: string) => {
-                    const val = style.getPropertyValue(prop);
-                    if (val && (val.includes('oklch') || val.includes('oklab') || val.includes('lch') || val.includes('lab'))) {
-                        ctx.fillStyle = val;
-                        const converted = ctx.fillStyle;
-                        if (converted) {
-                             element.style.setProperty(prop, converted);
-                        }
-                    }
-                };
-                ['color', 'background-color', 'border-top-color', 'border-right-color', 'border-bottom-color', 'border-left-color', 'fill', 'stroke'].forEach(processProperty);
+            // Convert any CSS color (including oklch) to rgb by drawing to a 1x1 canvas
+            // and reading back the rendered pixel — works regardless of color format.
+            const convertColorToRgb = (color: string): string => {
+                if (!color || color === 'transparent' || color === 'rgba(0, 0, 0, 0)') return color;
+                try {
+                    const tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = tempCanvas.height = 1;
+                    const tempCtx = tempCanvas.getContext('2d');
+                    if (!tempCtx) return color;
+                    tempCtx.fillStyle = color;
+                    tempCtx.fillRect(0, 0, 1, 1);
+                    const d = tempCtx.getImageData(0, 0, 1, 1).data;
+                    if (d[3] === 0) return 'transparent';
+                    return d[3] < 255
+                        ? `rgba(${d[0]},${d[1]},${d[2]},${(d[3] / 255).toFixed(3)})`
+                        : `rgb(${d[0]},${d[1]},${d[2]})`;
+                } catch {
+                    return color;
+                }
             };
 
-            // Apply sanitization to the clone and all its descendants
-            sanitizeColors(clone);
-            const allElements = clone.getElementsByTagName('*');
-            for (let i = 0; i < allElements.length; i++) {
-                sanitizeColors(allElements[i] as HTMLElement);
-            }
+            // Inline computed colors as plain rgb on every element so html2canvas
+            // never needs to parse oklch from the stylesheets.
+            const inlineColors = (element: HTMLElement) => {
+                const computed = window.getComputedStyle(element);
+                ['color', 'background-color', 'border-top-color', 'border-right-color',
+                 'border-bottom-color', 'border-left-color', 'outline-color',
+                 'text-decoration-color'].forEach(prop => {
+                    const val = computed.getPropertyValue(prop);
+                    if (val && val !== 'auto') {
+                        element.style.setProperty(prop, convertColorToRgb(val));
+                    }
+                });
+            };
 
-            // Explicitly set crossOrigin for images to help html2canvas capture them
+            inlineColors(clone);
+            Array.from(clone.querySelectorAll('*')).forEach(el => inlineColors(el as HTMLElement));
+
+            // Set crossOrigin on images for CORS
             const allImages = clone.getElementsByTagName('img');
             for (let i = 0; i < allImages.length; i++) {
                 allImages[i].crossOrigin = "anonymous";
@@ -702,12 +715,17 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
             // Wait a brief moment for images/fonts to settle in the clone
             await new Promise(resolve => setTimeout(resolve, 100));
 
-            const canvas = await html2canvas(clone, { 
-                scale: 2, 
-                useCORS: true, 
+            const canvas = await html2canvas(clone, {
+                scale: 2,
+                useCORS: true,
                 logging: false,
                 backgroundColor: '#ffffff',
-                windowWidth: 800
+                windowWidth: 800,
+                onclone: (clonedDoc: Document) => {
+                    // Remove all stylesheets from html2canvas's internal clone so it
+                    // never encounters oklch color values during CSS parsing.
+                    clonedDoc.querySelectorAll('link[rel="stylesheet"], style').forEach(el => el.remove());
+                }
             });
 
             // Clean up
