@@ -654,10 +654,10 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         showToast('Generating PDF...', 'success');
 
         try {
-            // Render into a fixed-position off-screen container so the full
-            // height is painted by the browser (avoids clipping).
+            // Render off-screen but still painted — visibility:hidden or
+            // display:none would cause html2canvas to capture blank content.
             const tempContainer = document.createElement('div');
-            tempContainer.style.cssText = 'position:fixed;top:0;left:-9999px;width:800px;visibility:hidden;z-index:-1;';
+            tempContainer.style.cssText = 'position:absolute;top:0;left:-9999px;width:800px;';
             const clone = input.cloneNode(true) as HTMLElement;
             tempContainer.appendChild(clone);
             document.body.appendChild(tempContainer);
@@ -670,7 +670,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                 useCORS: true,
                 logging: false,
                 backgroundColor: '#ffffff',
-                width: 800,
+                windowWidth: 800,
                 // Strip all stylesheets from html2canvas's internal document so its
                 // CSS parser never encounters oklch values from Tailwind v4.
                 // The PDF template uses only explicit inline styles, so no layout
@@ -2724,7 +2724,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
             </div>
 
             {/* Hidden PDF Template — uses only inline styles so layout survives stylesheet removal */}
-            <div style={{ position: 'fixed', left: '-9999px', top: 0, visibility: 'hidden' }}>
+            <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
                 <div
                     ref={pdfContentRef}
                     style={{
