@@ -1,5 +1,6 @@
 // Import React library and hooks for state management (useState), side effects (useEffect), references (useRef), memoization (useMemo), and types (FC, ReactNode)
 import React, { useState, useEffect, useRef, useMemo, FC, ReactNode, useCallback } from 'react';
+import { KnittingPreloader } from './KnittingPreloader';
 // Import the configured Supabase client for backend database and auth interactions
 import { supabase } from './supabaseClient';
 // Import UI icons from lucide-react library
@@ -2127,7 +2128,7 @@ const AppContent: FC = () => {
     const renderPage = () => {
         // Show loading spinner if auth is not ready
         if (!isAuthReady) {
-            return <div className="flex items-center justify-center min-h-screen bg-gray-100"><div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[var(--color-primary)]"></div></div>;
+            return <KnittingPreloader fullScreen />;
         }
 
         // Hard gate: if user is authenticated, has no profile, and is a new signup, show onboarding.

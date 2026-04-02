@@ -1,4 +1,5 @@
 import React, { useState, useEffect, FC, useRef, useCallback } from 'react';
+import { KnittingPreloader } from './KnittingPreloader';
 import { createPortal } from 'react-dom';
 import { MainLayout } from './MainLayout';
 import { quoteService } from './quote.service';
@@ -4202,7 +4203,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
             )}
 
             {isLoading ? (
-                <div className="text-center py-12 text-gray-500">Loading quotes...</div>
+                <KnittingPreloader />
             ) : filteredQuotes.length > 0 ? (
                 showUnreadSection ? (
                     <div className="space-y-8">

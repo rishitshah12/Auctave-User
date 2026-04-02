@@ -1,4 +1,5 @@
 import React, { useState, useEffect, FC, useRef, useCallback, useMemo } from 'react';
+import { KnittingPreloader } from './KnittingPreloader';
 import { createPortal } from 'react-dom';
 import { MainLayout } from './MainLayout';
 import { crmService } from './crm.service';
@@ -2661,12 +2662,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                     )}
 
                     {/* ── Loading ── */}
-                    {isLoading && (
-                        <div className="flex flex-col items-center justify-center py-16">
-                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#c20c0b] mb-4" />
-                            <p className="text-gray-500 dark:text-gray-400 font-medium">Loading orders...</p>
-                        </div>
-                    )}
+                    {isLoading && <KnittingPreloader />}
 
                     {/* ── Orders list view ── */}
                     {!isLoading && !selectedOrderId && (

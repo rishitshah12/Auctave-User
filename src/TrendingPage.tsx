@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, FC, useCallback } from 'react';
+import { KnittingPreloader } from './KnittingPreloader';
 import { PlayCircle, X, ChevronLeft, ChevronRight, ArrowRight, Clock, User, Tag, ShoppingBag, Sparkles, TrendingUp, Volume2, VolumeX } from 'lucide-react';
 import { MainLayout } from './MainLayout';
 import { bannerService, trendingProductService, blogService, shortsService } from './trending.service';
@@ -315,9 +316,7 @@ export const TrendingPage: FC<TrendingPageProps> = (props) => {
     if (isLoading) {
         return (
             <MainLayout {...props}>
-                <div className="flex items-center justify-center py-32">
-                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#c20c0b]" />
-                </div>
+                <KnittingPreloader />
             </MainLayout>
         );
     }

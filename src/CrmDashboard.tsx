@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { KnittingPreloader } from './KnittingPreloader';
 import { crmService } from './crm.service';
 import { factoryService } from './factory.service';
 import { quoteService } from './quote.service';
@@ -686,10 +687,7 @@ export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user
 
             {/* Content */}
             {loading ? (
-                <div className="flex flex-col items-center justify-center py-20">
-                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#c20c0b] mb-4" />
-                    <p className="text-gray-500 dark:text-gray-400 text-sm">Loading your orders...</p>
-                </div>
+                <KnittingPreloader />
             ) : topTab === 'insights' ? (
                 <AggregateStatsView stats={stats} darkMode={darkMode} />
             ) : filteredOrders.length === 0 ? (
