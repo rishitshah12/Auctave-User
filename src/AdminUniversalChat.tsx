@@ -467,6 +467,12 @@ export const AdminUniversalChat: React.FC<AdminUniversalChatProps> = ({ onNaviga
                 return h.relatedLineItemId === activeLineItemId
                     || h.lineItemPrices?.some((p: any) => p.lineItemId === activeLineItemId);
             })
+            .map(h => {
+                // Remap per-item price to h.price so chat bubbles always show a price
+                const lineItemPrice = h.lineItemPrices?.find((p: any) => p.lineItemId === activeLineItemId)?.price
+                    ?? h.lineItemPrices?.[0]?.price;
+                return { ...h, price: h.price || lineItemPrice };
+            })
             .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
         : [];
 
