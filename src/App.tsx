@@ -120,7 +120,6 @@ const AppContent: FC = () => {
     const [aiMessages, setAiMessages] = useState<AIChatMessage[]>([
         { text: "Hello! I'm Auctave Brain. How can I help you today?\n\nI can help you find factories, check your order status, answer platform questions, or start a new order.", sender: 'ai' }
     ]);
-    const [aiInput, setAiInput] = useState('');
     const [aiChatOpen, setAiChatOpen] = useState(false);
     const [aiActiveTab, setAiActiveTab] = useState<'ai' | 'quotes'>('ai');
     // Tracks last-known status per quote id for visibilitychange change detection
@@ -1044,7 +1043,6 @@ const AppContent: FC = () => {
 
             // Clear AI chat state
             setAiMessages([{ text: "Hello! I'm Auctave Brain. How can I help you today?\n\nI can help you find factories, check your order status, answer platform questions, or start a new order.", sender: 'ai' }]);
-            setAiInput('');
             setAiChatOpen(false);
             setAiActiveTab('ai');
 
@@ -2088,11 +2086,10 @@ const AppContent: FC = () => {
         const activeTab = aiActiveTab;
         const setActiveTab = setAiActiveTab;
 
-        // ── AI Chat State (lifted to AppContent to persist across open/close) ──
+        // ── AI Chat State ─────────────────────────────────────────────────────
         const messages = aiMessages;
         const setMessages = setAiMessages;
-        const input = aiInput;
-        const setInput = setAiInput;
+        const [input, setInput] = useState(''); // local — ephemeral, no need to persist
         const [isLoading, setIsLoading] = useState(false);
 
         // ── Factory data for AI context ───────────────────────────────────────
