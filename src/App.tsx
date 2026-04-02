@@ -1,5 +1,6 @@
 // Import React library and hooks for state management (useState), side effects (useEffect), references (useRef), memoization (useMemo), and types (FC, ReactNode)
 import React, { useState, useEffect, useRef, useMemo, FC, ReactNode, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { KnittingPreloader } from './KnittingPreloader';
 // Import the configured Supabase client for backend database and auth interactions
 import { supabase } from './supabaseClient';
@@ -12,14 +13,14 @@ import {
     History, Edit, Anchor, Ship, Warehouse, PackageCheck, Award, Users, Activity, Shield,
     BarChart as BarChartIcon, FileQuestion, ClipboardCheck, Lock,
     Tag, Weight, Palette, Box, Map as MapIcon, Download, BookOpen, Building, Trash2, Upload, Globe, Moon,
-    Camera, Edit3
+    Camera, Edit3, ArrowLeft, Search, RefreshCw, ExternalLink, GripVertical, Paperclip, Eye, Check, CheckCheck
 } from 'lucide-react';
 // Import charting components from recharts for data visualization
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Pie, Cell, PieChart
 } from 'recharts';
 // Import TypeScript interfaces/types for data structures used in the app
-import { UserProfile, OrderFormData, Factory, QuoteRequest, CrmOrder, CrmProduct, CrmTask, ToastState } from './types';
+import { UserProfile, OrderFormData, Factory, QuoteRequest, CrmOrder, CrmProduct, CrmTask, ToastState, NegotiationHistoryItem } from './types';
 // Import custom components for specific pages and UI elements
 import { MainLayout } from '../src/MainLayout';
 import { LoginPage } from '../src/LoginPage';
@@ -2051,79 +2052,653 @@ const AppContent: FC = () => {
         );
     };
 
-    // Component for the AI Chatbot
+    // Component for the AI Chatbot + My Quotes chat
     const AIChatSupport: FC = () => {
         const [isOpen, setIsOpen] = useState(false);
+        const [activeTab, setActiveTab] = useState<'ai' | 'quotes'>('ai');
+
+        // ── AI Chat State ─────────────────────────────────────────────────────
         const [messages, setMessages] = useState<{ text: string; sender: 'ai' | 'user' }[]>([]);
         const [input, setInput] = useState('');
         const [isLoading, setIsLoading] = useState(false);
         const chatEndRef = useRef<HTMLDivElement>(null);
 
-        // Scroll to bottom on new message
+        // ── My Quotes State ───────────────────────────────────────────────────
+        const [quotesView, setQuotesView] = useState<'rfqs' | 'chat'>('rfqs');
+        const [myQuotes, setMyQuotes] = useState<QuoteRequest[]>([]);
+        const [quotesLoading, setQuotesLoading] = useState(false);
+        const [quotesSearch, setQuotesSearch] = useState('');
+        const [selectedRFQ, setSelectedRFQ] = useState<QuoteRequest | null>(null);
+        const [activeLineItemId, setActiveLineItemId] = useState<number | null>(null);
+        const [quotesMessage, setQuotesMessage] = useState('');
+        const [quotesSending, setQuotesSending] = useState(false);
+        const [attachFiles, setAttachFiles] = useState<File[]>([]);
+        const [attachPreviews, setAttachPreviews] = useState<string[]>([]);
+        const [orderDetailsExpanded, setOrderDetailsExpanded] = useState(false);
+        const [panelSize, setPanelSize] = useState({ w: 390, h: 620 });
+
+        const messagesEndRef = useRef<HTMLDivElement>(null);
+        const quotesInputRef = useRef<HTMLTextAreaElement>(null);
+        const fileInputRef = useRef<HTMLInputElement>(null);
+        const dragging = useRef(false);
+        const dragStart = useRef({ x: 0, y: 0, w: 390, h: 620 });
+
+        // ── Resize ────────────────────────────────────────────────────────────
+        const onResizeMouseDown = useCallback((e: React.MouseEvent) => {
+            e.preventDefault();
+            dragging.current = true;
+            dragStart.current = { x: e.clientX, y: e.clientY, w: panelSize.w, h: panelSize.h };
+            const onMove = (ev: MouseEvent) => {
+                if (!dragging.current) return;
+                setPanelSize({
+                    w: Math.min(760, Math.max(340, dragStart.current.w + (dragStart.current.x - ev.clientX))),
+                    h: Math.min(900, Math.max(440, dragStart.current.h + (dragStart.current.y - ev.clientY))),
+                });
+            };
+            const onUp = () => { dragging.current = false; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onUp);
+        }, [panelSize.w, panelSize.h]);
+
+        // ── AI scroll & init ──────────────────────────────────────────────────
         useEffect(() => {
             chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-            if (isOpen && messages.length === 0) {
-                setMessages([{ text: "Hello! I'm Auctave Brain. How can I help you with your sourcing today?", sender: 'ai' }])
+            if (isOpen && activeTab === 'ai' && messages.length === 0) {
+                setMessages([{ text: "Hello! I'm Auctave Brain. How can I help you with your sourcing today?", sender: 'ai' }]);
             }
-        }, [isOpen, messages.length]);
+        }, [isOpen, activeTab, messages.length]);
 
-        // Handle sending a message
+        // ── Quotes scroll ─────────────────────────────────────────────────────
+        useEffect(() => {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }, [selectedRFQ?.negotiation_details?.history?.length, activeLineItemId]);
+
+        // ── Focus quotes input ────────────────────────────────────────────────
+        useEffect(() => {
+            if (activeTab === 'quotes' && quotesView === 'chat') {
+                setTimeout(() => quotesInputRef.current?.focus(), 60);
+            }
+        }, [activeTab, quotesView, activeLineItemId]);
+
+        // ── Helpers ───────────────────────────────────────────────────────────
+        const getLatestMessageTime = (rfq: QuoteRequest): string => {
+            const history = rfq.negotiation_details?.history || [];
+            if (!history.length) return rfq.submittedAt;
+            return history.reduce((latest, h) => (h.timestamp > latest ? h.timestamp : latest), history[0].timestamp);
+        };
+        const getClientUnread = (rfq: QuoteRequest): number => {
+            const lastRead = rfq.negotiation_details?.clientLastRead || '';
+            return (rfq.negotiation_details?.history || []).filter(h => h.sender === 'factory' && h.timestamp > lastRead).length;
+        };
+        const timeAgoFn = (iso: string): string => {
+            const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+            if (s < 60) return 'just now';
+            const m = Math.floor(s / 60);
+            if (m < 60) return `${m}m`;
+            const h = Math.floor(m / 60);
+            if (h < 24) return `${h}h`;
+            return `${Math.floor(h / 24)}d`;
+        };
+        const statusBadgeClass = (status: string): string => {
+            if (status === 'Pending') return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400';
+            if (status === 'Responded') return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
+            if (['Accepted', 'Admin Accepted', 'Client Accepted'].includes(status)) return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
+            if (status === 'Declined') return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
+            if (status === 'In Negotiation') return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400';
+            return 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300';
+        };
+
+        // ── Fetch My Quotes ───────────────────────────────────────────────────
+        const fetchMyQuotes = useCallback(async () => {
+            if (!user?.id) return;
+            setQuotesLoading(true);
+            const { data } = await quoteService.getQuotesByUser(user.id);
+            if (data) {
+                const transformed = (data as any[]).map(q => ({
+                    id: q.id,
+                    factory: q.factory_data,
+                    order: q.order_details,
+                    status: q.status,
+                    submittedAt: q.created_at,
+                    acceptedAt: q.accepted_at || q.response_details?.acceptedAt,
+                    userId: q.user_id,
+                    files: q.files || [],
+                    response_details: q.response_details,
+                    negotiation_details: q.negotiation_details,
+                    clientName: q.clients?.name || '',
+                    companyName: q.clients?.company_name || '',
+                    clientAvatar: q.clients?.avatar_url || '',
+                    modification_count: q.modification_count || 0,
+                    modified_at: q.modified_at,
+                })) as QuoteRequest[];
+                setMyQuotes(transformed.sort((a, b) => getLatestMessageTime(b).localeCompare(getLatestMessageTime(a))));
+            }
+            setQuotesLoading(false);
+        }, [user?.id]);
+
+        useEffect(() => {
+            if (isOpen && activeTab === 'quotes' && myQuotes.length === 0) fetchMyQuotes();
+        }, [isOpen, activeTab]);
+
+        // ── Mark client read ──────────────────────────────────────────────────
+        const markClientRead = useCallback((rfq: QuoteRequest): QuoteRequest => {
+            const now = new Date().toISOString();
+            const updatedNeg = { ...(rfq.negotiation_details || {}), clientLastRead: now };
+            const updated = { ...rfq, negotiation_details: updatedNeg };
+            setMyQuotes(prev => prev.map(q => q.id === rfq.id ? updated : q));
+            quoteService.update(rfq.id, { negotiation_details: updatedNeg });
+            return updated;
+        }, []);
+
+        // ── File attach ───────────────────────────────────────────────────────
+        const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+            const incoming = Array.from(e.target.files || []);
+            if (!incoming.length) return;
+            setAttachFiles(prev => [...prev, ...incoming]);
+            setAttachPreviews(prev => [...prev, ...incoming.map(f => f.type.startsWith('image/') ? URL.createObjectURL(f) : '')]);
+            e.target.value = '';
+        };
+        const removeAttachment = (idx: number) => {
+            if (attachPreviews[idx]) URL.revokeObjectURL(attachPreviews[idx]);
+            setAttachFiles(prev => prev.filter((_, i) => i !== idx));
+            setAttachPreviews(prev => prev.filter((_, i) => i !== idx));
+        };
+        const clearAttachments = () => {
+            attachPreviews.forEach(u => { if (u) URL.revokeObjectURL(u); });
+            setAttachFiles([]); setAttachPreviews([]);
+        };
+
+        // ── Send quote message ────────────────────────────────────────────────
+        const handleQuotesSend = async () => {
+            if (!selectedRFQ || (!quotesMessage.trim() && !attachFiles.length)) return;
+            setQuotesSending(true);
+            const msgText = quotesMessage.trim();
+            const filesToUpload = attachFiles;
+            setQuotesMessage('');
+            clearAttachments();
+
+            const uploadedPaths: string[] = [];
+            const uploadedNames: string[] = [];
+            for (const file of filesToUpload) {
+                const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+                const storageName = `${selectedRFQ.userId}/${selectedRFQ.id}/chat/${Date.now()}_${safeName}`;
+                const { data: uploadData, error: uploadError } = await supabase.storage
+                    .from('quote-attachments').upload(storageName, file);
+                if (!uploadError) {
+                    uploadedPaths.push(uploadData?.path || storageName);
+                    uploadedNames.push(file.name);
+                }
+            }
+
+            const newMsg: NegotiationHistoryItem = {
+                id: Date.now().toString(),
+                sender: 'client',
+                message: msgText,
+                timestamp: new Date().toISOString(),
+                action: 'info',
+                relatedLineItemId: activeLineItemId ?? undefined,
+                attachments: uploadedPaths,
+                attachmentNames: uploadedNames,
+            };
+
+            const updatedHistory = [...(selectedRFQ.negotiation_details?.history || []), newMsg];
+            const updatedNeg = { ...selectedRFQ.negotiation_details, history: updatedHistory };
+            const updatedFiles = uploadedPaths.length ? [...(selectedRFQ.files || []), ...uploadedPaths] : selectedRFQ.files || [];
+            const optimistic: QuoteRequest = { ...selectedRFQ, files: updatedFiles, negotiation_details: updatedNeg };
+            setSelectedRFQ(optimistic);
+            setMyQuotes(prev => prev.map(q => q.id === selectedRFQ.id ? optimistic : q));
+
+            const updatePayload: any = { negotiation_details: updatedNeg };
+            if (uploadedPaths.length) updatePayload.files = updatedFiles;
+            const { error } = await quoteService.update(selectedRFQ.id, updatePayload);
+            if (error) {
+                setSelectedRFQ(selectedRFQ);
+                setMyQuotes(prev => prev.map(q => q.id === selectedRFQ.id ? selectedRFQ : q));
+            }
+            setQuotesSending(false);
+        };
+
+        // ── Quotes navigation ─────────────────────────────────────────────────
+        const openRFQ = (rfq: QuoteRequest) => {
+            const updated = markClientRead(rfq);
+            setSelectedRFQ(updated);
+            setActiveLineItemId(rfq.order?.lineItems?.[0]?.id ?? null);
+            setQuotesView('chat');
+            setOrderDetailsExpanded(false);
+        };
+        const goBackQuotes = () => {
+            setQuotesView('rfqs');
+            setSelectedRFQ(null);
+            setQuotesMessage('');
+            clearAttachments();
+        };
+
+        // ── AI send ───────────────────────────────────────────────────────────
         const handleSend = async () => {
             if (!input.trim() || isLoading) return;
-            const userMessage = { text: input, sender: 'user' as 'user' };
-            setMessages(prev => [...prev, userMessage]);
+            setMessages(prev => [...prev, { text: input, sender: 'user' }]);
             const currentInput = input;
             setInput('');
             setIsLoading(true);
-
             try {
                 const prompt = `You are Auctave Brain, a helpful AI assistant for a garment sourcing platform. Please answer the following user query concisely and professionally: "${currentInput}"`;
                 const aiResponse = await callGeminiAPI(prompt);
                 setMessages(prev => [...prev, { text: aiResponse, sender: 'ai' }]);
-            } catch (error) {
+            } catch {
                 setMessages(prev => [...prev, { text: "Sorry, I couldn't fetch that information. Please try again.", sender: 'ai' }]);
             } finally {
                 setIsLoading(false);
             }
         };
 
-        return (
-            <>
-                <button onClick={() => setIsOpen(!isOpen)} className="fixed bottom-24 md:bottom-6 right-6 bg-[var(--color-primary)] text-white p-4 rounded-full shadow-lg hover:bg-[var(--color-primary-hover)] transition-transform hover:scale-110 z-50">
-                    {isOpen ? <X className="h-8 w-8" /> : <Bot className="h-8 w-8" />}
-                </button>
-                {isOpen && (
-                    <div className="fixed bottom-24 right-6 w-full max-w-sm h-[70vh] bg-white/90 backdrop-blur-xl dark:bg-gray-900/95 dark:backdrop-blur-xl rounded-2xl shadow-2xl flex flex-col transition-all duration-300 z-50 animate-fade-in sm:bottom-6 sm:max-w-md border border-gray-200 dark:border-white/10">
-                        <header className="p-4 flex items-center gap-2 border-b dark:border-gray-700">
-                            <div className="p-1.5 bg-red-100 rounded-md">
-                                <Bot className="w-5 h-5 text-[var(--color-primary)]" />
+        // ── Derived ───────────────────────────────────────────────────────────
+        const totalQuoteUnread = myQuotes.reduce((s, q) => s + getClientUnread(q), 0);
+        const filteredQuotes = myQuotes.filter(rfq => {
+            if (!quotesSearch.trim()) return true;
+            const s = quotesSearch.toLowerCase();
+            return rfq.id.toLowerCase().includes(s) || rfq.status.toLowerCase().includes(s)
+                || rfq.order?.lineItems?.some((li: any) => li.category?.toLowerCase().includes(s));
+        });
+        const lineItems: any[] = selectedRFQ?.order?.lineItems || [];
+        const chatHistory: NegotiationHistoryItem[] = selectedRFQ
+            ? (selectedRFQ.negotiation_details?.history || [])
+                .filter(h => {
+                    if (lineItems.length <= 1) return true;
+                    return h.relatedLineItemId === activeLineItemId || (h as any).lineItemPrices?.some((p: any) => p.lineItemId === activeLineItemId);
+                })
+                .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+            : [];
+
+        // ── Inline attachment preview ──────────────────────────────────────────
+        const ClientAttachmentPreview: React.FC<{ path: string; isClient?: boolean; displayName?: string }> = ({ path, isClient = false, displayName }) => {
+            const [url, setUrl] = useState('');
+            const [lightbox, setLightbox] = useState(false);
+            const name = displayName || (path.split('/').pop() || path).replace(/^\d+_/, '');
+            const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'];
+            const imgExt = IMAGE_EXTS.includes(path.split('.').pop()?.toLowerCase() || '');
+            useEffect(() => {
+                supabase.storage.from('quote-attachments').createSignedUrl(path, 3600)
+                    .then(({ data }) => setUrl(data?.signedUrl || ''));
+            }, [path]);
+            if (!url) return <div className={`w-full h-12 rounded-xl animate-pulse ${isClient ? 'bg-white/15' : 'bg-gray-200 dark:bg-gray-700'}`} />;
+            const boxCls = isClient
+                ? 'bg-white/15 hover:bg-white/25 border-white/25 text-white'
+                : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 border-gray-300 dark:border-white/10 text-gray-700 dark:text-gray-200';
+            const iconCls = isClient ? 'text-white/70' : 'text-gray-400';
+            if (imgExt) return (
+                <>
+                    <div className={`rounded-xl border overflow-hidden ${boxCls}`}>
+                        <div className="relative group cursor-pointer" onClick={() => setLightbox(true)}>
+                            <img src={url} alt={name} className="w-full max-h-40 object-cover" />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center gap-3">
+                                <Eye size={18} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <a href={url} download={name} onClick={e => e.stopPropagation()} className="text-white opacity-0 group-hover:opacity-100 transition-opacity"><Download size={18} /></a>
                             </div>
-                            <h3 className="font-bold text-sm text-gray-800 dark:text-white">Auctave Brain</h3>
-                            <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-gray-600 ml-auto p-1"><X size={20} /></button>
-                        </header>
-                        <div className="flex-1 p-4 overflow-y-auto space-y-4">
-                            {messages.map((msg, index) => (
-                                <div key={index} className={`flex ${msg.sender === 'ai' ? 'justify-start' : 'justify-end'}`}>
-                                    <div className={`max-w-xs p-3 rounded-lg prose prose-sm ${msg.sender === 'ai' ? 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white' : 'bg-blue-500 text-white'}`}>
-                                        {msg.text}
-                                    </div>
-                                </div>
-                            ))}
-                            {isLoading && <div className="flex justify-start"><div className="bg-gray-200 text-gray-800 p-3 rounded-lg animate-pulse">...</div></div>}
-                            <div ref={chatEndRef} />
                         </div>
-                        <div className="p-2 border-t border-gray-200 dark:border-gray-700">
-                            <div className="p-1 border dark:border-gray-600 rounded-lg flex items-center bg-white dark:bg-gray-700">
-                                <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSend()} placeholder="Ask anything..." className="flex-1 p-2 text-sm border-none focus:outline-none focus:ring-0 bg-transparent text-gray-800 dark:text-white placeholder-gray-400" />
-                                <button onClick={handleSend} disabled={isLoading} className="bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-white p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 transition disabled:opacity-50">
-                                    <Send size={16} />
-                                </button>
-                            </div>
+                        <div className="flex items-center gap-2 px-2.5 py-1.5">
+                            <FileText size={12} className={`flex-shrink-0 ${iconCls}`} />
+                            <span className="text-[11px] truncate flex-1">{name}</span>
                         </div>
                     </div>
+                    {lightbox && createPortal(
+                        <div className="fixed inset-0 z-[200] bg-black/85 flex items-center justify-center p-4" onClick={() => setLightbox(false)}>
+                            <img src={url} alt={name} className="max-w-full max-h-full rounded-xl shadow-2xl" onClick={e => e.stopPropagation()} />
+                            <button className="absolute top-4 right-4 text-white bg-black/50 rounded-full p-2 hover:bg-black/70 transition-colors" onClick={() => setLightbox(false)}><X size={20} /></button>
+                            <a href={url} download={name} className="absolute top-4 right-16 text-white bg-black/50 rounded-full p-2 hover:bg-black/70 transition-colors" onClick={e => e.stopPropagation()}><Download size={20} /></a>
+                        </div>,
+                        document.body
+                    )}
+                </>
+            );
+            return (
+                <a href={url} target="_blank" rel="noopener noreferrer" download={name} className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-colors ${boxCls}`}>
+                    <FileText size={14} className={`flex-shrink-0 ${iconCls}`} />
+                    <span className="text-xs truncate flex-1">{name}</span>
+                    <Download size={12} className={`flex-shrink-0 ${iconCls}`} />
+                </a>
+            );
+        };
+
+        return (
+            <>
+                {/* Floating button */}
+                <button
+                    onClick={() => setIsOpen(!isOpen)}
+                    className="fixed bottom-24 md:bottom-6 right-6 bg-[var(--color-primary)] text-white p-4 rounded-full shadow-lg hover:bg-[var(--color-primary-hover)] transition-transform hover:scale-110 z-50 relative"
+                >
+                    {isOpen ? <X className="h-8 w-8" /> : <Bot className="h-8 w-8" />}
+                    {!isOpen && totalQuoteUnread > 0 && (
+                        <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 bg-white text-[#c20c0b] text-[10px] font-bold rounded-full flex items-center justify-center shadow">
+                            {totalQuoteUnread > 99 ? '99+' : totalQuoteUnread}
+                        </span>
+                    )}
+                </button>
+
+                {isOpen && createPortal(
+                    <div
+                        className="fixed bottom-24 md:bottom-6 right-6 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl flex flex-col z-50 border border-gray-200 dark:border-white/10 overflow-hidden select-none"
+                        style={{ width: panelSize.w, height: panelSize.h }}
+                    >
+                        {/* Resize handle */}
+                        <div
+                            onMouseDown={onResizeMouseDown}
+                            className="absolute top-0 left-0 w-6 h-6 cursor-nw-resize z-10 flex items-center justify-center opacity-40 hover:opacity-100 transition-opacity"
+                            title="Drag to resize"
+                        >
+                            <GripVertical size={13} className="text-gray-400 rotate-45" />
+                        </div>
+
+                        {/* ── Header ── */}
+                        <div className="bg-[#c20c0b] text-white flex-shrink-0">
+                            <div className="flex items-center gap-2.5 px-3 pt-3 pb-1">
+                                {activeTab === 'quotes' && quotesView === 'chat' ? (
+                                    <button onClick={goBackQuotes} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors flex-shrink-0">
+                                        <ArrowLeft size={17} />
+                                    </button>
+                                ) : (
+                                    <div className="p-1.5 flex-shrink-0">
+                                        {activeTab === 'ai' ? <Bot size={17} /> : <MessageSquare size={17} />}
+                                    </div>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-bold text-sm truncate leading-tight">
+                                        {activeTab === 'ai' ? 'Auctave Brain' : quotesView === 'chat' ? `RFQ #${selectedRFQ?.id.slice(0, 8).toUpperCase()}` : 'My Quotes'}
+                                    </p>
+                                    <p className="text-[11px] text-red-200 truncate leading-tight">
+                                        {activeTab === 'ai' ? 'AI sourcing assistant' : quotesView === 'chat' ? (selectedRFQ?.factory?.name || '') : `${myQuotes.length} quote${myQuotes.length !== 1 ? 's' : ''}`}
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-1 flex-shrink-0">
+                                    {activeTab === 'quotes' && quotesView === 'chat' && selectedRFQ && (
+                                        <button
+                                            onClick={() => { handleSetCurrentPage('quoteDetail', selectedRFQ); setIsOpen(false); }}
+                                            className="flex items-center gap-1 px-2 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-[11px] font-semibold transition-colors"
+                                            title="Open quote detail page"
+                                        >
+                                            <ExternalLink size={12} /> Open
+                                        </button>
+                                    )}
+                                    {activeTab === 'quotes' && quotesView === 'rfqs' && (
+                                        <button onClick={fetchMyQuotes} disabled={quotesLoading} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors" title="Refresh">
+                                            <RefreshCw size={14} className={quotesLoading ? 'animate-spin' : ''} />
+                                        </button>
+                                    )}
+                                    <button onClick={() => setIsOpen(false)} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors"><X size={17} /></button>
+                                </div>
+                            </div>
+                            {/* Tab bar */}
+                            <div className="flex px-3 pb-0 gap-1 mt-1">
+                                {(['ai', 'quotes'] as const).map(tab => (
+                                    <button
+                                        key={tab}
+                                        onClick={() => { setActiveTab(tab); if (tab === 'quotes' && myQuotes.length === 0) fetchMyQuotes(); }}
+                                        className={`flex-1 py-1.5 text-xs font-semibold rounded-t-lg transition-colors relative ${
+                                            activeTab === tab
+                                                ? 'bg-white dark:bg-gray-900 text-[#c20c0b]'
+                                                : 'text-red-200 hover:text-white hover:bg-white/10'
+                                        }`}
+                                    >
+                                        {tab === 'ai' ? 'AI Assistant' : 'My Quotes'}
+                                        {tab === 'quotes' && totalQuoteUnread > 0 && (
+                                            <span className="absolute -top-1 right-1 min-w-[16px] h-4 px-0.5 bg-white text-[#c20c0b] text-[9px] font-bold rounded-full flex items-center justify-center">
+                                                {totalQuoteUnread > 9 ? '9+' : totalQuoteUnread}
+                                            </span>
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* ═══ AI TAB ═══ */}
+                        {activeTab === 'ai' && (
+                            <>
+                                <div className="flex-1 p-4 overflow-y-auto space-y-4">
+                                    {messages.map((msg, index) => (
+                                        <div key={index} className={`flex ${msg.sender === 'ai' ? 'justify-start' : 'justify-end'}`}>
+                                            <div className={`max-w-xs p-3 rounded-lg prose prose-sm ${msg.sender === 'ai' ? 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white' : 'bg-blue-500 text-white'}`}>
+                                                {msg.text}
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {isLoading && <div className="flex justify-start"><div className="bg-gray-200 text-gray-800 p-3 rounded-lg animate-pulse">...</div></div>}
+                                    <div ref={chatEndRef} />
+                                </div>
+                                <div className="p-2 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
+                                    <div className="p-1 border dark:border-gray-600 rounded-lg flex items-center bg-white dark:bg-gray-700">
+                                        <input type="text" value={input} onChange={e => setInput(e.target.value)} onKeyPress={e => e.key === 'Enter' && handleSend()} placeholder="Ask anything..." className="flex-1 p-2 text-sm border-none focus:outline-none focus:ring-0 bg-transparent text-gray-800 dark:text-white placeholder-gray-400" />
+                                        <button onClick={handleSend} disabled={isLoading} className="bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-white p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 transition disabled:opacity-50">
+                                            <Send size={16} />
+                                        </button>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+
+                        {/* ═══ MY QUOTES TAB ═══ */}
+                        {activeTab === 'quotes' && (
+                            <>
+                                {/* Search bar (list view only) */}
+                                {quotesView === 'rfqs' && (
+                                    <div className="px-3 py-2 border-b border-gray-100 dark:border-white/10 flex-shrink-0">
+                                        <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-xl px-3 py-2">
+                                            <Search size={13} className="text-gray-400 flex-shrink-0" />
+                                            <input value={quotesSearch} onChange={e => setQuotesSearch(e.target.value)}
+                                                placeholder="Search RFQs, products…"
+                                                className="flex-1 bg-transparent text-sm text-gray-800 dark:text-white placeholder-gray-400 focus:outline-none"
+                                            />
+                                            {quotesSearch && <button onClick={() => setQuotesSearch('')}><X size={12} className="text-gray-400 hover:text-gray-600" /></button>}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* ── RFQ LIST ── */}
+                                {quotesView === 'rfqs' && (
+                                    <div className="flex-1 overflow-y-auto">
+                                        {quotesLoading ? (
+                                            <div className="flex flex-col items-center justify-center h-full gap-2 text-gray-400">
+                                                <RefreshCw size={20} className="animate-spin" /><span className="text-sm">Loading…</span>
+                                            </div>
+                                        ) : filteredQuotes.length === 0 ? (
+                                            <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-2">
+                                                <Package size={32} className="opacity-30" />
+                                                <span className="text-sm">{quotesSearch ? 'No RFQs match' : 'No quotes yet'}</span>
+                                            </div>
+                                        ) : filteredQuotes.map(rfq => {
+                                            const unread = getClientUnread(rfq);
+                                            const items: any[] = rfq.order?.lineItems || [];
+                                            const history = rfq.negotiation_details?.history || [];
+                                            const lastMsg = history.length ? history[history.length - 1] : null;
+                                            const categories = items.map((li: any) => li.category).filter(Boolean).slice(0, 3);
+                                            return (
+                                                <button key={rfq.id} onClick={() => openRFQ(rfq)}
+                                                    className="w-full text-left px-4 py-3.5 border-b border-gray-100 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                                                    <div className="flex items-center gap-2 mb-1.5">
+                                                        <span className="text-xs font-bold text-gray-700 dark:text-gray-200 font-mono">#{rfq.id.slice(0, 8).toUpperCase()}</span>
+                                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${statusBadgeClass(rfq.status)}`}>{rfq.status}</span>
+                                                        {unread > 0 && (
+                                                            <span className="ml-auto min-w-[18px] h-[18px] px-1 bg-[#c20c0b] text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                                                                {unread > 9 ? '9+' : unread}
+                                                            </span>
+                                                        )}
+                                                        <span className={`text-[10px] text-gray-400 tabular-nums ${unread > 0 ? '' : 'ml-auto'}`}>{timeAgoFn(getLatestMessageTime(rfq))}</span>
+                                                    </div>
+                                                    {categories.length > 0 && (
+                                                        <p className="flex flex-wrap gap-1 mb-1">
+                                                            {categories.map((cat, i) => (
+                                                                <span key={i} className="bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded text-[10px] text-gray-500 dark:text-gray-400">{cat}</span>
+                                                            ))}
+                                                            {items.length > 3 && <span className="text-gray-400 text-[10px]">+{items.length - 3} more</span>}
+                                                        </p>
+                                                    )}
+                                                    <p className={`text-xs truncate ${unread > 0 ? 'font-semibold text-gray-800 dark:text-gray-200' : 'text-gray-400 dark:text-gray-500'}`}>
+                                                        {lastMsg ? `${lastMsg.sender === 'factory' ? 'Factory: ' : 'You: '}${lastMsg.message || '📎 Attachment'}` : <span className="italic">No messages yet</span>}
+                                                    </p>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+
+                                {/* ── CHAT VIEW ── */}
+                                {quotesView === 'chat' && selectedRFQ && (
+                                    <div className="flex flex-col flex-1 min-h-0">
+                                        {/* Order details strip */}
+                                        <div className="border-b border-gray-100 dark:border-white/10 flex-shrink-0">
+                                            <button
+                                                onClick={() => setOrderDetailsExpanded(v => !v)}
+                                                className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors text-left"
+                                            >
+                                                <Package size={13} className="text-gray-400 flex-shrink-0" />
+                                                <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 flex-1">
+                                                    Order Details
+                                                    <span className="ml-1.5 font-normal text-gray-400">
+                                                        · {lineItems.length} item{lineItems.length !== 1 ? 's' : ''}
+                                                        {selectedRFQ.order?.shippingCountry ? ` · ${selectedRFQ.order.shippingCountry}` : ''}
+                                                    </span>
+                                                </span>
+                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${statusBadgeClass(selectedRFQ.status)}`}>{selectedRFQ.status}</span>
+                                                <ChevronRight size={13} className={`text-gray-400 flex-shrink-0 transition-transform ${orderDetailsExpanded ? 'rotate-90' : ''}`} />
+                                            </button>
+                                            {orderDetailsExpanded && (
+                                                <div className="px-3 pb-2.5 space-y-1.5 max-h-44 overflow-y-auto bg-gray-50/60 dark:bg-gray-800/20">
+                                                    {lineItems.map((li: any, i: number) => (
+                                                        <div key={li.id ?? i} className="flex items-start gap-2 p-2 bg-white dark:bg-gray-800/60 rounded-lg border border-gray-100 dark:border-white/5">
+                                                            <div className="w-5 h-5 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{i + 1}</div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className="text-xs font-semibold text-gray-800 dark:text-white truncate">{li.category}</p>
+                                                                <p className="text-[10px] text-gray-400 truncate">
+                                                                    {[li.fabricQuality, li.weightGSM && `${li.weightGSM} GSM`, (li.qty && `${li.qty} units`) || li.containerType].filter(Boolean).join(' · ')}
+                                                                </p>
+                                                            </div>
+                                                            {li.targetPrice && <span className="text-[11px] font-bold text-gray-700 dark:text-gray-200 flex-shrink-0">${li.targetPrice}</span>}
+                                                        </div>
+                                                    ))}
+                                                    {(selectedRFQ.order?.shippingCountry || selectedRFQ.order?.shippingPort) && (
+                                                        <p className="text-[10px] text-gray-400 px-1">
+                                                            {[selectedRFQ.order.shippingCountry && `📍 ${selectedRFQ.order.shippingCountry}`, selectedRFQ.order.shippingPort && `🚢 ${selectedRFQ.order.shippingPort}`].filter(Boolean).join('  ·  ')}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Product tabs */}
+                                        {lineItems.length > 1 && (
+                                            <div className="flex overflow-x-auto px-3 pt-2 pb-1.5 gap-1.5 border-b border-gray-100 dark:border-white/10 flex-shrink-0 scrollbar-none">
+                                                {lineItems.map((li: any) => (
+                                                    <button key={li.id} onClick={() => setActiveLineItemId(li.id)}
+                                                        className={`flex-shrink-0 text-xs px-3 py-1.5 rounded-full font-medium transition-colors whitespace-nowrap ${
+                                                            activeLineItemId === li.id
+                                                                ? 'bg-[#c20c0b] text-white shadow-sm'
+                                                                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                                        }`}
+                                                    >{li.category}</button>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* Messages */}
+                                        <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5">
+                                            {chatHistory.length === 0 ? (
+                                                <div className="flex flex-col items-center justify-center h-full gap-2 text-gray-400">
+                                                    <MessageSquare size={26} className="opacity-30" />
+                                                    <span className="text-sm text-center">No messages yet.<br /><span className="text-xs opacity-70">Send the first message below.</span></span>
+                                                </div>
+                                            ) : (() => {
+                                                const adminLastRead = selectedRFQ.negotiation_details?.adminLastRead || '';
+                                                return chatHistory.map((h, i) => {
+                                                    const isClient = h.sender === 'client';
+                                                    const isRead = isClient && adminLastRead !== '' && h.timestamp <= adminLastRead;
+                                                    return (
+                                                        <div key={h.id || i} className={`flex ${isClient ? 'justify-end' : 'justify-start'}`}>
+                                                            {!isClient && (
+                                                                <div className="w-7 h-7 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[11px] font-bold text-gray-600 dark:text-gray-300 flex-shrink-0 mr-1.5 mt-auto mb-0.5">
+                                                                    {selectedRFQ.factory?.imageUrl
+                                                                        ? <img src={selectedRFQ.factory.imageUrl} alt={selectedRFQ.factory?.name || 'F'} className="w-full h-full object-cover" />
+                                                                        : (selectedRFQ.factory?.name || 'F')[0].toUpperCase()}
+                                                                </div>
+                                                            )}
+                                                            <div className={`max-w-[80%] flex flex-col ${isClient ? 'items-end' : 'items-start'}`}>
+                                                                <div className={`rounded-2xl px-3 py-2 shadow-sm text-sm ${isClient ? 'bg-[#c20c0b] text-white rounded-tr-none' : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-white rounded-tl-none'}`}>
+                                                                    {(h as any).price && <p className="font-bold text-base mb-0.5">${(h as any).price}</p>}
+                                                                    {h.message && <p className="whitespace-pre-wrap leading-relaxed">{h.message}</p>}
+                                                                    {h.attachments && h.attachments.map((path, ai) => (
+                                                                        <div key={ai} className="mt-2 w-full">
+                                                                            <ClientAttachmentPreview path={path} isClient={isClient} displayName={h.attachmentNames?.[ai]} />
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                                <span className="text-[10px] text-gray-400 mt-1 px-1 flex items-center gap-1">
+                                                                    {isClient ? 'You' : (selectedRFQ.factory?.name || 'Factory')} · {timeAgoFn(h.timestamp)}
+                                                                    {isClient && (
+                                                                        isRead
+                                                                            ? <CheckCheck size={12} className="text-blue-400" />
+                                                                            : <Check size={12} className="text-gray-400" />
+                                                                    )}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                });
+                                            })()}
+                                            <div ref={messagesEndRef} />
+                                        </div>
+
+                                        {/* Attachment previews */}
+                                        {attachFiles.length > 0 && (
+                                            <div className="px-3 pb-1 flex-shrink-0 flex flex-wrap gap-2">
+                                                {attachFiles.map((f, idx) => (
+                                                    <div key={idx} className="flex items-center gap-1.5 bg-gray-100 dark:bg-gray-800 rounded-xl pl-2 pr-1.5 py-1.5 border border-gray-200 dark:border-white/10 max-w-[180px]">
+                                                        {attachPreviews[idx]
+                                                            ? <img src={attachPreviews[idx]} alt="preview" className="w-8 h-8 rounded-lg object-cover flex-shrink-0" />
+                                                            : <FileText size={16} className="text-gray-500 flex-shrink-0" />
+                                                        }
+                                                        <span className="flex-1 text-xs text-gray-700 dark:text-gray-200 truncate">{f.name}</span>
+                                                        <button onClick={() => removeAttachment(idx)} className="flex-shrink-0 text-gray-400 hover:text-red-500 transition-colors"><X size={12} /></button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* Input */}
+                                        <div className="border-t border-gray-100 dark:border-white/10 px-3 py-2.5 flex-shrink-0 flex items-end gap-2 bg-white dark:bg-gray-900">
+                                            <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileSelect} />
+                                            <button onClick={() => fileInputRef.current?.click()}
+                                                className="p-2 text-gray-400 hover:text-[#c20c0b] transition-colors flex-shrink-0 relative" title="Attach files">
+                                                <Paperclip size={18} />
+                                                {attachFiles.length > 0 && (
+                                                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-0.5 bg-[#c20c0b] text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                                                        {attachFiles.length}
+                                                    </span>
+                                                )}
+                                            </button>
+                                            <textarea
+                                                ref={quotesInputRef}
+                                                value={quotesMessage}
+                                                onChange={e => setQuotesMessage(e.target.value)}
+                                                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleQuotesSend(); } }}
+                                                placeholder="Type a message… (Enter to send)"
+                                                rows={1}
+                                                className="flex-1 bg-gray-100 dark:bg-gray-800 text-sm text-gray-800 dark:text-white rounded-xl px-3 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-[#c20c0b]/30 max-h-28 placeholder-gray-400"
+                                                style={{ fieldSizing: 'content' } as any}
+                                            />
+                                            <button
+                                                onClick={handleQuotesSend}
+                                                disabled={(!quotesMessage.trim() && !attachFiles.length) || quotesSending}
+                                                className="p-2.5 bg-[#c20c0b] text-white rounded-xl hover:bg-[#a50a09] disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-95 flex-shrink-0"
+                                            >
+                                                {quotesSending ? <RefreshCw size={17} className="animate-spin" /> : <Send size={17} />}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>,
+                    document.body
                 )}
             </>
-        )
+        );
     };
 
     // --- Page Renderer ---

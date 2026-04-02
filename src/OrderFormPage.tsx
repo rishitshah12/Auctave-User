@@ -85,6 +85,15 @@ const PRINT_OPTIONS = [
     { id: 'None', label: 'Solid / None', image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=300&q=80' },
 ];
 
+const WASH_OPTIONS = [
+    { id: 'Raw/Unwashed', label: 'Raw / Unwashed' },
+    { id: 'Stone Wash', label: 'Stone Wash' },
+    { id: 'Acid Wash', label: 'Acid Wash' },
+    { id: 'Enzyme Wash', label: 'Enzyme Wash' },
+    { id: 'Bleach Wash', label: 'Bleach Wash' },
+    { id: 'Vintage Wash', label: 'Vintage Wash' },
+];
+
 const PACKAGING_OPTIONS = [
     { id: 'Individual Polybag', label: 'Polybag', image: 'https://5.imimg.com/data5/GG/PB/MY-45570512/t-shirts-packing-bags-500x500.jpg' },
     { id: 'Bulk Packed', label: 'Carton', image: 'https://www.packingsupply.in/web/templates/images/products/1523101691-Rectangle-corrugated-boxes-cartons.jpg' },
@@ -150,11 +159,12 @@ interface ItemDiff {
 }
 
 const DIFF_FIELD_LABELS: Record<string, string> = {
-    category: 'Category', fabricQuality: 'Fabric', weightGSM: 'Weight (GSM)',
+    category: 'Category', fabricQuality: 'Fabric', weightGSM: 'Weight',
     qty: 'Quantity', containerType: 'Container', targetPrice: 'Target Price',
     packagingReqs: 'Packaging', labelingReqs: 'Labeling', sizeRange: 'Sizes',
     sleeveOption: 'Sleeve', printOption: 'Print', trimsAndAccessories: 'Trims',
     specialInstructions: 'Instructions', quantityType: 'Qty Type', styleOption: 'Style',
+    washType: 'Wash Type',
 };
 
 const computeLineItemDiffs = (currentItems: LineItem[], originalItems: LineItem[]): ItemDiff[] => {
@@ -1395,9 +1405,15 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
         showToast('Form reset successfully.');
     };
 
-    const sizeOptions = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'];
     const activeItem = formState.lineItems[activeItemIndex];
     const isUpperBody = ['T-shirt', 'Polo Shirt', 'Hoodies', 'Jackets', 'Shirts', 'Casual Shirts'].includes(activeItem.category);
+
+    const isJeans = activeItem.category === 'Jeans';
+    const isBottomWear = ['Jeans', 'Trousers', 'Shorts', 'Pants', 'Skirt'].includes(activeItem.category);
+    const weightLabel = isJeans ? 'Fabric Weight (oz)' : 'Fabric Weight (GSM)';
+    const weightPlaceholder = isJeans ? 'e.g., 12' : 'e.g., 180';
+    const weightOptions = isJeans ? ['10', '11', '12', '13', '14'] : ['160', '180', '200', '220', '240', '280', '300'];
+    const currentSizeOptions = isBottomWear ? ['28', '30', '32', '34', '36', '38', '40', '42'] : ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'];
 
     const totalEstimatedCost = formState.lineItems.reduce((sum, item) => {
         if (item.quantityType === 'units' && item.qty && item.targetPrice) {
@@ -1816,22 +1832,22 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
 
                                             {/* Fabric Weight Input */}
                                             <div>
-                                                <FormField label="Fabric Weight (GSM)" icon={<Weight className="h-5 w-5 text-gray-400" />} required error={errors[`lineItems[${activeItemIndex}].weightGSM`]}>
-                                                    <input id={`lineItems[${activeItemIndex}].weightGSM`} type="number" min="0" name="weightGSM" value={activeItem.weightGSM} onChange={handleFormChange} placeholder="e.g., 180" className={getInputClass(errors[`lineItems[${activeItemIndex}].weightGSM`])} />
+                                                <FormField label={weightLabel} icon={<Weight className="h-5 w-5 text-gray-400" />} required error={errors[`lineItems[${activeItemIndex}].weightGSM`]}>
+                                                    <input id={`lineItems[${activeItemIndex}].weightGSM`} type="number" min="0" name="weightGSM" value={activeItem.weightGSM} onChange={handleFormChange} placeholder={weightPlaceholder} className={getInputClass(errors[`lineItems[${activeItemIndex}].weightGSM`])} />
                                                 </FormField>
                                                 <div className="mt-3 flex gap-2">
-                                                    {['160', '180', '200', '220', '240', '280', '300'].map(gsm => (
+                                                    {weightOptions.map(val => (
                                                         <button
-                                                            key={gsm}
+                                                            key={val}
                                                             type="button"
-                                                            onClick={() => handleChipSelect('weightGSM', gsm)}
+                                                            onClick={() => handleChipSelect('weightGSM', val)}
                                                             className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                                                                activeItem.weightGSM === gsm
+                                                                activeItem.weightGSM === val
                                                                     ? 'bg-gray-800 text-white border-gray-800 dark:bg-white dark:text-black'
                                                                     : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-gray-400 shadow-sm'
                                                             }`}
                                                         >
-                                                            {gsm}
+                                                            {val}
                                                         </button>
                                                     ))}
                                                 </div>
@@ -1915,8 +1931,8 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                             <div>
                                                 <label id={`lineItems[${activeItemIndex}].sizeRange`} className={`block text-sm font-bold uppercase tracking-wider mb-3 ${errors[`lineItems[${activeItemIndex}].sizeRange`] ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}`}>Size Range <span className="text-red-500">*</span></label>
                                                 <div className="flex flex-wrap gap-3">
-                                                    {sizeOptions.map(size => (
-                                                        <label key={size} className={`inline-flex items-center px-4 py-3 rounded-xl border-2 cursor-pointer transition-all ${activeItem.sizeRange.includes(size) ? 'border-[#c20c0b] bg-red-50 dark:bg-red-900/20 text-[#c20c0b] font-bold shadow-sm' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:border-gray-300 shadow-sm'}`}>
+                                                    {currentSizeOptions.map(size => (
+                                                        <label key={size} className={`inline-flex items-center px-4 py-2.5 rounded-xl border-2 cursor-pointer transition-all ${activeItem.sizeRange.includes(size) ? 'border-[#c20c0b] bg-red-50 dark:bg-red-900/20 text-[#c20c0b] font-bold shadow-sm' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:border-gray-300 shadow-sm'}`}>
                                                             <input 
                                                                 type="checkbox" 
                                                                 checked={activeItem.sizeRange.includes(size)} 
@@ -1926,7 +1942,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                                             <span>{size}</span>
                                                         </label>
                                                     ))}
-                                                    <label className={`inline-flex items-center px-4 py-3 rounded-xl border-2 cursor-pointer transition-all ${activeItem.sizeRange.includes('Custom') ? 'border-[#c20c0b] bg-red-50 dark:bg-red-900/20 text-[#c20c0b] font-bold shadow-sm' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:border-gray-300 shadow-sm'}`}>
+                                                    <label className={`inline-flex items-center px-4 py-2.5 rounded-xl border-2 cursor-pointer transition-all ${activeItem.sizeRange.includes('Custom') ? 'border-[#c20c0b] bg-red-50 dark:bg-red-900/20 text-[#c20c0b] font-bold shadow-sm' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:border-gray-300 shadow-sm'}`}>
                                                         <input 
                                                             type="checkbox" 
                                                             checked={activeItem.sizeRange.includes('Custom')} 
@@ -2024,6 +2040,30 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                                                     <span className="font-bold text-xs block truncate">{opt.label}</span>
                                                                 </div>
                                                                 {activeItem.printOption === opt.id && <div className="absolute top-2 right-2 bg-white text-[#c20c0b] rounded-full p-0.5 shadow-sm"><Check size={12} /></div>}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Bottom Wear Options */}
+                                            {isBottomWear && (
+                                                <div>
+                                                    <label className="block text-sm font-bold uppercase tracking-wider mb-3 text-gray-500 dark:text-gray-400">Wash Type</label>
+                                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                                                        {WASH_OPTIONS.map((opt) => (
+                                                            <button
+                                                                key={opt.id}
+                                                                type="button"
+                                                                onClick={() => handleChipSelect('washType', opt.id)}
+                                                                className={`relative rounded-xl border-2 transition-all duration-300 flex flex-col items-center justify-center p-3 group overflow-hidden ${
+                                                                    (activeItem as any).washType === opt.id
+                                                                        ? 'border-[#c20c0b] bg-red-50 dark:bg-red-900/20 text-[#c20c0b] shadow-md'
+                                                                        : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:border-gray-300 shadow-sm'
+                                                                }`}
+                                                            >
+                                                                <span className="font-bold text-xs text-center">{opt.label}</span>
+                                                                {(activeItem as any).washType === opt.id && <div className="absolute top-2 right-2 text-[#c20c0b]"><Check size={12} /></div>}
                                                             </button>
                                                         ))}
                                                     </div>
@@ -2319,10 +2359,11 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                                                     )}
                                                                 </td>
                                                                 <td className="px-6 py-4 align-top text-xs text-gray-600 dark:text-gray-300 hidden md:table-cell">
-                                                                    <p><strong>Weight:</strong> {item.weightGSM} GSM</p>
+                                                                    <p><strong>Weight:</strong> {item.weightGSM} {item.category === 'Jeans' ? 'oz' : 'GSM'}</p>
                                                                     <p><strong>Sizes:</strong> {item.sizeRange.join(', ')}</p>
                                                                     {item.sleeveOption && <p><strong>Sleeve:</strong> {item.sleeveOption}</p>}
                                                                     {item.printOption && <p><strong>Print:</strong> {item.printOption}</p>}
+                                                                    {(item as any).washType && <p><strong>Wash:</strong> {(item as any).washType}</p>}
                                                                 </td>
                                                                 <td className="px-6 py-4 align-top text-right text-sm">{item.quantityType === 'units' ? `${item.qty.toLocaleString()} units` : item.containerType}</td>
                                                                 <td className="px-6 py-4 align-top text-right text-sm">${item.targetPrice ? parseFloat(item.targetPrice).toFixed(2) : 'N/A'}</td>
