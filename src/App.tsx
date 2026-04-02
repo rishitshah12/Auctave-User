@@ -116,11 +116,13 @@ const AppContent: FC = () => {
     const [loadingCount, setLoadingCount] = useState<number>(0);
     const quotesAbortController = useRef<AbortController | null>(null);
     const [myQuotesFilter, setMyQuotesFilter] = useState<string>('All');
-    // AI chat messages persisted at AppContent level so they survive chatbox open/close
+    // AI chat state persisted at AppContent level so it survives remounts caused by parent re-renders
     const [aiMessages, setAiMessages] = useState<AIChatMessage[]>([
         { text: "Hello! I'm Auctave Brain. How can I help you today?\n\nI can help you find factories, check your order status, answer platform questions, or start a new order.", sender: 'ai' }
     ]);
     const [aiInput, setAiInput] = useState('');
+    const [aiChatOpen, setAiChatOpen] = useState(false);
+    const [aiActiveTab, setAiActiveTab] = useState<'ai' | 'quotes'>('ai');
     // Tracks last-known status per quote id for visibilitychange change detection
     const prevQuoteStatusesRef = useRef<Map<string, string>>(new Map());
     // Timestamp of when the tab was hidden (for the 30s poll gate)
@@ -1040,9 +1042,11 @@ const AppContent: FC = () => {
             // Clear all session storage to prevent data leaks between users
             sessionStorage.clear();
 
-            // Clear AI chat history
+            // Clear AI chat state
             setAiMessages([{ text: "Hello! I'm Auctave Brain. How can I help you today?\n\nI can help you find factories, check your order status, answer platform questions, or start a new order.", sender: 'ai' }]);
             setAiInput('');
+            setAiChatOpen(false);
+            setAiActiveTab('ai');
 
             // Navigate to login page
             setCurrentPage('login');
@@ -2078,8 +2082,11 @@ const AppContent: FC = () => {
 
     // Component for the AI Chatbot + My Quotes chat
     const AIChatSupport: FC = () => {
-        const [isOpen, setIsOpen] = useState(false);
-        const [activeTab, setActiveTab] = useState<'ai' | 'quotes'>('ai');
+        // isOpen and activeTab lifted to AppContent so remounts don't reset them
+        const isOpen = aiChatOpen;
+        const setIsOpen = setAiChatOpen;
+        const activeTab = aiActiveTab;
+        const setActiveTab = setAiActiveTab;
 
         // ── AI Chat State (lifted to AppContent to persist across open/close) ──
         const messages = aiMessages;
