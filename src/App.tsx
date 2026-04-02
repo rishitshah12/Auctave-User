@@ -2362,17 +2362,19 @@ const AppContent: FC = () => {
         return (
             <>
                 {/* Floating button */}
-                <button
-                    onClick={() => setIsOpen(!isOpen)}
-                    className="fixed bottom-24 md:bottom-6 right-6 bg-[var(--color-primary)] text-white p-4 rounded-full shadow-lg hover:bg-[var(--color-primary-hover)] transition-transform hover:scale-110 z-50 relative"
-                >
-                    {isOpen ? <X className="h-8 w-8" /> : <Bot className="h-8 w-8" />}
-                    {!isOpen && totalQuoteUnread > 0 && (
-                        <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 bg-white text-[#c20c0b] text-[10px] font-bold rounded-full flex items-center justify-center shadow">
-                            {totalQuoteUnread > 99 ? '99+' : totalQuoteUnread}
-                        </span>
-                    )}
-                </button>
+                <div className="fixed bottom-24 md:bottom-6 right-6 z-50">
+                    <button
+                        onClick={() => setIsOpen(!isOpen)}
+                        className="relative bg-[var(--color-primary)] text-white p-4 rounded-full shadow-lg hover:bg-[var(--color-primary-hover)] transition-transform hover:scale-110"
+                    >
+                        {isOpen ? <X className="h-8 w-8" /> : <Bot className="h-8 w-8" />}
+                        {!isOpen && totalQuoteUnread > 0 && (
+                            <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 bg-white text-[#c20c0b] text-[10px] font-bold rounded-full flex items-center justify-center shadow">
+                                {totalQuoteUnread > 99 ? '99+' : totalQuoteUnread}
+                            </span>
+                        )}
+                    </button>
+                </div>
 
                 {isOpen && createPortal(
                     <div
