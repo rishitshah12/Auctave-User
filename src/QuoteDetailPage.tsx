@@ -2762,22 +2762,27 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                     </div>
 
                     {/* ── Client & Factory ── */}
-                    <div style={{ display: 'flex', gap: '40px', marginBottom: '36px' }}>
+                    <div style={{ display: 'flex', gap: '40px', marginBottom: '28px' }}>
+                        {/* Client details — sourced from the profile fields stored on the quote */}
                         <div style={{ flex: 1 }}>
                             <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#9ca3af', marginBottom: '10px' }}>
                                 Client Details
                             </div>
                             <div style={{ fontWeight: '700', fontSize: '17px', color: '#111827' }}>
-                                {(quote as any).companyName || 'Client Company'}
+                                {quote.companyName || '—'}
                             </div>
-                            {(quote as any).clientName && (
-                                <div style={{ color: '#4b5563', marginTop: '3px' }}>{(quote as any).clientName}</div>
+                            {quote.clientName && (
+                                <div style={{ color: '#374151', marginTop: '3px', fontWeight: '600' }}>{quote.clientName}</div>
                             )}
-                            <div style={{ marginTop: '10px', color: '#6b7280', fontSize: '12px', lineHeight: '1.7' }}>
-                                <div>Destination: {order.shippingCountry}</div>
-                                <div>Port: {order.shippingPort}</div>
+                            <div style={{ marginTop: '10px', color: '#6b7280', fontSize: '12px', lineHeight: '1.8' }}>
+                                {quote.clientEmail && <div>{quote.clientEmail}</div>}
+                                {quote.clientPhone && <div>{quote.clientPhone}</div>}
+                                {quote.clientCountry && <div>{quote.clientCountry}</div>}
+                                {quote.clientJobRole && <div style={{ color: '#9ca3af' }}>{quote.clientJobRole}</div>}
                             </div>
                         </div>
+
+                        {/* Factory details */}
                         <div style={{ flex: 1 }}>
                             <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#9ca3af', marginBottom: '10px' }}>
                                 Factory Details
@@ -2795,6 +2800,22 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                         </div>
                     </div>
 
+                    {/* ── Shipping ── */}
+                    <div style={{ display: 'flex', gap: '40px', marginBottom: '28px', backgroundColor: '#f9fafb', borderRadius: '6px', padding: '14px 16px', border: '1px solid #e5e7eb' }}>
+                        <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#9ca3af', marginBottom: '6px' }}>
+                                Destination Country
+                            </div>
+                            <div style={{ fontWeight: '600', color: '#111827', fontSize: '13px' }}>{order.shippingCountry || '—'}</div>
+                        </div>
+                        <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#9ca3af', marginBottom: '6px' }}>
+                                Destination Port
+                            </div>
+                            <div style={{ fontWeight: '600', color: '#111827', fontSize: '13px' }}>{order.shippingPort || '—'}</div>
+                        </div>
+                    </div>
+
                     {/* ── Divider ── */}
                     <div style={{ borderTop: '1px solid #e5e7eb', marginBottom: '28px' }} />
 
@@ -2803,80 +2824,121 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                         Product Specifications
                     </div>
 
-                    {order.lineItems.map((item, index) => (
+                    {order.lineItems.map((item, index) => {
+                        const itemResponse = response_details?.lineItemResponses?.find(r => r.lineItemId === item.id);
+                        const sizeRatioEntries = item.sizeRatio ? Object.entries(item.sizeRatio).filter(([, v]) => v) : [];
+                        const sizeRatioStr = sizeRatioEntries.map(([s, v]) => `${s}: ${v}`).join('  |  ');
+                        const sizeStr = item.sizeRange?.length ? item.sizeRange.join(', ') : (item.customSize || '—');
+
+                        return (
                         <div key={index} style={{ marginBottom: '28px' }}>
                             {/* Item header row */}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f9fafb', padding: '10px 16px', borderRadius: '6px', border: '1px solid #e5e7eb', marginBottom: '0' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f9fafb', padding: '10px 16px', borderRadius: '6px 6px 0 0', border: '1px solid #e5e7eb', borderBottom: 'none' }}>
                                 <div style={{ fontWeight: '700', fontSize: '14px', color: '#111827' }}>
                                     #{index + 1} &nbsp;{item.category}
                                 </div>
-                                <div>
-                                    <span style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', fontWeight: '700', marginRight: '6px' }}>Target Price</span>
-                                    <span style={{ fontWeight: '800', fontSize: '15px', color: '#c20c0b' }}>${item.targetPrice}</span>
+                                <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+                                    <div>
+                                        <span style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', fontWeight: '700', marginRight: '5px' }}>Target</span>
+                                        <span style={{ fontWeight: '700', fontSize: '14px', color: '#c20c0b' }}>${item.targetPrice}</span>
+                                    </div>
+                                    {itemResponse?.price && (
+                                        <div>
+                                            <span style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', fontWeight: '700', marginRight: '5px' }}>Quoted</span>
+                                            <span style={{ fontWeight: '800', fontSize: '14px', color: '#15803d' }}>${itemResponse.price}</span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
                             {/* Specs table */}
-                            <table style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse' }}>
+                            <table style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse', border: '1px solid #e5e7eb' }}>
                                 <tbody>
                                     {[
-                                        ['Quantity', item.quantityType === 'container' ? item.containerType : `${item.qty} units`],
-                                        ['Fabric', item.fabricQuality],
-                                        ['Weight', `${item.weightGSM} GSM`],
+                                        ['Quantity', item.quantityType === 'container' ? (item.containerType || '—') : `${item.qty} units`],
+                                        ['Fabric', item.fabricQuality || '—'],
+                                        ['Weight', item.weightGSM ? `${item.weightGSM} GSM` : '—'],
                                         item.styleOption ? ['Style', item.styleOption] : null,
                                         item.sleeveOption ? ['Sleeve', item.sleeveOption] : null,
-                                        item.printOption ? ['Print', item.printOption] : null,
+                                        item.printOption ? ['Print / Embroidery', item.printOption] : null,
                                         (item as any).fitType ? ['Fit', (item as any).fitType] : null,
                                         (item as any).washType ? ['Wash', (item as any).washType] : null,
-                                        ['Size Range', item.sizeRange.join(', ')],
-                                        ['Packaging', item.packagingReqs],
+                                        ['Size Range', sizeStr],
+                                        sizeRatioStr ? ['Size Ratio', sizeRatioStr] : null,
+                                        ['Packaging', item.packagingReqs || '—'],
                                         item.labelingReqs ? ['Labeling', item.labelingReqs] : null,
                                         item.trimsAndAccessories ? ['Trims & Accessories', item.trimsAndAccessories] : null,
                                     ].filter((r): r is string[] => r !== null).map(([label, value], ri) => (
                                         <tr key={ri} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                                            <td style={{ padding: '7px 16px', width: '32%', color: '#6b7280', fontWeight: '600' }}>{label}</td>
+                                            <td style={{ padding: '7px 16px', width: '32%', color: '#6b7280', fontWeight: '600', backgroundColor: '#fafafa' }}>{label}</td>
                                             <td style={{ padding: '7px 16px', color: '#374151' }}>{value}</td>
                                         </tr>
                                     ))}
                                     {item.specialInstructions && (
                                         <tr>
-                                            <td style={{ padding: '7px 16px', color: '#6b7280', fontWeight: '600' }}>Special Instructions</td>
-                                            <td style={{ padding: '7px 16px', color: '#c2410c', backgroundColor: '#fff7ed', borderRadius: '4px' }}>
+                                            <td style={{ padding: '7px 16px', color: '#6b7280', fontWeight: '600', backgroundColor: '#fafafa' }}>Special Instructions</td>
+                                            <td style={{ padding: '7px 16px', color: '#c2410c', backgroundColor: '#fff7ed' }}>
                                                 {item.specialInstructions}
                                             </td>
+                                        </tr>
+                                    )}
+                                    {itemResponse?.notes && (
+                                        <tr>
+                                            <td style={{ padding: '7px 16px', color: '#6b7280', fontWeight: '600', backgroundColor: '#fafafa' }}>Factory Notes</td>
+                                            <td style={{ padding: '7px 16px', color: '#374151', fontStyle: 'italic' }}>{itemResponse.notes}</td>
                                         </tr>
                                     )}
                                 </tbody>
                             </table>
                         </div>
-                    ))}
+                        );
+                    })}
 
-                    {/* ── Quoted Price ── */}
+                    {/* ── Pricing Summary ── */}
                     {(status === 'Responded' || status === 'Accepted' || status === 'Admin Accepted' || status === 'Client Accepted') && response_details && (
-                        <div style={{ marginTop: '12px', backgroundColor: '#f0fdf4', border: '1px solid #86efac', borderRadius: '8px', padding: '24px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                                <div style={{ fontSize: '16px', fontWeight: '700', color: '#111827' }}>Total Quoted Price</div>
-                                <div style={{ fontSize: '34px', fontWeight: '800', color: '#15803d' }}>${response_details.price}</div>
-                            </div>
-                            <div style={{ display: 'flex', gap: '32px', fontSize: '12px', borderTop: '1px solid #bbf7d0', paddingTop: '14px' }}>
-                                <div>
-                                    <span style={{ color: '#6b7280', fontWeight: '600' }}>Lead Time: </span>
-                                    <span style={{ fontWeight: '700', color: '#111827' }}>{response_details.leadTime}</span>
-                                </div>
-                                {response_details.respondedAt && (
-                                    <div>
-                                        <span style={{ color: '#6b7280', fontWeight: '600' }}>Response Date: </span>
-                                        <span style={{ color: '#374151' }}>{formatFriendlyDate(response_details.respondedAt)}</span>
+                        (() => {
+                            const isAccepted = status === 'Accepted' || status === 'Client Accepted';
+                            const priceLabel = isAccepted ? 'Accepted Price' : 'Quoted Price';
+                            const accentColor = isAccepted ? '#15803d' : '#1d4ed8';
+                            const bgColor = isAccepted ? '#f0fdf4' : '#eff6ff';
+                            const borderColor = isAccepted ? '#86efac' : '#93c5fd';
+                            const dividerColor = isAccepted ? '#bbf7d0' : '#bfdbfe';
+                            const acceptedAt = response_details.acceptedAt;
+                            return (
+                                <div style={{ marginTop: '12px', backgroundColor: bgColor, border: `1px solid ${borderColor}`, borderRadius: '8px', padding: '24px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                                        <div style={{ fontSize: '16px', fontWeight: '700', color: '#111827' }}>Total {priceLabel}</div>
+                                        <div style={{ fontSize: '34px', fontWeight: '800', color: accentColor }}>${response_details.price}</div>
                                     </div>
-                                )}
-                            </div>
-                            {response_details.notes && (
-                                <div style={{ marginTop: '14px', fontSize: '12px', color: '#4b5563', fontStyle: 'italic', borderTop: '1px solid #bbf7d0', paddingTop: '14px' }}>
-                                    <span style={{ fontWeight: '700', fontStyle: 'normal', color: '#1f2937' }}>Notes: </span>
-                                    {response_details.notes}
+                                    <div style={{ display: 'flex', gap: '32px', fontSize: '12px', borderTop: `1px solid ${dividerColor}`, paddingTop: '14px', flexWrap: 'wrap' }}>
+                                        {response_details.leadTime && (
+                                            <div>
+                                                <span style={{ color: '#6b7280', fontWeight: '600' }}>Lead Time: </span>
+                                                <span style={{ fontWeight: '700', color: '#111827' }}>{response_details.leadTime}</span>
+                                            </div>
+                                        )}
+                                        {response_details.respondedAt && (
+                                            <div>
+                                                <span style={{ color: '#6b7280', fontWeight: '600' }}>Quoted On: </span>
+                                                <span style={{ color: '#374151' }}>{formatFriendlyDate(response_details.respondedAt)}</span>
+                                            </div>
+                                        )}
+                                        {isAccepted && acceptedAt && (
+                                            <div>
+                                                <span style={{ color: '#6b7280', fontWeight: '600' }}>Accepted On: </span>
+                                                <span style={{ color: '#374151' }}>{formatFriendlyDate(acceptedAt)}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                    {response_details.notes && (
+                                        <div style={{ marginTop: '14px', fontSize: '12px', color: '#4b5563', fontStyle: 'italic', borderTop: `1px solid ${dividerColor}`, paddingTop: '14px' }}>
+                                            <span style={{ fontWeight: '700', fontStyle: 'normal', color: '#1f2937' }}>Notes: </span>
+                                            {response_details.notes}
+                                        </div>
+                                    )}
                                 </div>
-                            )}
-                        </div>
+                            );
+                        })()
                     )}
 
                     {/* ── Footer ── */}
