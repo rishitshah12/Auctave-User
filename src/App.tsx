@@ -71,6 +71,15 @@ function resizeImage(file: File, maxPx = 240): Promise<string> {
     });
 }
 
+// Extended chat message type for the AI assistant
+interface AIChatMessage {
+    text: string;
+    sender: 'ai' | 'user';
+    suggestedFactories?: Factory[];
+    relatedOrders?: QuoteRequest[];
+    startOrderData?: { category?: string; qty?: string; fabric?: string };
+}
+
 // --- Main App Component ---
 // This is the root component of the application
 const AppContent: FC = () => {
@@ -107,6 +116,11 @@ const AppContent: FC = () => {
     const [loadingCount, setLoadingCount] = useState<number>(0);
     const quotesAbortController = useRef<AbortController | null>(null);
     const [myQuotesFilter, setMyQuotesFilter] = useState<string>('All');
+    // AI chat messages persisted at AppContent level so they survive chatbox open/close
+    const [aiMessages, setAiMessages] = useState<AIChatMessage[]>([
+        { text: "Hello! I'm Auctave Brain. How can I help you today?\n\nI can help you find factories, check your order status, answer platform questions, or start a new order.", sender: 'ai' }
+    ]);
+    const [aiInput, setAiInput] = useState('');
     // Tracks last-known status per quote id for visibilitychange change detection
     const prevQuoteStatusesRef = useRef<Map<string, string>>(new Map());
     // Timestamp of when the tab was hidden (for the 30s poll gate)
@@ -1025,6 +1039,10 @@ const AppContent: FC = () => {
 
             // Clear all session storage to prevent data leaks between users
             sessionStorage.clear();
+
+            // Clear AI chat history
+            setAiMessages([{ text: "Hello! I'm Auctave Brain. How can I help you today?\n\nI can help you find factories, check your order status, answer platform questions, or start a new order.", sender: 'ai' }]);
+            setAiInput('');
 
             // Navigate to login page
             setCurrentPage('login');
@@ -2063,10 +2081,35 @@ const AppContent: FC = () => {
         const [isOpen, setIsOpen] = useState(false);
         const [activeTab, setActiveTab] = useState<'ai' | 'quotes'>('ai');
 
-        // ── AI Chat State ─────────────────────────────────────────────────────
-        const [messages, setMessages] = useState<{ text: string; sender: 'ai' | 'user' }[]>([]);
-        const [input, setInput] = useState('');
+        // ── AI Chat State (lifted to AppContent to persist across open/close) ──
+        const messages = aiMessages;
+        const setMessages = setAiMessages;
+        const input = aiInput;
+        const setInput = setAiInput;
         const [isLoading, setIsLoading] = useState(false);
+
+        // ── Factory data for AI context ───────────────────────────────────────
+        const factoriesRef = useRef<Factory[]>([]);
+        useEffect(() => {
+            const cached = sessionStorage.getItem('garment_erp_factories_v2');
+            if (cached) {
+                try { factoriesRef.current = JSON.parse(cached); } catch { /* ignore */ }
+                return;
+            }
+            supabase.from('factories').select('id,name,location,specialties,tags,rating,turnaround,minimum_order_quantity,certifications,trust_tier,description').then(({ data }) => {
+                if (data) {
+                    factoriesRef.current = data.map((f: any) => ({
+                        id: f.id, name: f.name, location: f.location,
+                        specialties: f.specialties || [], tags: f.tags || [],
+                        rating: f.rating || 0, turnaround: f.turnaround || '',
+                        minimumOrderQuantity: f.minimum_order_quantity || 0,
+                        certifications: f.certifications || [],
+                        trustTier: f.trust_tier || 'unverified',
+                        description: f.description || '',
+                    } as Factory));
+                }
+            });
+        }, []);
         const chatEndRef = useRef<HTMLDivElement>(null);
 
         // ── My Quotes State ───────────────────────────────────────────────────
@@ -2106,13 +2149,10 @@ const AppContent: FC = () => {
             window.addEventListener('mouseup', onUp);
         }, [panelSize.w, panelSize.h]);
 
-        // ── AI scroll & init ──────────────────────────────────────────────────
+        // ── AI scroll ────────────────────────────────────────────────────────
         useEffect(() => {
             chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-            if (isOpen && activeTab === 'ai' && messages.length === 0) {
-                setMessages([{ text: "Hello! I'm Auctave Brain. How can I help you with your sourcing today?", sender: 'ai' }]);
-            }
-        }, [isOpen, activeTab, messages.length]);
+        }, [messages.length, isOpen, activeTab]);
 
         // ── Quotes scroll ─────────────────────────────────────────────────────
         useEffect(() => {
@@ -2280,18 +2320,93 @@ const AppContent: FC = () => {
         };
 
         // ── AI send ───────────────────────────────────────────────────────────
-        const handleSend = async () => {
-            if (!input.trim() || isLoading) return;
-            setMessages(prev => [...prev, { text: input, sender: 'user' }]);
-            const currentInput = input;
-            setInput('');
+        const buildPrompt = (userMsg: string): string => {
+            const factories = factoriesRef.current;
+            const orders = myQuotes;
+            const factoriesCtx = factories.length > 0
+                ? `FACTORIES ON PLATFORM (use IDs exactly as shown):\n${factories.slice(0, 30).map(f =>
+                    `ID:${f.id} | ${f.name} | ${f.location} | Rating:${f.rating}/5 | Specialties:${(f.specialties||[]).join(', ')} | MOQ:${f.minimumOrderQuantity} units | Lead time:${f.turnaround}`
+                ).join('\n')}`
+                : 'No factory data loaded.';
+            const ordersCtx = orders.length > 0
+                ? `USER ORDERS:\n${orders.map(q =>
+                    `ID:${q.id} | Status:${q.status} | Factory:${q.factory?.name||'N/A'} | Items:${(q.order?.lineItems||[]).map((li: any) => li.category).join(', ')} | Submitted:${q.submittedAt?.slice(0,10)}`
+                ).join('\n')}`
+                : 'User has no current orders.';
+            return `You are Auctave Brain, the AI assistant for Auctave — a B2B garment sourcing platform connecting buyers with verified factories.
+
+${factoriesCtx}
+
+${ordersCtx}
+
+PLATFORM FAQs:
+- To place an order: Browse factories in Sourcing, select one, click "Request Quote" and fill in product specs
+- Payment terms: Negotiated per factory, typically 30-50% deposit before production
+- Lead times: Usually 6-14 weeks depending on factory and quantity
+- Minimum orders (MOQ): Each factory sets its own MOQ, typically 100-500 units
+- Trust tiers: Gold > Silver > Bronze > Unverified (based on completed orders, on-time delivery, quality)
+- Certifications available: GOTS, ISO 9001, OEKO-TEX, BSCI, SA8000
+- Files/samples: Upload tech packs, reference images when submitting a quote request
+- Negotiation: After a factory responds, you can negotiate pricing directly in My Quotes
+
+RESPONSE RULES:
+1. Keep replies concise (3-5 sentences max). Be warm, professional, and specific.
+2. When suggesting factories, append [FACTORIES:id1,id2,id3] at the very end of your response — use the exact IDs from the list above. Pick 2-3 factories whose specialties best match the user's request. Only include this tag if you are recommending specific factories.
+3. When showing order status, append [ORDERS:${orders.slice(0,5).map(q=>q.id).join(',')||'none'}] at the very end — only include order IDs relevant to what the user asked. Only include this tag if they asked about orders.
+4. When the user wants to start a new order and has given enough details (at minimum a product category), append [START_ORDER:category=VALUE,qty=VALUE,fabric=VALUE] at the very end — fill in what they told you, leave others as "unspecified".
+5. Never fabricate factory IDs — only use IDs from the list above.
+
+User message: "${userMsg}"`;
+        };
+
+        const parseAIResponse = (raw: string): AIChatMessage => {
+            let text = raw;
+            let suggestedFactories: Factory[] | undefined;
+            let relatedOrders: QuoteRequest[] | undefined;
+            let startOrderData: AIChatMessage['startOrderData'] | undefined;
+
+            const factoryMatch = text.match(/\[FACTORIES:([^\]]+)\]/);
+            if (factoryMatch) {
+                const ids = factoryMatch[1].split(',').map(s => s.trim()).filter(Boolean);
+                const found = ids.map(id => factoriesRef.current.find(f => f.id === id)).filter(Boolean) as Factory[];
+                if (found.length > 0) suggestedFactories = found;
+                text = text.replace(factoryMatch[0], '').trim();
+            }
+
+            const ordersMatch = text.match(/\[ORDERS:([^\]]+)\]/);
+            if (ordersMatch) {
+                const ids = ordersMatch[1].split(',').map(s => s.trim()).filter(Boolean);
+                const found = ids.map(id => myQuotes.find(q => q.id === id)).filter(Boolean) as QuoteRequest[];
+                if (found.length > 0) relatedOrders = found;
+                text = text.replace(ordersMatch[0], '').trim();
+            }
+
+            const orderMatch = text.match(/\[START_ORDER:([^\]]+)\]/);
+            if (orderMatch) {
+                const params: Record<string, string> = {};
+                orderMatch[1].split(',').forEach(pair => {
+                    const eqIdx = pair.indexOf('=');
+                    if (eqIdx > 0) params[pair.slice(0, eqIdx).trim()] = pair.slice(eqIdx + 1).trim();
+                });
+                startOrderData = { category: params.category, qty: params.qty, fabric: params.fabric };
+                text = text.replace(orderMatch[0], '').trim();
+            }
+
+            return { text, sender: 'ai', suggestedFactories, relatedOrders, startOrderData };
+        };
+
+        const handleSend = async (overrideText?: string) => {
+            const msgText = overrideText ?? input;
+            if (!msgText.trim() || isLoading) return;
+            setMessages(prev => [...prev, { text: msgText, sender: 'user' }]);
+            if (!overrideText) setInput('');
             setIsLoading(true);
             try {
-                const prompt = `You are Auctave Brain, a helpful AI assistant for a garment sourcing platform. Please answer the following user query concisely and professionally: "${currentInput}"`;
+                const prompt = buildPrompt(msgText);
                 const aiResponse = await callGeminiAPI(prompt);
-                setMessages(prev => [...prev, { text: aiResponse, sender: 'ai' }]);
+                setMessages(prev => [...prev, parseAIResponse(aiResponse)]);
             } catch {
-                setMessages(prev => [...prev, { text: "Sorry, I couldn't fetch that information. Please try again.", sender: 'ai' }]);
+                setMessages(prev => [...prev, { text: "Sorry, I couldn't fetch that. Please try again.", sender: 'ai' }]);
             } finally {
                 setIsLoading(false);
             }
@@ -2447,7 +2562,7 @@ const AppContent: FC = () => {
                                                 : 'bg-red-800/60 text-white/70 hover:bg-red-800 hover:text-white'
                                         }`}
                                     >
-                                        {tab === 'ai' ? '✦ AI Assistant' : '📋 My Quotes'}
+                                        {tab === 'ai' ? 'AI Assistant' : 'My Quotes'}
                                         {tab === 'quotes' && totalQuoteUnread > 0 && (
                                             <span className="absolute -top-1 right-1 min-w-[16px] h-4 px-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
                                                 {totalQuoteUnread > 9 ? '9+' : totalQuoteUnread}
@@ -2461,22 +2576,171 @@ const AppContent: FC = () => {
                         {/* ═══ AI TAB ═══ */}
                         {activeTab === 'ai' && (
                             <>
-                                <div className="flex-1 p-4 overflow-y-auto space-y-4">
+                                <div className="flex-1 p-3 overflow-y-auto space-y-3">
                                     {messages.map((msg, index) => (
-                                        <div key={index} className={`flex ${msg.sender === 'ai' ? 'justify-start' : 'justify-end'}`}>
-                                            <div className={`max-w-xs p-3 rounded-lg prose prose-sm ${msg.sender === 'ai' ? 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white' : 'bg-blue-500 text-white'}`}>
+                                        <div key={index} className={`flex flex-col ${msg.sender === 'ai' ? 'items-start' : 'items-end'}`}>
+                                            {/* Bubble */}
+                                            <div className={`max-w-[85%] px-3 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
+                                                msg.sender === 'ai'
+                                                    ? 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded-tl-sm'
+                                                    : 'bg-red-600 text-white rounded-tr-sm'
+                                            }`}>
                                                 {msg.text}
                                             </div>
+
+                                            {/* Factory suggestion cards */}
+                                            {msg.suggestedFactories && msg.suggestedFactories.length > 0 && (
+                                                <div className="mt-2 w-full space-y-2">
+                                                    {msg.suggestedFactories.map(factory => (
+                                                        <div key={factory.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl p-3 shadow-sm">
+                                                            <div className="flex items-start justify-between gap-2">
+                                                                <div className="flex-1 min-w-0">
+                                                                    <p className="font-semibold text-sm text-gray-900 dark:text-white truncate">{factory.name}</p>
+                                                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                                                        <MapPin size={11} className="text-gray-400 flex-shrink-0" />
+                                                                        <span className="text-xs text-gray-500 truncate">{factory.location}</span>
+                                                                        <span className="text-gray-300">·</span>
+                                                                        <Star size={11} className="text-amber-400 fill-amber-400 flex-shrink-0" />
+                                                                        <span className="text-xs text-gray-500">{factory.rating}/5</span>
+                                                                    </div>
+                                                                    {factory.specialties && factory.specialties.length > 0 && (
+                                                                        <div className="flex flex-wrap gap-1 mt-1.5">
+                                                                            {factory.specialties.slice(0, 3).map(s => (
+                                                                                <span key={s} className="text-[10px] bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 px-1.5 py-0.5 rounded-full">{s}</span>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
+                                                                    <p className="text-[11px] text-gray-400 mt-1">MOQ: {factory.minimumOrderQuantity?.toLocaleString()} units · {factory.turnaround}</p>
+                                                                </div>
+                                                                <button
+                                                                    onClick={() => { handleSetCurrentPage('factoryDetail', factory); setIsOpen(false); }}
+                                                                    className="flex-shrink-0 text-[11px] font-semibold bg-red-600 hover:bg-red-700 text-white px-2.5 py-1.5 rounded-lg transition-colors"
+                                                                >
+                                                                    View
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {/* Order status cards */}
+                                            {msg.relatedOrders && msg.relatedOrders.length > 0 && (
+                                                <div className="mt-2 w-full space-y-2">
+                                                    {msg.relatedOrders.map(order => {
+                                                        const statusColors: Record<string, string> = {
+                                                            'Pending': 'bg-amber-100 text-amber-700',
+                                                            'Responded': 'bg-blue-100 text-blue-700',
+                                                            'In Negotiation': 'bg-purple-100 text-purple-700',
+                                                            'Accepted': 'bg-green-100 text-green-700',
+                                                            'Admin Accepted': 'bg-green-100 text-green-700',
+                                                            'Client Accepted': 'bg-green-100 text-green-700',
+                                                            'Declined': 'bg-red-100 text-red-700',
+                                                        };
+                                                        const items = order.order?.lineItems || [];
+                                                        return (
+                                                            <div key={order.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl p-3 shadow-sm">
+                                                                <div className="flex items-center justify-between gap-2">
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${statusColors[order.status] || 'bg-gray-100 text-gray-600'}`}>{order.status}</span>
+                                                                            <span className="text-[11px] text-gray-500">{order.factory?.name || 'No factory'}</span>
+                                                                        </div>
+                                                                        <p className="text-xs text-gray-700 dark:text-gray-300 mt-1 truncate">{items.map((li: any) => li.category).join(', ') || 'No items'}</p>
+                                                                        <p className="text-[10px] text-gray-400 mt-0.5">#{order.id.slice(0, 8).toUpperCase()} · {order.submittedAt?.slice(0, 10)}</p>
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={() => { handleSetCurrentPage('quoteDetail', order); setIsOpen(false); }}
+                                                                        className="flex-shrink-0 text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-2.5 py-1.5 rounded-lg transition-colors"
+                                                                    >
+                                                                        Open
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+
+                                            {/* Start order prompt */}
+                                            {msg.startOrderData && (
+                                                <div className="mt-2 w-full bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/40 rounded-xl p-3">
+                                                    <p className="text-xs font-semibold text-red-700 dark:text-red-300 mb-1">Ready to start your order?</p>
+                                                    {msg.startOrderData.category && msg.startOrderData.category !== 'unspecified' && (
+                                                        <p className="text-[11px] text-gray-600 dark:text-gray-400">Product: {msg.startOrderData.category}{msg.startOrderData.qty && msg.startOrderData.qty !== 'unspecified' ? ` · Qty: ${msg.startOrderData.qty}` : ''}{msg.startOrderData.fabric && msg.startOrderData.fabric !== 'unspecified' ? ` · Fabric: ${msg.startOrderData.fabric}` : ''}</p>
+                                                    )}
+                                                    <button
+                                                        onClick={() => {
+                                                            const qty = parseInt(msg.startOrderData!.qty || '0') || 1000;
+                                                            setOrderFormData({
+                                                                lineItems: [{
+                                                                    id: Date.now(),
+                                                                    category: msg.startOrderData!.category && msg.startOrderData!.category !== 'unspecified' ? msg.startOrderData!.category : '',
+                                                                    fabricQuality: msg.startOrderData!.fabric && msg.startOrderData!.fabric !== 'unspecified' ? msg.startOrderData!.fabric : '',
+                                                                    weightGSM: '', styleOption: '', qty, containerType: '',
+                                                                    targetPrice: '', packagingReqs: '', labelingReqs: '',
+                                                                    sizeRange: [], customSize: '', sizeRatio: {},
+                                                                    sleeveOption: '', printOption: '', trimsAndAccessories: '',
+                                                                    specialInstructions: '', quantityType: 'units',
+                                                                }],
+                                                                shippingCountry: '', shippingPort: '',
+                                                            });
+                                                            handleSetCurrentPage('orderForm');
+                                                            setIsOpen(false);
+                                                        }}
+                                                        className="mt-2 w-full bg-red-600 hover:bg-red-700 text-white text-xs font-semibold py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                                                    >
+                                                        <ExternalLink size={12} /> Open Order Form
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     ))}
-                                    {isLoading && <div className="flex justify-start"><div className="bg-gray-200 text-gray-800 p-3 rounded-lg animate-pulse">...</div></div>}
+
+                                    {/* Quick action chips (shown only with the greeting) */}
+                                    {messages.length === 1 && !isLoading && (
+                                        <div className="flex flex-wrap gap-1.5 mt-1">
+                                            {[
+                                                'Find factories for T-shirts',
+                                                'Check my order status',
+                                                'Help me place an order',
+                                                'What are the lead times?',
+                                                'What certifications are available?',
+                                            ].map(chip => (
+                                                <button
+                                                    key={chip}
+                                                    onClick={() => handleSend(chip)}
+                                                    className="text-[11px] bg-gray-100 dark:bg-gray-700 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-700 dark:hover:text-red-300 text-gray-600 dark:text-gray-300 px-2.5 py-1 rounded-full border border-gray-200 dark:border-gray-600 transition-colors"
+                                                >
+                                                    {chip}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {isLoading && (
+                                        <div className="flex justify-start">
+                                            <div className="bg-gray-100 dark:bg-gray-700 px-4 py-2.5 rounded-2xl rounded-tl-sm flex gap-1 items-center">
+                                                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                                                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                                                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                                            </div>
+                                        </div>
+                                    )}
                                     <div ref={chatEndRef} />
                                 </div>
                                 <div className="p-2 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
-                                    <div className="p-1 border dark:border-gray-600 rounded-lg flex items-center bg-white dark:bg-gray-700">
-                                        <input type="text" value={input} onChange={e => setInput(e.target.value)} onKeyPress={e => e.key === 'Enter' && handleSend()} placeholder="Ask anything..." className="flex-1 p-2 text-sm border-none focus:outline-none focus:ring-0 bg-transparent text-gray-800 dark:text-white placeholder-gray-400" />
-                                        <button onClick={handleSend} disabled={isLoading} className="bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-white p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 transition disabled:opacity-50">
-                                            <Send size={16} />
+                                    <div className="p-1 border dark:border-gray-600 rounded-xl flex items-center bg-white dark:bg-gray-700">
+                                        <input
+                                            type="text"
+                                            value={input}
+                                            onChange={e => setInput(e.target.value)}
+                                            onKeyPress={e => e.key === 'Enter' && handleSend()}
+                                            placeholder="Ask about factories, orders, or get help…"
+                                            className="flex-1 px-2 py-1.5 text-sm border-none focus:outline-none focus:ring-0 bg-transparent text-gray-800 dark:text-white placeholder-gray-400"
+                                        />
+                                        <button onClick={() => handleSend()} disabled={isLoading || !input.trim()} className="bg-red-600 disabled:bg-gray-200 dark:disabled:bg-gray-600 text-white disabled:text-gray-400 p-2 rounded-lg hover:bg-red-700 transition disabled:opacity-60">
+                                            <Send size={15} />
                                         </button>
                                     </div>
                                 </div>
