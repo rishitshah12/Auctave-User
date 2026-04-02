@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import {
     MessageSquare, Search, X, Send, ArrowLeft, RefreshCw,
     ExternalLink, Package, ChevronRight, GripVertical, Users,
-    Paperclip, FileText, Image as ImageIcon, Download, Eye
+    Paperclip, FileText, Image as ImageIcon, Download, Eye,
+    Check, CheckCheck
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import { quoteService } from './quote.service';
@@ -20,7 +21,10 @@ function markRead(rfqId: string) {
     localStorage.setItem(LAST_READ_KEY, JSON.stringify(map));
 }
 function getUnreadCount(rfq: QuoteRequest): number {
-    const lastRead = getLastReadMap()[rfq.id] || '';
+    const localLastRead = getLastReadMap()[rfq.id] || '';
+    const dbLastRead = rfq.negotiation_details?.adminLastRead || '';
+    // Use whichever timestamp is later (covers cross-device reads)
+    const lastRead = localLastRead > dbLastRead ? localLastRead : dbLastRead;
     return (rfq.negotiation_details?.history || [])
         .filter(h => h.sender === 'client' && h.timestamp > lastRead).length;
 }
@@ -264,6 +268,19 @@ export const AdminUniversalChat: React.FC<AdminUniversalChatProps> = ({ onNaviga
         return () => window.removeEventListener('openAdminChatForRfq', handler);
     }, []);
 
+    // ── Mark RFQ as read (localStorage + DB adminLastRead) ───────────────────
+    const markAdminRead = useCallback((rfq: QuoteRequest): QuoteRequest => {
+        const now = new Date().toISOString();
+        markRead(rfq.id); // localStorage fallback
+        const updatedNegDetails = { ...(rfq.negotiation_details || {}), adminLastRead: now };
+        const updatedRfq = { ...rfq, negotiation_details: updatedNegDetails };
+        // Optimistic state updates so unread badges clear instantly
+        setQuotes(prev => prev.map(q => q.id === rfq.id ? updatedRfq : q));
+        // Fire-and-forget DB write
+        quoteService.update(rfq.id, { negotiation_details: updatedNegDetails });
+        return updatedRfq;
+    }, []);
+
     // ── Navigate to pending RFQ once quotes are loaded ────────────────────────
     useEffect(() => {
         if (!pendingOpenRfqId || !quotes.length) return;
@@ -271,14 +288,14 @@ export const AdminUniversalChat: React.FC<AdminUniversalChatProps> = ({ onNaviga
         if (!rfq) return;
         const client = groupByClient(quotes).find(c => c.rfqs.some(r => r.id === rfq.id));
         if (client) setSelectedClient(client);
+        const updatedRfq = markAdminRead(rfq);
         const items = rfq.order?.lineItems || [];
-        setSelectedRFQ(rfq);
+        setSelectedRFQ(updatedRfq);
         setActiveLineItemId(items[0]?.id ?? null);
-        markRead(rfq.id);
         setView('chat');
         setOrderDetailsExpanded(false);
         setPendingOpenRfqId(null);
-    }, [quotes, pendingOpenRfqId]);
+    }, [quotes, pendingOpenRfqId, markAdminRead]);
 
     // ── File select ───────────────────────────────────────────────────────────
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -380,9 +397,9 @@ export const AdminUniversalChat: React.FC<AdminUniversalChatProps> = ({ onNaviga
     const openClient = (client: ClientGroup) => { setSelectedClient(client); setSearch(''); setView('rfqs'); };
     const openRFQ = (rfq: QuoteRequest) => {
         const items = rfq.order?.lineItems || [];
-        setSelectedRFQ(rfq);
+        const updatedRfq = markAdminRead(rfq);
+        setSelectedRFQ(updatedRfq);
         setActiveLineItemId(items[0]?.id ?? null);
-        markRead(rfq.id);
         setView('chat');
         setOrderDetailsExpanded(false);
     };
@@ -680,34 +697,43 @@ export const AdminUniversalChat: React.FC<AdminUniversalChatProps> = ({ onNaviga
                                 <MessageSquare size={26} className="opacity-30" />
                                 <span className="text-sm text-center">No messages yet.<br /><span className="text-xs opacity-70">Send the first message below.</span></span>
                             </div>
-                        ) : chatHistory.map((h, i) => {
-                            const isFactory = h.sender === 'factory';
-                            return (
-                                <div key={h.id || i} className={`flex ${isFactory ? 'justify-end' : 'justify-start'}`}>
-                                    {!isFactory && (
-                                        <div className="w-7 h-7 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[11px] font-bold text-gray-600 dark:text-gray-300 flex-shrink-0 mr-1.5 mt-auto mb-0.5">
-                                            {selectedRFQ.clientAvatar
-                                                ? <img src={selectedRFQ.clientAvatar} alt={selectedRFQ.clientName || ''} className="w-full h-full object-cover" />
-                                                : (selectedRFQ.clientName || 'U')[0].toUpperCase()}
+                        ) : (() => {
+                            const clientLastRead = selectedRFQ.negotiation_details?.clientLastRead || '';
+                            return chatHistory.map((h, i) => {
+                                const isFactory = h.sender === 'factory';
+                                const isRead = isFactory && clientLastRead !== '' && h.timestamp <= clientLastRead;
+                                return (
+                                    <div key={h.id || i} className={`flex ${isFactory ? 'justify-end' : 'justify-start'}`}>
+                                        {!isFactory && (
+                                            <div className="w-7 h-7 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[11px] font-bold text-gray-600 dark:text-gray-300 flex-shrink-0 mr-1.5 mt-auto mb-0.5">
+                                                {selectedRFQ.clientAvatar
+                                                    ? <img src={selectedRFQ.clientAvatar} alt={selectedRFQ.clientName || ''} className="w-full h-full object-cover" />
+                                                    : (selectedRFQ.clientName || 'U')[0].toUpperCase()}
+                                            </div>
+                                        )}
+                                        <div className={`max-w-[80%] flex flex-col ${isFactory ? 'items-end' : 'items-start'}`}>
+                                            <div className={`rounded-2xl px-3 py-2 shadow-sm text-sm ${isFactory ? 'bg-[#c20c0b] text-white rounded-tr-none' : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-white rounded-tl-none'}`}>
+                                                {h.price && <p className="font-bold text-base mb-0.5">${h.price}</p>}
+                                                {h.message && <p className="whitespace-pre-wrap leading-relaxed">{h.message}</p>}
+                                                {h.attachments && h.attachments.map((path, ai) => (
+                                                    <div key={ai} className="mt-2 w-full">
+                                                        <AttachmentPreview path={path} isFactory={isFactory} displayName={h.attachmentNames?.[ai]} />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <span className="text-[10px] text-gray-400 mt-1 px-1 flex items-center gap-1">
+                                                {isFactory ? 'You' : selectedRFQ.clientName} · {timeAgo(h.timestamp)}
+                                                {isFactory && (
+                                                    isRead
+                                                        ? <CheckCheck size={12} className="text-blue-400" />
+                                                        : <Check size={12} className="text-gray-400" />
+                                                )}
+                                            </span>
                                         </div>
-                                    )}
-                                    <div className={`max-w-[80%] flex flex-col ${isFactory ? 'items-end' : 'items-start'}`}>
-                                        <div className={`rounded-2xl px-3 py-2 shadow-sm text-sm ${isFactory ? 'bg-[#c20c0b] text-white rounded-tr-none' : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-white rounded-tl-none'}`}>
-                                            {h.price && <p className="font-bold text-base mb-0.5">${h.price}</p>}
-                                            {h.message && <p className="whitespace-pre-wrap leading-relaxed">{h.message}</p>}
-                                            {h.attachments && h.attachments.map((path, ai) => (
-                                                <div key={ai} className="mt-2 w-full">
-                                                    <AttachmentPreview path={path} isFactory={isFactory} displayName={h.attachmentNames?.[ai]} />
-                                                </div>
-                                            ))}
-                                        </div>
-                                        <span className="text-[10px] text-gray-400 mt-1 px-1">
-                                            {isFactory ? 'You' : selectedRFQ.clientName} · {timeAgo(h.timestamp)}
-                                        </span>
                                     </div>
-                                </div>
-                            );
-                        })}
+                                );
+                            });
+                        })()}
                         <div ref={messagesEndRef} />
                     </div>
 

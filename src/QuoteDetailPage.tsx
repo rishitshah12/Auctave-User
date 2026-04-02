@@ -1188,10 +1188,13 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
     }, [quote]);
 
     // Unread = factory messages newer than last read timestamp
+    // Prefer DB value (clientLastRead) for cross-device accuracy, fall back to localStorage
     const unreadChatCount = useMemo(() => {
         if (!quote?.negotiation_details?.history) return 0;
+        const dbLastRead = quote.negotiation_details.clientLastRead || '';
+        const effectiveLastRead = dbLastRead > lastReadTime ? dbLastRead : lastReadTime;
         return quote.negotiation_details.history.filter(
-            h => h.sender === 'factory' && h.timestamp > lastReadTime
+            h => h.sender === 'factory' && h.timestamp > effectiveLastRead
         ).length;
     }, [quote, lastReadTime]);
 
@@ -1229,9 +1232,14 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
     }, [isChatPanelOpen]);
 
     const markChatRead = () => {
+        if (!quote) return;
         const now = new Date().toISOString();
         setLastReadTime(now);
         try { localStorage.setItem(CHAT_READ_KEY, now); } catch {}
+        // Persist clientLastRead to DB so admin can show double-tick
+        const updatedNegDetails = { ...(quote.negotiation_details || {}), clientLastRead: now };
+        setQuote(prev => prev ? { ...prev, negotiation_details: updatedNegDetails } : null);
+        quoteService.update(quote.id, { negotiation_details: updatedNegDetails });
     };
 
     // Open chat panel to specific product
@@ -1985,34 +1993,44 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                     <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3 mb-3">
                                                         {history.length === 0 ? (
                                                             <div className="text-center text-gray-400 text-xs py-10">No history yet. Start a discussion.</div>
-                                                        ) : (
-                                                            history.map((h, i) => (
-                                                                <div key={i} className={`flex ${h.sender === 'client' ? 'justify-end' : 'justify-start'}`}>
-                                                                    <div className={`max-w-[85%] rounded-2xl p-3 shadow-sm ${h.sender === 'client' ? 'bg-[#c20c0b] text-white rounded-tr-none' : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-white/10 text-gray-800 dark:text-white rounded-tl-none'}`}>
-                                                                        <div className="flex justify-between items-center gap-4 mb-1">
-                                                                            <span className={`text-[10px] font-bold uppercase ${h.sender === 'client' ? 'text-red-200' : 'text-gray-500 dark:text-gray-400'}`}>
-                                                                                {h.sender === 'client' ? 'You' : 'Factory'}
-                                                                            </span>
-                                                                            <span className={`text-[10px] ${h.sender === 'client' ? 'text-red-200' : 'text-gray-400 dark:text-gray-500'}`}>
-                                                                                {new Date(h.timestamp).toLocaleDateString()}
-                                                                            </span>
+                                                        ) : (() => {
+                                                            const adminLastRead = quote.negotiation_details?.adminLastRead || '';
+                                                            return history.map((h, i) => {
+                                                                const isClient = h.sender === 'client';
+                                                                const isRead = isClient && adminLastRead !== '' && h.timestamp <= adminLastRead;
+                                                                return (
+                                                                    <div key={i} className={`flex ${isClient ? 'justify-end' : 'justify-start'}`}>
+                                                                        <div className={`max-w-[85%] rounded-2xl p-3 shadow-sm ${isClient ? 'bg-[#c20c0b] text-white rounded-tr-none' : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-white/10 text-gray-800 dark:text-white rounded-tl-none'}`}>
+                                                                            <div className="flex justify-between items-center gap-4 mb-1">
+                                                                                <span className={`text-[10px] font-bold uppercase ${isClient ? 'text-red-200' : 'text-gray-500 dark:text-gray-400'}`}>
+                                                                                    {isClient ? 'You' : 'Factory'}
+                                                                                </span>
+                                                                                <span className={`text-[10px] flex items-center gap-1 ${isClient ? 'text-red-200' : 'text-gray-400 dark:text-gray-500'}`}>
+                                                                                    {new Date(h.timestamp).toLocaleDateString()}
+                                                                                    {isClient && (
+                                                                                        isRead
+                                                                                            ? <CheckCheck size={11} className="text-white/80" />
+                                                                                            : <Check size={11} className="text-white/50" />
+                                                                                    )}
+                                                                                </span>
+                                                                            </div>
+                                                                            {h.price && <div className="font-bold text-lg mb-1">${h.price}</div>}
+                                                                            {h.message && <p className="text-xs opacity-90 whitespace-pre-wrap">{h.message}</p>}
+                                                                            {h.attachments && h.attachments.length > 0 && h.attachments.map((att, ai) => (
+                                                                                <ChatAttachmentPreview
+                                                                                    key={ai}
+                                                                                    path={att}
+                                                                                    supabase={layoutProps.supabase}
+                                                                                    isClient={isClient}
+                                                                                    displayName={h.attachmentNames?.[ai]}
+                                                                                    onRename={(newName) => handleRenameAttachment(h.id, ai, newName)}
+                                                                                />
+                                                                            ))}
                                                                         </div>
-                                                                        {h.price && <div className="font-bold text-lg mb-1">${h.price}</div>}
-                                                                        {h.message && <p className="text-xs opacity-90 whitespace-pre-wrap">{h.message}</p>}
-                                                                        {h.attachments && h.attachments.length > 0 && h.attachments.map((att, ai) => (
-                                                                            <ChatAttachmentPreview
-                                                                                key={ai}
-                                                                                path={att}
-                                                                                supabase={layoutProps.supabase}
-                                                                                isClient={h.sender === 'client'}
-                                                                                displayName={h.attachmentNames?.[ai]}
-                                                                                onRename={(newName) => handleRenameAttachment(h.id, ai, newName)}
-                                                                            />
-                                                                        ))}
                                                                     </div>
-                                                                </div>
-                                                            ))
-                                                        )}
+                                                                );
+                                                            });
+                                                        })()}
                                                     </div>
 
                                                     {/* Input Area */}
@@ -2608,38 +2626,48 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                             <p>No messages yet.</p>
                                                             <p className="text-xs mt-1">Start a discussion about this product.</p>
                                                         </div>
-                                                    ) : (
-                                                        history.map((h, i) => (
-                                                            <div key={i} className={`flex ${h.sender === 'client' ? 'justify-end' : 'justify-start'}`}>
-                                                                <div className={`max-w-[80%] rounded-2xl p-3 shadow-sm ${
-                                                                    h.sender === 'client'
-                                                                        ? 'bg-[#c20c0b] text-white rounded-tr-none'
-                                                                        : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-white rounded-tl-none'
-                                                                }`}>
-                                                                    <div className="flex justify-between items-center gap-4 mb-1">
-                                                                        <span className={`text-[10px] font-bold uppercase ${h.sender === 'client' ? 'text-red-200' : 'text-gray-500 dark:text-gray-400'}`}>
-                                                                            {h.sender === 'client' ? 'You' : 'Factory'}
-                                                                        </span>
-                                                                        <span className={`text-[10px] ${h.sender === 'client' ? 'text-red-200' : 'text-gray-400'}`}>
-                                                                            {new Date(h.timestamp).toLocaleDateString()}
-                                                                        </span>
+                                                    ) : (() => {
+                                                        const adminLastRead = quote.negotiation_details?.adminLastRead || '';
+                                                        return history.map((h, i) => {
+                                                            const isClient = h.sender === 'client';
+                                                            const isRead = isClient && adminLastRead !== '' && h.timestamp <= adminLastRead;
+                                                            return (
+                                                                <div key={i} className={`flex ${isClient ? 'justify-end' : 'justify-start'}`}>
+                                                                    <div className={`max-w-[80%] rounded-2xl p-3 shadow-sm ${
+                                                                        isClient
+                                                                            ? 'bg-[#c20c0b] text-white rounded-tr-none'
+                                                                            : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-white rounded-tl-none'
+                                                                    }`}>
+                                                                        <div className="flex justify-between items-center gap-4 mb-1">
+                                                                            <span className={`text-[10px] font-bold uppercase ${isClient ? 'text-red-200' : 'text-gray-500 dark:text-gray-400'}`}>
+                                                                                {isClient ? 'You' : 'Factory'}
+                                                                            </span>
+                                                                            <span className={`text-[10px] flex items-center gap-1 ${isClient ? 'text-red-200' : 'text-gray-400'}`}>
+                                                                                {new Date(h.timestamp).toLocaleDateString()}
+                                                                                {isClient && (
+                                                                                    isRead
+                                                                                        ? <CheckCheck size={11} className="text-white/80" />
+                                                                                        : <Check size={11} className="text-white/50" />
+                                                                                )}
+                                                                            </span>
+                                                                        </div>
+                                                                        {h.price && <div className="font-bold text-lg mb-1">${h.price}</div>}
+                                                                        {h.message && <p className="text-sm opacity-90 whitespace-pre-wrap">{h.message}</p>}
+                                                                        {h.attachments && h.attachments.length > 0 && h.attachments.map((att, ai) => (
+                                                                            <ChatAttachmentPreview
+                                                                                key={ai}
+                                                                                path={att}
+                                                                                supabase={layoutProps.supabase}
+                                                                                isClient={isClient}
+                                                                                displayName={h.attachmentNames?.[ai]}
+                                                                                onRename={(newName) => handleRenameAttachment(h.id, ai, newName)}
+                                                                            />
+                                                                        ))}
                                                                     </div>
-                                                                    {h.price && <div className="font-bold text-lg mb-1">${h.price}</div>}
-                                                                    {h.message && <p className="text-sm opacity-90 whitespace-pre-wrap">{h.message}</p>}
-                                                                    {h.attachments && h.attachments.length > 0 && h.attachments.map((att, ai) => (
-                                                                        <ChatAttachmentPreview
-                                                                            key={ai}
-                                                                            path={att}
-                                                                            supabase={layoutProps.supabase}
-                                                                            isClient={h.sender === 'client'}
-                                                                            displayName={h.attachmentNames?.[ai]}
-                                                                            onRename={(newName) => handleRenameAttachment(h.id, ai, newName)}
-                                                                        />
-                                                                    ))}
                                                                 </div>
-                                                            </div>
-                                                        ))
-                                                    )}
+                                                            );
+                                                        });
+                                                    })()}
                                                     <div ref={chatMessagesEndRef} />
                                                 </div>
 

@@ -163,6 +163,8 @@ export interface QuoteRequest {
         history?: NegotiationHistoryItem[];
         adminApprovedLineItems?: number[];
         clientApprovedLineItems?: number[];
+        adminLastRead?: string;   // ISO – when admin last opened this RFQ's chat
+        clientLastRead?: string;  // ISO – when client last opened this RFQ's chat
     };
     modification_count?: number;
     modified_at?: string;
