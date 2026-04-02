@@ -24,6 +24,7 @@ dist-ssr
 .env.test.local
 .env.production.local
 .env.local
+.dev.vars
 
 # System Files
 .DS_Store
