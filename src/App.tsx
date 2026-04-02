@@ -1580,6 +1580,9 @@ const AppContent: FC = () => {
                 const resized = await resizeImage(file, 240);
                 setAvatarUrl(resized);
                 await supabase.auth.updateUser({ data: { avatar_url: resized } });
+                if (user && !isAdmin) {
+                    await supabase.from('clients').upsert({ id: user.id, avatar_url: resized });
+                }
                 showToast('Profile picture updated!');
             } catch {
                 showToast('Failed to update picture', 'error');

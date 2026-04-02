@@ -105,7 +105,7 @@ export class QuoteService extends BaseService<any> {
             // Query the database for all quotes, including related client details
             const { data, error } = await supabase
                 .from(this.config.tableName) // Target the configured table
-                .select('*, clients(name, company_name)') // Select quotes and joined client info
+                .select('*, clients(name, company_name, avatar_url)') // Select quotes and joined client info
                 .order('created_at', { ascending: false }); // Sort by creation date, newest first
 
             // If there's an error, throw it

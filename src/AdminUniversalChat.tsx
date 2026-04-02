@@ -79,6 +79,7 @@ function transformRaw(q: any): QuoteRequest {
         negotiation_details: q.negotiation_details,
         clientName: q.clients?.name || 'Unknown',
         companyName: q.clients?.company_name || '',
+        clientAvatar: q.clients?.avatar_url || '',
         modification_count: q.modification_count || 0,
         modified_at: q.modified_at,
     };
@@ -89,6 +90,7 @@ interface ClientGroup {
     userId: string;
     clientName: string;
     companyName: string;
+    clientAvatar?: string;
     rfqs: QuoteRequest[];
     totalUnread: number;
     latestTime: string;
@@ -108,6 +110,7 @@ function groupByClient(quotes: QuoteRequest[]): ClientGroup[] {
                 userId: rfq.userId,
                 clientName: rfq.clientName || 'Unknown',
                 companyName: rfq.companyName || '',
+                clientAvatar: rfq.clientAvatar || '',
                 rfqs: [rfq],
                 totalUnread: unread,
                 latestTime: time,
@@ -237,7 +240,7 @@ export const AdminUniversalChat: React.FC<AdminUniversalChatProps> = ({ onNaviga
         if (data) setQuotes((data as any[]).map(transformRaw));
         setLoading(false);
     }, []);
-    useEffect(() => { if (isOpen) fetchQuotes(); }, [isOpen, fetchQuotes]);
+    useEffect(() => { fetchQuotes(); }, [fetchQuotes]);
 
     // ── Scroll ────────────────────────────────────────────────────────────────
     useEffect(() => {
@@ -529,8 +532,10 @@ export const AdminUniversalChat: React.FC<AdminUniversalChatProps> = ({ onNaviga
                             <button key={client.userId} onClick={() => openClient(client)}
                                 className="w-full text-left px-4 py-3 border-b border-gray-100 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors flex items-center gap-3">
                                 <div className="relative flex-shrink-0">
-                                    <div className={`w-11 h-11 rounded-full flex items-center justify-center font-bold text-sm ${client.totalUnread > 0 ? 'bg-[#c20c0b] text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>
-                                        {client.clientName[0]?.toUpperCase() || 'U'}
+                                    <div className={`w-11 h-11 rounded-full overflow-hidden flex items-center justify-center font-bold text-sm ${!client.clientAvatar && (client.totalUnread > 0 ? 'bg-[#c20c0b] text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300')}`}>
+                                        {client.clientAvatar
+                                            ? <img src={client.clientAvatar} alt={client.clientName} className="w-full h-full object-cover" />
+                                            : client.clientName[0]?.toUpperCase() || 'U'}
                                     </div>
                                     {client.totalUnread > 0 && (
                                         <span className="absolute -bottom-0.5 -right-0.5 min-w-[16px] h-4 px-0.5 bg-[#c20c0b] border-2 border-white dark:border-gray-900 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
@@ -680,8 +685,10 @@ export const AdminUniversalChat: React.FC<AdminUniversalChatProps> = ({ onNaviga
                             return (
                                 <div key={h.id || i} className={`flex ${isFactory ? 'justify-end' : 'justify-start'}`}>
                                     {!isFactory && (
-                                        <div className="w-7 h-7 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[11px] font-bold text-gray-600 dark:text-gray-300 flex-shrink-0 mr-1.5 mt-auto mb-0.5">
-                                            {(selectedRFQ.clientName || 'U')[0].toUpperCase()}
+                                        <div className="w-7 h-7 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[11px] font-bold text-gray-600 dark:text-gray-300 flex-shrink-0 mr-1.5 mt-auto mb-0.5">
+                                            {selectedRFQ.clientAvatar
+                                                ? <img src={selectedRFQ.clientAvatar} alt={selectedRFQ.clientName || ''} className="w-full h-full object-cover" />
+                                                : (selectedRFQ.clientName || 'U')[0].toUpperCase()}
                                         </div>
                                     )}
                                     <div className={`max-w-[80%] flex flex-col ${isFactory ? 'items-end' : 'items-start'}`}>

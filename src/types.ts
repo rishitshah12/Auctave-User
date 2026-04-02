@@ -132,6 +132,7 @@ export interface QuoteRequest {
     files: string[];
     clientName?: string;
     companyName?: string;
+    clientAvatar?: string;
     clientEmail?: string;
     clientPhone?: string;
     clientCountry?: string;
