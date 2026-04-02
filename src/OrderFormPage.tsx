@@ -85,6 +85,21 @@ const PRINT_OPTIONS = [
     { id: 'None', label: 'Solid / None', image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=300&q=80' },
 ];
 
+const UPPER_FIT_OPTIONS = ['Regular', 'Slim', 'Oversized', 'Athletic', 'Relaxed'];
+const BOTTOM_FIT_OPTIONS = ['Skinny', 'Slim', 'Regular', 'Relaxed', 'Loose', 'Bootcut', 'Straight'];
+
+const STYLE_OPTIONS: Record<string, string[]> = {
+    'T-shirt': ['Crew Neck', 'V-Neck', 'Henley', 'Scoop Neck'],
+    'Polo Shirt': ['Classic', 'Zip-up', 'Button-down'],
+    'Hoodies': ['Pullover', 'Zip-up', 'Sleeveless'],
+    'Jeans': ['High Waist', 'Mid Rise', 'Low Rise'],
+    'Jackets': ['Bomber', 'Denim', 'Windbreaker', 'Puffer'],
+    'Shirts': ['Button-down', 'Flannel', 'Oxford', 'Mandarin Collar'],
+    'Casual Shirts': ['Button-down', 'Flannel', 'Oxford', 'Mandarin Collar'],
+    'Trousers': ['Flat Front', 'Pleated', 'Cargo', 'Chinos'],
+    'default': ['Standard', 'Custom']
+};
+
 const WASH_OPTIONS = [
     { id: 'Raw/Unwashed', label: 'Raw / Unwashed' },
     { id: 'Stone Wash', label: 'Stone Wash' },
@@ -164,7 +179,7 @@ const DIFF_FIELD_LABELS: Record<string, string> = {
     packagingReqs: 'Packaging', labelingReqs: 'Labeling', sizeRange: 'Sizes',
     sleeveOption: 'Sleeve', printOption: 'Print', trimsAndAccessories: 'Trims',
     specialInstructions: 'Instructions', quantityType: 'Qty Type', styleOption: 'Style',
-    washType: 'Wash Type',
+    washType: 'Wash Type', fitType: 'Fit',
 };
 
 const computeLineItemDiffs = (currentItems: LineItem[], originalItems: LineItem[]): ItemDiff[] => {
@@ -1993,6 +2008,57 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                                 </div>
                                             )}
 
+                                            {/* Fit Type */}
+                                            <div>
+                                                <label className="block text-sm font-bold uppercase tracking-wider mb-3 text-gray-500 dark:text-gray-400">Fit Type</label>
+                                                <div className="flex flex-wrap gap-3">
+                                                    {(isUpperBody ? UPPER_FIT_OPTIONS : BOTTOM_FIT_OPTIONS).map(fit => (
+                                                        <button
+                                                            key={fit}
+                                                            type="button"
+                                                            onClick={() => handleChipSelect('fitType', fit)}
+                                                            className={`text-sm px-4 py-2 rounded-xl border-2 transition-all ${
+                                                                (activeItem as any).fitType === fit
+                                                                    ? 'border-[#c20c0b] bg-red-50 dark:bg-red-900/20 text-[#c20c0b] font-bold shadow-sm'
+                                                                    : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:border-gray-300 shadow-sm'
+                                                            }`}
+                                                        >
+                                                            {fit}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* Style Type */}
+                                            <div>
+                                                <label className="block text-sm font-bold uppercase tracking-wider mb-3 text-gray-500 dark:text-gray-400">Style / Cut</label>
+                                                <div className="flex flex-wrap gap-3">
+                                                    {(STYLE_OPTIONS[activeItem.category] || STYLE_OPTIONS['default']).map(style => (
+                                                        <button
+                                                            key={style}
+                                                            type="button"
+                                                            onClick={() => handleChipSelect('styleOption', style)}
+                                                            className={`text-sm px-4 py-2 rounded-xl border-2 transition-all ${
+                                                                activeItem.styleOption === style
+                                                                    ? 'border-[#c20c0b] bg-red-50 dark:bg-red-900/20 text-[#c20c0b] font-bold shadow-sm'
+                                                                    : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:border-gray-300 shadow-sm'
+                                                            }`}
+                                                        >
+                                                            {style}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                                <input 
+                                                    id={`lineItems[${activeItemIndex}].styleOption`} 
+                                                    type="text" 
+                                                    name="styleOption" 
+                                                    value={activeItem.styleOption} 
+                                                    onChange={handleFormChange} 
+                                                    placeholder="Or type custom style..." 
+                                                    className={`mt-3 ${getInputClass(errors[`lineItems[${activeItemIndex}].styleOption`])} text-sm`} 
+                                                />
+                                            </div>
+
                                             {/* 3. Sleeve Options (Upper Body Only) */}
                                             {isUpperBody && (
                                                 <div>
@@ -2361,6 +2427,8 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                                                 <td className="px-6 py-4 align-top text-xs text-gray-600 dark:text-gray-300 hidden md:table-cell">
                                                                     <p><strong>Weight:</strong> {item.weightGSM} {item.category === 'Jeans' ? 'oz' : 'GSM'}</p>
                                                                     <p><strong>Sizes:</strong> {item.sizeRange.join(', ')}</p>
+                                                                    {(item as any).fitType && <p><strong>Fit:</strong> {(item as any).fitType}</p>}
+                                                                    {item.styleOption && <p><strong>Style:</strong> {item.styleOption}</p>}
                                                                     {item.sleeveOption && <p><strong>Sleeve:</strong> {item.sleeveOption}</p>}
                                                                     {item.printOption && <p><strong>Print:</strong> {item.printOption}</p>}
                                                                     {(item as any).washType && <p><strong>Wash:</strong> {(item as any).washType}</p>}
