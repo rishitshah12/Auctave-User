@@ -2374,7 +2374,7 @@ const AppContent: FC = () => {
                         className="relative bg-gradient-to-br from-red-500 to-red-700 text-white p-4 rounded-full shadow-[0_4px_16px_rgba(185,28,28,0.3)] hover:shadow-[0_6px_20px_rgba(185,28,28,0.45)] transition-all duration-300 hover:scale-110 group"
                     >
                         {isOpen ? <X className="h-8 w-8" /> : <Sparkles className="h-8 w-8 group-hover:rotate-12 transition-transform duration-300" />}
-                        <div className="absolute inset-0 rounded-full bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300 animate-pulse" />
+                        <div className="absolute inset-0 rounded-full bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300" />
                         {!isOpen && totalQuoteUnread > 0 && (
                             <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 bg-white text-[#c20c0b] text-[10px] font-bold rounded-full flex items-center justify-center shadow-md border border-red-100">
                                 {totalQuoteUnread > 99 ? '99+' : totalQuoteUnread}
@@ -2398,22 +2398,22 @@ const AppContent: FC = () => {
                         </div>
 
                         {/* ── Header ── */}
-                        <div className="bg-gradient-to-b from-red-600 to-red-800 text-white flex-shrink-0">
-                            <div className="flex items-center gap-2.5 px-3 pt-3 pb-1">
+                        <div className="bg-red-700 text-white flex-shrink-0">
+                            <div className="flex items-center gap-2.5 px-3 pt-3 pb-2">
                                 {activeTab === 'quotes' && quotesView === 'chat' ? (
                                     <button onClick={goBackQuotes} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors flex-shrink-0">
                                         <ArrowLeft size={17} />
                                     </button>
                                 ) : (
                                     <div className="p-1.5 flex-shrink-0">
-                                        {activeTab === 'ai' ? <Sparkles size={17} className="text-violet-200" /> : <MessageSquare size={17} />}
+                                        {activeTab === 'ai' ? <Sparkles size={17} className="text-white" /> : <MessageSquare size={17} className="text-white" />}
                                     </div>
                                 )}
                                 <div className="flex-1 min-w-0">
-                                    <p className="font-bold text-sm truncate leading-tight">
+                                    <p className="font-bold text-sm text-white truncate leading-tight">
                                         {activeTab === 'ai' ? 'Auctave Brain' : quotesView === 'chat' ? `RFQ #${selectedRFQ?.id.slice(0, 8).toUpperCase()}` : 'My Quotes'}
                                     </p>
-                                    <p className="text-[11px] text-red-200 truncate leading-tight">
+                                    <p className="text-[11px] text-red-100 truncate leading-tight">
                                         {activeTab === 'ai' ? 'AI sourcing assistant' : quotesView === 'chat' ? (selectedRFQ?.factory?.name || '') : `${myQuotes.length} quote${myQuotes.length !== 1 ? 's' : ''}`}
                                     </p>
                                 </div>
@@ -2421,35 +2421,35 @@ const AppContent: FC = () => {
                                     {activeTab === 'quotes' && quotesView === 'chat' && selectedRFQ && (
                                         <button
                                             onClick={() => { handleSetCurrentPage('quoteDetail', selectedRFQ); setIsOpen(false); }}
-                                            className="flex items-center gap-1 px-2 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-[11px] font-semibold transition-colors"
+                                            className="flex items-center gap-1 px-2 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-[11px] font-semibold text-white transition-colors"
                                             title="Open quote detail page"
                                         >
                                             <ExternalLink size={12} /> Open
                                         </button>
                                     )}
                                     {activeTab === 'quotes' && quotesView === 'rfqs' && (
-                                        <button onClick={fetchMyQuotes} disabled={quotesLoading} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors" title="Refresh">
+                                        <button onClick={fetchMyQuotes} disabled={quotesLoading} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors text-white" title="Refresh">
                                             <RefreshCw size={14} className={quotesLoading ? 'animate-spin' : ''} />
                                         </button>
                                     )}
-                                    <button onClick={() => setIsOpen(false)} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors"><X size={17} /></button>
+                                    <button onClick={() => setIsOpen(false)} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors text-white"><X size={17} /></button>
                                 </div>
                             </div>
                             {/* Tab bar */}
-                            <div className="flex px-3 pb-0 gap-1 mt-1">
+                            <div className="flex px-3 gap-2 pb-0">
                                 {(['ai', 'quotes'] as const).map(tab => (
                                     <button
                                         key={tab}
                                         onClick={() => { setActiveTab(tab); if (tab === 'quotes' && myQuotes.length === 0) fetchMyQuotes(); }}
-                                        className={`flex-1 py-1.5 text-xs font-semibold rounded-t-lg transition-colors relative ${
+                                        className={`flex-1 py-2 text-xs font-bold rounded-t-lg transition-all duration-200 relative tracking-wide ${
                                             activeTab === tab
-                                                ? 'bg-white dark:bg-gray-900 text-[#c20c0b]'
-                                                : 'text-violet-200 hover:text-white hover:bg-white/10'
+                                                ? 'bg-white text-red-700 shadow-sm'
+                                                : 'bg-red-800/60 text-white/70 hover:bg-red-800 hover:text-white'
                                         }`}
                                     >
-                                        {tab === 'ai' ? 'AI Assistant' : 'My Quotes'}
+                                        {tab === 'ai' ? '✦ AI Assistant' : '📋 My Quotes'}
                                         {tab === 'quotes' && totalQuoteUnread > 0 && (
-                                            <span className="absolute -top-1 right-1 min-w-[16px] h-4 px-0.5 bg-white text-[#c20c0b] text-[9px] font-bold rounded-full flex items-center justify-center border border-red-100">
+                                            <span className="absolute -top-1 right-1 min-w-[16px] h-4 px-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
                                                 {totalQuoteUnread > 9 ? '9+' : totalQuoteUnread}
                                             </span>
                                         )}
