@@ -306,7 +306,8 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
     const quoteDetailsRef = useRef<HTMLDivElement>(null);
     const pdfContentRef = useRef<HTMLDivElement>(null);
     const invoiceTemplateRef = useRef<HTMLDivElement>(null);
-    const [fileLinks, setFileLinks] = useState<{ name: string; url: string }[]>([]);
+    const [fileLinks, setFileLinks] = useState<{ name: string; url: string; path: string }[]>([]);
+    const [activeAttachmentTab, setActiveAttachmentTab] = useState<'all' | number>('all');
     const [expandedItems, setExpandedItems] = useState<number[]>([]);
     const [chatStates, setChatStates] = useState<Record<number, { message: string; files: File[] }>>({});
     const [filePreviewUrls, setFilePreviewUrls] = useState<Record<number, string[]>>({});
@@ -429,6 +430,41 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
 
     // Filter for image files for the lightbox
     const imageFiles = fileLinks.filter(f => f.name.match(/\.(jpg|jpeg|png|gif|webp)$/i));
+
+    // Parse product index from storage path (e.g. "userId/product_2/filename" → 2)
+    const getProductIndexFromPath = (path: string): number | null => {
+        const parts = path.split('/');
+        if (parts.length >= 3) {
+            const match = parts[parts.length - 2].match(/^product_(\d+)$/);
+            if (match) return parseInt(match[1]);
+        }
+        return null;
+    };
+
+    // Group fileLinks by product index (null = legacy files without product subfolder)
+    const filesByProduct = useMemo(() => {
+        const groups: Record<number, typeof fileLinks> = {};
+        fileLinks.forEach(file => {
+            const idx = getProductIndexFromPath(file.path);
+            const key = idx !== null ? idx : -1; // -1 = unassigned/legacy
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(file);
+        });
+        return groups;
+    }, [fileLinks]);
+
+    // Which product indices have files
+    const productIndicesWithFiles = useMemo(() => {
+        return Object.keys(filesByProduct)
+            .map(Number)
+            .filter(k => k >= 0)
+            .sort((a, b) => a - b);
+    }, [filesByProduct]);
+
+    // Files shown in current attachment tab
+    const visibleFiles = activeAttachmentTab === 'all'
+        ? fileLinks
+        : (filesByProduct[activeAttachmentTab as number] || []);
 
     // Collect all sample photos for the lightbox
     const samplePhotos: { url: string; name: string }[] = [];
@@ -570,24 +606,25 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                         if (error) {
                             console.error(`[QuoteDetailPage] Error loading ${path}:`, error);
                             if (error.message.includes('row-level security') || error.message.includes('violates')) {
-                                return { name: cleanName, url: '', error: 'Access Denied' };
+                                return { name: cleanName, url: '', path, error: 'Access Denied' };
                             }
-                            return { name: cleanName, url: '' };
+                            return { name: cleanName, url: '', path };
                         }
 
                         return {
                             name: cleanName,
-                            url: data?.signedUrl || ''
+                            url: data?.signedUrl || '',
+                            path
                         };
                     } catch (err) {
                         console.error(`[QuoteDetailPage] Failed to load attachment: ${path}`, err);
                         const fileName = path.split('/').pop() || 'document';
                         const cleanName = fileName.replace(/^\d+_/, '');
-                        return { name: cleanName, url: '' };
+                        return { name: cleanName, url: '', path };
                     }
                 }));
 
-                const results = await Promise.race([urlsPromise, timeoutPromise]) as { name: string; url: string }[];
+                const results = await Promise.race([urlsPromise, timeoutPromise]) as { name: string; url: string; path: string }[];
                 const urls = results;
 
                 if (!signal.aborted) {
@@ -615,6 +652,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
             setFileLinks(quote.files.map(path => ({
                 name: path.split('/').pop()?.replace(/^\d+_/, '') || 'document',
                 url: '',
+                path,
                 error: 'Failed to load'
             })));
             if (!signal.aborted) setIsLoadingFiles(false);
@@ -2245,14 +2283,47 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Sample images, tech packs, and documents</p>
                                 </div>
 
+                                {/* Product tabs — only shown when there are product-specific files */}
+                                {!isLoadingFiles && fileLinks.length > 0 && (
+                                    <div className="px-5 pt-4 flex gap-2 flex-wrap border-b border-gray-100 dark:border-gray-800 pb-0">
+                                        <button
+                                            onClick={() => setActiveAttachmentTab('all')}
+                                            className={`px-4 py-2 mb-[-1px] rounded-t-lg text-sm font-medium transition-colors border-b-2 ${
+                                                activeAttachmentTab === 'all'
+                                                    ? 'border-[#c20c0b] text-[#c20c0b] bg-red-50 dark:bg-red-900/10'
+                                                    : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                                            }`}
+                                        >
+                                            All ({fileLinks.length})
+                                        </button>
+                                        {productIndicesWithFiles.map(idx => {
+                                            const productName = order.lineItems[idx]?.category || `Product ${idx + 1}`;
+                                            const count = (filesByProduct[idx] || []).length;
+                                            return (
+                                                <button
+                                                    key={idx}
+                                                    onClick={() => setActiveAttachmentTab(idx)}
+                                                    className={`px-4 py-2 mb-[-1px] rounded-t-lg text-sm font-medium transition-colors border-b-2 ${
+                                                        activeAttachmentTab === idx
+                                                            ? 'border-[#c20c0b] text-[#c20c0b] bg-red-50 dark:bg-red-900/10'
+                                                            : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                                                    }`}
+                                                >
+                                                    {productName} ({count})
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+
                                 <div className="p-6">
                                     {isLoadingFiles ? (
                                         <div className="flex justify-center py-12">
                                             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#c20c0b]"></div>
                                         </div>
-                                    ) : fileLinks.length > 0 ? (
+                                    ) : visibleFiles.length > 0 ? (
                                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                            {fileLinks.map((file, i) => {
+                                            {visibleFiles.map((file, i) => {
                                                 const isImage = file.name.match(/\.(jpg|jpeg|png|gif|webp)$/i);
                                                 const hasUrl = !!file.url;
                                                 const errorMsg = (file as any).error;
@@ -2296,6 +2367,11 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                     </div>
                                                 );
                                             })}
+                                        </div>
+                                    ) : fileLinks.length > 0 ? (
+                                        <div className="text-center py-12">
+                                            <FileText size={40} className="text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+                                            <p className="text-gray-500 dark:text-gray-400">No attachments for this product</p>
                                         </div>
                                     ) : quote?.files && quote.files.length > 0 ? (
                                         <div className="text-center py-12">

@@ -1187,7 +1187,7 @@ const AppContent: FC = () => {
     
     // Function to submit a quote request to Supabase
     // Returns true on success, false on failure
-    const submitQuoteRequest = async (quoteData: { factory?: { id: string; name: string; location: string; imageUrl: string }, order: OrderFormData, files?: File[] }): Promise<boolean> => {
+    const submitQuoteRequest = async (quoteData: { factory?: { id: string; name: string; location: string; imageUrl: string }, order: OrderFormData, filesPerProduct?: File[][] }): Promise<boolean> => {
         showToast('Submitting quote request...', 'success');
         try {
             // Check if session is valid before submitting (with timeout to prevent hanging)
@@ -1200,22 +1200,25 @@ const AppContent: FC = () => {
 
             const uploadedFilePaths: string[] = [];
 
-            // 1. Upload Files to Supabase Storage
-            if (quoteData.files && quoteData.files.length > 0) {
-                for (const file of quoteData.files) {
-                    try {
-                        // Create a unique file path: userId/timestamp_filename
-                        const filePath = `${user.id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+            // 1. Upload Files to Supabase Storage (per product subfolder for grouping)
+            if (quoteData.filesPerProduct && quoteData.filesPerProduct.length > 0) {
+                for (let productIndex = 0; productIndex < quoteData.filesPerProduct.length; productIndex++) {
+                    const productFiles = quoteData.filesPerProduct[productIndex] || [];
+                    for (const file of productFiles) {
+                        try {
+                            // Path: userId/product_{index}/timestamp_filename
+                            const filePath = `${user.id}/product_${productIndex}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
 
-                        const { data, error } = await supabase.storage
-                            .from('quote-attachments')
-                            .upload(filePath, file);
+                            const { data, error } = await supabase.storage
+                                .from('quote-attachments')
+                                .upload(filePath, file);
 
-                        if (error) throw error;
-                        if (data) uploadedFilePaths.push(data.path);
-                    } catch (error: any) {
-                        console.error('File upload error:', error);
-                        showToast(`Failed to upload ${file.name}: ${error.message}`, 'error');
+                            if (error) throw error;
+                            if (data) uploadedFilePaths.push(data.path);
+                        } catch (error: any) {
+                            console.error('File upload error:', error);
+                            showToast(`Failed to upload ${file.name}: ${error.message}`, 'error');
+                        }
                     }
                 }
             }
@@ -1272,7 +1275,7 @@ const AppContent: FC = () => {
     };
 
     // Returns true on success, false on failure
-    const addToQuoteRequest = async (quoteId: string, newOrderDetails: OrderFormData, files: File[]): Promise<boolean> => {
+    const addToQuoteRequest = async (quoteId: string, newOrderDetails: OrderFormData, filesPerProduct: File[][]): Promise<boolean> => {
         showToast('Adding to quote request...', 'success');
         try {
             // Check if session is valid before submitting (with timeout to prevent hanging)
@@ -1289,14 +1292,17 @@ const AppContent: FC = () => {
             if (!existingQuote) throw new Error("Quote not found");
 
             const uploadedFilePaths: string[] = [];
-            if (files && files.length > 0) {
-                for (const file of files) {
-                    const filePath = `${user.id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
-                    const { data, error } = await supabase.storage
-                        .from('quote-attachments')
-                        .upload(filePath, file);
-                    if (error) throw error;
-                    if (data) uploadedFilePaths.push(data.path);
+            if (filesPerProduct && filesPerProduct.length > 0) {
+                for (let productIndex = 0; productIndex < filesPerProduct.length; productIndex++) {
+                    const productFiles = filesPerProduct[productIndex] || [];
+                    for (const file of productFiles) {
+                        const filePath = `${user.id}/product_${productIndex}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+                        const { data, error } = await supabase.storage
+                            .from('quote-attachments')
+                            .upload(filePath, file);
+                        if (error) throw error;
+                        if (data) uploadedFilePaths.push(data.path);
+                    }
                 }
             }
 
@@ -1419,13 +1425,13 @@ const AppContent: FC = () => {
 
     // Function to handle order form submission
     // Returns true on success, false on failure
-    const handleSubmitOrderForm = async (submittedData: OrderFormData, files: File[]): Promise<boolean> => {
+    const handleSubmitOrderForm = async (submittedData: OrderFormData, filesPerProduct: File[][]): Promise<boolean> => {
         setOrderFormData(submittedData);
-        setUploadedFiles(files);
+        setUploadedFiles(filesPerProduct.flat());
 
         return await submitQuoteRequest({
             order: submittedData,
-            files: files // Pass actual File objects, not just names
+            filesPerProduct
         });
     };
 
@@ -2802,7 +2808,7 @@ const AppContent: FC = () => {
                     imageUrl: selectedFactory.imageUrl,
                 },
                 order: orderFormData,
-                files: uploadedFiles, // Pass actual File objects
+                filesPerProduct: [uploadedFiles], // Wrap in per-product array (legacy path: single product)
             };
             submitQuoteRequest(quoteData);
         };

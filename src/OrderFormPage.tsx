@@ -31,8 +31,8 @@ interface OrderFormPageProps {
     // --- Page Specific Props ---
     // Function provided by App.tsx to handle the actual submission logic (saving to DB, etc.).
     // Returns a Promise that resolves to true on success, false on failure.
-    handleSubmitOrderForm: (formData: OrderFormData, files: File[]) => Promise<boolean>;
-    handleAddToQuoteRequest: (quoteId: string, formData: OrderFormData, files: File[]) => Promise<boolean>;
+    handleSubmitOrderForm: (formData: OrderFormData, filesPerProduct: File[][]) => Promise<boolean>;
+    handleAddToQuoteRequest: (quoteId: string, formData: OrderFormData, filesPerProduct: File[][]) => Promise<boolean>;
     quoteRequests: QuoteRequest[];
 }
 
@@ -772,12 +772,17 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
         }));
     };
 
-    // State to hold the list of files uploaded by the user.
-    const [sampleFiles, setSampleFiles] = useState<File[]>([]);
-    const [samplePreviews, setSamplePreviews] = useState<string[]>([]);
+    // Per-product file state: keyed by product index
+    const [productSampleFiles, setProductSampleFiles] = useState<Record<number, File[]>>({ 0: [] });
+    const [productSamplePreviews, setProductSamplePreviews] = useState<Record<number, string[]>>({ 0: [] });
     // Ref to track preview URLs for cleanup on unmount only
-    const samplePreviewsRef = useRef<string[]>([]);
-    const [docFiles, setDocFiles] = useState<File[]>([]);
+    const productSamplePreviewsRef = useRef<Record<number, string[]>>({ 0: [] });
+    const [productDocFiles, setProductDocFiles] = useState<Record<number, File[]>>({ 0: [] });
+
+    // Computed active-product slices (used by FileDropZone)
+    const sampleFiles = productSampleFiles[activeItemIndex] || [];
+    const samplePreviews = productSamplePreviews[activeItemIndex] || [];
+    const docFiles = productDocFiles[activeItemIndex] || [];
     const [availablePorts, setAvailablePorts] = useState<string[]>([]);
     const [isLoadingPorts, setIsLoadingPorts] = useState(false);
     const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
@@ -877,9 +882,10 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
             shippingPort: ''
         });
         setErrors({});
-        setSampleFiles([]);
-        setDocFiles([]);
-        setSamplePreviews([]);
+        setProductSampleFiles({ 0: [] });
+        setProductDocFiles({ 0: [] });
+        setProductSamplePreviews({ 0: [] });
+        productSamplePreviewsRef.current = { 0: [] };
         setActiveItemIndex(0);
         setCurrentStep(1);
     };
@@ -933,56 +939,53 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
             setProductSteps(steps);
 
             setErrors({});
-            setSampleFiles([]);
-            setDocFiles([]);
-            setSamplePreviews([]);
+            setProductSampleFiles({ 0: [] });
+            setProductDocFiles({ 0: [] });
+            setProductSamplePreviews({ 0: [] });
+            productSamplePreviewsRef.current = { 0: [] };
             setActiveItemIndex(0);
         }
     };
 
     const onSampleFilesSelected = (files: File[]) => {
-        // Append new files to existing ones
-        setSampleFiles(prev => [...prev, ...files]);
-
-        // Create previews for new files and append to existing previews
+        const idx = activeItemIndex;
+        setProductSampleFiles(prev => ({ ...prev, [idx]: [...(prev[idx] || []), ...files] }));
         const newPreviews = files.map(file => URL.createObjectURL(file));
-        setSamplePreviews(prev => {
-            const combined = [...prev, ...newPreviews];
-            samplePreviewsRef.current = combined;
-            return combined;
+        setProductSamplePreviews(prev => {
+            const combined = [...(prev[idx] || []), ...newPreviews];
+            productSamplePreviewsRef.current = { ...productSamplePreviewsRef.current, [idx]: combined };
+            return { ...prev, [idx]: combined };
         });
     };
 
     const onSampleFileRemoved = (index: number) => {
-        // Revoke the URL for the removed preview
-        const urlToRevoke = samplePreviewsRef.current[index];
-        if (urlToRevoke) {
-            URL.revokeObjectURL(urlToRevoke);
-        }
+        const idx = activeItemIndex;
+        const urlToRevoke = (productSamplePreviewsRef.current[idx] || [])[index];
+        if (urlToRevoke) URL.revokeObjectURL(urlToRevoke);
 
-        // Update state and ref
-        setSampleFiles(prev => prev.filter((_, i) => i !== index));
-        setSamplePreviews(prev => {
-            const newPreviews = prev.filter((_, i) => i !== index);
-            samplePreviewsRef.current = newPreviews;
-            return newPreviews;
+        setProductSampleFiles(prev => ({ ...prev, [idx]: (prev[idx] || []).filter((_, i) => i !== index) }));
+        setProductSamplePreviews(prev => {
+            const newPreviews = (prev[idx] || []).filter((_, i) => i !== index);
+            productSamplePreviewsRef.current = { ...productSamplePreviewsRef.current, [idx]: newPreviews };
+            return { ...prev, [idx]: newPreviews };
         });
     };
 
-    // Clean up preview URLs only on unmount
+    // Clean up all preview URLs on unmount
     useEffect(() => {
         return () => {
-            samplePreviewsRef.current.forEach(url => URL.revokeObjectURL(url));
+            Object.values(productSamplePreviewsRef.current).flat().forEach(url => URL.revokeObjectURL(url));
         };
     }, []);
 
     const onDocFilesSelected = (files: File[]) => {
-        // Append new files to existing ones
-        setDocFiles(prev => [...prev, ...files]);
+        const idx = activeItemIndex;
+        setProductDocFiles(prev => ({ ...prev, [idx]: [...(prev[idx] || []), ...files] }));
     };
 
     const onDocFileRemoved = (index: number) => {
-        setDocFiles(prev => prev.filter((_, i) => i !== index));
+        const idx = activeItemIndex;
+        setProductDocFiles(prev => ({ ...prev, [idx]: (prev[idx] || []).filter((_, i) => i !== index) }));
     };
 
     // Validation helper
@@ -1094,6 +1097,9 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
         }));
         // Initialize new product at Step 1 and switch to it
         setProductSteps(prev => ({ ...prev, [newIndex]: 1 }));
+        setProductSampleFiles(prev => ({ ...prev, [newIndex]: [] }));
+        setProductDocFiles(prev => ({ ...prev, [newIndex]: [] }));
+        setProductSamplePreviews(prev => ({ ...prev, [newIndex]: [] }));
         setActiveItemIndex(newIndex);
     };
 
@@ -1128,6 +1134,9 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
             }]
         }));
         setProductSteps(prev => ({ ...prev, [newIndex]: 1 }));
+        setProductSampleFiles(prev => ({ ...prev, [newIndex]: [] }));
+        setProductDocFiles(prev => ({ ...prev, [newIndex]: [] }));
+        setProductSamplePreviews(prev => ({ ...prev, [newIndex]: [] }));
         setActiveItemIndex(newIndex);
         showToast(`${category} added to order!`, 'success');
     };
@@ -1330,10 +1339,16 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                 setTimeout(() => reject(new Error('Submission timed out. Please try again.')), SUBMISSION_TIMEOUT);
             });
 
+            // Build per-product file arrays (sample + doc files combined per product)
+            const filesPerProduct: File[][] = formState.lineItems.map((_, index) => [
+                ...(productSampleFiles[index] || []),
+                ...(productDocFiles[index] || [])
+            ]);
+
             // Race between the actual submission and timeout
             const submissionPromise = orderType === 'existing' && selectedQuoteId
-                ? handleAddToQuoteRequest(selectedQuoteId, formState, [...sampleFiles, ...docFiles])
-                : handleSubmitOrderForm(formState, [...sampleFiles, ...docFiles]);
+                ? handleAddToQuoteRequest(selectedQuoteId, formState, filesPerProduct)
+                : handleSubmitOrderForm(formState, filesPerProduct);
 
             success = await Promise.race([submissionPromise, timeoutPromise]);
 
@@ -1408,9 +1423,10 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
             shippingPort: ''
         });
         setErrors({});
-        setSampleFiles([]);
-        setSamplePreviews([]);
-        setDocFiles([]);
+        setProductSampleFiles({ 0: [] });
+        setProductSamplePreviews({ 0: [] });
+        setProductDocFiles({ 0: [] });
+        productSamplePreviewsRef.current = { 0: [] };
         setAvailablePorts([]);
         setActiveItemIndex(0);
         setCurrentStep(1);
