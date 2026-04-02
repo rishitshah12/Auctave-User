@@ -2602,11 +2602,12 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                 <button
                     id="floating-chat-btn"
                     onClick={() => { const opening = !isChatPanelOpen; setIsChatPanelOpen(opening); if (opening) markChatRead(); }}
-                    className="fixed bottom-36 md:bottom-28 right-6 z-[60] w-14 h-14 rounded-full bg-[#c20c0b] text-white shadow-lg hover:shadow-xl hover:scale-105 transition-all flex items-center justify-center"
+                    className="fixed bottom-36 md:bottom-28 right-6 z-[60] w-14 h-14 rounded-full bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 text-white shadow-[0_4px_20px_rgba(168,85,247,0.4)] hover:shadow-[0_6px_25px_rgba(168,85,247,0.6)] hover:scale-105 transition-all duration-300 flex items-center justify-center group"
                 >
-                    <MessageSquare size={24} />
+                    <Sparkles size={26} className="group-hover:scale-110 transition-transform duration-300 group-hover:rotate-12" />
+                    <div className="absolute inset-0 rounded-full bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300 animate-pulse" />
                     {unreadChatCount > 0 && (
-                        <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 bg-white text-[#c20c0b] text-[10px] font-bold rounded-full flex items-center justify-center shadow">
+                        <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 bg-white text-purple-600 text-[10px] font-bold rounded-full flex items-center justify-center shadow-md border border-purple-100">
                             {unreadChatCount > 9 ? '9+' : unreadChatCount}
                         </span>
                     )}
@@ -2621,9 +2622,9 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                             className="absolute right-0 top-0 h-full w-full max-w-md bg-white dark:bg-gray-900 shadow-2xl flex flex-col animate-slide-in-right"
                         >
                             {/* Chat Panel Header */}
-                            <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between bg-gradient-to-r from-[#c20c0b] to-pink-600 text-white">
+                        <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white">
                                 <h3 className="font-bold flex items-center gap-2">
-                                    <MessageSquare size={20} /> Product Discussions
+                                <Sparkles size={20} className="text-pink-200" /> Product Discussions
                                 </h3>
                                 <button onClick={() => setIsChatPanelOpen(false)} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
                                     <X size={20} />

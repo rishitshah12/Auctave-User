@@ -12,7 +12,7 @@ import {
     GanttChartSquare, LayoutDashboard, MoreHorizontal, Info, Settings, LifeBuoy,
     History, Edit, Anchor, Ship, Warehouse, PackageCheck, Award, Users, Activity, Shield,
     BarChart as BarChartIcon, FileQuestion, ClipboardCheck, Lock,
-    Tag, Weight, Palette, Box, Map as MapIcon, Download, BookOpen, Building, Trash2, Upload, Globe, Moon,
+    Tag, Weight, Palette, Box, Map as MapIcon, Download, BookOpen, Building, Trash2, Upload, Globe, Moon, Sparkles,
     Camera, Edit3, ArrowLeft, Search, RefreshCw, ExternalLink, GripVertical, Paperclip, Eye, Check, CheckCheck
 } from 'lucide-react';
 // Import charting components from recharts for data visualization
@@ -2371,11 +2371,12 @@ const AppContent: FC = () => {
                 <div className="fixed bottom-24 md:bottom-6 right-6 z-50">
                     <button
                         onClick={() => setIsOpen(!isOpen)}
-                        className="relative bg-[var(--color-primary)] text-white p-4 rounded-full shadow-lg hover:bg-[var(--color-primary-hover)] transition-transform hover:scale-110"
+                        className="relative bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 text-white p-4 rounded-full shadow-[0_4px_20px_rgba(168,85,247,0.4)] hover:shadow-[0_6px_25px_rgba(168,85,247,0.6)] transition-all duration-300 hover:scale-110 group"
                     >
-                        {isOpen ? <X className="h-8 w-8" /> : <Bot className="h-8 w-8" />}
+                        {isOpen ? <X className="h-8 w-8" /> : <Sparkles className="h-8 w-8 group-hover:rotate-12 transition-transform duration-300" />}
+                        <div className="absolute inset-0 rounded-full bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300 animate-pulse" />
                         {!isOpen && totalQuoteUnread > 0 && (
-                            <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 bg-white text-[#c20c0b] text-[10px] font-bold rounded-full flex items-center justify-center shadow">
+                            <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 bg-white text-purple-600 text-[10px] font-bold rounded-full flex items-center justify-center shadow-md border border-purple-100">
                                 {totalQuoteUnread > 99 ? '99+' : totalQuoteUnread}
                             </span>
                         )}
@@ -2397,7 +2398,7 @@ const AppContent: FC = () => {
                         </div>
 
                         {/* ── Header ── */}
-                        <div className="bg-[#c20c0b] text-white flex-shrink-0">
+                        <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white flex-shrink-0">
                             <div className="flex items-center gap-2.5 px-3 pt-3 pb-1">
                                 {activeTab === 'quotes' && quotesView === 'chat' ? (
                                     <button onClick={goBackQuotes} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors flex-shrink-0">
@@ -2405,7 +2406,7 @@ const AppContent: FC = () => {
                                     </button>
                                 ) : (
                                     <div className="p-1.5 flex-shrink-0">
-                                        {activeTab === 'ai' ? <Bot size={17} /> : <MessageSquare size={17} />}
+                                        {activeTab === 'ai' ? <Sparkles size={17} className="text-pink-200" /> : <MessageSquare size={17} />}
                                     </div>
                                 )}
                                 <div className="flex-1 min-w-0">
@@ -2442,13 +2443,13 @@ const AppContent: FC = () => {
                                         onClick={() => { setActiveTab(tab); if (tab === 'quotes' && myQuotes.length === 0) fetchMyQuotes(); }}
                                         className={`flex-1 py-1.5 text-xs font-semibold rounded-t-lg transition-colors relative ${
                                             activeTab === tab
-                                                ? 'bg-white dark:bg-gray-900 text-[#c20c0b]'
-                                                : 'text-red-200 hover:text-white hover:bg-white/10'
+                                                ? 'bg-white dark:bg-gray-900 text-purple-600 dark:text-purple-400'
+                                                : 'text-pink-200 hover:text-white hover:bg-white/10'
                                         }`}
                                     >
                                         {tab === 'ai' ? 'AI Assistant' : 'My Quotes'}
                                         {tab === 'quotes' && totalQuoteUnread > 0 && (
-                                            <span className="absolute -top-1 right-1 min-w-[16px] h-4 px-0.5 bg-white text-[#c20c0b] text-[9px] font-bold rounded-full flex items-center justify-center">
+                                            <span className="absolute -top-1 right-1 min-w-[16px] h-4 px-0.5 bg-white text-purple-600 text-[9px] font-bold rounded-full flex items-center justify-center border border-purple-100">
                                                 {totalQuoteUnread > 9 ? '9+' : totalQuoteUnread}
                                             </span>
                                         )}
