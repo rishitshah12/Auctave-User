@@ -654,119 +654,56 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         showToast('Generating PDF...', 'success');
 
         try {
-            // Create a temporary container to render the content for capture
-            // This ensures the element is "visible" to html2canvas even if the original is hidden
+            // Render into a fixed-position off-screen container so the full
+            // height is painted by the browser (avoids clipping).
             const tempContainer = document.createElement('div');
-            tempContainer.style.position = 'absolute';
-            tempContainer.style.top = '0';
-            tempContainer.style.left = '0';
-            tempContainer.style.zIndex = '-9999'; // Hide behind everything
-            tempContainer.style.width = '800px'; // Fixed width for the quote template
-            
-            // Clone the content
+            tempContainer.style.cssText = 'position:fixed;top:0;left:-9999px;width:800px;visibility:hidden;z-index:-1;';
             const clone = input.cloneNode(true) as HTMLElement;
             tempContainer.appendChild(clone);
             document.body.appendChild(tempContainer);
 
-            // Convert any CSS color (including oklch) to rgb by drawing to a 1x1 canvas
-            // and reading back the rendered pixel — works regardless of color format.
-            const convertColorToRgb = (color: string): string => {
-                if (!color || color === 'transparent' || color === 'rgba(0, 0, 0, 0)') return color;
-                try {
-                    const tempCanvas = document.createElement('canvas');
-                    tempCanvas.width = tempCanvas.height = 1;
-                    const tempCtx = tempCanvas.getContext('2d');
-                    if (!tempCtx) return color;
-                    tempCtx.fillStyle = color;
-                    tempCtx.fillRect(0, 0, 1, 1);
-                    const d = tempCtx.getImageData(0, 0, 1, 1).data;
-                    if (d[3] === 0) return 'transparent';
-                    return d[3] < 255
-                        ? `rgba(${d[0]},${d[1]},${d[2]},${(d[3] / 255).toFixed(3)})`
-                        : `rgb(${d[0]},${d[1]},${d[2]})`;
-                } catch {
-                    return color;
-                }
-            };
-
-            // Inline computed colors as plain rgb on every element so html2canvas
-            // never needs to parse oklch from the stylesheets.
-            const inlineColors = (element: HTMLElement) => {
-                const computed = window.getComputedStyle(element);
-                ['color', 'background-color', 'border-top-color', 'border-right-color',
-                 'border-bottom-color', 'border-left-color', 'outline-color',
-                 'text-decoration-color'].forEach(prop => {
-                    const val = computed.getPropertyValue(prop);
-                    if (val && val !== 'auto') {
-                        element.style.setProperty(prop, convertColorToRgb(val));
-                    }
-                });
-            };
-
-            inlineColors(clone);
-            Array.from(clone.querySelectorAll('*')).forEach(el => inlineColors(el as HTMLElement));
-
-            // Set crossOrigin on images for CORS
-            const allImages = clone.getElementsByTagName('img');
-            for (let i = 0; i < allImages.length; i++) {
-                allImages[i].crossOrigin = "anonymous";
-            }
-
-            // Wait a brief moment for images/fonts to settle in the clone
-            await new Promise(resolve => setTimeout(resolve, 100));
+            // Give the browser a tick to lay out the clone fully.
+            await new Promise(resolve => setTimeout(resolve, 150));
 
             const canvas = await html2canvas(clone, {
                 scale: 2,
                 useCORS: true,
                 logging: false,
                 backgroundColor: '#ffffff',
-                windowWidth: 800,
+                width: 800,
+                // Strip all stylesheets from html2canvas's internal document so its
+                // CSS parser never encounters oklch values from Tailwind v4.
+                // The PDF template uses only explicit inline styles, so no layout
+                // information is lost by doing this.
                 onclone: (clonedDoc: Document) => {
-                    // Remove all stylesheets from html2canvas's internal clone so it
-                    // never encounters oklch color values during CSS parsing.
                     clonedDoc.querySelectorAll('link[rel="stylesheet"], style').forEach(el => el.remove());
                 }
             });
 
-            // Clean up
             document.body.removeChild(tempContainer);
 
-                const imgData = canvas.toDataURL('image/png');
-                const pdf = new jsPDF({
-                    orientation: 'p',
-                    unit: 'px',
-                    format: 'a4'
-                });
-                
-                const pdfWidth = pdf.internal.pageSize.getWidth();
-                const pdfHeight = pdf.internal.pageSize.getHeight();
-                const imgWidth = canvas.width;
-                const imgHeight = canvas.height;
-                const ratio = pdfWidth / imgWidth;
-                const scaledHeight = imgHeight * ratio;
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+            const pdfWidth = pdf.internal.pageSize.getWidth();   // 210 mm
+            const pdfHeight = pdf.internal.pageSize.getHeight(); // 297 mm
+            const scaledHeight = (canvas.height / canvas.width) * pdfWidth;
 
-            if (scaledHeight > pdfHeight) {
-                // Multi-page logic
-                let heightLeft = scaledHeight;
-                let position = 0;
-
-                pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, scaledHeight);
-                heightLeft -= pdfHeight;
-
-                while (heightLeft > 0) {
-                    position = heightLeft - scaledHeight; // Move image up
-                    pdf.addPage();
-                    pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, scaledHeight);
-                    heightLeft -= pdfHeight;
-                }
-            } else {
+            if (scaledHeight <= pdfHeight) {
                 pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, scaledHeight);
+            } else {
+                // Slice the single tall image across multiple pages.
+                let pageTop = 0;
+                while (pageTop < scaledHeight) {
+                    if (pageTop > 0) pdf.addPage();
+                    pdf.addImage(imgData, 'PNG', 0, -pageTop, pdfWidth, scaledHeight);
+                    pageTop += pdfHeight;
+                }
             }
-                
-                pdf.save(`Quote-Request-${id.slice(0, 8)}.pdf`);
-                showToast('PDF downloaded successfully!', 'success');
+
+            pdf.save(`Quote-${id.slice(0, 8).toUpperCase()}.pdf`);
+            showToast('PDF downloaded successfully!', 'success');
         } catch (err: any) {
-            console.error("PDF generation error:", err);
+            console.error('PDF generation error:', err);
             showToast(`Failed to generate PDF: ${err.message || err}`, 'error');
         }
     };
@@ -2786,100 +2723,167 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                 </div>
             </div>
 
-            {/* Hidden PDF Template - Formal Quote Layout */}
-            <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
-                <div ref={pdfContentRef} className="bg-white p-10 w-[800px] text-gray-800 font-sans border border-gray-300">
-                    {/* Header */}
-                    <div className="flex justify-between items-start border-b-2 border-gray-800 pb-6 mb-8">
+            {/* Hidden PDF Template — uses only inline styles so layout survives stylesheet removal */}
+            <div style={{ position: 'fixed', left: '-9999px', top: 0, visibility: 'hidden' }}>
+                <div
+                    ref={pdfContentRef}
+                    style={{
+                        backgroundColor: '#ffffff',
+                        width: '800px',
+                        padding: '48px 52px',
+                        fontFamily: 'Arial, Helvetica, sans-serif',
+                        fontSize: '13px',
+                        lineHeight: '1.6',
+                        color: '#1f2937',
+                        boxSizing: 'border-box',
+                    }}
+                >
+                    {/* ── Header ── */}
+                    <div style={{ borderBottom: '3px solid #c20c0b', paddingBottom: '24px', marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div>
-                            <h1 className="text-4xl font-bold text-gray-900 tracking-tight">FORMAL QUOTE</h1>
-                            <p className="text-sm text-gray-500 mt-2">Generated on {new Date().toLocaleDateString()}</p>
-                        </div>
-                        <div className="text-right">
-                            <p className="font-bold text-xl text-gray-900">Quote #{id.slice(0, 8)}</p>
-                            <span className={`inline-block mt-2 px-3 py-1 text-xs font-bold uppercase tracking-wide rounded-full border ${getStatusColor(status)}`}>
-                                {status}
-                            </span>
-                        </div>
-                    </div>
-
-                    {/* Info Grid */}
-                    <div className="grid grid-cols-2 gap-12 mb-10">
-                        <div>
-                            <h3 className="text-xs font-bold uppercase text-gray-400 tracking-wider mb-3">Client Details</h3>
-                            <div className="text-sm">
-                                <p className="font-bold text-gray-900 text-lg">{(quote as any).companyName || 'Client Company'}</p>
-                                <p className="text-gray-600">{(quote as any).clientName || 'Client Name'}</p>
-                                <div className="mt-3 text-gray-500">
-                                    <p>Destination: {order.shippingCountry}</p>
-                                    <p>Port: {order.shippingPort}</p>
-                                </div>
+                            <div style={{ fontSize: '30px', fontWeight: '800', color: '#111827', letterSpacing: '-0.5px', lineHeight: 1.1 }}>FORMAL QUOTE</div>
+                            <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '8px' }}>
+                                Generated on {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
                             </div>
                         </div>
-                        <div>
-                            <h3 className="text-xs font-bold uppercase text-gray-400 tracking-wider mb-3">Factory Details</h3>
-                            {factory ? (
-                                <div className="text-sm">
-                                    <p className="font-bold text-gray-900 text-lg">{factory.name}</p>
-                                    <p className="text-gray-600">{factory.location}</p>
+                        <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontWeight: '700', fontSize: '15px', color: '#111827' }}>
+                                Quote #{id.slice(0, 8).toUpperCase()}
+                            </div>
+                            <div style={{ marginTop: '8px', display: 'inline-block', padding: '3px 12px', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', borderRadius: '9999px', border: '1px solid #d1d5db', color: '#374151', backgroundColor: '#f9fafb' }}>
+                                {status}
+                            </div>
+                            {submittedAt && (
+                                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '6px' }}>
+                                    Submitted: {formatFriendlyDate(submittedAt)}
                                 </div>
-                            ) : (
-                                <p className="text-sm italic text-gray-500">General Inquiry (No specific factory)</p>
                             )}
                         </div>
                     </div>
 
-                    {/* Line Items */}
-                    <div className="space-y-8">
-                        <h3 className="text-lg font-bold text-gray-900 border-b border-gray-200 pb-2 mb-4">Product Specifications</h3>
-                        {order.lineItems.map((item, index) => (
-                            <div key={index} className="break-inside-avoid mb-6">
-                                <div className="flex justify-between items-center mb-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
-                                    <h4 className="font-bold text-lg text-gray-900">#{index + 1} {item.category}</h4>
-                                    <div className="text-right">
-                                        <span className="text-xs text-gray-500 uppercase font-bold mr-2">Target Price</span>
-                                        <span className="font-bold text-lg text-[#c20c0b]">${item.targetPrice}</span>
-                                    </div>
-                                </div>
-                                <table className="w-full text-sm border-collapse">
-                                    <tbody>
-                                        <tr className="border-b border-gray-100"><td className="py-2 w-1/3 text-gray-500 font-medium">Quantity</td><td className="py-2 font-bold">{item.quantityType === 'container' ? item.containerType : `${item.qty} units`}</td></tr>
-                                        <tr className="border-b border-gray-100"><td className="py-2 text-gray-500 font-medium">Fabric</td><td className="py-2">{item.fabricQuality}</td></tr>
-                                        <tr className="border-b border-gray-100"><td className="py-2 text-gray-500 font-medium">Weight</td><td className="py-2">{item.weightGSM} GSM</td></tr>
-                                        {item.styleOption && <tr className="border-b border-gray-100"><td className="py-2 text-gray-500 font-medium">Style</td><td className="py-2">{item.styleOption}</td></tr>}
-                                        {item.sleeveOption && <tr className="border-b border-gray-100"><td className="py-2 text-gray-500 font-medium">Sleeve</td><td className="py-2">{item.sleeveOption}</td></tr>}
-                                        {item.printOption && <tr className="border-b border-gray-100"><td className="py-2 text-gray-500 font-medium">Print</td><td className="py-2">{item.printOption}</td></tr>}
-                                        {(item as any).fitType && <tr className="border-b border-gray-100"><td className="py-2 text-gray-500 font-medium">Fit</td><td className="py-2">{(item as any).fitType}</td></tr>}
-                                        {(item as any).washType && <tr className="border-b border-gray-100"><td className="py-2 text-gray-500 font-medium">Wash</td><td className="py-2">{(item as any).washType}</td></tr>}
-                                        <tr className="border-b border-gray-100"><td className="py-2 text-gray-500 font-medium">Size Range</td><td className="py-2">{item.sizeRange.join(', ')}</td></tr>
-                                        <tr className="border-b border-gray-100"><td className="py-2 text-gray-500 font-medium">Packaging</td><td className="py-2">{item.packagingReqs}</td></tr>
-                                        {item.labelingReqs && <tr className="border-b border-gray-100"><td className="py-2 text-gray-500 font-medium">Labeling</td><td className="py-2">{item.labelingReqs}</td></tr>}
-                                        {item.trimsAndAccessories && <tr className="border-b border-gray-100"><td className="py-2 text-gray-500 font-medium">Trims</td><td className="py-2">{item.trimsAndAccessories}</td></tr>}
-                                        {item.specialInstructions && <tr><td className="py-2 text-gray-500 font-medium">Instructions</td><td className="py-2 text-orange-700 bg-orange-50 px-2 rounded">{item.specialInstructions}</td></tr>}
-                                    </tbody>
-                                </table>
+                    {/* ── Client & Factory ── */}
+                    <div style={{ display: 'flex', gap: '40px', marginBottom: '36px' }}>
+                        <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#9ca3af', marginBottom: '10px' }}>
+                                Client Details
                             </div>
-                        ))}
+                            <div style={{ fontWeight: '700', fontSize: '17px', color: '#111827' }}>
+                                {(quote as any).companyName || 'Client Company'}
+                            </div>
+                            {(quote as any).clientName && (
+                                <div style={{ color: '#4b5563', marginTop: '3px' }}>{(quote as any).clientName}</div>
+                            )}
+                            <div style={{ marginTop: '10px', color: '#6b7280', fontSize: '12px', lineHeight: '1.7' }}>
+                                <div>Destination: {order.shippingCountry}</div>
+                                <div>Port: {order.shippingPort}</div>
+                            </div>
+                        </div>
+                        <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#9ca3af', marginBottom: '10px' }}>
+                                Factory Details
+                            </div>
+                            {factory ? (
+                                <div>
+                                    <div style={{ fontWeight: '700', fontSize: '17px', color: '#111827' }}>{factory.name}</div>
+                                    <div style={{ color: '#4b5563', marginTop: '3px' }}>{factory.location}</div>
+                                </div>
+                            ) : (
+                                <div style={{ fontStyle: 'italic', color: '#6b7280', fontSize: '13px' }}>
+                                    General Inquiry (No specific factory)
+                                </div>
+                            )}
+                        </div>
                     </div>
 
-                    {/* Totals */}
-                    {(status === 'Responded' || status === 'Accepted' || status === 'Admin Accepted' || status === 'Client Accepted') && response_details && (
-                        <div className="mt-10 bg-gray-50 dark:bg-gray-800/50 p-6 rounded-xl border border-gray-200 dark:border-white/10 break-inside-avoid">
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-xl font-bold text-gray-900 dark:text-white">Total Quoted Price</h3>
-                                <p className="text-4xl font-bold text-green-700 dark:text-green-400">${response_details.price}</p>
+                    {/* ── Divider ── */}
+                    <div style={{ borderTop: '1px solid #e5e7eb', marginBottom: '28px' }} />
+
+                    {/* ── Product Specifications ── */}
+                    <div style={{ fontSize: '15px', fontWeight: '700', color: '#111827', marginBottom: '20px' }}>
+                        Product Specifications
+                    </div>
+
+                    {order.lineItems.map((item, index) => (
+                        <div key={index} style={{ marginBottom: '28px' }}>
+                            {/* Item header row */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f9fafb', padding: '10px 16px', borderRadius: '6px', border: '1px solid #e5e7eb', marginBottom: '0' }}>
+                                <div style={{ fontWeight: '700', fontSize: '14px', color: '#111827' }}>
+                                    #{index + 1} &nbsp;{item.category}
+                                </div>
+                                <div>
+                                    <span style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', fontWeight: '700', marginRight: '6px' }}>Target Price</span>
+                                    <span style={{ fontWeight: '800', fontSize: '15px', color: '#c20c0b' }}>${item.targetPrice}</span>
+                                </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-4 text-sm border-t border-gray-200 dark:border-gray-700 pt-4">
-                                <div><span className="text-gray-500 dark:text-gray-400 font-medium">Lead Time:</span> <span className="font-bold dark:text-white">{response_details.leadTime}</span></div>
-                                {response_details.respondedAt && <div><span className="text-gray-500 dark:text-gray-400 font-medium">Date:</span> <span className="dark:text-white">{formatFriendlyDate(response_details.respondedAt)}</span></div>}
+
+                            {/* Specs table */}
+                            <table style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse' }}>
+                                <tbody>
+                                    {[
+                                        ['Quantity', item.quantityType === 'container' ? item.containerType : `${item.qty} units`],
+                                        ['Fabric', item.fabricQuality],
+                                        ['Weight', `${item.weightGSM} GSM`],
+                                        item.styleOption ? ['Style', item.styleOption] : null,
+                                        item.sleeveOption ? ['Sleeve', item.sleeveOption] : null,
+                                        item.printOption ? ['Print', item.printOption] : null,
+                                        (item as any).fitType ? ['Fit', (item as any).fitType] : null,
+                                        (item as any).washType ? ['Wash', (item as any).washType] : null,
+                                        ['Size Range', item.sizeRange.join(', ')],
+                                        ['Packaging', item.packagingReqs],
+                                        item.labelingReqs ? ['Labeling', item.labelingReqs] : null,
+                                        item.trimsAndAccessories ? ['Trims & Accessories', item.trimsAndAccessories] : null,
+                                    ].filter((r): r is string[] => r !== null).map(([label, value], ri) => (
+                                        <tr key={ri} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                                            <td style={{ padding: '7px 16px', width: '32%', color: '#6b7280', fontWeight: '600' }}>{label}</td>
+                                            <td style={{ padding: '7px 16px', color: '#374151' }}>{value}</td>
+                                        </tr>
+                                    ))}
+                                    {item.specialInstructions && (
+                                        <tr>
+                                            <td style={{ padding: '7px 16px', color: '#6b7280', fontWeight: '600' }}>Special Instructions</td>
+                                            <td style={{ padding: '7px 16px', color: '#c2410c', backgroundColor: '#fff7ed', borderRadius: '4px' }}>
+                                                {item.specialInstructions}
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    ))}
+
+                    {/* ── Quoted Price ── */}
+                    {(status === 'Responded' || status === 'Accepted' || status === 'Admin Accepted' || status === 'Client Accepted') && response_details && (
+                        <div style={{ marginTop: '12px', backgroundColor: '#f0fdf4', border: '1px solid #86efac', borderRadius: '8px', padding: '24px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                                <div style={{ fontSize: '16px', fontWeight: '700', color: '#111827' }}>Total Quoted Price</div>
+                                <div style={{ fontSize: '34px', fontWeight: '800', color: '#15803d' }}>${response_details.price}</div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '32px', fontSize: '12px', borderTop: '1px solid #bbf7d0', paddingTop: '14px' }}>
+                                <div>
+                                    <span style={{ color: '#6b7280', fontWeight: '600' }}>Lead Time: </span>
+                                    <span style={{ fontWeight: '700', color: '#111827' }}>{response_details.leadTime}</span>
+                                </div>
+                                {response_details.respondedAt && (
+                                    <div>
+                                        <span style={{ color: '#6b7280', fontWeight: '600' }}>Response Date: </span>
+                                        <span style={{ color: '#374151' }}>{formatFriendlyDate(response_details.respondedAt)}</span>
+                                    </div>
+                                )}
                             </div>
                             {response_details.notes && (
-                                <div className="mt-4 text-sm text-gray-600 dark:text-gray-300 italic">
-                                    <span className="font-bold not-italic text-gray-800 dark:text-gray-100">Notes:</span> {response_details.notes}
+                                <div style={{ marginTop: '14px', fontSize: '12px', color: '#4b5563', fontStyle: 'italic', borderTop: '1px solid #bbf7d0', paddingTop: '14px' }}>
+                                    <span style={{ fontWeight: '700', fontStyle: 'normal', color: '#1f2937' }}>Notes: </span>
+                                    {response_details.notes}
                                 </div>
                             )}
                         </div>
                     )}
+
+                    {/* ── Footer ── */}
+                    <div style={{ marginTop: '48px', borderTop: '1px solid #e5e7eb', paddingTop: '14px', display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#9ca3af' }}>
+                        <div>This document is automatically generated from your quote request.</div>
+                        <div>ID: {id.slice(0, 8).toUpperCase()}</div>
+                    </div>
                 </div>
             </div>
 
