@@ -1922,7 +1922,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                             <p className="text-xs text-white uppercase font-bold tracking-wider">Quantity</p>
                                                         </div>
                                                         <div className="p-3 bg-white dark:bg-gray-800">
-                                                            <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.qty} {item.quantityType === 'container' ? '' : 'units'}</p>
+                                                            <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.quantityType === 'container' ? item.containerType : `${item.qty} units`}</p>
                                                         </div>
                                                     </div>
                                                     <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
@@ -1970,12 +1970,17 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                             {item.labelingReqs && <div className="flex justify-between items-start"><span className="text-gray-500 dark:text-gray-200">Labeling:</span> <span className="font-medium text-gray-900 dark:text-white text-right ml-4">{item.labelingReqs}</span></div>}
                                                         </div>
                                                     </div>
-                                                    {(item.trimsAndAccessories || item.specialInstructions) && (
+                                                    {(item.trimsAndAccessories || item.specialInstructions || item.sleeveOption || item.styleOption || item.printOption || (item as any).fitType || (item as any).washType) && (
                                                         <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
                                                             <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-5 py-3">
                                                                 <p className="text-xs text-white uppercase font-bold tracking-wider">Additional Details</p>
                                                             </div>
                                                             <div className="p-5 bg-white dark:bg-gray-800 space-y-3 text-sm">
+                                                                {item.styleOption && <div><span className="text-gray-500 dark:text-gray-200 block mb-1">Style:</span> <span className="font-medium text-gray-900 dark:text-white">{item.styleOption}</span></div>}
+                                                                {item.sleeveOption && <div><span className="text-gray-500 dark:text-gray-200 block mb-1">Sleeve:</span> <span className="font-medium text-gray-900 dark:text-white">{item.sleeveOption}</span></div>}
+                                                                {item.printOption && <div><span className="text-gray-500 dark:text-gray-200 block mb-1">Print:</span> <span className="font-medium text-gray-900 dark:text-white">{item.printOption}</span></div>}
+                                                                {(item as any).fitType && <div><span className="text-gray-500 dark:text-gray-200 block mb-1">Fit:</span> <span className="font-medium text-gray-900 dark:text-white">{(item as any).fitType}</span></div>}
+                                                                {(item as any).washType && <div><span className="text-gray-500 dark:text-gray-200 block mb-1">Wash:</span> <span className="font-medium text-gray-900 dark:text-white">{(item as any).washType}</span></div>}
                                                                 {item.trimsAndAccessories && <div><span className="text-gray-500 dark:text-gray-200 block mb-1">Trims:</span> <span className="font-medium text-gray-900 dark:text-white">{item.trimsAndAccessories}</span></div>}
                                                                 {item.specialInstructions && <div><span className="text-gray-500 dark:text-gray-200 block mb-1">Instructions:</span> <span className="font-medium text-gray-900 dark:text-white bg-yellow-50 dark:bg-yellow-900/30 px-2 py-1 rounded border border-yellow-100 dark:border-yellow-800 inline-block w-full">{item.specialInstructions}</span></div>}
                                                             </div>
@@ -2820,12 +2825,18 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                 </div>
                                 <table className="w-full text-sm border-collapse">
                                     <tbody>
-                                        <tr className="border-b border-gray-100"><td className="py-2 w-1/3 text-gray-500 font-medium">Quantity</td><td className="py-2 font-bold">{item.qty} {item.quantityType === 'container' ? '' : 'units'}</td></tr>
+                                        <tr className="border-b border-gray-100"><td className="py-2 w-1/3 text-gray-500 font-medium">Quantity</td><td className="py-2 font-bold">{item.quantityType === 'container' ? item.containerType : `${item.qty} units`}</td></tr>
                                         <tr className="border-b border-gray-100"><td className="py-2 text-gray-500 font-medium">Fabric</td><td className="py-2">{item.fabricQuality}</td></tr>
                                         <tr className="border-b border-gray-100"><td className="py-2 text-gray-500 font-medium">Weight</td><td className="py-2">{item.weightGSM} GSM</td></tr>
                                         {item.styleOption && <tr className="border-b border-gray-100"><td className="py-2 text-gray-500 font-medium">Style</td><td className="py-2">{item.styleOption}</td></tr>}
+                                        {item.sleeveOption && <tr className="border-b border-gray-100"><td className="py-2 text-gray-500 font-medium">Sleeve</td><td className="py-2">{item.sleeveOption}</td></tr>}
+                                        {item.printOption && <tr className="border-b border-gray-100"><td className="py-2 text-gray-500 font-medium">Print</td><td className="py-2">{item.printOption}</td></tr>}
+                                        {(item as any).fitType && <tr className="border-b border-gray-100"><td className="py-2 text-gray-500 font-medium">Fit</td><td className="py-2">{(item as any).fitType}</td></tr>}
+                                        {(item as any).washType && <tr className="border-b border-gray-100"><td className="py-2 text-gray-500 font-medium">Wash</td><td className="py-2">{(item as any).washType}</td></tr>}
                                         <tr className="border-b border-gray-100"><td className="py-2 text-gray-500 font-medium">Size Range</td><td className="py-2">{item.sizeRange.join(', ')}</td></tr>
                                         <tr className="border-b border-gray-100"><td className="py-2 text-gray-500 font-medium">Packaging</td><td className="py-2">{item.packagingReqs}</td></tr>
+                                        {item.labelingReqs && <tr className="border-b border-gray-100"><td className="py-2 text-gray-500 font-medium">Labeling</td><td className="py-2">{item.labelingReqs}</td></tr>}
+                                        {item.trimsAndAccessories && <tr className="border-b border-gray-100"><td className="py-2 text-gray-500 font-medium">Trims</td><td className="py-2">{item.trimsAndAccessories}</td></tr>}
                                         {item.specialInstructions && <tr><td className="py-2 text-gray-500 font-medium">Instructions</td><td className="py-2 text-orange-700 bg-orange-50 px-2 rounded">{item.specialInstructions}</td></tr>}
                                     </tbody>
                                 </table>
