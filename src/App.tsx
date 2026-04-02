@@ -2371,7 +2371,7 @@ const AppContent: FC = () => {
                 <div className="fixed bottom-24 md:bottom-6 right-6 z-50">
                     <button
                         onClick={() => setIsOpen(!isOpen)}
-                        className="relative bg-gradient-to-tr from-violet-600 to-[#c20c0b] text-white p-4 rounded-full shadow-[0_4px_20px_rgba(194,12,11,0.4)] hover:shadow-[0_6px_25px_rgba(194,12,11,0.6)] transition-all duration-300 hover:scale-110 group"
+                        className="relative bg-gradient-to-br from-red-500 to-red-700 text-white p-4 rounded-full shadow-[0_4px_16px_rgba(185,28,28,0.3)] hover:shadow-[0_6px_20px_rgba(185,28,28,0.45)] transition-all duration-300 hover:scale-110 group"
                     >
                         {isOpen ? <X className="h-8 w-8" /> : <Sparkles className="h-8 w-8 group-hover:rotate-12 transition-transform duration-300" />}
                         <div className="absolute inset-0 rounded-full bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300 animate-pulse" />
@@ -2398,7 +2398,7 @@ const AppContent: FC = () => {
                         </div>
 
                         {/* ── Header ── */}
-                        <div className="bg-gradient-to-b from-violet-700 to-[#c20c0b] text-white flex-shrink-0">
+                        <div className="bg-gradient-to-b from-red-600 to-red-800 text-white flex-shrink-0">
                             <div className="flex items-center gap-2.5 px-3 pt-3 pb-1">
                                 {activeTab === 'quotes' && quotesView === 'chat' ? (
                                     <button onClick={goBackQuotes} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors flex-shrink-0">
