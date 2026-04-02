@@ -481,6 +481,43 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         fetchFreshQuoteData();
     }, [initialQuote]);
 
+    // ── Realtime chat subscription ────────────────────────────────────────────
+    useEffect(() => {
+        const quoteId = initialQuote?.id;
+        if (!quoteId) return;
+
+        const channel = layoutProps.supabase
+            .channel(`quote-detail-chat-${quoteId}`)
+            .on('postgres_changes', {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'quotes',
+            }, (payload: { new: Record<string, any> }) => {
+                const raw = payload.new;
+                if (raw.id !== quoteId) return;
+                setQuote(prev => {
+                    if (!prev) return prev;
+                    const remoteHistory: NegotiationHistoryItem[] = raw.negotiation_details?.history || [];
+                    const localHistory = prev.negotiation_details?.history || [];
+                    // Keep whichever history is longer to preserve optimistic messages
+                    const mergedHistory = remoteHistory.length >= localHistory.length ? remoteHistory : localHistory;
+                    return {
+                        ...prev,
+                        status: raw.status ?? prev.status,
+                        files: (raw.files || []).length >= (prev.files || []).length ? raw.files : prev.files,
+                        negotiation_details: {
+                            ...prev.negotiation_details,
+                            ...raw.negotiation_details,
+                            history: mergedHistory,
+                        },
+                    };
+                });
+            })
+            .subscribe();
+
+        return () => { layoutProps.supabase.removeChannel(channel); };
+    }, [initialQuote?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
     useEffect(() => {
         if (quote) {
              setExpandedExecutionSteps([]);

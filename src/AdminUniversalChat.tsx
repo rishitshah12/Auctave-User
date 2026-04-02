@@ -246,6 +246,33 @@ export const AdminUniversalChat: React.FC<AdminUniversalChatProps> = ({ onNaviga
     }, []);
     useEffect(() => { fetchQuotes(); }, [fetchQuotes]);
 
+    // ── Realtime subscription ─────────────────────────────────────────────────
+    useEffect(() => {
+        const channel = supabase
+            .channel('admin-universal-chat-rt')
+            .on('postgres_changes', {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'quotes',
+            }, (payload) => {
+                const updated = transformRaw(payload.new);
+                setQuotes(prev => {
+                    const exists = prev.some(q => q.id === updated.id);
+                    if (!exists) return prev;
+                    return prev.map(q => q.id === updated.id ? updated : q);
+                });
+                setSelectedRFQ(prev => prev?.id === updated.id ? updated : prev);
+                setSelectedClient(prev => {
+                    if (!prev) return prev;
+                    if (!prev.rfqs.some(r => r.id === updated.id)) return prev;
+                    return { ...prev, rfqs: prev.rfqs.map(r => r.id === updated.id ? updated : r) };
+                });
+            })
+            .subscribe();
+
+        return () => { supabase.removeChannel(channel); };
+    }, []);
+
     // ── Scroll ────────────────────────────────────────────────────────────────
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
