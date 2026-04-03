@@ -1521,7 +1521,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
 
         const currentApprovals = selectedQuote.negotiation_details?.adminApprovedLineItems || [];
         const isApproved = currentApprovals.includes(lineItemId);
-        
+
         if (!isApproved) {
             if (!window.confirm("Are you sure you want to approve this product list item?")) return;
         }
@@ -1533,9 +1533,36 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
             newApprovals = [...currentApprovals, lineItemId];
         }
 
+        // When admin confirms, copy target price → quoted price and add a history event
+        let updatedLineItemResponses = selectedQuote.response_details?.lineItemResponses || [];
+        const currentHistory = selectedQuote.negotiation_details?.history || [];
+        let newHistory = currentHistory;
+
+        if (!isApproved) {
+            const lineItem = selectedQuote.order.lineItems.find((i: any) => i.id === lineItemId);
+            const targetPrice = lineItem?.targetPrice;
+            if (targetPrice) {
+                // Copy target price to quoted price for this line item
+                updatedLineItemResponses = updatedLineItemResponses.map((r: any) =>
+                    r.lineItemId === lineItemId ? { ...r, price: targetPrice } : r
+                );
+                // Add acceptance history event
+                const acceptHistoryItem: NegotiationHistoryItem = {
+                    id: Date.now().toString(),
+                    sender: 'factory',
+                    action: 'accept',
+                    message: 'Factory matched your target price',
+                    timestamp: new Date().toISOString(),
+                    lineItemPrices: [{ lineItemId, price: targetPrice }]
+                };
+                newHistory = [...currentHistory, acceptHistoryItem];
+            }
+        }
+
         const updatedNegotiationDetails = {
             ...(selectedQuote.negotiation_details || {}),
-            adminApprovedLineItems: newApprovals
+            adminApprovedLineItems: newApprovals,
+            history: newHistory
         };
 
         // Check statuses
@@ -1546,7 +1573,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
 
         let newStatus = selectedQuote.status;
         let toastMessage = '';
-        
+
         if (allAdminApproved && allClientApproved) {
             newStatus = 'Accepted';
             toastMessage = 'All items approved by both parties. Quote Accepted!';
@@ -1562,9 +1589,12 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
         }
 
         const updates: any = { status: newStatus, negotiation_details: updatedNegotiationDetails };
-        if (newStatus === 'Accepted' && selectedQuote.status !== 'Accepted') {
-            updates.response_details = { ...(selectedQuote.response_details || {}), acceptedAt: new Date().toISOString() };
-        }
+        const updatedResponseDetails = {
+            ...(selectedQuote.response_details || {}),
+            lineItemResponses: updatedLineItemResponses,
+            ...(newStatus === 'Accepted' && selectedQuote.status !== 'Accepted' ? { acceptedAt: new Date().toISOString() } : {})
+        };
+        updates.response_details = updatedResponseDetails;
 
         // Optimistic update
         const updatedQuote = { ...selectedQuote, ...updates };
@@ -2369,7 +2399,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                     };
 
                                     const agreedPrice = getAgreedPrice();
-                                    const showAgreedPrice = isAccepted;
+                                    const showAgreedPrice = (isAdminApproved && isClientApproved) || isAccepted;
 
                                     // Group history into rows (Client Counter -> Factory Response)
                                     const groupedHistory: { client?: { price: string; timestamp: string }; factory?: { price: string; timestamp: string } }[] = (() => {
@@ -2425,18 +2455,30 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                                     {item.quantityType === 'container' ? item.containerType : `${item.qty} units`}
                                                 </div>
 
-                                                {/* Target Price */}
+                                                {/* Target Price — hidden once both parties agreed */}
                                                 <div className="md:col-span-2 text-sm text-right flex items-center justify-end gap-2">
-                                                    <span className="md:hidden font-medium text-gray-500">Target:</span>
-                                                    <span className="font-medium text-gray-900 dark:text-white">${item.targetPrice}</span>
+                                                    {showAgreedPrice ? (
+                                                        <span className="text-gray-300 dark:text-gray-600 text-xs italic hidden md:block">—</span>
+                                                    ) : (
+                                                        <>
+                                                            <span className="md:hidden font-medium text-gray-500">Target:</span>
+                                                            <span className="font-medium text-gray-900 dark:text-white">${item.targetPrice}</span>
+                                                        </>
+                                                    )}
                                                 </div>
 
-                                                {/* Quoted Price */}
+                                                {/* Quoted / Final Price */}
                                                 <div className="md:col-span-2 text-sm text-right flex items-center justify-end gap-2">
-                                                    <span className="md:hidden font-medium text-gray-500 mr-2">Quoted:</span>
-                                                    {showAgreedPrice ? <span className="font-bold text-green-600 dark:text-green-400">${agreedPrice}</span> : (itemResponse?.price ? <span className="font-bold text-[#c20c0b] dark:text-red-400">${itemResponse.price}</span> : <span className="text-gray-400">-</span>)}
-                                                    {(selectedQuote.status !== 'Accepted' && selectedQuote.status !== 'Declined') && (
-                                                        <button 
+                                                    <span className="md:hidden font-medium text-gray-500 mr-2">{showAgreedPrice ? 'Final:' : 'Quoted:'}</span>
+                                                    {showAgreedPrice ? (
+                                                        <span className="font-bold text-green-600 dark:text-green-400">${agreedPrice}</span>
+                                                    ) : (
+                                                        itemResponse?.price
+                                                            ? <span className="font-bold text-[#c20c0b] dark:text-red-400">${itemResponse.price}</span>
+                                                            : <span className="text-gray-400">-</span>
+                                                    )}
+                                                    {(!showAgreedPrice && selectedQuote.status !== 'Accepted' && selectedQuote.status !== 'Declined') && (
+                                                        <button
                                                             onClick={(e) => { e.stopPropagation(); setNegotiatingItem(item); }}
                                                             className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors"
                                                             title="Edit Quoted Price"
@@ -2517,14 +2559,24 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                                             </div>
                                                         </div>
                                                         <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
-                                                            <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-3 py-2">
-                                                                <p className="text-xs text-white uppercase font-bold tracking-wider">{showAgreedPrice ? 'Agreed Price' : 'Target Price'}</p>
+                                                            <div className={`px-3 py-2 ${showAgreedPrice ? 'bg-gradient-to-r from-green-600 to-emerald-500' : 'bg-gradient-to-r from-[#c20c0b] to-pink-600'}`}>
+                                                                <p className="text-xs text-white uppercase font-bold tracking-wider">{showAgreedPrice ? 'Final Price' : 'Target Price'}</p>
                                                             </div>
                                                             <div className="p-3 bg-white dark:bg-gray-800">
                                                                 <p className={`font-bold text-sm ${showAgreedPrice ? 'text-green-600 dark:text-green-400' : 'text-[#c20c0b] dark:text-red-400'}`}>${showAgreedPrice ? agreedPrice : item.targetPrice}</p>
                                                             </div>
                                                         </div>
                                                     </div>
+
+                                                    {/* Final Price Banner — shown when both parties agreed */}
+                                                    {showAgreedPrice && (
+                                                        <div className="mb-6 flex items-center gap-3 px-4 py-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
+                                                            <CheckCheck size={18} className="text-green-600 dark:text-green-400 shrink-0" />
+                                                            <p className="text-sm font-semibold text-green-700 dark:text-green-400">
+                                                                Price agreed at <span className="font-black">${agreedPrice}</span> — see full negotiation history in the Timeline tab
+                                                            </p>
+                                                        </div>
+                                                    )}
 
                                                     {/* Size Breakdown */}
                                                     <div className="mb-6">
@@ -2550,8 +2602,8 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                                         )}
                                                     </div>
 
-                                                    {/* Price Comparison Card */}
-                                                    {itemResponse?.price && (
+                                                    {/* Price Comparison Card — only shown while negotiating, not after agreement */}
+                                                    {itemResponse?.price && !showAgreedPrice && (
                                                         <div className="mb-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 shadow-sm">
                                                             <div className="flex items-center justify-between mb-4">
                                                                 <h4 className="font-bold text-gray-800 dark:text-white flex items-center gap-2">
@@ -2792,19 +2844,46 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                                     </div>
                                                 </div>
 
-                                                {displayHistory.map((item, idx) => (
+                                                {displayHistory.map((item, idx) => {
+                                                    const isAcceptAction = item.action === 'accept';
+                                                    const dotColor = isAcceptAction ? 'bg-green-500' : item.sender === 'factory' ? 'bg-[#c20c0b]' : 'bg-blue-500';
+                                                    const cardBorder = isAcceptAction
+                                                        ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800/40'
+                                                        : item.sender === 'factory'
+                                                            ? 'bg-white dark:bg-gray-900/60 border-red-100 dark:border-red-900/30'
+                                                            : 'bg-white dark:bg-gray-900/60 border-blue-100 dark:border-blue-900/30';
+                                                    const senderLabel = isAcceptAction
+                                                        ? (item.sender === 'factory' ? 'Price Confirmed' : 'Client Accepted')
+                                                        : (item.sender === 'factory' ? 'You' : 'Client');
+                                                    const senderColor = isAcceptAction ? 'text-green-600 dark:text-green-400' : item.sender === 'factory' ? 'text-[#c20c0b]' : 'text-blue-600';
+
+                                                    return (
                                                     <div key={idx} className="flex-shrink-0 w-72 relative pt-8">
-                                                        <div className={`absolute top-4 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full border-2 border-white dark:border-gray-800 z-10 ${item.sender === 'factory' ? 'bg-[#c20c0b]' : 'bg-blue-500'}`} />
-                                                        <div className={`p-4 rounded-xl border shadow-sm h-full flex flex-col ${item.sender === 'factory' ? 'bg-white dark:bg-gray-900/60 border-red-100 dark:border-red-900/30' : 'bg-white dark:bg-gray-900/60 border-blue-100 dark:border-blue-900/30'}`}>
+                                                        <div className={`absolute top-4 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full border-2 border-white dark:border-gray-800 z-10 ${dotColor}`} />
+                                                        <div className={`p-4 rounded-xl border shadow-sm h-full flex flex-col ${cardBorder}`}>
                                                             <div className="flex justify-between items-center mb-2">
-                                                                <span className={`text-xs font-bold uppercase ${item.sender === 'factory' ? 'text-[#c20c0b]' : 'text-blue-600'}`}>
-                                                                    {item.sender === 'factory' ? 'You' : 'Client'}
+                                                                <span className={`text-xs font-bold uppercase flex items-center gap-1 ${senderColor}`}>
+                                                                    {isAcceptAction && <CheckCheck size={11} />}
+                                                                    {senderLabel}
                                                                 </span>
                                                                 <span className="text-xs text-gray-400 dark:text-gray-500">
                                                                     {formatFriendlyDate(item.timestamp)}
                                                                 </span>
                                                             </div>
-                                                            {item.price && (
+                                                            {item.lineItemPrices?.length > 0 && (
+                                                                <div className="mb-2 space-y-1">
+                                                                    {item.lineItemPrices.map((lp: any, li: number) => {
+                                                                        const product = selectedQuote.order?.lineItems?.find((i: any) => i.id === lp.lineItemId);
+                                                                        return (
+                                                                            <div key={li} className="flex justify-between text-xs">
+                                                                                <span className="text-gray-500 dark:text-gray-400 truncate">{product?.category || `Item ${li + 1}`}</span>
+                                                                                <span className={`font-bold ml-2 ${isAcceptAction ? 'text-green-600 dark:text-green-400' : 'text-gray-900 dark:text-white'}`}>${lp.price}</span>
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            )}
+                                                            {item.price && !item.lineItemPrices?.length && (
                                                                 <div className="mb-2">
                                                                     <span className="text-lg font-bold text-gray-900 dark:text-white">${item.price}</span>
                                                                     <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">/ unit</span>
@@ -2813,11 +2892,11 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                                             <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap flex-grow">
                                                                 {item.message}
                                                             </p>
-                                                            {item.action === 'accept' && <div className="mt-3 pt-2 border-t border-gray-100 dark:border-white/10 text-xs font-bold text-green-600 flex items-center gap-1"><CheckCircle size={12}/> Accepted</div>}
                                                             {item.action === 'decline' && <div className="mt-3 pt-2 border-t border-gray-100 dark:border-white/10 text-xs font-bold text-red-600 flex items-center gap-1"><X size={12}/> Declined</div>}
                                                         </div>
                                                     </div>
-                                                ))}
+                                                    );
+                                                })}
                                             </div>
                                         </div>
 

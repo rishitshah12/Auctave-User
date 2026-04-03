@@ -806,7 +806,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
 
         const currentApprovals = quote.negotiation_details?.clientApprovedLineItems || [];
         const isApproved = currentApprovals.includes(lineItemId);
-        
+
         if (!isApproved) {
             if (!window.confirm("Are you sure you want to approve this product list item?")) return;
         }
@@ -818,9 +818,27 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
             newApprovals = [...currentApprovals, lineItemId];
         }
 
+        // When client confirms, add a history event showing they accepted the factory's price
+        const currentHistory = quote.negotiation_details?.history || [];
+        let newHistory = currentHistory;
+        if (!isApproved) {
+            const itemResponse = quote.response_details?.lineItemResponses?.find((r: any) => r.lineItemId === lineItemId);
+            const quotedPrice = itemResponse?.price;
+            const acceptHistoryItem: NegotiationHistoryItem = {
+                id: Date.now().toString(),
+                sender: 'client',
+                action: 'accept',
+                message: quotedPrice ? `Accepted the factory price of $${quotedPrice}` : 'Accepted the price',
+                timestamp: new Date().toISOString(),
+                lineItemPrices: quotedPrice ? [{ lineItemId, price: quotedPrice }] : []
+            };
+            newHistory = [...currentHistory, acceptHistoryItem];
+        }
+
         const updatedNegotiationDetails = {
             ...(quote.negotiation_details || {}),
-            clientApprovedLineItems: newApprovals
+            clientApprovedLineItems: newApprovals,
+            history: newHistory
         };
 
         // Check statuses
@@ -1824,7 +1842,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                         };
 
                                         const agreedPrice = getAgreedPrice();
-                                        const showAgreedPrice = isAccepted;
+                                        const showAgreedPrice = (isAdminApproved && isClientApproved) || isAccepted;
 
                                         return (
                                             <div key={index} className="transition-all duration-200">
@@ -1851,25 +1869,34 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                 {item.qty} {item.quantityType === 'container' ? '' : 'units'}
                                             </div>
 
-                                            {/* Target Price */}
+                                            {/* Target Price — hidden once both parties agreed */}
                                             <div className="md:col-span-2 text-sm text-right flex items-center justify-end gap-2">
-                                                <span className="md:hidden font-medium text-gray-500">Target:</span>
-                                                <span className="font-medium text-gray-900 dark:text-white">${item.targetPrice}</span>
-                                                {(status === 'Responded' || status === 'In Negotiation' || status === 'Admin Accepted') && (
-                                                    <button 
-                                                        onClick={(e) => { e.stopPropagation(); setNegotiatingItem(item); }}
-                                                        className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors"
-                                                        title="Negotiate Item Price"
-                                                    >
-                                                        <Edit size={14} />
-                                                    </button>
+                                                {showAgreedPrice ? (
+                                                    <span className="text-gray-300 dark:text-gray-600 text-xs italic hidden md:block">—</span>
+                                                ) : (
+                                                    <>
+                                                        <span className="md:hidden font-medium text-gray-500">Target:</span>
+                                                        <span className="font-medium text-gray-900 dark:text-white">${item.targetPrice}</span>
+                                                        {(['Responded', 'In Negotiation', 'Admin Accepted'] as string[]).includes(status) && (
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); setNegotiatingItem(item); }}
+                                                                className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors"
+                                                                title="Negotiate Item Price"
+                                                            >
+                                                                <Edit size={14} />
+                                                            </button>
+                                                        )}
+                                                    </>
                                                 )}
                                             </div>
 
-                                            {/* Quoted Price */}
+                                            {/* Quoted / Final Price */}
                                             <div className="md:col-span-2 text-sm text-right">
-                                                <span className="md:hidden font-medium text-gray-500 mr-2">Quoted:</span>
-                                                {showAgreedPrice ? <span className="font-bold text-green-600 dark:text-green-400">${agreedPrice}</span> : (itemResponse?.price ? <span className="font-bold text-[#c20c0b] dark:text-red-400">${itemResponse.price}</span> : <span className="text-gray-400">-</span>)}
+                                                <span className="md:hidden font-medium text-gray-500 mr-2">{showAgreedPrice ? 'Final:' : 'Quoted:'}</span>
+                                                {showAgreedPrice
+                                                    ? <span className="font-bold text-green-600 dark:text-green-400">${agreedPrice}</span>
+                                                    : (itemResponse?.price ? <span className="font-bold text-[#c20c0b] dark:text-red-400">${itemResponse.price}</span> : <span className="text-gray-400">-</span>)
+                                                }
                                             </div>
 
                                             {/* Expand Icon */}
@@ -1943,14 +1970,24 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                         </div>
                                                     </div>
                                                     <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
-                                                        <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-3 py-2">
-                                                            <p className="text-xs text-white uppercase font-bold tracking-wider">{showAgreedPrice ? 'Agreed Price' : 'Target Price'}</p>
+                                                        <div className={`px-3 py-2 ${showAgreedPrice ? 'bg-gradient-to-r from-green-600 to-emerald-500' : 'bg-gradient-to-r from-[#c20c0b] to-pink-600'}`}>
+                                                            <p className="text-xs text-white uppercase font-bold tracking-wider">{showAgreedPrice ? 'Final Price' : 'Target Price'}</p>
                                                         </div>
                                                         <div className="p-3 bg-white dark:bg-gray-800">
                                                             <p className={`font-bold text-sm ${showAgreedPrice ? 'text-green-600 dark:text-green-400' : 'text-[#c20c0b] dark:text-red-400'}`}>${showAgreedPrice ? agreedPrice : item.targetPrice}</p>
                                                         </div>
                                                     </div>
                                                 </div>
+
+                                                {/* Final Price Banner — shown when both parties agreed */}
+                                                {showAgreedPrice && (
+                                                    <div className="mb-6 flex items-center gap-3 px-4 py-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
+                                                        <CheckCheck size={18} className="text-green-600 dark:text-green-400 shrink-0" />
+                                                        <p className="text-sm font-semibold text-green-700 dark:text-green-400">
+                                                            Price agreed at <span className="font-black">${agreedPrice}</span> — full negotiation history is in the Timeline tab
+                                                        </p>
+                                                    </div>
+                                                )}
 
                                                 {/* Size Breakdown */}
                                                 <div className="mb-6">
@@ -2258,10 +2295,12 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                 const getActionLabel = () => {
                                                     if (action === 'offer') return isClient ? 'Quote Request' : 'Initial Quote';
                                                     if (action === 'counter') return isClient ? 'Your Counter Offer' : 'Counter Offer';
+                                                    if (action === 'accept') return isClient ? 'Price Accepted' : 'Price Confirmed';
                                                     return isClient ? 'You' : 'Factory';
                                                 };
                                                 const getActionIcon = () => {
                                                     if (action === 'offer' || action === 'counter') return <DollarSign size={13} />;
+                                                    if (action === 'accept') return <CheckCheck size={13} />;
                                                     return isClient ? <Send size={13} /> : <MessageSquare size={13} />;
                                                 };
                                                 const isPriceAction = action === 'offer' || action === 'counter';
@@ -2279,8 +2318,8 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                         <div className={`max-w-[75%] sm:max-w-[60%] ${isClient ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
                                                             {/* Sender + timestamp */}
                                                             <div className={`flex items-center gap-2 ${isClient ? 'flex-row-reverse' : 'flex-row'}`}>
-                                                                <span className={`text-xs font-semibold ${isClient ? 'text-[#c20c0b]' : 'text-blue-600 dark:text-blue-400'}`}>
-                                                                    {getActionLabel()}
+                                                                <span className={`text-xs font-semibold flex items-center gap-1 ${action === 'accept' ? 'text-green-600 dark:text-green-400' : isClient ? 'text-[#c20c0b]' : 'text-blue-600 dark:text-blue-400'}`}>
+                                                                    {getActionIcon()} {getActionLabel()}
                                                                 </span>
                                                                 <span className="text-[10px] text-gray-400">
                                                                     {formatFriendlyDate(entry.timestamp)}
@@ -2290,22 +2329,25 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                                             {/* Price card — overall price OR per-item breakdown */}
                                                             {(() => {
                                                                 const hasLineItems = entry.lineItemPrices && entry.lineItemPrices.length > 0;
-                                                                const priceLabel = isPriceAction ? (action === 'offer' && !isClient ? 'Quoted Price' : 'Counter Price') : 'Price';
-                                                                const accentCls = isClient ? 'text-[#c20c0b]' : 'text-blue-600 dark:text-blue-400';
-                                                                const cardCls = isClient
-                                                                    ? 'bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-800/40 rounded-tr-sm'
-                                                                    : 'bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-800/40 rounded-tl-sm';
+                                                                const isAcceptAction = action === 'accept';
+                                                                const priceLabel = isAcceptAction ? 'Agreed Price' : (isPriceAction ? (action === 'offer' && !isClient ? 'Quoted Price' : 'Counter Price') : 'Price');
+                                                                const accentCls = isAcceptAction ? 'text-green-600 dark:text-green-400' : (isClient ? 'text-[#c20c0b]' : 'text-blue-600 dark:text-blue-400');
+                                                                const cardCls = isAcceptAction
+                                                                    ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800/40 rounded-xl'
+                                                                    : isClient
+                                                                        ? 'bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-800/40 rounded-tr-sm'
+                                                                        : 'bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-800/40 rounded-tl-sm';
 
                                                                 if (!entry.price && !hasLineItems) return null;
 
                                                                 return (
                                                                     <div className={`rounded-2xl px-4 py-3 shadow-sm border ${cardCls}`}>
                                                                         <div className={`flex items-center gap-1.5 mb-1.5 ${accentCls}`}>
-                                                                            <DollarSign size={12} />
+                                                                            {isAcceptAction ? <CheckCheck size={12} /> : <DollarSign size={12} />}
                                                                             <span className="text-[10px] font-semibold uppercase tracking-wide">{priceLabel}</span>
                                                                         </div>
                                                                         {entry.price && (
-                                                                            <p className={`text-xl font-black ${isClient ? 'text-[#c20c0b]' : 'text-blue-700 dark:text-blue-300'}`}>
+                                                                            <p className={`text-xl font-black ${isAcceptAction ? 'text-green-700 dark:text-green-300' : isClient ? 'text-[#c20c0b]' : 'text-blue-700 dark:text-blue-300'}`}>
                                                                                 ${entry.price}
                                                                             </p>
                                                                         )}
@@ -2316,7 +2358,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                                                     return (
                                                                                         <div key={li} className="flex justify-between items-center text-xs gap-3">
                                                                                             <span className="text-gray-600 dark:text-gray-300 truncate">{product?.category || `Item ${li + 1}`}</span>
-                                                                                            <span className={`font-bold font-mono ${isClient ? 'text-[#c20c0b]' : 'text-blue-700 dark:text-blue-300'}`}>${lp.price}</span>
+                                                                                            <span className={`font-bold font-mono ${isAcceptAction ? 'text-green-700 dark:text-green-300' : isClient ? 'text-[#c20c0b]' : 'text-blue-700 dark:text-blue-300'}`}>${lp.price}</span>
                                                                                         </div>
                                                                                     );
                                                                                 })}
