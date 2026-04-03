@@ -450,28 +450,28 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                 }}
                 onMouseEnter={() => setHoveredCardId(quote.id)}
                 onMouseLeave={() => setHoveredCardId(null)}
-                className={`${theme.cardBg} backdrop-blur-sm rounded-2xl border transition-all duration-300 cursor-pointer group relative overflow-hidden flex flex-col hover:-translate-y-1.5 ${isSelected ? 'border-[#c20c0b] ring-2 ring-[#c20c0b]/30' : isUnreadCard ? 'border-blue-300 dark:border-blue-600/60' : theme.border}`}
+                className={`${theme.cardBg} backdrop-blur-sm rounded-2xl border transition-all duration-300 cursor-pointer group relative overflow-hidden flex flex-col hover:-translate-y-1.5 ${isSelected ? 'border-[#c20c0b] ring-2 ring-[#c20c0b]/30' : theme.border}`}
                 style={{
                     boxShadow: isSelected
                         ? `0 4px 20px -4px rgba(194,12,11,0.25), 0 1px 3px rgba(0,0,0,0.06)`
                         : isHovered
                         ? isUnreadCard
-                            ? `0 20px 40px -8px rgba(59,130,246,0.35), 0 8px 16px -4px rgba(59,130,246,0.18), 0 1px 4px rgba(0,0,0,0.08)`
+                            ? `0 20px 40px -8px ${theme.glowHover}, 0 8px 16px -4px ${theme.glow}, 0 1px 4px rgba(0,0,0,0.08), inset 3px 0 0 #f59e0b`
                             : `0 20px 40px -8px ${theme.glowHover}, 0 8px 16px -4px ${theme.glow}, 0 1px 4px rgba(0,0,0,0.08)`
                         : isUnreadCard
-                            ? `0 4px 20px -4px rgba(59,130,246,0.22), 0 1px 3px rgba(0,0,0,0.06), inset 3px 0 0 #3b82f6`
+                            ? `0 4px 20px -4px ${theme.glow}, 0 1px 3px rgba(0,0,0,0.06), inset 3px 0 0 #f59e0b`
                             : `0 4px 20px -4px ${theme.glow}, 0 1px 3px rgba(0,0,0,0.06)`,
                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                     animationDelay: `${index * 50}ms`,
                 }}
             >
                 {/* Status gradient top bar */}
-                <div className={`h-[3px] w-full bg-gradient-to-r ${isUnreadCard ? 'from-blue-400 via-blue-500 to-indigo-500' : getStatusGradientBorder(quote.status)} flex-shrink-0`} />
+                <div className={`h-[3px] w-full bg-gradient-to-r ${getStatusGradientBorder(quote.status)} flex-shrink-0`} />
 
                 {/* Mesh gradient ambient overlay */}
                 <div
                     className="absolute inset-0 pointer-events-none"
-                    style={{ background: isUnreadCard ? 'radial-gradient(ellipse at 85% 10%, rgba(59,130,246,0.08) 0%, transparent 55%)' : theme.meshGradient, top: '3px' }}
+                    style={{ background: theme.meshGradient, top: '3px' }}
                 />
 
                 <div className="p-5 flex flex-col flex-grow relative">
@@ -491,8 +491,8 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                                 #{quote.id.slice(0, 8)}
                             </span>
                             {isUnreadCard && (
-                                <span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full border border-blue-300/70 dark:border-blue-600/50 bg-blue-50/90 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center gap-1 backdrop-blur-sm animate-pulse">
-                                    <Circle size={6} className="fill-blue-500 text-blue-500" /> New
+                                <span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full border border-amber-300/70 dark:border-amber-600/50 bg-amber-50/90 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 flex items-center gap-1 backdrop-blur-sm">
+                                    <Circle size={6} className="fill-amber-500 text-amber-500" /> New
                                 </span>
                             )}
                         </div>
@@ -553,7 +553,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                                 ? `${quote.order.lineItems.length} Product Types`
                                 : (quote.order?.lineItems?.[0]?.category || 'Unknown Product')}
                         </h3>
-                        <p className={`text-xs flex items-center gap-1.5 ${isUnreadCard ? 'text-blue-500 dark:text-blue-400 font-medium' : 'text-gray-400 dark:text-gray-500'}`}>
+                        <p className={`text-xs flex items-center gap-1.5 text-gray-400 dark:text-gray-500`}>
                             <Clock size={11} />
                             {getDisplayDateInfo(quote).label} · {getDisplayDateInfo(quote).date}
                         </p>
