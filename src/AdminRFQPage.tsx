@@ -5,7 +5,7 @@ import { MainLayout } from './MainLayout';
 import { quoteService } from './quote.service';
 import { crmService } from './crm.service';
 import { QuoteRequest, NegotiationHistoryItem } from './types';
-import { MapPin, Shirt, Package, Clock, ChevronRight, ChevronLeft, FileQuestion, MessageSquare, CheckCircle, XCircle, X, Download, RefreshCw, User, Building, Calendar, FileText, Eye, EyeOff, CheckSquare, ArrowUp, ArrowDown, ChevronDown, ChevronUp, History, DollarSign, Search, Mail, Phone, Check, CheckCheck, Trash2, RotateCcw, Image as ImageIcon, Scale, Paperclip, Send, Circle, Layers, Scissors, Factory, ShieldCheck, Truck, LifeBuoy, ClipboardList, Plus, Edit, GripVertical, Info, Sparkles, Globe, Box, Link as LinkIcon, Filter, Activity, ExternalLink, ArrowRight } from 'lucide-react';
+import { MapPin, Shirt, Package, Clock, ChevronRight, ChevronLeft, FileQuestion, MessageSquare, CheckCircle, XCircle, X, Download, RefreshCw, User, Building, Calendar, FileText, Eye, EyeOff, CheckSquare, ArrowUp, ArrowDown, ChevronDown, ChevronUp, History, DollarSign, Search, Mail, MailOpen, Phone, Check, CheckCheck, Trash2, RotateCcw, Image as ImageIcon, Scale, Paperclip, Send, Circle, Layers, Scissors, Factory, ShieldCheck, Truck, LifeBuoy, ClipboardList, Plus, Edit, GripVertical, Info, Sparkles, Globe, Box, Link as LinkIcon, Filter, Activity, ExternalLink, ArrowRight } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import confetti from 'canvas-confetti';
@@ -291,6 +291,9 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
         if (!saved) return {};
         try { return JSON.parse(saved); } catch { return {}; }
     });
+    const pendingReadTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+    const [undoState, setUndoState] = useState<{ quoteId: string; clientName: string } | null>(null);
+    const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const abortControllerRef = useRef<AbortController | null>(null);
     const fileLinksAbortController = useRef<AbortController | null>(null);
     const clientDropdownRef = useRef<HTMLDivElement>(null);
@@ -856,6 +859,65 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
         filteredQuotes.forEach(q => { updated[q.id] = now; });
         localStorage.setItem('admin_quote_read_state', JSON.stringify(updated));
         setAdminReadState(updated);
+        showToast('All quotes marked as read.');
+    };
+
+    const markAsUnread = (quoteId: string) => {
+        setAdminReadState(prev => {
+            const updated = { ...prev };
+            delete updated[quoteId];
+            localStorage.setItem('admin_quote_read_state', JSON.stringify(updated));
+            return updated;
+        });
+    };
+
+    // 1-second delay prevents accidental-click false-positives
+    const scheduleMarkAsRead = (quoteId: string) => {
+        if (pendingReadTimers.current[quoteId]) clearTimeout(pendingReadTimers.current[quoteId]);
+        pendingReadTimers.current[quoteId] = setTimeout(() => {
+            markAsRead(quoteId);
+            delete pendingReadTimers.current[quoteId];
+        }, 1000);
+    };
+
+    // Manual mark-as-read from card button — shows undo banner
+    const manualMarkAsRead = (e: React.MouseEvent, quote: QuoteRequest) => {
+        e.stopPropagation();
+        markAsRead(quote.id);
+        if (undoTimer.current) clearTimeout(undoTimer.current);
+        setUndoState({ quoteId: quote.id, clientName: quote.clientName || `#${quote.id.slice(0, 8)}` });
+        undoTimer.current = setTimeout(() => setUndoState(null), 5000);
+    };
+
+    const handleUndoMarkAsRead = () => {
+        if (!undoState) return;
+        markAsUnread(undoState.quoteId);
+        setUndoState(null);
+        if (undoTimer.current) clearTimeout(undoTimer.current);
+    };
+
+    // Thread unread check — available for per-client grouping views
+    const isThreadUnread = (userId: string) =>
+        quotes.some(q => q.userId === userId && isQuoteUnread(q));
+    void isThreadUnread; // exposed as utility; used via unreadThreadCount in render
+
+    const bulkMarkAsRead = () => {
+        const updated = { ...adminReadState };
+        const now = new Date().toISOString();
+        selectedQuoteIds.forEach(id => { updated[id] = now; });
+        localStorage.setItem('admin_quote_read_state', JSON.stringify(updated));
+        setAdminReadState(updated);
+        setSelectedQuoteIds([]);
+        showToast(`${selectedQuoteIds.length} quotes marked as read.`);
+    };
+
+    const bulkMarkAsUnread = () => {
+        const updated = { ...adminReadState };
+        selectedQuoteIds.forEach(id => { delete updated[id]; });
+        localStorage.setItem('admin_quote_read_state', JSON.stringify(updated));
+        setAdminReadState(updated);
+        setSelectedQuoteIds([]);
+        showToast(`${selectedQuoteIds.length} quotes marked as unread.`);
     };
 
     // Reset page when filters change
@@ -873,6 +935,8 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
     const unreadQuotesAll = filteredQuotes.filter(isQuoteUnread);
     const readQuotesAll = filteredQuotes.filter(q => !isQuoteUnread(q));
     const showUnreadSection = filterStatus === 'All' && unreadQuotesAll.length > 0 && viewMode === 'active';
+    // Thread = all quotes from same client; count distinct unread threads
+    const unreadThreadCount = new Set(unreadQuotesAll.map(q => q.userId).filter(Boolean)).size;
     const readTotalPages = Math.ceil(readQuotesAll.length / itemsPerPage);
     const displayedReadQuotes = readQuotesAll.slice(
         (currentPageIndex - 1) * itemsPerPage,
@@ -3760,7 +3824,11 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
         return (
         <div
             key={quote.id}
-            onClick={() => { markAsRead(quote.id); setSelectedQuote(quote); }}
+            onClick={() => {
+                if (isSelectionMode) { toggleSelectQuote(quote.id); return; }
+                scheduleMarkAsRead(quote.id);
+                setSelectedQuote(quote);
+            }}
             onMouseEnter={() => setHoveredQuoteId(quote.id)}
             onMouseLeave={() => setHoveredQuoteId(null)}
             className={`${theme.cardBg} backdrop-blur-sm rounded-2xl border transition-all duration-300 cursor-pointer group relative overflow-hidden flex flex-col hover:-translate-y-1.5 ${isUnread ? 'border-blue-300 dark:border-blue-600/60' : theme.border}`}
@@ -3948,6 +4016,23 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                 <div className="mt-auto pt-3.5 border-t border-white/60 dark:border-white/5 flex items-center justify-between">
                     {viewMode === 'active' ? (
                         <div className="flex gap-1">
+                            {isUnread ? (
+                                <button
+                                    onClick={(e) => manualMarkAsRead(e, quote)}
+                                    className="p-1.5 text-blue-400 hover:text-blue-600 hover:bg-blue-50/80 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                                    title="Mark as read"
+                                >
+                                    <Mail size={15} />
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); markAsUnread(quote.id); }}
+                                    className="p-1.5 text-gray-400 hover:text-indigo-500 hover:bg-indigo-50/80 dark:hover:bg-indigo-900/20 rounded-lg transition-colors"
+                                    title="Mark as unread"
+                                >
+                                    <MailOpen size={15} />
+                                </button>
+                            )}
                             <button
                                 onClick={(e) => toggleHideQuote(quote.id, e)}
                                 className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-white/80 dark:hover:bg-gray-700/60 rounded-lg transition-colors"
@@ -4021,6 +4106,15 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
 
     return (
         <MainLayout {...props}>
+            {/* Undo Banner */}
+            {undoState && (
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-gray-900 dark:bg-gray-800 text-white px-5 py-3 rounded-2xl shadow-2xl border border-white/10 animate-fade-in">
+                    <Mail size={15} className="text-blue-400" />
+                    <span className="text-sm">Marked <span className="font-semibold">{undoState.clientName}</span> as read</span>
+                    <button onClick={handleUndoMarkAsRead} className="ml-2 text-blue-400 text-sm font-bold hover:text-blue-300 transition-colors">Undo</button>
+                </div>
+            )}
+
             <div className="flex justify-between items-center mb-6">
                 <div className="flex items-center gap-3">
                     <div>
@@ -4191,6 +4285,12 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                     </button>
                                 ) : (
                                     <>
+                                        <button onClick={bulkMarkAsRead} className="flex items-center gap-1 px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-blue-600 dark:text-blue-400 text-sm font-medium rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
+                                            <Mail size={14} /> Mark as Read
+                                        </button>
+                                        <button onClick={bulkMarkAsUnread} className="flex items-center gap-1 px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-indigo-600 dark:text-indigo-400 text-sm font-medium rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors">
+                                            <MailOpen size={14} /> Mark as Unread
+                                        </button>
                                         <button onClick={() => openBulkActionModal('hide')} className="flex items-center gap-1 px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-white text-sm font-medium rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
                                             <EyeOff size={14} /> Hide Selected
                                         </button>
@@ -4215,6 +4315,9 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                 <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse inline-block" />
                                 Unread
                                 <span className="ml-1 bg-blue-500 text-white text-xs font-bold rounded-full px-2 py-0.5">{unreadQuotesAll.length}</span>
+                                {unreadThreadCount > 1 && (
+                                    <span className="text-xs text-gray-400 dark:text-gray-500 font-normal">from {unreadThreadCount} clients</span>
+                                )}
                             </h2>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
                                 {unreadQuotesAll.map(renderQuoteCard)}

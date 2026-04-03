@@ -1,9 +1,9 @@
-import React, { useState, FC, useEffect } from 'react';
+import React, { useState, FC, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { MainLayout } from './MainLayout';
 import { QuoteRequest } from './types';
 import {
-    Plus, MapPin, Globe, Shirt, Package, Clock, ChevronRight, FileQuestion, RefreshCw, MessageSquare, Bell, Calendar, DollarSign, CheckCircle, Check, CheckCheck, FileText, Trash2, AlertCircle, Filter, Search, Eye, X, ChevronDown, ClipboardList, Inbox, Archive, CheckSquare, Pencil, Circle
+    Plus, MapPin, Globe, Shirt, Package, Clock, ChevronRight, FileQuestion, RefreshCw, MessageSquare, Bell, Calendar, DollarSign, CheckCircle, Check, CheckCheck, FileText, Trash2, AlertCircle, Filter, Search, Eye, X, ChevronDown, ClipboardList, Inbox, Archive, CheckSquare, Pencil, Circle, MailOpen, Mail, Square
 } from 'lucide-react';
 import { formatFriendlyDate, getStatusColor, getStatusGradientBorder, getStatusHoverShadow } from './utils';
 import { useToast } from './ToastContext';
@@ -188,6 +188,13 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
     const [draftQuotes, setDraftQuotes] = useState<QuoteRequest[]>([]);
     const { showToast } = useToast();
 
+    // Read/unread system
+    const pendingReadTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+    const [undoState, setUndoState] = useState<{ quoteId: string; label: string } | null>(null);
+    const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [isSelectMode, setIsSelectMode] = useState(false);
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
     // Load drafts from local storage
     useEffect(() => {
         const draftData = localStorage.getItem('garment_erp_saved_drafts');
@@ -289,14 +296,70 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
         return new Date(timestamp).toISOString() > new Date(lastRead).toISOString();
     };
 
+    // Thread unread: unread if any quote for the same userId is unread
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const isThreadUnread = (userId: string) =>
+        (quoteRequests || []).some(q => q.userId === userId && q.status !== 'Draft' && isUnread(q));
+
+    const markAsUnread = (quoteId: string) => {
+        localStorage.removeItem(`quote_read_${quoteId}`);
+        setReadTick(t => t + 1);
+    };
+
+    const scheduleMarkAsRead = (quote: QuoteRequest) => {
+        if (pendingReadTimers.current[quote.id]) clearTimeout(pendingReadTimers.current[quote.id]);
+        pendingReadTimers.current[quote.id] = setTimeout(() => {
+            localStorage.setItem(`quote_read_${quote.id}`, getQuoteTimestamp(quote));
+            setReadTick(t => t + 1);
+            delete pendingReadTimers.current[quote.id];
+        }, 1000);
+    };
+
+    const manualMarkAsRead = (e: React.MouseEvent, quote: QuoteRequest) => {
+        e.stopPropagation();
+        localStorage.setItem(`quote_read_${quote.id}`, getQuoteTimestamp(quote));
+        setReadTick(t => t + 1);
+        if (undoTimer.current) clearTimeout(undoTimer.current);
+        setUndoState({ quoteId: quote.id, label: quote.factory?.name || `#${quote.id.slice(0, 8)}` });
+        undoTimer.current = setTimeout(() => setUndoState(null), 5000);
+    };
+
+    const handleUndoMarkAsRead = () => {
+        if (!undoState) return;
+        markAsUnread(undoState.quoteId);
+        setUndoState(null);
+        if (undoTimer.current) clearTimeout(undoTimer.current);
+    };
+
+    const toggleSelectMode = () => { setIsSelectMode(v => !v); setSelectedIds([]); };
+    const toggleSelectId = (id: string) => setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+    const toggleSelectAll = () => setSelectedIds(prev => prev.length === filteredQuotes.length ? [] : filteredQuotes.map(q => q.id));
+
+    const bulkMarkAsRead = () => {
+        selectedIds.forEach(id => {
+            const q = quoteRequests.find(q => q.id === id);
+            if (q) localStorage.setItem(`quote_read_${id}`, getQuoteTimestamp(q));
+        });
+        setReadTick(t => t + 1);
+        setSelectedIds([]);
+        showToast(`${selectedIds.length} quotes marked as read.`);
+    };
+
+    const bulkMarkAsUnread = () => {
+        selectedIds.forEach(id => localStorage.removeItem(`quote_read_${id}`));
+        setReadTick(t => t + 1);
+        setSelectedIds([]);
+        showToast(`${selectedIds.length} quotes marked as unread.`);
+    };
+
     const handleCardClick = (quote: QuoteRequest) => {
         if (quote.status === 'Draft') {
             handleSetCurrentPage('orderForm');
             return;
         }
-        const timestamp = getQuoteTimestamp(quote);
-        localStorage.setItem(`quote_read_${quote.id}`, timestamp);
         handleSetCurrentPage('quoteDetail', quote);
+        // Mark as read after 1 second — prevents accidental-click false-positives
+        scheduleMarkAsRead(quote);
     };
 
     const handleRequestNewQuote = () => {
@@ -368,6 +431,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
             }
         });
         setReadTick(t => t + 1);
+        showToast('All quotes marked as read.');
     };
 
     const renderCard = (quote: QuoteRequest, index: number) => {
@@ -375,16 +439,22 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
         const isHovered = hoveredCardId === quote.id;
         const progressStep = getProgressStep(quote.status);
         const isUnreadCard = quote.status !== 'Draft' && isUnread(quote);
+        const isSelected = selectedIds.includes(quote.id);
 
         return (
             <div
                 key={quote.id}
-                onClick={() => quote.status === 'Draft' ? handleResumeDraft(quote) : handleCardClick(quote)}
+                onClick={() => {
+                    if (isSelectMode && quote.status !== 'Draft') { toggleSelectId(quote.id); return; }
+                    quote.status === 'Draft' ? handleResumeDraft(quote) : handleCardClick(quote);
+                }}
                 onMouseEnter={() => setHoveredCardId(quote.id)}
                 onMouseLeave={() => setHoveredCardId(null)}
-                className={`${theme.cardBg} backdrop-blur-sm rounded-2xl border transition-all duration-300 cursor-pointer group relative overflow-hidden flex flex-col hover:-translate-y-1.5 ${isUnreadCard ? 'border-blue-300 dark:border-blue-600/60' : theme.border}`}
+                className={`${theme.cardBg} backdrop-blur-sm rounded-2xl border transition-all duration-300 cursor-pointer group relative overflow-hidden flex flex-col hover:-translate-y-1.5 ${isSelected ? 'border-[#c20c0b] ring-2 ring-[#c20c0b]/30' : isUnreadCard ? 'border-blue-300 dark:border-blue-600/60' : theme.border}`}
                 style={{
-                    boxShadow: isHovered
+                    boxShadow: isSelected
+                        ? `0 4px 20px -4px rgba(194,12,11,0.25), 0 1px 3px rgba(0,0,0,0.06)`
+                        : isHovered
                         ? isUnreadCard
                             ? `0 20px 40px -8px rgba(59,130,246,0.35), 0 8px 16px -4px rgba(59,130,246,0.18), 0 1px 4px rgba(0,0,0,0.08)`
                             : `0 20px 40px -8px ${theme.glowHover}, 0 8px 16px -4px ${theme.glow}, 0 1px 4px rgba(0,0,0,0.08)`
@@ -408,6 +478,15 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                     {/* Card Header */}
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2">
+                            {isSelectMode && quote.status !== 'Draft' && (
+                                <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={() => toggleSelectId(quote.id)}
+                                    onClick={e => e.stopPropagation()}
+                                    className="rounded text-[#c20c0b] focus:ring-[#c20c0b] h-4 w-4 cursor-pointer"
+                                />
+                            )}
                             <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-white/80 dark:bg-gray-800/80 text-gray-500 dark:text-gray-400 border border-gray-200/70 dark:border-gray-700/70 backdrop-blur-sm font-mono tracking-tight">
                                 #{quote.id.slice(0, 8)}
                             </span>
@@ -630,6 +709,25 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                             >
                                 <Eye size={15} />
                             </button>
+                            {quote.status !== 'Draft' && (
+                                isUnreadCard ? (
+                                    <button
+                                        onClick={(e) => manualMarkAsRead(e, quote)}
+                                        className="p-1.5 text-blue-400 hover:text-blue-600 hover:bg-blue-50/80 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                                        title="Mark as read"
+                                    >
+                                        <Mail size={15} />
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); markAsUnread(quote.id); }}
+                                        className="p-1.5 text-gray-400 hover:text-indigo-500 hover:bg-indigo-50/80 dark:hover:bg-indigo-900/20 rounded-lg transition-colors"
+                                        title="Mark as unread"
+                                    >
+                                        <MailOpen size={15} />
+                                    </button>
+                                )
+                            )}
                             {quote.status !== 'Draft' && (() => {
                                 const chatUnread = (() => {
                                     try {
@@ -686,6 +784,13 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                     <p className="text-gray-500 dark:text-gray-200 mt-1">Track and manage your quotes with factories.</p>
                     </div>
                     <button onClick={onRefresh} className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-colors ${isLoading ? 'animate-spin' : ''}`} title="Refresh Quotes"><RefreshCw size={20}/></button>
+                    <button
+                        onClick={toggleSelectMode}
+                        className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${isSelectMode ? 'text-[#c20c0b] bg-red-50 dark:bg-red-900/20' : 'text-gray-500 dark:text-gray-400'}`}
+                        title={isSelectMode ? 'Exit Selection Mode' : 'Select Quotes'}
+                    >
+                        <CheckSquare size={20} />
+                    </button>
                     {unreadCount > 0 && (
                         <button
                             onClick={markAllAsRead}
@@ -777,6 +882,47 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                     </button>
                 )}
             </div>
+
+            {/* Bulk Action Bar */}
+            {isSelectMode && filteredQuotes.length > 0 && (
+                <div className="sticky top-0 z-20 flex justify-between items-center mb-4 bg-white/80 backdrop-blur-md dark:bg-gray-900/40 p-3 rounded-xl border border-gray-200 dark:border-white/10 animate-fade-in shadow-sm">
+                    <div className="flex items-center gap-3">
+                        <input
+                            type="checkbox"
+                            checked={selectedIds.length === filteredQuotes.length && filteredQuotes.length > 0}
+                            onChange={toggleSelectAll}
+                            className="rounded text-[#c20c0b] focus:ring-[#c20c0b] h-4 w-4 cursor-pointer"
+                        />
+                        <span className="text-sm font-medium text-gray-700 dark:text-white">Select All ({filteredQuotes.length})</span>
+                    </div>
+                    {selectedIds.length > 0 && (
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-500 dark:text-gray-300 mr-1">{selectedIds.length} selected</span>
+                            <button
+                                onClick={bulkMarkAsRead}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-blue-600 dark:text-blue-400 text-sm font-medium rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                            >
+                                <Mail size={14} /> Mark as Read
+                            </button>
+                            <button
+                                onClick={bulkMarkAsUnread}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-indigo-600 dark:text-indigo-400 text-sm font-medium rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
+                            >
+                                <MailOpen size={14} /> Mark as Unread
+                            </button>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Undo Banner */}
+            {undoState && (
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-gray-900 dark:bg-gray-800 text-white px-5 py-3 rounded-2xl shadow-2xl border border-white/10 animate-fade-in">
+                    <Mail size={15} className="text-blue-400" />
+                    <span className="text-sm">Marked <span className="font-semibold">{undoState.label}</span> as read</span>
+                    <button onClick={handleUndoMarkAsRead} className="ml-2 text-blue-400 text-sm font-bold hover:text-blue-300 transition-colors">Undo</button>
+                </div>
+            )}
 
             {/* Quotes Grid */}
             {isLoading ? (

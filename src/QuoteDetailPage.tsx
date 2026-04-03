@@ -1554,7 +1554,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                 <StatusTimeline status={status} />
 
                                 {/* Quick Summary */}
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
+                                <div className="grid grid-cols-3 gap-4 mt-6">
                                     <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 text-center">
                                         <p className="text-2xl font-bold text-gray-900 dark:text-white">{order.lineItems.length}</p>
                                         <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Products</p>
@@ -1562,10 +1562,6 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                     <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 text-center">
                                         <p className="text-2xl font-bold text-gray-900 dark:text-white">{order.lineItems.reduce((acc, item) => acc + (item.qty || 0), 0).toLocaleString()}</p>
                                         <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Total Qty</p>
-                                    </div>
-                                    <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 text-center">
-                                        <p className="text-2xl font-bold text-[#c20c0b] dark:text-red-400">${response_details?.price || '—'}</p>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Quoted</p>
                                     </div>
                                     <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 text-center">
                                         <p className="text-2xl font-bold text-gray-900 dark:text-white">{response_details?.leadTime || '—'}</p>
@@ -1607,9 +1603,9 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                 </div>
 
                                 {/* Action Buttons */}
-                                {status !== 'Accepted' && status !== 'Declined' && (
+                                {(status === 'Responded' || status === 'In Negotiation') && (
                                     <div className="flex flex-wrap justify-end gap-3 mt-6 pt-4 border-t border-gray-100 dark:border-white/10">
-                                        {(status === 'Responded' || status === 'In Negotiation') && !sampleRequest && (
+                                        {!sampleRequest && (
                                             <button
                                                 onClick={() => setIsSampleRequestModalOpen(true)}
                                                 className="px-4 py-2 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-700 font-semibold rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/40 transition shadow-sm flex items-center gap-2"
@@ -2172,9 +2168,10 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
 
                             {/* Negotiation Summary Bar */}
                             {negotiationHistory.length > 0 && (() => {
-                                const priceEntries = negotiationHistory.filter(e => e.price);
-                                const firstPrice = priceEntries[0]?.price;
-                                const latestPrice = priceEntries[priceEntries.length - 1]?.price;
+                                const getEntryPrice = (e: any) => e.price || (e.lineItemPrices?.length ? e.lineItemPrices[0]?.price : null);
+                                const priceEntries = negotiationHistory.filter(e => getEntryPrice(e));
+                                const firstPrice = getEntryPrice(priceEntries[0]);
+                                const latestPrice = getEntryPrice(priceEntries[priceEntries.length - 1]);
                                 const rounds = negotiationHistory.filter(e => e.action === 'offer' || e.action === 'counter').length;
                                 return (
                                     <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 p-5">
@@ -2290,24 +2287,44 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                                 </span>
                                                             </div>
 
-                                                            {/* Price card */}
-                                                            {entry.price && (
-                                                                <div className={`rounded-2xl px-4 py-3 shadow-sm border ${
-                                                                    isClient
-                                                                        ? 'bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-800/40 rounded-tr-sm'
-                                                                        : 'bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-800/40 rounded-tl-sm'
-                                                                }`}>
-                                                                    <div className="flex items-center gap-1.5 mb-0.5">
-                                                                        <DollarSign size={12} className={isClient ? 'text-[#c20c0b]' : 'text-blue-600 dark:text-blue-400'} />
-                                                                        <span className={`text-[10px] font-semibold uppercase tracking-wide ${isClient ? 'text-[#c20c0b]' : 'text-blue-600 dark:text-blue-400'}`}>
-                                                                            {isPriceAction ? (action === 'offer' && !isClient ? 'Quoted Price' : 'Counter Price') : 'Price'}
-                                                                        </span>
+                                                                            {/* Price card — overall price OR per-item breakdown */}
+                                                            {(() => {
+                                                                const hasLineItems = entry.lineItemPrices && entry.lineItemPrices.length > 0;
+                                                                const priceLabel = isPriceAction ? (action === 'offer' && !isClient ? 'Quoted Price' : 'Counter Price') : 'Price';
+                                                                const accentCls = isClient ? 'text-[#c20c0b]' : 'text-blue-600 dark:text-blue-400';
+                                                                const cardCls = isClient
+                                                                    ? 'bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-800/40 rounded-tr-sm'
+                                                                    : 'bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-800/40 rounded-tl-sm';
+
+                                                                if (!entry.price && !hasLineItems) return null;
+
+                                                                return (
+                                                                    <div className={`rounded-2xl px-4 py-3 shadow-sm border ${cardCls}`}>
+                                                                        <div className={`flex items-center gap-1.5 mb-1.5 ${accentCls}`}>
+                                                                            <DollarSign size={12} />
+                                                                            <span className="text-[10px] font-semibold uppercase tracking-wide">{priceLabel}</span>
+                                                                        </div>
+                                                                        {entry.price && (
+                                                                            <p className={`text-xl font-black ${isClient ? 'text-[#c20c0b]' : 'text-blue-700 dark:text-blue-300'}`}>
+                                                                                ${entry.price}
+                                                                            </p>
+                                                                        )}
+                                                                        {hasLineItems && (
+                                                                            <div className={`${entry.price ? 'mt-2 pt-2 border-t border-current/10' : ''} space-y-1`}>
+                                                                                {entry.lineItemPrices.map((lp: any, li: number) => {
+                                                                                    const product = order.lineItems.find((item: any) => item.id === lp.lineItemId);
+                                                                                    return (
+                                                                                        <div key={li} className="flex justify-between items-center text-xs gap-3">
+                                                                                            <span className="text-gray-600 dark:text-gray-300 truncate">{product?.category || `Item ${li + 1}`}</span>
+                                                                                            <span className={`font-bold font-mono ${isClient ? 'text-[#c20c0b]' : 'text-blue-700 dark:text-blue-300'}`}>${lp.price}</span>
+                                                                                        </div>
+                                                                                    );
+                                                                                })}
+                                                                            </div>
+                                                                        )}
                                                                     </div>
-                                                                    <p className={`text-xl font-black ${isClient ? 'text-[#c20c0b]' : 'text-blue-700 dark:text-blue-300'}`}>
-                                                                        ${entry.price}
-                                                                    </p>
-                                                                </div>
-                                                            )}
+                                                                );
+                                                            })()}
 
                                                             {/* Message bubble */}
                                                             {entry.message && (
