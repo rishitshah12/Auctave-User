@@ -1893,10 +1893,15 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                             {/* Quoted / Final Price */}
                                             <div className="md:col-span-2 text-sm text-right">
                                                 <span className="md:hidden font-medium text-gray-500 mr-2">{showAgreedPrice ? 'Final:' : 'Quoted:'}</span>
-                                                {showAgreedPrice
-                                                    ? <span className="font-bold text-green-600 dark:text-green-400">${agreedPrice}</span>
-                                                    : (itemResponse?.price ? <span className="font-bold text-[#c20c0b] dark:text-red-400">${itemResponse.price}</span> : <span className="text-gray-400">-</span>)
-                                                }
+                                                {showAgreedPrice ? (
+                                                    <span className="font-bold text-green-600 dark:text-green-400">${agreedPrice}</span>
+                                                ) : isAdminApproved && itemResponse?.price ? (
+                                                    <span className="font-bold text-green-600 dark:text-green-400">${itemResponse.price}</span>
+                                                ) : itemResponse?.price ? (
+                                                    <span className="font-bold text-[#c20c0b] dark:text-red-400">${itemResponse.price}</span>
+                                                ) : (
+                                                    <span className="text-gray-400">-</span>
+                                                )}
                                             </div>
 
                                             {/* Expand Icon */}
@@ -1905,21 +1910,25 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                     <button
                                                         onClick={(e) => handleToggleLineItemApproval(item.id, e)}
                                                         className={`p-2 rounded-full transition-all border ${
-                                                            isClientApproved
+                                                            isClientApproved && isAdminApproved
                                                                 ? 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800'
                                                                 : isAdminApproved
-                                                                    ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800'
-                                                                    : 'bg-white text-gray-400 border-gray-200 hover:bg-gray-50 hover:text-green-600 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700 dark:hover:bg-gray-700'
+                                                                    ? 'bg-green-50 text-green-600 border-green-200 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800'
+                                                                    : isClientApproved
+                                                                        ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800'
+                                                                        : 'bg-white text-gray-400 border-gray-200 hover:bg-gray-50 hover:text-green-600 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700 dark:hover:bg-gray-700'
                                                         }`}
                                                         title={
                                                             isClientApproved && isAdminApproved ? "Price agreed by both parties" :
-                                                            isClientApproved ? "Approved by you. Waiting for Admin." :
-                                                            isAdminApproved ? "Admin has approved. Click to accept." :
+                                                            isAdminApproved ? "Factory confirmed this price. Click to accept." :
+                                                            isClientApproved ? "Approved by you. Waiting for factory." :
                                                             "Click to approve this price"
                                                         }
                                                     >
-                                                        {isClientApproved ? (
-                                                            isAdminApproved ? <CheckCheck size={18} /> : <Check size={18} />
+                                                        {isClientApproved && isAdminApproved ? (
+                                                            <CheckCheck size={18} />
+                                                        ) : isAdminApproved || isClientApproved ? (
+                                                            <Check size={18} />
                                                         ) : (
                                                             <Circle size={18} />
                                                         )}
