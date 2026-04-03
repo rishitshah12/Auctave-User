@@ -1495,15 +1495,6 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                             {(status === 'Responded' || status === 'In Negotiation' || status === 'Accepted' || status === 'Admin Accepted' || status === 'Client Accepted') && response_details && (
                                 <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800 flex flex-wrap items-center gap-6">
                                     <div className="flex items-center gap-2">
-                                        <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                                            <DollarSign size={20} className="text-green-600 dark:text-green-400" />
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] text-gray-500 dark:text-gray-400 uppercase font-medium">Quoted Price</p>
-                                            <p className="text-lg font-bold text-gray-900 dark:text-white">${response_details.price}</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-2">
                                         <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
                                             <Clock size={20} className="text-blue-600 dark:text-blue-400" />
                                         </div>
