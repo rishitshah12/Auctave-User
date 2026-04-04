@@ -925,15 +925,20 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
         setCurrentPageIndex(1);
     }, [filterStatus, dateFilter, searchTerm, showHidden, selectedClientId, viewMode]);
 
-    // Calculate pagination
-    const totalPages = Math.ceil(filteredQuotes.length / itemsPerPage);
-    const displayedQuotes = filteredQuotes.slice(
+    const showNeedsAttention = filterStatus === 'All' && viewMode === 'active';
+    const needsAttentionQuotes = showNeedsAttention ? filteredQuotes.filter(q => q.status === 'Pending') : [];
+    const needsAttentionIds = new Set(needsAttentionQuotes.map(q => q.id));
+
+    // Calculate pagination (exclude Pending from main grid when Needs Attention section is shown)
+    const mainGridQuotes = showNeedsAttention ? filteredQuotes.filter(q => !needsAttentionIds.has(q.id)) : filteredQuotes;
+    const totalPages = Math.ceil(mainGridQuotes.length / itemsPerPage);
+    const displayedQuotes = mainGridQuotes.slice(
         (currentPageIndex - 1) * itemsPerPage,
         currentPageIndex * itemsPerPage
     );
 
-    const unreadQuotesAll = filteredQuotes.filter(isQuoteUnread);
-    const readQuotesAll = filteredQuotes.filter(q => !isQuoteUnread(q));
+    const unreadQuotesAll = filteredQuotes.filter(q => isQuoteUnread(q) && !needsAttentionIds.has(q.id));
+    const readQuotesAll = filteredQuotes.filter(q => !isQuoteUnread(q) && !needsAttentionIds.has(q.id));
     const showUnreadSection = filterStatus === 'All' && unreadQuotesAll.length > 0 && viewMode === 'active';
     // Thread = all quotes from same client; count distinct unread threads
     const unreadThreadCount = new Set(unreadQuotesAll.map(q => q.userId).filter(Boolean)).size;
@@ -3910,26 +3915,26 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
             }}
             onMouseEnter={() => setHoveredQuoteId(quote.id)}
             onMouseLeave={() => setHoveredQuoteId(null)}
-            className={`${theme.cardBg} backdrop-blur-sm rounded-2xl border transition-all duration-300 cursor-pointer group relative overflow-hidden flex flex-col hover:-translate-y-1.5 ${isUnread ? 'border-blue-300 dark:border-blue-600/60' : theme.border}`}
+            className={`${theme.cardBg} backdrop-blur-sm rounded-2xl border transition-all duration-300 cursor-pointer group relative overflow-hidden flex flex-col hover:-translate-y-1.5 ${theme.border}`}
             style={{
                 boxShadow: isHovered
                     ? isUnread
-                        ? `0 20px 40px -8px rgba(59,130,246,0.35), 0 8px 16px -4px rgba(59,130,246,0.18), 0 1px 4px rgba(0,0,0,0.08)`
+                        ? `0 20px 40px -8px ${theme.glowHover}, 0 8px 16px -4px ${theme.glow}, 0 1px 4px rgba(0,0,0,0.08), inset 3px 0 0 #f59e0b`
                         : `0 20px 40px -8px ${theme.glowHover}, 0 8px 16px -4px ${theme.glow}, 0 1px 4px rgba(0,0,0,0.08)`
                     : isUnread
-                        ? `0 4px 20px -4px rgba(59,130,246,0.22), 0 1px 3px rgba(0,0,0,0.06), inset 3px 0 0 #3b82f6`
+                        ? `0 4px 20px -4px ${theme.glow}, 0 1px 3px rgba(0,0,0,0.06), inset 3px 0 0 #f59e0b`
                         : `0 4px 20px -4px ${theme.glow}, 0 1px 3px rgba(0,0,0,0.06)`,
                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                 animationDelay: `${index * 50}ms`,
             }}
         >
             {/* Status gradient top bar */}
-            <div className={`h-[3px] w-full bg-gradient-to-r ${isUnread ? 'from-blue-400 via-blue-500 to-indigo-500' : getStatusGradientBorder(quote.status)} flex-shrink-0`} />
+            <div className={`h-[3px] w-full bg-gradient-to-r ${getStatusGradientBorder(quote.status)} flex-shrink-0`} />
 
             {/* Mesh gradient ambient overlay */}
             <div
                 className="absolute inset-0 pointer-events-none"
-                style={{ background: isUnread ? 'radial-gradient(ellipse at 85% 10%, rgba(59,130,246,0.08) 0%, transparent 55%)' : theme.meshGradient, top: '3px' }}
+                style={{ background: theme.meshGradient, top: '3px' }}
             />
 
             <div className="p-5 flex flex-col flex-grow relative">
@@ -3951,8 +3956,8 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                     </div>
                     <div className="flex items-center gap-1.5">
                         {isNewQuote && (
-                            <span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full border border-blue-300/70 dark:border-blue-600/50 bg-blue-50/90 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center gap-1 backdrop-blur-sm animate-pulse">
-                                <Circle size={6} className="fill-blue-500 text-blue-500" /> New
+                            <span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full border border-amber-300/70 dark:border-amber-600/50 bg-amber-50/90 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 flex items-center gap-1 backdrop-blur-sm">
+                                <Circle size={6} className="fill-amber-500 text-amber-500" /> New
                             </span>
                         )}
                         {isUpdated && (
@@ -3977,11 +3982,11 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                 <div className="flex items-center gap-3 mb-4">
                     <div
                         className="h-10 w-10 rounded-xl flex items-center justify-center font-bold text-white text-sm shadow-md flex-shrink-0 relative"
-                        style={{ backgroundColor: isUnread ? '#3b82f6' : theme.progressColor, boxShadow: isUnread ? '0 4px 12px -2px rgba(59,130,246,0.4)' : `0 4px 12px -2px ${theme.glow}` }}
+                        style={{ backgroundColor: theme.progressColor, boxShadow: `0 4px 12px -2px ${theme.glow}` }}
                     >
                         {initials}
                         {isUnread && (
-                            <span className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full border-2 border-white dark:border-gray-900 shadow-sm" />
+                            <span className="absolute -top-1 -right-1 w-3 h-3 bg-amber-500 rounded-full border-2 border-white dark:border-gray-900 shadow-sm" />
                         )}
                     </div>
                     <div className="min-w-0">
@@ -4001,7 +4006,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                             ? `${quote.order.lineItems.length} Product Types`
                             : (quote.order?.lineItems?.[0]?.category || 'Unknown Product')}
                     </h3>
-                    <p className={`text-xs flex items-center gap-1.5 ${isUnread ? 'text-blue-500 dark:text-blue-400 font-medium' : 'text-gray-400 dark:text-gray-500'}`}>
+                    <p className="text-xs flex items-center gap-1.5 text-gray-400 dark:text-gray-500">
                         <Clock size={11} />
                         {getDisplayDateInfo(quote).label} · {getDisplayDateInfo(quote).date}
                     </p>
@@ -4389,11 +4394,24 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
             ) : filteredQuotes.length > 0 ? (
                 showUnreadSection ? (
                     <div className="space-y-8">
+                        {needsAttentionQuotes.length > 0 && (
+                            <div>
+                                <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse inline-block" />
+                                    Needs Attention
+                                    <span className="ml-1 bg-amber-500 text-white text-xs font-bold rounded-full px-2 py-0.5">{needsAttentionQuotes.length}</span>
+                                    <span className="text-xs text-gray-400 dark:text-gray-500 font-normal">awaiting your response</span>
+                                </h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
+                                    {needsAttentionQuotes.map(renderQuoteCard)}
+                                </div>
+                            </div>
+                        )}
                         <div>
                             <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
-                                <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse inline-block" />
+                                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse inline-block" />
                                 Unread
-                                <span className="ml-1 bg-blue-500 text-white text-xs font-bold rounded-full px-2 py-0.5">{unreadQuotesAll.length}</span>
+                                <span className="ml-1 bg-amber-500 text-white text-xs font-bold rounded-full px-2 py-0.5">{unreadQuotesAll.length}</span>
                                 {unreadThreadCount > 1 && (
                                     <span className="text-xs text-gray-400 dark:text-gray-500 font-normal">from {unreadThreadCount} clients</span>
                                 )}
@@ -4438,6 +4456,22 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                     </div>
                 ) : (
                 <>
+                {needsAttentionQuotes.length > 0 && (
+                    <div className="mb-8">
+                        <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse inline-block" />
+                            Needs Attention
+                            <span className="ml-1 bg-amber-500 text-white text-xs font-bold rounded-full px-2 py-0.5">{needsAttentionQuotes.length}</span>
+                            <span className="text-xs text-gray-400 dark:text-gray-500 font-normal">awaiting your response</span>
+                        </h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
+                            {needsAttentionQuotes.map(renderQuoteCard)}
+                        </div>
+                        {displayedQuotes.length > 0 && (
+                            <h2 className="text-xl font-bold text-gray-800 dark:text-white mt-8 mb-4">All Quotes</h2>
+                        )}
+                    </div>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
                     {displayedQuotes.map(renderQuoteCard)}
                 </div>
