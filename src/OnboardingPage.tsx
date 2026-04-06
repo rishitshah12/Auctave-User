@@ -687,6 +687,17 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete
 
     const TOTAL_STEPS = 5;
 
+    // Disable browser back button on step 0
+    useEffect(() => {
+        if (step !== 0) return;
+        history.pushState(null, '', window.location.href);
+        const handlePopState = () => {
+            history.pushState(null, '', window.location.href);
+        };
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, [step]);
+
     const goTo = (next: number) => {
         if (animating) return;
         setDirection(next > step ? 'forward' : 'back');
