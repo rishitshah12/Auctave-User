@@ -474,7 +474,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                     style={{ background: theme.meshGradient, top: '3px' }}
                 />
 
-                <div className="p-5 flex flex-col flex-grow relative">
+                <div className="p-3 sm:p-5 flex flex-col flex-grow relative">
                     {/* Card Header */}
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2">
@@ -777,78 +777,77 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
     return (
         <MainLayout {...layoutProps}>
             {/* Header */}
-            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
-                <div className="flex items-center gap-3">
-                    <div>
-                    <h1 className="text-3xl font-bold text-gray-800 dark:text-white">My Quote Requests</h1>
-                    <p className="text-gray-500 dark:text-gray-200 mt-1">Track and manage your quotes with factories.</p>
+            <div className="flex items-center justify-between gap-2 mb-4 sm:mb-6">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                    <div className="min-w-0">
+                        <h1 className="text-xl sm:text-3xl font-bold text-gray-800 dark:text-white truncate">My Quotes</h1>
+                        <p className="text-gray-500 dark:text-gray-200 text-xs sm:text-sm mt-0.5 hidden sm:block">Track and manage your quotes with factories.</p>
                     </div>
-                    <button onClick={onRefresh} className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-colors ${isLoading ? 'animate-spin' : ''}`} title="Refresh Quotes"><RefreshCw size={20}/></button>
+                    <button onClick={onRefresh} className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-colors flex-shrink-0 ${isLoading ? 'animate-spin' : ''}`} title="Refresh"><RefreshCw size={17}/></button>
                     <button
                         onClick={toggleSelectMode}
-                        className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${isSelectMode ? 'text-[#c20c0b] bg-red-50 dark:bg-red-900/20' : 'text-gray-500 dark:text-gray-400'}`}
+                        className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex-shrink-0 ${isSelectMode ? 'text-[#c20c0b] bg-red-50 dark:bg-red-900/20' : 'text-gray-500 dark:text-gray-400'}`}
                         title={isSelectMode ? 'Exit Selection Mode' : 'Select Quotes'}
                     >
-                        <CheckSquare size={20} />
+                        <CheckSquare size={17} />
                     </button>
                     {unreadCount > 0 && (
                         <button
                             onClick={markAllAsRead}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-800/40 border border-blue-200/70 dark:border-blue-700/50 transition-colors"
+                            className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-full text-xs font-semibold bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-800/40 border border-blue-200/70 dark:border-blue-700/50 transition-colors flex-shrink-0"
                             title="Mark all as read"
                         >
-                            <CheckCheck size={14} />
-                            Mark all read
+                            <CheckCheck size={13} />
+                            <span className="hidden sm:inline">Mark all read</span>
                             <span className="bg-blue-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center leading-none">{unreadCount}</span>
                         </button>
                     )}
                 </div>
-                <button onClick={handleRequestNewQuote} className="bg-[#c20c0b] text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 hover:bg-[#a50a09] transition shadow-md">
-                    <Plus size={18} />
-                    <span>Request New Quote</span>
+                <button onClick={handleRequestNewQuote} className="bg-[#c20c0b] text-white font-semibold py-2 px-3 sm:px-4 rounded-lg flex items-center justify-center gap-1.5 hover:bg-[#a50a09] transition shadow-md flex-shrink-0 text-sm">
+                    <Plus size={16} />
+                    <span className="hidden sm:inline">Request New Quote</span>
+                    <span className="sm:hidden">New</span>
                 </button>
             </div>
 
-            {/* Filter Tabs */}
-            <div className="flex flex-wrap items-center gap-3 mb-6">
+            {/* Filter Bar — horizontally scrollable on mobile */}
+            <div className="flex items-center gap-2 mb-4 sm:mb-6 overflow-x-auto pb-1 scrollbar-hide -mx-3 px-3 sm:mx-0 sm:px-0">
                 {/* Search Filter */}
-                <div className="relative group">
-                    <div className="flex items-center gap-2 bg-white dark:bg-gray-900/40 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2.5 shadow-sm hover:border-gray-300 dark:hover:border-white/20 transition-colors">
-                        <Search size={16} className="text-gray-500 dark:text-gray-400" />
-                        <input 
-                            type="text" 
-                            placeholder="Search ID or Factory..." 
+                <div className="relative flex-shrink-0">
+                    <div className="flex items-center gap-2 bg-white dark:bg-gray-900/40 border border-gray-200 dark:border-white/10 rounded-xl px-3 py-2 shadow-sm hover:border-gray-300 dark:hover:border-white/20 transition-colors">
+                        <Search size={14} className="text-gray-500 dark:text-gray-400 flex-shrink-0" />
+                        <input
+                            type="text"
+                            placeholder="Search..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="bg-transparent border-none text-sm font-semibold text-gray-800 dark:text-white focus:ring-0 outline-none w-40 placeholder-gray-400"
+                            className="bg-transparent border-none text-sm font-semibold text-gray-800 dark:text-white focus:ring-0 outline-none w-28 sm:w-40 placeholder-gray-400"
                         />
                     </div>
                 </div>
 
                 {/* Status Filter */}
-                <div className="relative group">
-                    <div className="flex items-center gap-2 bg-white dark:bg-gray-900/40 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2.5 shadow-sm hover:border-gray-300 dark:hover:border-white/20 transition-colors">
-                        <Filter size={16} className="text-gray-500 dark:text-gray-400" />
-                        <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Status:</span>
+                <div className="relative flex-shrink-0">
+                    <div className="flex items-center gap-1.5 bg-white dark:bg-gray-900/40 border border-gray-200 dark:border-white/10 rounded-xl px-3 py-2 shadow-sm hover:border-gray-300 dark:hover:border-white/20 transition-colors">
+                        <Filter size={14} className="text-gray-500 dark:text-gray-400 flex-shrink-0" />
                         <select
                             value={filterStatus}
                             onChange={(e) => setFilterStatus(e.target.value)}
-                            className="appearance-none bg-transparent border-none text-sm font-semibold text-gray-800 dark:text-white focus:ring-0 cursor-pointer pr-6 outline-none"
+                            className="appearance-none bg-transparent border-none text-sm font-semibold text-gray-800 dark:text-white focus:ring-0 cursor-pointer pr-4 outline-none max-w-[100px] sm:max-w-none"
                             style={{ backgroundImage: 'none' }}
                         >
                             {filterOptions.map(status => (
                                 <option key={status} value={status} className="text-gray-800 dark:text-gray-200 bg-white dark:bg-gray-900">{status}</option>
                             ))}
                         </select>
-                        <ChevronDown size={14} className="absolute right-3 text-gray-400 pointer-events-none" />
+                        <ChevronDown size={12} className="text-gray-400 pointer-events-none flex-shrink-0" />
                     </div>
                 </div>
 
                 {/* Date Filter */}
-                <div className="relative group">
-                    <div className="flex items-center gap-2 bg-white dark:bg-gray-900/40 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2.5 shadow-sm hover:border-gray-300 dark:hover:border-white/20 transition-colors">
-                        <Calendar size={16} className="text-gray-500 dark:text-gray-400" />
-                        <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Date:</span>
+                <div className="relative flex-shrink-0">
+                    <div className="flex items-center gap-1.5 bg-white dark:bg-gray-900/40 border border-gray-200 dark:border-white/10 rounded-xl px-3 py-2 shadow-sm hover:border-gray-300 dark:hover:border-white/20 transition-colors">
+                        <Calendar size={14} className="text-gray-500 dark:text-gray-400 flex-shrink-0" />
                         <select
                             value={dateFilter}
                             onChange={(e) => {
@@ -858,7 +857,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                                     setDateFilter(e.target.value);
                                 }
                             }}
-                            className="appearance-none bg-transparent border-none text-sm font-semibold text-gray-800 dark:text-white focus:ring-0 cursor-pointer pr-6 outline-none"
+                            className="appearance-none bg-transparent border-none text-sm font-semibold text-gray-800 dark:text-white focus:ring-0 cursor-pointer pr-4 outline-none max-w-[90px] sm:max-w-none"
                             style={{ backgroundImage: 'none' }}
                         >
                             <option className="text-gray-800 dark:text-gray-200 bg-white dark:bg-gray-900">All Time</option>
@@ -868,24 +867,24 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                             <option className="text-gray-800 dark:text-gray-200 bg-white dark:bg-gray-900">Last 30 Days</option>
                             <option className="text-gray-800 dark:text-gray-200 bg-white dark:bg-gray-900">Custom Range</option>
                         </select>
-                        <ChevronDown size={14} className="absolute right-3 text-gray-400 pointer-events-none" />
+                        <ChevronDown size={12} className="text-gray-400 pointer-events-none flex-shrink-0" />
                     </div>
                 </div>
 
                 {/* Custom Range Indicator */}
                 {dateFilter === 'Custom Range' && (
-                    <button 
+                    <button
                         onClick={() => setIsDateModalOpen(true)}
-                        className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800/30 rounded-xl px-4 py-2.5 text-sm font-medium text-[#c20c0b] dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                        className="flex-shrink-0 flex items-center gap-1.5 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800/30 rounded-xl px-3 py-2 text-xs sm:text-sm font-medium text-[#c20c0b] dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors whitespace-nowrap"
                     >
-                        {customStartDate ? new Date(customStartDate).toLocaleDateString() : 'Start'} - {customEndDate ? new Date(customEndDate).toLocaleDateString() : 'End'}
+                        {customStartDate ? new Date(customStartDate).toLocaleDateString() : 'Start'} – {customEndDate ? new Date(customEndDate).toLocaleDateString() : 'End'}
                     </button>
                 )}
             </div>
 
             {/* Bulk Action Bar */}
             {isSelectMode && filteredQuotes.length > 0 && (
-                <div className="sticky top-0 z-20 flex justify-between items-center mb-4 bg-white/80 backdrop-blur-md dark:bg-gray-900/40 p-3 rounded-xl border border-gray-200 dark:border-white/10 animate-fade-in shadow-sm">
+                <div className="sticky top-14 md:top-0 z-20 flex justify-between items-center mb-4 bg-white/80 backdrop-blur-md dark:bg-gray-900/40 p-3 rounded-xl border border-gray-200 dark:border-white/10 animate-fade-in shadow-sm">
                     <div className="flex items-center gap-3">
                         <input
                             type="checkbox"
@@ -926,7 +925,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
 
             {/* Quotes Grid */}
             {isLoading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
                     {[1, 2, 3].map(i => (
                         <div key={i} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 h-64 animate-pulse"></div>
                     ))}
@@ -936,38 +935,38 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                     <div className="space-y-8">
                         {unreadQuotes.length > 0 && (
                             <div>
-                                <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                                <h2 className="text-base sm:text-xl font-bold text-gray-800 dark:text-white mb-3 sm:mb-4 flex items-center gap-2">
                                     <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse inline-block" />
                                     Unread
                                     <span className="ml-1 bg-blue-500 text-white text-xs font-bold rounded-full px-2 py-0.5">{unreadQuotes.length}</span>
                                 </h2>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
                                     {unreadQuotes.map((quote, index) => renderCard(quote, index))}
                                 </div>
                             </div>
                         )}
                         {needsAttentionQuotes.length > 0 && (
                             <div>
-                                <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
-                                    <AlertCircle className="text-amber-500" size={24} />
+                                <h2 className="text-base sm:text-xl font-bold text-gray-800 dark:text-white mb-3 sm:mb-4 flex items-center gap-2">
+                                    <AlertCircle className="text-amber-500" size={20} />
                                     Needs Attention
                                 </h2>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
                                     {needsAttentionQuotes.map((quote, index) => renderCard(quote, index))}
                                 </div>
                             </div>
                         )}
                         {regularQuotes.length > 0 && (
                             <div>
-                                <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4">All Quotes</h2>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                <h2 className="text-base sm:text-xl font-bold text-gray-800 dark:text-white mb-3 sm:mb-4">All Quotes</h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
                                     {regularQuotes.map((quote, index) => renderCard(quote, index))}
                                 </div>
                             </div>
                         )}
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
                         {filteredQuotes.map((quote, index) => renderCard(quote, index))}
                     </div>
                 )

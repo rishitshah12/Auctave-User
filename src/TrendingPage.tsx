@@ -164,7 +164,7 @@ const BlogFullPageView: FC<{ blog: any; onBack: () => void }> = ({ blog, onBack 
             <style>{BLOG_STYLES}</style>
             
             {/* Header / Back Button */}
-            <div className="sticky top-0 z-20 bg-white/80 dark:bg-black/80 backdrop-blur-md border-b border-gray-200 dark:border-white/10">
+            <div className="sticky top-14 md:top-0 z-20 bg-white/80 dark:bg-black/80 backdrop-blur-md border-b border-gray-200 dark:border-white/10">
                 <div className="max-w-4xl mx-auto px-4 py-4">
                     <button 
                         onClick={onBack}
@@ -327,12 +327,12 @@ export const TrendingPage: FC<TrendingPageProps> = (props) => {
         <MainLayout {...props}>
             <div className="max-w-7xl mx-auto">
                 {/* Header */}
-                <div className="mb-8">
-                    <div className="flex items-center gap-3 mb-2">
-                        <TrendingUp size={28} className="text-[#c20c0b]" />
-                        <h1 className="text-3xl font-bold text-gray-800 dark:text-white">What's Trending</h1>
+                <div className="mb-4 sm:mb-8">
+                    <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
+                        <TrendingUp size={22} className="text-[#c20c0b]" />
+                        <h1 className="text-xl sm:text-3xl font-bold text-gray-800 dark:text-white">What's Trending</h1>
                     </div>
-                    <p className="text-gray-500 dark:text-gray-400">Discover the latest in fashion, materials, and manufacturing.</p>
+                    <p className="text-gray-500 dark:text-gray-400 text-sm sm:text-base">Discover the latest in fashion, materials, and manufacturing.</p>
                 </div>
 
                 {!hasContent && (
@@ -598,23 +598,23 @@ export const TrendingPage: FC<TrendingPageProps> = (props) => {
 
                 {/* ─── Featured Products ──────────────────────────────────── */}
                 {featuredProducts.length > 0 && (
-                    <section className="mb-12">
-                        <div className="flex items-center gap-2 mb-6">
-                            <Sparkles size={20} className="text-yellow-500" />
-                            <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Featured Products</h2>
+                    <section className="mb-6 sm:mb-12">
+                        <div className="flex items-center gap-2 mb-3 sm:mb-6">
+                            <Sparkles size={18} className="text-yellow-500" />
+                            <h2 className="text-base sm:text-2xl font-bold text-gray-800 dark:text-white">Featured Products</h2>
                         </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
                             {featuredProducts.slice(0, 4).map(product => (
                                 <div key={product.id} className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-md border border-gray-200 dark:border-white/10 overflow-hidden group cursor-pointer hover:shadow-xl transition-all hover:-translate-y-1">
                                     <div className="relative overflow-hidden">
-                                        <img src={product.image_url} alt={product.name} className="h-52 w-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                        <img src={product.image_url} alt={product.name} className="h-36 sm:h-52 w-full object-cover group-hover:scale-105 transition-transform duration-500" />
                                         <span className="absolute top-2 left-2 bg-yellow-500 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1"><Sparkles size={10} /> Featured</span>
                                         {product.price_range && <span className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm text-white text-xs font-semibold px-2 py-1 rounded-full">{product.price_range}</span>}
                                     </div>
-                                    <div className="p-4">
+                                    <div className="p-2.5 sm:p-4">
                                         {product.category && <span className="text-[10px] font-semibold bg-red-100 dark:bg-red-900/30 text-[#c20c0b] px-2 py-0.5 rounded-full">{product.category}</span>}
-                                        <h3 className="font-bold text-gray-800 dark:text-white mt-1.5 text-sm">{product.name}</h3>
-                                        {product.moq && <p className="text-[10px] text-gray-400 mt-1">MOQ: {product.moq}</p>}
+                                        <h3 className="font-bold text-gray-800 dark:text-white mt-1 sm:mt-1.5 text-xs sm:text-sm">{product.name}</h3>
+                                        {product.moq && <p className="text-[10px] text-gray-400 mt-0.5 sm:mt-1">MOQ: {product.moq}</p>}
                                     </div>
                                 </div>
                             ))}
@@ -624,42 +624,42 @@ export const TrendingPage: FC<TrendingPageProps> = (props) => {
 
                 {/* ─── All Products ───────────────────────────────────────── */}
                 {products.length > 0 && (
-                    <section className="mb-12">
-                        <div className="flex items-center justify-between mb-6">
+                    <section className="mb-6 sm:mb-12">
+                        <div className="flex items-center justify-between mb-3 sm:mb-6">
                             <div className="flex items-center gap-2">
-                                <ShoppingBag size={20} className="text-[#c20c0b]" />
-                                <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Trending Products</h2>
+                                <ShoppingBag size={18} className="text-[#c20c0b]" />
+                                <h2 className="text-base sm:text-2xl font-bold text-gray-800 dark:text-white">Trending Products</h2>
                             </div>
                         </div>
                         {/* Category Filter */}
                         {productCategories.length > 2 && (
-                            <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+                            <div className="flex gap-2 mb-3 sm:mb-6 overflow-x-auto pb-1 scrollbar-hide">
                                 {productCategories.map(cat => (
-                                    <button key={cat} onClick={() => setProductFilter(cat)} className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${productFilter === cat ? 'bg-[#c20c0b] text-white shadow-lg shadow-red-200 dark:shadow-none' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>
+                                    <button key={cat} onClick={() => setProductFilter(cat)} className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium whitespace-nowrap transition-all flex-shrink-0 ${productFilter === cat ? 'bg-[#c20c0b] text-white shadow-lg shadow-red-200 dark:shadow-none' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>
                                         {cat === 'all' ? 'All' : cat}
                                     </button>
                                 ))}
                             </div>
                         )}
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-5">
                             {filteredProducts.map(product => (
                                 <div key={product.id} className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-md border border-gray-200 dark:border-white/10 overflow-hidden group cursor-pointer hover:shadow-xl transition-all hover:-translate-y-1">
                                     <div className="relative overflow-hidden">
-                                        <img src={product.image_url} alt={product.name} className="h-48 w-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                                        {product.price_range && <span className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm text-white text-xs font-semibold px-2 py-1 rounded-full">{product.price_range}</span>}
+                                        <img src={product.image_url} alt={product.name} className="h-36 sm:h-48 w-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                        {product.price_range && <span className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm text-white text-[10px] sm:text-xs font-semibold px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full">{product.price_range}</span>}
                                     </div>
-                                    <div className="p-4">
+                                    <div className="p-2.5 sm:p-4">
                                         {product.category && <span className="text-[10px] font-semibold bg-red-100 dark:bg-red-900/30 text-[#c20c0b] px-2 py-0.5 rounded-full">{product.category}</span>}
-                                        <h3 className="font-semibold text-gray-800 dark:text-white mt-1.5 text-sm">{product.name}</h3>
-                                        {product.description && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">{product.description}</p>}
+                                        <h3 className="font-semibold text-gray-800 dark:text-white mt-1 sm:mt-1.5 text-xs sm:text-sm">{product.name}</h3>
+                                        {product.description && <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 line-clamp-2 hidden sm:block">{product.description}</p>}
                                         {product.tags && product.tags.length > 0 && (
-                                            <div className="flex flex-wrap gap-1 mt-2">
+                                            <div className="flex flex-wrap gap-1 mt-1.5 hidden sm:flex">
                                                 {(Array.isArray(product.tags) ? product.tags : []).slice(0, 3).map((tag: string, i: number) => (
                                                     <span key={i} className="text-[10px] bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-1.5 py-0.5 rounded">{tag}</span>
                                                 ))}
                                             </div>
                                         )}
-                                        {product.moq && <p className="text-[10px] text-gray-400 mt-2">MOQ: {product.moq}</p>}
+                                        {product.moq && <p className="text-[10px] text-gray-400 mt-1 sm:mt-2">MOQ: {product.moq}</p>}
                                     </div>
                                 </div>
                             ))}
@@ -669,22 +669,22 @@ export const TrendingPage: FC<TrendingPageProps> = (props) => {
 
                 {/* ─── Blog Articles ──────────────────────────────────────── */}
                 {blogs.length > 0 && (
-                    <section className="mb-12">
-                        <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-6">Latest Articles</h2>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <section className="mb-6 sm:mb-12">
+                        <h2 className="text-base sm:text-2xl font-bold text-gray-800 dark:text-white mb-3 sm:mb-6">Latest Articles</h2>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-6">
                             {blogs.map(blog => (
                                 <div key={blog.id} onClick={() => setSelectedBlog(blog)} className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-md border border-gray-200 dark:border-white/10 overflow-hidden group cursor-pointer hover:shadow-xl transition-all hover:-translate-y-1">
                                     {blog.cover_image_url && (
                                         <div className="overflow-hidden">
-                                            <img src={blog.cover_image_url} alt={blog.title} className="h-48 w-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                            <img src={blog.cover_image_url} alt={blog.title} className="h-36 sm:h-48 w-full object-cover group-hover:scale-105 transition-transform duration-500" />
                                         </div>
                                     )}
-                                    <div className="p-6">
-                                        <div className="flex items-center gap-2 mb-3">
-                                            {blog.category && <span className="text-xs font-semibold bg-red-100 dark:bg-red-900/30 text-[#c20c0b] px-2 py-1 rounded-full">{blog.category}</span>}
+                                    <div className="p-3 sm:p-6">
+                                        <div className="flex items-center gap-2 mb-1.5 sm:mb-3">
+                                            {blog.category && <span className="text-[10px] sm:text-xs font-semibold bg-red-100 dark:bg-red-900/30 text-[#c20c0b] px-2 py-0.5 sm:py-1 rounded-full">{blog.category}</span>}
                                         </div>
-                                        <h3 className="font-bold text-lg text-gray-800 dark:text-white mb-2 group-hover:text-[#c20c0b] transition-colors">{blog.title}</h3>
-                                        {blog.excerpt && <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 mb-3">{blog.excerpt}</p>}
+                                        <h3 className="font-bold text-sm sm:text-lg text-gray-800 dark:text-white mb-1 sm:mb-2 group-hover:text-[#c20c0b] transition-colors line-clamp-2">{blog.title}</h3>
+                                        {blog.excerpt && <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 line-clamp-2 mb-2 sm:mb-3 hidden sm:block">{blog.excerpt}</p>}
                                         <div className="flex items-center justify-between">
                                             <p className="text-xs text-gray-400">
                                                 {blog.author && `By ${blog.author}`}
@@ -702,8 +702,8 @@ export const TrendingPage: FC<TrendingPageProps> = (props) => {
                 {/* ─── Fashion Shorts ─────────────────────────────────────── */}
                 {shorts.length > 0 && (
                     <section className="mb-8">
-                        <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-6">Fashion Shorts</h2>
-                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                        <h2 className="text-base sm:text-2xl font-bold text-gray-800 dark:text-white mb-3 sm:mb-6">Fashion Shorts</h2>
+                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-4">
                             {shorts.map(short => {
                                 // Auto-pick YouTube thumbnail if no thumbnail_url set
                                 const ytId = extractYouTubeId(short.video_url || '');

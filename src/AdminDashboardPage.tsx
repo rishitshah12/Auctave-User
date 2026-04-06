@@ -30,15 +30,15 @@ interface AdminDashboardPageProps {
 // ── Shared components ───────────────────────────────────────────────────────
 
 const StatCard = ({ title, value, subtitle, icon, gradient }: any) => (
-    <div className="relative overflow-hidden rounded-2xl p-5 bg-white dark:bg-gray-900/40 border border-gray-200 dark:border-white/10 shadow-md hover:shadow-xl transition-all duration-300 group">
+    <div className="relative overflow-hidden rounded-xl sm:rounded-2xl p-3 sm:p-5 bg-white dark:bg-gray-900/40 border border-gray-200 dark:border-white/10 shadow-md hover:shadow-xl transition-all duration-300 group">
         <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${gradient} opacity-[0.08] rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-110 blur-2xl`} />
         <div className="flex items-start justify-between relative z-10">
             <div>
-                <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400 tracking-wide uppercase">{title}</p>
-                <h4 className="text-3xl font-black text-gray-900 dark:text-white mt-1 tracking-tight">{value}</h4>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 font-medium">{subtitle}</p>
+                <p className="text-[10px] sm:text-[11px] font-medium text-gray-500 dark:text-gray-400 tracking-wide uppercase">{title}</p>
+                <h4 className="text-xl sm:text-3xl font-black text-gray-900 dark:text-white mt-0.5 sm:mt-1 tracking-tight">{value}</h4>
+                <p className="text-[10px] sm:text-xs text-gray-400 dark:text-gray-500 mt-0.5 sm:mt-1 font-medium">{subtitle}</p>
             </div>
-            <div className={`p-3.5 rounded-2xl bg-gradient-to-br ${gradient} shadow-lg group-hover:rotate-6 transition-transform duration-300 ring-4 ring-white/10`}>
+            <div className={`p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl bg-gradient-to-br ${gradient} shadow-lg group-hover:rotate-6 transition-transform duration-300 ring-4 ring-white/10 flex-shrink-0`}>
                 {icon}
             </div>
         </div>
@@ -442,19 +442,19 @@ export const AdminDashboardPage: FC<AdminDashboardPageProps> = (props) => {
             <div className="space-y-8">
                 {/* Header */}
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Admin Dashboard</h1>
-                    <p className="text-gray-500 dark:text-gray-400 mt-1">Real-time overview of platform activity.</p>
+                    <h1 className="text-xl sm:text-3xl font-bold text-gray-800 dark:text-white">Admin Dashboard</h1>
+                    <p className="text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 text-sm sm:text-base">Real-time overview of platform activity.</p>
                 </div>
 
                 {/* Platform KPI cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
                     {platformCards.map((stat, index) => (
-                        <div key={index} className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10 flex items-center justify-between hover:scale-105 transition-transform">
-                            <div>
-                                <p className="text-sm font-medium text-gray-500 dark:text-gray-200">{stat.title}</p>
-                                <p className="text-2xl font-bold text-gray-800 dark:text-white mt-1">{isLoading ? '...' : stat.value}</p>
+                        <div key={index} className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-3 sm:p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10 flex items-center justify-between hover:scale-105 transition-transform">
+                            <div className="min-w-0">
+                                <p className="text-[10px] sm:text-sm font-medium text-gray-500 dark:text-gray-200 truncate">{stat.title}</p>
+                                <p className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-white mt-0.5 sm:mt-1">{isLoading ? '...' : stat.value}</p>
                             </div>
-                            <div className={`p-3 rounded-lg ${stat.color}`}>{stat.icon}</div>
+                            <div className={`p-2 sm:p-3 rounded-lg ${stat.color} flex-shrink-0`}>{stat.icon}</div>
                         </div>
                     ))}
                 </div>
@@ -505,12 +505,12 @@ export const AdminDashboardPage: FC<AdminDashboardPageProps> = (props) => {
                         </div>
 
                         {/* Row 1: Status Mix + Factory Allocation */}
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 relative overflow-hidden group">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6">
+                            <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 relative overflow-hidden group">
                                 <div className="absolute top-0 right-0 p-6 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity pointer-events-none">
                                     <Scroll size={120} />
                                 </div>
-                                <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-6 flex items-center gap-2">
+                                <h3 className="text-base sm:text-lg font-bold text-gray-800 dark:text-white mb-3 sm:mb-6 flex items-center gap-2">
                                     <div className="p-2 bg-red-50 dark:bg-red-900/20 rounded-lg text-[#c20c0b]"><LayoutDashboard size={18} /></div>
                                     Order Status Mix
                                 </h3>
@@ -531,11 +531,11 @@ export const AdminDashboardPage: FC<AdminDashboardPageProps> = (props) => {
                                 )}
                             </div>
 
-                            <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 relative overflow-hidden group">
+                            <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 relative overflow-hidden group">
                                 <div className="absolute top-0 right-0 p-6 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity pointer-events-none">
                                     <Ruler size={120} />
                                 </div>
-                                <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-6 flex items-center gap-2">
+                                <h3 className="text-base sm:text-lg font-bold text-gray-800 dark:text-white mb-3 sm:mb-6 flex items-center gap-2">
                                     <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-blue-600"><TrendingUp size={18} /></div>
                                     Factory Allocation
                                 </h3>
@@ -560,9 +560,9 @@ export const AdminDashboardPage: FC<AdminDashboardPageProps> = (props) => {
                         </div>
 
                         {/* Row 2: Monthly Volume + Upcoming Deadlines */}
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10">
-                                <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-6 flex items-center gap-2">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6">
+                            <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-lg border border-gray-200 dark:border-white/10">
+                                <h3 className="text-base sm:text-lg font-bold text-gray-800 dark:text-white mb-3 sm:mb-6 flex items-center gap-2">
                                     <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg text-emerald-600"><TrendingUp size={18} /></div>
                                     Monthly Order Volume
                                 </h3>
@@ -585,7 +585,7 @@ export const AdminDashboardPage: FC<AdminDashboardPageProps> = (props) => {
                                 </div>
                             </div>
 
-                            <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10">
+                            <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-lg border border-gray-200 dark:border-white/10">
                                 <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-5 flex items-center gap-2">
                                     <div className="p-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg text-amber-600"><AlertTriangle size={18} /></div>
                                     Upcoming Deadlines
@@ -622,7 +622,7 @@ export const AdminDashboardPage: FC<AdminDashboardPageProps> = (props) => {
                         </div>
 
                         {/* Production Gantt Timeline */}
-                        <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 relative overflow-hidden group">
+                        <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 relative overflow-hidden group">
                             <div className="absolute top-0 right-0 p-6 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity pointer-events-none">
                                 <TrendingUp size={120} />
                             </div>
@@ -640,7 +640,7 @@ export const AdminDashboardPage: FC<AdminDashboardPageProps> = (props) => {
                         </div>
 
                         {/* Task Calendar */}
-                        <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 relative overflow-hidden group">
+                        <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 relative overflow-hidden group">
                             <div className="absolute top-0 right-0 p-6 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity pointer-events-none">
                                 <Calendar size={120} />
                             </div>

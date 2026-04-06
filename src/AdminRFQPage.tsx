@@ -2087,7 +2087,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                     </div>
 
                     {/* Zomato-style Tabs */}
-                    <div className="sticky top-0 z-30 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 bg-gray-50/95 dark:bg-gray-950/95 backdrop-blur-md py-3 mb-6 border-b border-gray-200 dark:border-gray-800">
+                    <div className="sticky top-14 md:top-0 z-30 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 bg-gray-50/95 dark:bg-gray-950/95 backdrop-blur-md py-3 mb-6 border-b border-gray-200 dark:border-gray-800">
                         <div className="max-w-6xl mx-auto flex items-center gap-1 overflow-x-auto scrollbar-hide">
                             {quoteTabs.map(tab => (
                                 <button
@@ -3937,7 +3937,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                 style={{ background: theme.meshGradient, top: '3px' }}
             />
 
-            <div className="p-5 flex flex-col flex-grow relative">
+            <div className="p-3 sm:p-5 flex flex-col flex-grow relative">
                 {/* Card Header */}
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
@@ -4199,11 +4199,11 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                 </div>
             )}
 
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex justify-between items-center mb-4 sm:mb-6">
                 <div className="flex items-center gap-3">
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-800 dark:text-white">RFQ Management</h1>
-                        <p className="text-gray-500 dark:text-white mt-1">Manage and respond to client quote requests.</p>
+                        <h1 className="text-xl sm:text-3xl font-bold text-gray-800 dark:text-white">RFQ Management</h1>
+                        <p className="text-gray-500 dark:text-white mt-1 hidden sm:block">Manage and respond to client quote requests.</p>
                     </div>
                     {viewMode === 'active' && (
                         <button onClick={() => setShowHidden(!showHidden)} className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${showHidden ? 'text-[#c20c0b] bg-red-50 dark:bg-red-900/20' : 'text-gray-500 dark:text-gray-400'}`} title={showHidden ? "View Active Quotes" : "View Hidden Quotes"}>
@@ -4340,7 +4340,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
 
             {/* Bulk Actions Toolbar */}
             {!isLoading && filteredQuotes.length > 0 && isSelectionMode && (
-                <div className="sticky top-0 z-20 flex justify-between items-center mb-4 bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md p-3 rounded-lg border border-gray-200 dark:border-white/10 animate-fade-in shadow-sm">
+                <div className="sticky top-14 md:top-0 z-20 flex justify-between items-center mb-4 bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md p-3 rounded-lg border border-gray-200 dark:border-white/10 animate-fade-in shadow-sm">
                     <div className="flex items-center gap-3">
                         <input 
                             type="checkbox" 
@@ -4402,7 +4402,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                     <span className="ml-1 bg-amber-500 text-white text-xs font-bold rounded-full px-2 py-0.5">{needsAttentionQuotes.length}</span>
                                     <span className="text-xs text-gray-400 dark:text-gray-500 font-normal">awaiting your response</span>
                                 </h2>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 animate-fade-in">
                                     {needsAttentionQuotes.map(renderQuoteCard)}
                                 </div>
                             </div>
@@ -4416,14 +4416,14 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                     <span className="text-xs text-gray-400 dark:text-gray-500 font-normal">from {unreadThreadCount} clients</span>
                                 )}
                             </h2>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 animate-fade-in">
                                 {unreadQuotesAll.map(renderQuoteCard)}
                             </div>
                         </div>
                         {readQuotesAll.length > 0 && (
                             <div>
                                 <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4">All Quotes</h2>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 animate-fade-in">
                                     {displayedReadQuotes.map(renderQuoteCard)}
                                 </div>
                                 <div className="flex flex-col sm:flex-row justify-between items-center mt-8 pb-8 gap-4">
@@ -4457,14 +4457,14 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                 ) : (
                 <>
                 {needsAttentionQuotes.length > 0 && (
-                    <div className="mb-8">
-                        <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                    <div className="mb-5 sm:mb-8">
+                        <h2 className="text-base sm:text-xl font-bold text-gray-800 dark:text-white mb-3 sm:mb-4 flex items-center gap-2">
                             <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse inline-block" />
                             Needs Attention
                             <span className="ml-1 bg-amber-500 text-white text-xs font-bold rounded-full px-2 py-0.5">{needsAttentionQuotes.length}</span>
                             <span className="text-xs text-gray-400 dark:text-gray-500 font-normal">awaiting your response</span>
                         </h2>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 animate-fade-in">
                             {needsAttentionQuotes.map(renderQuoteCard)}
                         </div>
                         {displayedQuotes.length > 0 && (
@@ -4472,7 +4472,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                         )}
                     </div>
                 )}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 animate-fade-in">
                     {displayedQuotes.map(renderQuoteCard)}
                 </div>
                 <div className="flex flex-col sm:flex-row justify-between items-center mt-8 pb-8 gap-4">

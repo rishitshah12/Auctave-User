@@ -35,15 +35,15 @@ interface CRMPageProps {
 
 export function DashboardCard({ icon, title, value, colorClass, index = 0 }: { icon: ReactNode, title: string, value: string | number, colorClass: string, index?: number }) {
     return (
-        <div className={`relative p-5 rounded-2xl overflow-hidden bg-white dark:bg-gray-900/40 dark:backdrop-blur-md shadow-lg border border-gray-200 dark:border-white/10 transition-all duration-300 hover:scale-[1.04] hover:-translate-y-1 cursor-pointer group hover-pulse-glow animate-stagger-in`} style={{ animationDelay: `${index * 100}ms` }}>
+        <div className={`relative p-3 sm:p-5 rounded-xl sm:rounded-2xl overflow-hidden bg-white dark:bg-gray-900/40 dark:backdrop-blur-md shadow-lg border border-gray-200 dark:border-white/10 transition-all duration-300 hover:scale-[1.04] hover:-translate-y-1 cursor-pointer group hover-pulse-glow animate-stagger-in`} style={{ animationDelay: `${index * 100}ms` }}>
             <div className={`absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r ${colorClass} transition-all duration-300 group-hover:h-2`}></div>
             <div className="absolute -bottom-6 -right-6 w-24 h-24 rounded-full opacity-[0.07] group-hover:opacity-[0.12] transition-opacity duration-500 bg-gradient-to-br from-current" style={{ color: colorClass.includes('red') ? '#c20c0b' : colorClass.includes('yellow') ? '#D97706' : colorClass.includes('green') ? '#059669' : '#2563EB' }}></div>
             <div className="flex items-start justify-between relative z-10">
                 <div>
-                    <p className="text-sm font-medium text-gray-500 dark:text-gray-300 tracking-wide">{title}</p>
-                    <p className="text-3xl font-extrabold text-gray-800 dark:text-white mt-1 animate-count-up">{value}</p>
+                    <p className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-300 tracking-wide">{title}</p>
+                    <p className="text-xl sm:text-3xl font-extrabold text-gray-800 dark:text-white mt-1 animate-count-up">{value}</p>
                 </div>
-                <div className={`p-3 rounded-xl bg-gradient-to-br ${colorClass} shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-110`}>
+                <div className={`p-2 sm:p-3 rounded-lg sm:rounded-xl bg-gradient-to-br ${colorClass} shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-110`}>
                     <div className="text-white">{icon}</div>
                 </div>
             </div>
@@ -101,16 +101,16 @@ function _StatCard({ title, value, subtitle, icon, gradient, shadowColor, inView
             <div className="absolute right-2 top-0 bottom-0 flex flex-col items-center justify-evenly pointer-events-none">
                 {Array.from({ length: 7 }).map((_, i) => <div key={i} className="w-1.5 h-1.5 rounded-full bg-white/20" />)}
             </div>
-            <div className="relative p-5 pr-7">
+            <div className="relative p-3 sm:p-5 pr-5 sm:pr-7">
                 <div className="flex items-start justify-between mb-3">
-                    <div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center text-white shadow-inner">
+                    <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-white/20 flex items-center justify-center text-white shadow-inner">
                         {icon}
                     </div>
                     {badge && (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/20 text-white">{badge.label}</span>
                     )}
                 </div>
-                <div className="text-4xl font-black text-white leading-none mb-1 tabular-nums">
+                <div className="text-2xl sm:text-4xl font-black text-white leading-none mb-1 tabular-nums">
                     <_AnimatedNumber value={value} inView={inView} />
                     {suffix && <span className="text-2xl ml-0.5">{suffix}</span>}
                 </div>
@@ -133,7 +133,7 @@ function _TaskPipeline({ toDoCount, inProgressCount, completedCount, inView }: {
         { label: 'Complete',    count: completedCount,  grad: 'from-emerald-500 to-green-500', ring: 'rgba(16,185,129,0.35)', text: 'text-emerald-600 dark:text-emerald-400', Icon: CheckCircle },
     ];
     return (
-        <div className="relative bg-white/80 dark:bg-gray-800/60 backdrop-blur-md rounded-2xl border border-gray-200/80 dark:border-white/10 p-5 overflow-hidden">
+        <div className="relative bg-white/80 dark:bg-gray-800/60 backdrop-blur-md rounded-2xl border border-gray-200/80 dark:border-white/10 p-3 sm:p-5 overflow-hidden">
             <div className="absolute inset-0 pointer-events-none rounded-2xl" style={_getHerringboneBg()} />
             <div className="relative">
                 <h3 className="text-sm font-bold text-gray-800 dark:text-white flex items-center gap-2 mb-5">
@@ -213,7 +213,7 @@ function _VelocityBar({ completedTasks, inProgressTasks, totalTasks, overdueCoun
     const toDoCount = Math.max(0, totalTasks - completedTasks - inProgressTasks);
 
     return (
-        <div className="relative bg-white/80 dark:bg-gray-800/60 backdrop-blur-md rounded-2xl border border-gray-200/80 dark:border-white/10 p-5 overflow-hidden">
+        <div className="relative bg-white/80 dark:bg-gray-800/60 backdrop-blur-md rounded-2xl border border-gray-200/80 dark:border-white/10 p-3 sm:p-5 overflow-hidden">
             <div className="absolute inset-0 pointer-events-none rounded-2xl" style={_getHerringboneBg()} />
             <div className="relative">
                 <div className="flex items-start justify-between mb-3">
@@ -328,7 +328,7 @@ function _ProductRow({ product, tasks, inView, idx }: { product: any; tasks: any
 function _ProductBreakdown({ tasks, products, inView }: { tasks: any[]; products: any[]; inView: boolean }) {
     if (!products || products.length <= 1) return null;
     return (
-        <div className="relative bg-white/80 dark:bg-gray-800/60 backdrop-blur-md rounded-2xl border border-gray-200/80 dark:border-white/10 p-5 overflow-hidden">
+        <div className="relative bg-white/80 dark:bg-gray-800/60 backdrop-blur-md rounded-2xl border border-gray-200/80 dark:border-white/10 p-3 sm:p-5 overflow-hidden">
             <div className="absolute inset-0 pointer-events-none rounded-2xl" style={_getHerringboneBg()} />
             <div className="relative">
                 <h3 className="text-sm font-bold text-gray-800 dark:text-white flex items-center gap-2 mb-4">
@@ -593,15 +593,15 @@ export const DashboardView: FC<{ tasks: any[]; orderKey: string; orderDetails: a
                 </div>
 
                 {/* ── Existing charts ────────────────────────────────────── */}
-                <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-                    <div className="lg:col-span-2 bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 transition-all duration-300 hover:shadow-xl">
-                        <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 sm:gap-6">
+                    <div className="lg:col-span-2 bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 transition-all duration-300 hover:shadow-xl">
+                        <h3 className="text-base sm:text-lg font-bold text-gray-800 dark:text-white mb-3 sm:mb-4 flex items-center gap-2">
                             <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg shadow-md">
                                 <PieChartIcon size={16} className="text-white" />
                             </div>
                             Task Status Distribution
                         </h3>
-                        <ResponsiveContainer width="100%" height={280}>
+                        <ResponsiveContainer width="100%" height={220}>
                             <PieChart>
                                 <Pie
                                     data={statusData} cx="50%" cy="50%"
@@ -616,14 +616,14 @@ export const DashboardView: FC<{ tasks: any[]; orderKey: string; orderDetails: a
                             </PieChart>
                         </ResponsiveContainer>
                     </div>
-                    <div className="lg:col-span-3 bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 transition-all duration-300 hover:shadow-xl">
-                        <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                    <div className="lg:col-span-3 bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 transition-all duration-300 hover:shadow-xl">
+                        <h3 className="text-base sm:text-lg font-bold text-gray-800 dark:text-white mb-3 sm:mb-4 flex items-center gap-2">
                             <div className="p-2 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg shadow-md">
                                 <BarChartIcon size={16} className="text-white" />
                             </div>
                             Units Per Task
                         </h3>
-                        <ResponsiveContainer width="100%" height={280}>
+                        <ResponsiveContainer width="100%" height={220}>
                             <BarChart data={tasks.filter(t => t.quantity > 0)} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
                                 <defs>
                                     <linearGradient id="colorUv" x1="0" y1="0" x2="0" y2="1">
@@ -642,10 +642,10 @@ export const DashboardView: FC<{ tasks: any[]; orderKey: string; orderDetails: a
                 </div>
 
                 {/* ── Priority Breakdown + Upcoming Deadlines ──────────── */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6">
                     {/* Priority Breakdown */}
-                    <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10">
-                        <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-5 flex items-center gap-2">
+                    <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-lg border border-gray-200 dark:border-white/10">
+                        <h3 className="text-base sm:text-lg font-bold text-gray-800 dark:text-white mb-3 sm:mb-5 flex items-center gap-2">
                             <div className="p-2 bg-gradient-to-br from-orange-500 to-red-500 rounded-lg shadow-md">
                                 <Flag size={16} className="text-white" />
                             </div>
@@ -675,8 +675,8 @@ export const DashboardView: FC<{ tasks: any[]; orderKey: string; orderDetails: a
                     </div>
 
                     {/* Upcoming Task Deadlines */}
-                    <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10">
-                        <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-5 flex items-center gap-2">
+                    <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-lg border border-gray-200 dark:border-white/10">
+                        <h3 className="text-base sm:text-lg font-bold text-gray-800 dark:text-white mb-3 sm:mb-5 flex items-center gap-2">
                             <div className="p-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg text-amber-600">
                                 <AlertTriangle size={18} />
                             </div>
@@ -717,11 +717,11 @@ export const DashboardView: FC<{ tasks: any[]; orderKey: string; orderDetails: a
                 </div>
 
                 {/* ── Task Timeline Calendar ────────────────────────────── */}
-                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 relative overflow-hidden group">
+                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 relative overflow-hidden group">
                     <div className="absolute top-0 right-0 p-6 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity pointer-events-none">
                         <Calendar size={120} />
                     </div>
-                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-6 flex items-center gap-2">
+                    <h3 className="text-base sm:text-lg font-bold text-gray-800 dark:text-white mb-4 sm:mb-6 flex items-center gap-2">
                         <div className="p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg text-purple-600">
                             <Calendar size={18} />
                         </div>
@@ -1854,7 +1854,7 @@ export const TNAView: FC<{
                             <button
                                 type="button"
                                 onClick={() => toggleProduct(key)}
-                                className={`w-full px-6 py-4 ${color.light} ${!isCollapsed ? 'border-b border-gray-200 dark:border-white/10' : ''} flex flex-wrap items-center justify-between gap-3 hover:brightness-[0.97] dark:hover:brightness-110 transition-all duration-150 text-left`}
+                                className={`w-full px-3 sm:px-6 py-3 sm:py-4 ${color.light} ${!isCollapsed ? 'border-b border-gray-200 dark:border-white/10' : ''} flex flex-wrap items-center justify-between gap-2 hover:brightness-[0.97] dark:hover:brightness-110 transition-all duration-150 text-left`}
                             >
                                 <div className="flex items-center gap-3">
                                     <div className={`p-2 bg-gradient-to-br ${color.bg} rounded-lg shadow-sm flex-shrink-0`}>
@@ -1885,12 +1885,13 @@ export const TNAView: FC<{
                                             <span>{atRiskCount} at risk</span>
                                         </div>
                                     )}
-                                    <div className="flex items-center gap-2 min-w-[100px]">
+                                    <div className="hidden sm:flex items-center gap-2 min-w-[100px]">
                                         <div className="flex-1 h-1.5 bg-gray-200/60 dark:bg-gray-700 rounded-full overflow-hidden">
                                             <div className={`h-full rounded-full bg-gradient-to-r ${color.bg} transition-all duration-500`} style={{ width: `${sectionProgress}%` }} />
                                         </div>
                                         <span className="text-xs font-bold text-gray-600 dark:text-gray-300 w-8 text-right">{sectionProgress}%</span>
                                     </div>
+                                    <span className="sm:hidden text-xs font-bold text-gray-600 dark:text-gray-300">{sectionProgress}%</span>
                                     {!isMultiProduct && categoryProducts[0]?.status && (
                                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/60 dark:bg-gray-800/60 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
                                             {categoryProducts[0].status}
@@ -3059,8 +3060,8 @@ Keep it professional and brief. Use bullet points, not paragraphs (except Execut
     return (
         <MainLayout {...props}>
             {/* Hero Header Section */}
-            <header className="mb-8 relative">
-                <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 p-6 sm:p-8 shadow-2xl border border-white/5">
+            <header className="mb-4 sm:mb-8 relative">
+                <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 p-4 sm:p-8 shadow-2xl border border-white/5">
                     {/* Animated background blobs */}
                     <div className="absolute top-0 left-0 w-72 h-72 bg-red-500/30 rounded-full filter blur-3xl animate-blob"></div>
                     <div className="absolute top-10 right-10 w-64 h-64 bg-pink-500/30 rounded-full filter blur-3xl animate-blob-delay-2"></div>
@@ -3076,7 +3077,7 @@ Keep it professional and brief. Use bullet points, not paragraphs (except Execut
                                 <div className="p-2 bg-gradient-to-br from-[#c20c0b] to-red-600 rounded-xl shadow-lg">
                                     <ClipboardCheck className="w-6 h-6 text-white" />
                                 </div>
-                                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white leading-tight">
+                                <h1 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold text-white leading-tight">
                                     CRM <span className="bg-gradient-to-r from-blue-400 via-sky-300 to-cyan-300 bg-clip-text text-transparent animate-gradient-x font-black">Portal</span>
                                 </h1>
                             </div>

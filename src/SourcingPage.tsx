@@ -34,16 +34,16 @@ interface SourcingPageProps {
 }
 
 const DashboardCard: FC<{ icon: ReactNode; title: string; value: string | number; colorClass: string; index?: number }> = React.memo(({ icon, title, value, colorClass, index = 0 }) => (
-    <div className={`relative p-5 rounded-2xl overflow-hidden bg-white dark:bg-gray-900/40 dark:backdrop-blur-md shadow-lg border border-gray-200 dark:border-white/10 transition-all duration-300 hover:scale-[1.04] hover:-translate-y-1 cursor-pointer group hover-pulse-glow animate-stagger-in`} style={{ animationDelay: `${index * 100}ms` }}>
+    <div className={`relative p-3 sm:p-5 rounded-xl sm:rounded-2xl overflow-hidden bg-white dark:bg-gray-900/40 dark:backdrop-blur-md shadow-md sm:shadow-lg border border-gray-200 dark:border-white/10 transition-all duration-300 hover:scale-[1.03] hover:-translate-y-0.5 cursor-pointer group hover-pulse-glow animate-stagger-in`} style={{ animationDelay: `${index * 100}ms` }}>
         <div className={`absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r ${colorClass} transition-all duration-300 group-hover:h-2`}></div>
         <div className="absolute -bottom-6 -right-6 w-24 h-24 rounded-full opacity-[0.07] group-hover:opacity-[0.12] transition-opacity duration-500 bg-gradient-to-br from-current" style={{ color: colorClass.includes('red') || colorClass.includes('#c20c0b') ? '#c20c0b' : colorClass.includes('blue') ? '#2563EB' : colorClass.includes('green') ? '#059669' : '#D97706' }}></div>
         <div className="flex items-start justify-between relative z-10">
             <div>
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-300 tracking-wide">{title}</p>
-                <p className="text-3xl font-extrabold text-gray-800 dark:text-white mt-1 animate-count-up">{value}</p>
+                <p className="text-[11px] sm:text-sm font-medium text-gray-500 dark:text-gray-300 tracking-wide">{title}</p>
+                <p className="text-xl sm:text-3xl font-extrabold text-gray-800 dark:text-white mt-0.5 sm:mt-1 animate-count-up">{value}</p>
             </div>
-            <div className={`p-3 rounded-xl bg-gradient-to-br ${colorClass} shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-110`}>
-                <div className="text-white">{icon}</div>
+            <div className={`p-2 sm:p-3 rounded-lg sm:rounded-xl bg-gradient-to-br ${colorClass} shadow-md group-hover:shadow-xl transition-all duration-300 group-hover:scale-110`}>
+                <div className="text-white scale-90 sm:scale-100">{icon}</div>
             </div>
         </div>
     </div>
@@ -137,9 +137,9 @@ const Dashboard: FC<{ quoteRequests: QuoteRequest[]; handleSetCurrentPage: (page
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Quote Status Chart */}
-                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 flex flex-col transition-all duration-300 hover:shadow-xl animate-stagger-in" style={{ animationDelay: '400ms' }}>
-                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2"><Sparkles size={18} className="text-amber-500" /> Quote Status Distribution</h3>
-                    <div className="flex-grow min-h-[300px]">
+                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-4 sm:p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 flex flex-col transition-all duration-300 hover:shadow-xl animate-stagger-in" style={{ animationDelay: '400ms' }}>
+                    <h3 className="text-sm sm:text-lg font-bold text-gray-800 dark:text-white mb-3 sm:mb-4 flex items-center gap-2"><Sparkles size={16} className="text-amber-500" /> Quote Status Distribution</h3>
+                    <div className="flex-grow min-h-[200px] sm:min-h-[300px]">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                 <defs>
@@ -191,9 +191,9 @@ const Dashboard: FC<{ quoteRequests: QuoteRequest[]; handleSetCurrentPage: (page
                 </div>
 
                 {/* Category Volume Chart */}
-                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 flex flex-col transition-all duration-300 hover:shadow-xl animate-stagger-in" style={{ animationDelay: '500ms' }}>
-                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2"><TrendingUp size={18} className="text-blue-500" /> Requested Volume by Category</h3>
-                    <div className="flex-grow min-h-[300px]">
+                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-4 sm:p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 flex flex-col transition-all duration-300 hover:shadow-xl animate-stagger-in" style={{ animationDelay: '500ms' }}>
+                    <h3 className="text-sm sm:text-lg font-bold text-gray-800 dark:text-white mb-3 sm:mb-4 flex items-center gap-2"><TrendingUp size={16} className="text-blue-500" /> Volume by Category</h3>
+                    <div className="flex-grow min-h-[200px] sm:min-h-[300px]">
                         {barData.length > 0 ? (
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={barData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
@@ -515,17 +515,17 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                 <button onClick={() => scroll('left')} className="absolute left-0 z-10 p-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-full shadow-md top-1/2 -translate-y-1/2 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white dark:hover:bg-gray-700 transition-all">
                     <ChevronLeft className="w-6 h-6 text-gray-700 dark:text-gray-200" />
                 </button>
-                <div ref={scrollRef} className="flex items-center space-x-2 sm:space-x-4 overflow-x-auto pb-4 px-12 scrollbar-hide">
+                <div ref={scrollRef} className="flex items-center space-x-3 sm:space-x-4 overflow-x-auto pb-3 px-10 sm:px-12 scrollbar-hide">
                     {displayCategories.map(cat => {
                         const isSelected = selectedGarmentCategory === cat.name;
                         return (
-                            <button key={cat.name} onClick={() => setSelectedGarmentCategory(cat.name)} className="flex-shrink-0 flex flex-col items-center justify-start space-y-2 p-1 transition-transform hover:scale-105 group w-24 text-center">
-                                <div className={`w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 shadow-md group-hover:shadow-[0_0_15px_rgba(194,12,11,0.5)] ${isSelected ? 'p-1 bg-gradient-to-br from-red-500 to-pink-700' : 'bg-transparent'}`}>
+                            <button key={cat.name} onClick={() => setSelectedGarmentCategory(cat.name)} className="flex-shrink-0 flex flex-col items-center justify-start space-y-1.5 p-1 transition-transform active:scale-95 group w-[68px] sm:w-24 text-center">
+                                <div className={`w-[56px] h-[56px] sm:w-20 sm:h-20 rounded-full flex items-center justify-center transition-all duration-300 shadow-md group-hover:shadow-[0_0_15px_rgba(194,12,11,0.5)] ${isSelected ? 'p-[3px] bg-gradient-to-br from-red-500 to-pink-700' : 'bg-transparent'}`}>
                                     <div className={`w-full h-full rounded-full bg-white dark:bg-gray-800 flex items-center justify-center ${!isSelected ? 'ring-1 ring-gray-200 dark:ring-white/10' : ''}`}>
-                                        {cat.imageUrl ? <img src={cat.imageUrl} alt={cat.name} className="w-full h-full object-cover rounded-full" onError={(e) => { (e.target as HTMLImageElement).onerror = null; (e.target as HTMLImageElement).src=`https://placehold.co/80x80/e9d5ff/4c1d95?text=${cat.name}`; }} /> : <div className="text-gray-600">{cat.icon}</div>}
+                                        {cat.imageUrl ? <img src={cat.imageUrl} alt={cat.name} className="w-full h-full object-cover rounded-full" onError={(e) => { (e.target as HTMLImageElement).onerror = null; (e.target as HTMLImageElement).src=`https://placehold.co/80x80/e9d5ff/4c1d95?text=${cat.name}`; }} /> : <div className="text-gray-600 scale-75 sm:scale-100">{cat.icon}</div>}
                                     </div>
                                 </div>
-                                <span className={`font-semibold text-xs transition-colors ${isSelected ? 'text-[#c20c0b]' : 'text-gray-600 dark:text-gray-200'}`}>{cat.name}</span>
+                                <span className={`font-semibold text-[10px] sm:text-xs transition-colors ${isSelected ? 'text-[#c20c0b]' : 'text-gray-600 dark:text-gray-200'}`}>{cat.name}</span>
                             </button>
                         );
                     })}
@@ -658,8 +658,8 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
     return (
         <MainLayout {...props}>
             {/* Hero Welcome Section */}
-            <header className="mb-8 relative">
-                <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 p-6 sm:p-8 shadow-2xl border border-white/5">
+            <header className="mb-5 sm:mb-8 relative">
+                <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 p-4 sm:p-8 shadow-2xl border border-white/5">
                     {/* Animated background blobs */}
                     <div className="absolute top-0 left-0 w-72 h-72 bg-pink-500/30 rounded-full filter blur-3xl animate-blob"></div>
                     <div className="absolute top-10 right-10 w-64 h-64 bg-purple-500/30 rounded-full filter blur-3xl animate-blob-delay-2"></div>
@@ -669,41 +669,39 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                     <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '24px 24px' }}></div>
 
                     {/* Content */}
-                    <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
                         <div className="flex-1">
                             <div className="flex items-center gap-2 mb-1">
-                                <span className="text-2xl">{greeting.emoji}</span>
-                                <p className="text-gray-300 text-sm font-medium tracking-wide uppercase">{greeting.text}</p>
+                                <span className="text-xl sm:text-2xl">{greeting.emoji}</span>
+                                <p className="text-gray-300 text-xs sm:text-sm font-medium tracking-wide uppercase">{greeting.text}</p>
                             </div>
-                            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white leading-tight">
-                                Welcome back, <span className="bg-gradient-to-r from-blue-400 via-sky-300 to-cyan-300 bg-clip-text text-transparent animate-gradient-x font-black">{firstName}</span>
+                            <h1 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold text-white leading-tight">
+                                Welcome, <span className="bg-gradient-to-r from-blue-400 via-sky-300 to-cyan-300 bg-clip-text text-transparent animate-gradient-x font-black">{firstName}</span>
                             </h1>
-                            <p className="text-gray-400 mt-2 text-sm sm:text-base max-w-xl">
-                                {userProfile?.companyName ? `${userProfile.companyName} • ` : ''}Discover top-rated factories, get instant quotes, and scale your garment production.
+                            <p className="text-gray-400 mt-1.5 text-xs sm:text-base max-w-xl line-clamp-2 sm:line-clamp-none">
+                                {userProfile?.companyName ? `${userProfile.companyName} · ` : ''}Discover top factories, get instant quotes, and scale production.
                             </p>
 
                             {/* Quick action buttons */}
-                            <div className="flex flex-wrap gap-3 mt-5">
-                                <button onClick={() => handleSetCurrentPage('orderForm')} className="px-5 py-2.5 bg-gradient-to-r from-[#c20c0b] to-red-600 text-white rounded-xl font-semibold text-sm shadow-lg shadow-red-500/25 hover:shadow-red-500/40 transition-all duration-300 hover:scale-[1.03] flex items-center gap-2">
-                                    <Zap size={16} /> Place New Order
+                            <div className="flex flex-wrap gap-2 sm:gap-3 mt-3 sm:mt-5">
+                                <button onClick={() => handleSetCurrentPage('orderForm')} className="px-4 sm:px-5 py-2 sm:py-2.5 bg-gradient-to-r from-[#c20c0b] to-red-600 text-white rounded-xl font-semibold text-sm shadow-lg shadow-red-500/25 hover:shadow-red-500/40 transition-all duration-300 hover:scale-[1.03] flex items-center gap-1.5 sm:gap-2">
+                                    <Zap size={15} /> Place Order
                                 </button>
-                                <button onClick={() => handleSetCurrentPage('myQuotes')} className="px-5 py-2.5 bg-white/10 backdrop-blur-sm text-white rounded-xl font-semibold text-sm border border-white/20 hover:bg-white/20 transition-all duration-300 flex items-center gap-2">
-                                    View My Quotes <ArrowRight size={16} />
+                                <button onClick={() => handleSetCurrentPage('myQuotes')} className="px-4 sm:px-5 py-2 sm:py-2.5 bg-white/10 backdrop-blur-sm text-white rounded-xl font-semibold text-sm border border-white/20 hover:bg-white/20 transition-all duration-300 flex items-center gap-1.5 sm:gap-2">
+                                    My Quotes <ArrowRight size={15} />
                                 </button>
                             </div>
                         </div>
 
-                        {/* Right side: Profile cluster */}
-                        <div className="flex items-center space-x-2 self-start sm:self-center">
-                            <button className="p-2 rounded-full bg-white/10 backdrop-blur-sm shadow-sm md:hidden hover:bg-white/20 transition-colors"><Search size={20} className="text-white" /></button>
-                            <button onClick={toggleMenu} className="p-2 rounded-full bg-white/10 backdrop-blur-sm shadow-sm md:hidden hover:bg-white/20 transition-colors"><Menu size={20} className="text-white" /></button>
+                        {/* Right side: Profile cluster — desktop only */}
+                        <div className="hidden sm:flex items-center space-x-2 self-start sm:self-center">
                             <ProfileDropdown />
                         </div>
                     </div>
                 </div>
 
                 {/* Search Bar - floating below the hero */}
-                <div className="relative -mt-5 mx-4 sm:mx-8 flex flex-col sm:flex-row gap-2">
+                <div className="relative -mt-4 sm:-mt-5 mx-2 sm:mx-8 flex flex-col sm:flex-row gap-2">
                     <div className="relative flex-grow" ref={searchContainerRef}>
                         <div className="relative group">
                             <Search className="h-5 w-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#c20c0b] transition-colors z-10" />
@@ -782,17 +780,17 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
             </header>
 
             {/* Promotional Banners */}
-            <section className="mb-8">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <section className="mb-5 sm:mb-8">
+                <div className="grid grid-cols-3 gap-2 sm:gap-4">
                     {promoBanners.map((banner, i) => (
-                        <div key={banner.title} className="relative overflow-hidden rounded-2xl p-5 bg-white dark:bg-gray-900/40 dark:backdrop-blur-md border border-gray-200 dark:border-white/10 shadow-md hover:shadow-xl transition-all duration-300 group cursor-pointer hover:-translate-y-1 animate-banner-slide banner-shimmer" style={{ animationDelay: `${i * 150}ms` }}>
+                        <div key={banner.title} className="relative overflow-hidden rounded-xl sm:rounded-2xl p-3 sm:p-5 bg-white dark:bg-gray-900/40 dark:backdrop-blur-md border border-gray-200 dark:border-white/10 shadow-md hover:shadow-xl transition-all duration-300 group cursor-pointer hover:-translate-y-1 animate-banner-slide banner-shimmer" style={{ animationDelay: `${i * 150}ms` }}>
                             <div className={`absolute -top-6 -right-6 w-24 h-24 rounded-full ${banner.bgGlow} filter blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500`}></div>
                             <div className="relative z-10">
-                                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${banner.gradient} flex items-center justify-center text-white shadow-lg mb-3 group-hover:scale-110 transition-transform duration-300`}>
-                                    {banner.icon}
+                                <div className={`w-8 h-8 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br ${banner.gradient} flex items-center justify-center text-white shadow-lg mb-2 sm:mb-3 group-hover:scale-110 transition-transform duration-300`}>
+                                    <span className="scale-75 sm:scale-100">{banner.icon}</span>
                                 </div>
-                                <h3 className="font-bold text-gray-900 dark:text-white text-sm">{banner.title}</h3>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">{banner.description}</p>
+                                <h3 className="font-bold text-gray-900 dark:text-white text-[11px] sm:text-sm leading-tight">{banner.title}</h3>
+                                <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-relaxed hidden sm:block">{banner.description}</p>
                             </div>
                         </div>
                     ))}
@@ -818,7 +816,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
             </section>
 
             {/* Quick Filters: Sticky bar with easy-access filters (Rating, Sustainable, etc.) */}
-            <section className="mb-6 sticky top-0 bg-white/80 dark:bg-gray-900/60 backdrop-blur-md py-3 z-30 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 transition-colors border-b border-gray-100 dark:border-gray-800/50">
+            <section className="mb-4 sm:mb-6 sticky top-14 md:top-0 bg-white/90 dark:bg-gray-900/80 backdrop-blur-md py-2 sm:py-3 z-20 -mx-3 px-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 transition-colors border-b border-gray-100 dark:border-gray-800/50">
                 <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide max-w-7xl mx-auto">
                     <button onClick={() => setShowFilterPanel(true)} className="flex-shrink-0 px-4 py-2 border rounded-xl text-sm font-semibold transition-all duration-200 bg-white dark:bg-gray-900/50 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-white flex items-center gap-2 hover:scale-[1.03]"><SlidersHorizontal size={16} />Filters</button>
                     {quickFilters.map(filter => {
@@ -830,16 +828,16 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
 
             {/* Factory Grid: The main content area displaying the list of factories */}
             <section>
-                <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center justify-between mb-3 sm:mb-5">
                     <div className="flex items-center gap-2">
-                        <Sparkles size={20} className="text-amber-500" />
-                        <h2 className="text-xl font-bold text-gray-800 dark:text-white">Recommended For You</h2>
+                        <Sparkles size={18} className="text-amber-500" />
+                        <h2 className="text-base sm:text-xl font-bold text-gray-800 dark:text-white">Recommended For You</h2>
                     </div>
-                    <span className="text-sm text-gray-500 dark:text-gray-400 font-medium">
+                    <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 font-medium">
                         {!isFiltering && `${filteredFactories.length} ${filteredFactories.length === 1 ? 'factory' : 'factories'}`}
                     </span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
                     {/* Conditional Rendering: Show Skeletons while loading, Cards if data exists, or 'No Results' message */}
                     {isFiltering ? (
                         Array.from({ length: 6 }).map((_, index) => <SkeletonCard key={index} />)

@@ -1464,7 +1464,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
 
     return (
         <MainLayout {...layoutProps}>
-            <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-8">
+            <div className="max-w-6xl mx-auto px-2 sm:px-6 lg:px-8 py-3 sm:py-6 pb-36 md:pb-8">
                 {/* Compact Header - Zomato Style */}
                 <div className="mb-6">
                     {/* Back button row */}
@@ -1533,7 +1533,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                 </div>
 
                 {/* Zomato-style Tabs */}
-                <div className="sticky top-0 z-30 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 bg-gray-50/95 dark:bg-gray-950/95 backdrop-blur-md py-3 mb-6 border-b border-gray-200 dark:border-gray-800">
+                <div className="sticky top-14 md:top-0 z-30 -mx-3 px-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 bg-gray-50/95 dark:bg-gray-950/95 backdrop-blur-md py-2 sm:py-3 mb-3 sm:mb-6 border-b border-gray-200 dark:border-gray-800">
                     <div className="max-w-6xl mx-auto flex items-center gap-1 overflow-x-auto scrollbar-hide">
                         {tabs.map(tab => (
                             <button
@@ -2764,7 +2764,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                 <button
                     id="floating-chat-btn"
                     onClick={() => { const opening = !isChatPanelOpen; setIsChatPanelOpen(opening); if (opening) markChatRead(); }}
-                    className="fixed bottom-36 md:bottom-28 right-6 z-[60] w-14 h-14 rounded-full bg-gradient-to-tr from-violet-600 to-[#c20c0b] text-white shadow-[0_4px_20px_rgba(194,12,11,0.4)] hover:shadow-[0_6px_25px_rgba(194,12,11,0.6)] hover:scale-105 transition-all duration-300 flex items-center justify-center group"
+                    className="fixed bottom-[140px] md:bottom-28 right-6 z-[60] w-14 h-14 rounded-full bg-gradient-to-tr from-violet-600 to-[#c20c0b] text-white shadow-[0_4px_20px_rgba(194,12,11,0.4)] hover:shadow-[0_6px_25px_rgba(194,12,11,0.6)] hover:scale-105 transition-all duration-300 flex items-center justify-center group"
                 >
                     <Sparkles size={26} className="group-hover:scale-110 transition-transform duration-300 group-hover:rotate-12" />
                     <div className="absolute inset-0 rounded-full bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300 animate-pulse" />
@@ -2971,8 +2971,8 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                     document.body
                 )}
 
-                {/* Mobile Sticky Action Bar */}
-                <div className="fixed bottom-0 left-0 right-0 md:hidden z-30 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-3 flex items-center gap-3 shadow-lg">
+                {/* Mobile Sticky Action Bar — sits above the bottom nav */}
+                <div className="fixed bottom-[62px] left-0 right-0 md:hidden z-30 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-3 flex items-center gap-3 shadow-lg">
                     <button onClick={handleDownloadPdf} className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white border border-gray-200 dark:border-gray-700 rounded-lg">
                         <Download size={20} />
                     </button>

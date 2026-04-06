@@ -1,8 +1,8 @@
 import React, { FC, ReactNode, useState, useEffect } from 'react';
 import {
     Search, DollarSign, Plus, X,
-    List, Truck, User as UserIcon, LogOut, Settings, Flame, FileQuestion,
-    LayoutDashboard, Users, Building, ImageIcon, Bell
+    List, Truck, LogOut, Settings, Flame, FileQuestion,
+    LayoutDashboard, Users, Building, ImageIcon, Bell, Menu, ChevronLeft
 } from 'lucide-react';
 import { NotificationBellButton, NotificationPanel } from './NotificationPanel';
 import { useNotifications } from './NotificationContext';
@@ -24,6 +24,28 @@ interface MainLayoutProps {
     userProfile?: any;
 }
 
+const PAGE_TITLES: Record<string, string> = {
+    sourcing: 'Sourcing',
+    myQuotes: 'My Quotes',
+    crm: 'CRM Portal',
+    tracking: 'Tracking',
+    billing: 'Billing',
+    orderForm: 'Place Order',
+    settings: 'Settings',
+    trending: 'Trending',
+    profile: 'Profile',
+    quoteDetail: 'Quote Detail',
+    factoryDetail: 'Factory',
+    onboarding: 'Onboarding',
+    adminDashboard: 'Dashboard',
+    adminUsers: 'Users',
+    adminFactories: 'Factories',
+    adminCRM: 'CRM',
+    adminRFQ: 'RFQ',
+    adminTrending: 'Trending',
+    adminLoginSettings: 'Login Settings',
+};
+
 // ── Icon Nav Item ─────────────────────────────────────────────────────────────
 const NavItem: FC<{
     icon: React.ReactNode;
@@ -40,7 +62,6 @@ const NavItem: FC<{
             isActive ? 'bg-white/20 shadow-inner' : 'hover:bg-white/[0.12]'
         }`}
     >
-        {/* Icon with badge */}
         <span className={`relative flex-shrink-0 transition-colors duration-150 ${
             isActive ? 'text-white' : 'text-white/80 group-hover:text-white'
         }`}>
@@ -51,7 +72,6 @@ const NavItem: FC<{
                 </span>
             )}
         </span>
-        {/* Label */}
         <span className={`text-[10px] font-bold leading-tight text-center w-full truncate transition-colors duration-150 ${
             isActive ? 'text-white' : 'text-white/75 group-hover:text-white'
         }`}>
@@ -60,11 +80,73 @@ const NavItem: FC<{
     </button>
 );
 
+// ── Mobile Header ─────────────────────────────────────────────────────────────
+const MobileHeader: FC<{
+    currentPage: string;
+    toggleMenu: () => void;
+    isAdmin?: boolean;
+    onOpenNotif: () => void;
+    unreadCount: number;
+    handleSetCurrentPage: (page: string, data?: any) => void;
+}> = ({ currentPage, toggleMenu, isAdmin, onOpenNotif, unreadCount, handleSetCurrentPage }) => {
+    const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+
+    useEffect(() => {
+        const observer = new MutationObserver(() =>
+            setIsDark(document.documentElement.classList.contains('dark'))
+        );
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+        return () => observer.disconnect();
+    }, []);
+
+    const title = PAGE_TITLES[currentPage] || 'Garment ERP';
+
+    // Pages where we show a back arrow instead of hamburger (detail pages)
+    const isDetailPage = ['quoteDetail', 'factoryDetail', 'onboarding'].includes(currentPage);
+
+    return (
+        <header
+            className="md:hidden sticky top-0 z-30 flex items-center justify-between px-3 h-14 border-b"
+            style={{
+                background: isDark ? 'rgba(10,10,12,0.92)' : 'rgba(255,255,255,0.92)',
+                borderColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)',
+                backdropFilter: 'blur(20px)',
+                WebkitBackdropFilter: 'blur(20px)',
+            }}
+        >
+            {/* Left — hamburger or back */}
+            <button
+                onClick={isDetailPage ? () => history.back() : toggleMenu}
+                className="w-10 h-10 flex items-center justify-center rounded-xl text-gray-700 dark:text-gray-200 active:bg-gray-100 dark:active:bg-white/10 transition-colors"
+            >
+                {isDetailPage
+                    ? <ChevronLeft className="w-5 h-5" />
+                    : <Menu className="w-5 h-5" />}
+            </button>
+
+            {/* Center — page title */}
+            <span className="absolute left-1/2 -translate-x-1/2 text-[15px] font-bold text-gray-900 dark:text-white tracking-tight pointer-events-none">
+                {title}
+            </span>
+
+            {/* Right — notification bell */}
+            <button
+                onClick={onOpenNotif}
+                className="relative w-10 h-10 flex items-center justify-center rounded-xl text-gray-700 dark:text-gray-200 active:bg-gray-100 dark:active:bg-white/10 transition-colors"
+            >
+                <Bell className="w-5 h-5" />
+                {unreadCount > 0 && (
+                    <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-white dark:ring-gray-950" />
+                )}
+            </button>
+        </header>
+    );
+};
+
 // ── Side Menu ─────────────────────────────────────────────────────────────────
-const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'>> = (
-    { currentPage, isMenuOpen, toggleMenu, handleSetCurrentPage, handleSignOut, isAdmin, user, userProfile }
+const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'> & { onOpenNotif: () => void }> = (
+    { currentPage, isMenuOpen, toggleMenu, handleSetCurrentPage, handleSignOut, isAdmin, user, userProfile, onOpenNotif }
 ) => {
-    const [isNotifOpen, setIsNotifOpen] = useState(false);
     const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
     const { notifications } = useNotifications();
 
@@ -85,8 +167,6 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'>> = (
 
     const avatarUrl: string = user?.user_metadata?.avatar_url || user?.user_metadata?.picture || '';
     const displayName: string = userProfile?.name || user?.user_metadata?.full_name || user?.user_metadata?.name || 'User';
-    const displayEmail: string = user?.email || '';
-    const companyName: string = userProfile?.companyName || '';
     const initials: string = displayName.split(' ').filter(Boolean).map((w: string) => w[0]).slice(0, 2).join('').toUpperCase();
 
     const clientMenuItems = [
@@ -139,9 +219,7 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'>> = (
             {/* Subtle shine overlay */}
             <div
                 className="absolute inset-0 pointer-events-none"
-                style={{
-                    background: 'linear-gradient(135deg, rgba(255,255,255,0.08) 0%, transparent 60%)',
-                }}
+                style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.08) 0%, transparent 60%)' }}
             />
 
             {/* Brand Logo */}
@@ -149,7 +227,6 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'>> = (
                 <div className="w-10 h-10 rounded-[14px] bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-lg ring-1 ring-white/20">
                     <span className="text-white font-bold text-base tracking-tight select-none">A</span>
                 </div>
-                {/* Mobile close — tiny X top-right */}
                 <button
                     onClick={toggleMenu}
                     className="md:hidden absolute top-2 right-1 p-1 rounded-lg bg-white/15 text-white/80 hover:bg-white/25 transition-colors"
@@ -158,7 +235,6 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'>> = (
                 </button>
             </div>
 
-            {/* Thin divider */}
             <div className="mx-3 h-px bg-white/15 flex-shrink-0" />
 
             {/* Nav items */}
@@ -174,25 +250,15 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'>> = (
                     />
                 ))}
 
-                {/* Notifications */}
-                <NotificationBellButton
-                    onClick={() => setIsNotifOpen(true)}
-                    isSidebarCollapsed={false}
-                />
+                {/* Notifications bell — desktop only (mobile uses header bell) */}
+                <div className="hidden md:block">
+                    <NotificationBellButton
+                        onClick={onOpenNotif}
+                        isSidebarCollapsed={false}
+                    />
+                </div>
             </nav>
 
-            {/* Global Notification Panel */}
-            <NotificationPanel
-                isOpen={isNotifOpen}
-                onClose={() => setIsNotifOpen(false)}
-                onNavigate={(page, data) => {
-                    handleSetCurrentPage(page, data);
-                    if (isMenuOpen) toggleMenu();
-                    setIsNotifOpen(false);
-                }}
-            />
-
-            {/* Thin divider */}
             <div className="mx-3 h-px bg-white/15 flex-shrink-0" />
 
             {/* Profile */}
@@ -207,7 +273,6 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'>> = (
                             {avatarUrl
                                 ? <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
                                 : <span className="text-white font-bold text-[11px] leading-none">{initials}</span>}
-                            {/* Online dot */}
                             <span className="absolute bottom-0 right-0 w-2 h-2 bg-emerald-400 rounded-full ring-[1.5px] ring-[#2d0a3e]" />
                         </div>
                         <span className="text-[9.5px] font-medium text-white/60 group-hover:text-white/90 transition-colors leading-tight">
@@ -235,63 +300,177 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'>> = (
 };
 
 // ── Bottom Nav (Mobile) ───────────────────────────────────────────────────────
-const BottomNavBar: FC<{ currentPage: string; handleSetCurrentPage: (page: string) => void; }> = ({ currentPage, handleSetCurrentPage }) => {
+const BottomNavBar: FC<{
+    currentPage: string;
+    handleSetCurrentPage: (page: string) => void;
+    unreadByPage: Record<string, number>;
+}> = ({ currentPage, handleSetCurrentPage, unreadByPage }) => {
+    const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+
+    useEffect(() => {
+        const observer = new MutationObserver(() =>
+            setIsDark(document.documentElement.classList.contains('dark'))
+        );
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+        return () => observer.disconnect();
+    }, []);
+
     const navItems = [
-      { name: 'Sourcing',  page: 'sourcing',  icon: <Search /> },
-      { name: 'My Quotes', page: 'myQuotes',  icon: <FileQuestion /> },
-      { name: 'Orders',    page: 'crm',       icon: <List /> },
-      { name: 'Billing',   page: 'billing',   icon: <DollarSign /> },
-      { name: 'Trending',  page: 'trending',  icon: <Flame /> },
+        { name: 'Sourcing',  page: 'sourcing',  icon: Search },
+        { name: 'Quotes',    page: 'myQuotes',  icon: FileQuestion },
+        { name: '',          page: 'orderForm', icon: Plus, isFab: true },
+        { name: 'Orders',    page: 'crm',       icon: List },
+        { name: 'Trending',  page: 'trending',  icon: Flame },
     ];
+
     return (
-      <div className="fixed bottom-0 left-0 right-0 h-20 md:hidden z-40">
-          <div className="absolute bottom-0 left-0 right-0 bg-white/70 dark:bg-gray-900/70 backdrop-blur-md shadow-[0_-2px_10px_rgba(0,0,0,0.1)] h-16 border-t border-gray-200/50 dark:border-gray-700/50">
-              <div className="flex justify-around items-center h-full">
-                  {navItems.map(item => (
-                      <button key={item.name} onClick={() => handleSetCurrentPage(item.page)} className={`flex flex-col items-center justify-center space-y-1 w-1/5 ${currentPage === item.page ? 'text-[var(--color-primary)]' : 'text-gray-500 dark:text-gray-200'} hover:text-[var(--color-primary)] transition-colors`}>
-                          {item.icon}
-                          <span className="text-xs font-medium">{item.name}</span>
-                      </button>
-                  ))}
-              </div>
-          </div>
-          <button onClick={() => handleSetCurrentPage('orderForm')} className="absolute bottom-8 left-1/2 -translate-x-1/2 w-16 h-16 bg-[var(--color-primary)] rounded-full flex items-center justify-center text-white shadow-lg transform transition-transform hover:scale-110">
-              <Plus size={32}/>
-          </button>
-      </div>
+        <div
+            className="fixed bottom-0 left-0 right-0 md:hidden z-40"
+            style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        >
+            <div
+                className="flex items-end justify-around px-2 h-[62px] border-t"
+                style={{
+                    background: isDark ? 'rgba(10,10,14,0.94)' : 'rgba(255,255,255,0.94)',
+                    borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+                    backdropFilter: 'blur(24px)',
+                    WebkitBackdropFilter: 'blur(24px)',
+                }}
+            >
+                {navItems.map(item => {
+                    if (item.isFab) {
+                        return (
+                            <button
+                                key="fab"
+                                onClick={() => handleSetCurrentPage(item.page)}
+                                className="relative -top-4 w-14 h-14 rounded-full flex items-center justify-center text-white shadow-xl flex-shrink-0 active:scale-95 transition-transform"
+                                style={{
+                                    background: 'linear-gradient(135deg, #c20c0b, #7f1010)',
+                                    boxShadow: '0 8px 24px rgba(194,12,11,0.45)',
+                                }}
+                            >
+                                <Plus className="w-6 h-6" strokeWidth={2.5} />
+                            </button>
+                        );
+                    }
+
+                    const isActive = currentPage === item.page;
+                    const badge = unreadByPage[item.page] || 0;
+                    const Icon = item.icon;
+
+                    return (
+                        <button
+                            key={item.page}
+                            onClick={() => handleSetCurrentPage(item.page)}
+                            className="flex flex-col items-center justify-center gap-[3px] flex-1 h-full pt-1 active:opacity-70 transition-opacity"
+                        >
+                            <span className="relative">
+                                <Icon
+                                    className={`w-[22px] h-[22px] transition-colors ${
+                                        isActive ? 'text-[#c20c0b]' : isDark ? 'text-gray-400' : 'text-gray-500'
+                                    }`}
+                                    strokeWidth={isActive ? 2.5 : 1.8}
+                                />
+                                {badge > 0 && (
+                                    <span className="absolute -top-1 -right-1.5 h-[14px] min-w-[14px] px-0.5 bg-rose-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center leading-none">
+                                        {badge > 9 ? '9+' : badge}
+                                    </span>
+                                )}
+                            </span>
+                            <span className={`text-[10px] font-semibold transition-colors ${
+                                isActive ? 'text-[#c20c0b]' : isDark ? 'text-gray-500' : 'text-gray-400'
+                            }`}>
+                                {item.name}
+                            </span>
+                            {isActive && (
+                                <span className="absolute bottom-0 w-6 h-[2px] rounded-t-full bg-[#c20c0b] translate-y-px" />
+                            )}
+                        </button>
+                    );
+                })}
+            </div>
+        </div>
     );
 };
 
 // ── Main Layout ───────────────────────────────────────────────────────────────
-export const MainLayout: FC<MainLayoutProps> = (props) => (
-    <div className="flex min-h-screen bg-gray-50 dark:bg-black text-gray-900 dark:text-white font-inter transition-colors duration-200 relative">
-        {/* Accent Gradient for Dark Mode */}
-        <div className="absolute top-0 left-0 right-0 h-[300px] bg-gradient-to-b from-[#450a0a]/60 via-[var(--color-primary)]/10 to-transparent pointer-events-none z-0 dark:block hidden animate-gradient-slow" />
+export const MainLayout: FC<MainLayoutProps> = (props) => {
+    const [isNotifOpen, setIsNotifOpen] = useState(false);
+    const { notifications } = useNotifications();
 
-        {props.globalLoading && (
-            <div className="fixed top-0 left-0 right-0 h-1 z-[100] bg-red-100 dark:bg-red-900 overflow-hidden">
-                <div className="h-full bg-[var(--color-primary)] animate-progress-indeterminate"></div>
+    const totalUnread = notifications.filter(n => !n.isRead).length;
+
+    const unreadByPage: Record<string, number> = {
+        myQuotes: notifications.filter(n => n.category === 'rfq' && !n.isRead).length,
+        crm:      notifications.filter(n => n.category === 'crm' && !n.isRead).length,
+    };
+
+    const showNav = !!props.user && !props.hideSidebar;
+
+    return (
+        <div className="flex min-h-screen bg-gray-50 dark:bg-black text-gray-900 dark:text-white font-inter transition-colors duration-200 relative flex-col">
+            {/* Accent Gradient (dark mode) */}
+            <div className="absolute top-0 left-0 right-0 h-[300px] bg-gradient-to-b from-[#450a0a]/60 via-[var(--color-primary)]/10 to-transparent pointer-events-none z-0 dark:block hidden animate-gradient-slow" />
+
+            {/* Global loading bar */}
+            {props.globalLoading && (
+                <div className="fixed top-0 left-0 right-0 h-1 z-[100] bg-red-100 dark:bg-red-900 overflow-hidden">
+                    <div className="h-full bg-[var(--color-primary)] animate-progress-indeterminate" />
+                </div>
+            )}
+
+            {/* Mobile sticky header */}
+            {showNav && (
+                <MobileHeader
+                    currentPage={props.currentPage}
+                    toggleMenu={props.toggleMenu}
+                    isAdmin={props.isAdmin}
+                    onOpenNotif={() => setIsNotifOpen(true)}
+                    unreadCount={totalUnread}
+                    handleSetCurrentPage={props.handleSetCurrentPage}
+                />
+            )}
+
+            {/* Body row: sidebar + content */}
+            <div className="flex flex-1 relative z-10">
+                {showNav && (
+                    <>
+                        <SideMenu {...props} onOpenNotif={() => setIsNotifOpen(true)} />
+                        {/* Spacer: 68px sidebar + 8px left gap = 76px */}
+                        <div className="hidden md:block flex-shrink-0 w-[76px]" />
+                    </>
+                )}
+
+                {/* Main Content */}
+                <main className="flex-1 flex flex-col overflow-hidden">
+                    <div
+                        key={props.pageKey}
+                        className="flex-1 w-full max-w-7xl mx-auto px-3 py-3 sm:p-6 lg:p-8 pb-24 md:pb-8 animate-fade-in"
+                    >
+                        {props.children}
+                    </div>
+                </main>
             </div>
-        )}
 
-        {props.user && !props.hideSidebar && (
-            <>
-                <SideMenu {...props} />
-                {/* Spacer: 68px sidebar + 8px left gap = 76px */}
-                <div className="hidden md:block flex-shrink-0 w-[76px]" />
-            </>
-        )}
+            {/* Notification panel (single instance, shared) */}
+            <NotificationPanel
+                isOpen={isNotifOpen}
+                onClose={() => setIsNotifOpen(false)}
+                onNavigate={(page, data) => {
+                    props.handleSetCurrentPage(page, data);
+                    if (props.isMenuOpen) props.toggleMenu();
+                    setIsNotifOpen(false);
+                }}
+            />
 
-        {/* Main Content */}
-        <main className="flex-1 flex flex-col overflow-hidden relative z-10">
-            <div key={props.pageKey} className="flex-1 w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 pb-24 md:pb-8 animate-fade-in">
-                {props.children}
-            </div>
-        </main>
-
-        {props.user && !props.hideSidebar && (
-            <BottomNavBar currentPage={props.currentPage} handleSetCurrentPage={props.handleSetCurrentPage} />
-        )}
-
-    </div>
-);
+            {/* Bottom nav (client-only) */}
+            {showNav && !props.isAdmin && (
+                <BottomNavBar
+                    currentPage={props.currentPage}
+                    handleSetCurrentPage={props.handleSetCurrentPage}
+                    unreadByPage={unreadByPage}
+                />
+            )}
+        </div>
+    );
+};

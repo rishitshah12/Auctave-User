@@ -1635,12 +1635,12 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                 ) : (
                     <>
                         {/* Form Page - Header Section */}
-                        <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div className="mb-4 sm:mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-2 sm:gap-4">
                             <div>
-                                <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 dark:text-white mb-2">
+                                <h2 className="text-xl sm:text-3xl md:text-4xl font-extrabold text-gray-900 dark:text-white mb-1 sm:mb-2">
                                         {orderType === 'existing' ? 'Modify Quote' : 'Create Your Order'}
                                 </h2>
-                                <p className="text-gray-500 dark:text-gray-400 font-medium">
+                                <p className="text-gray-500 dark:text-gray-400 font-medium text-sm sm:text-base">
                                         {orderType === 'existing'
                                             ? 'Edit existing products, add new items, or remove items from your quote.'
                                             : 'Tell us what you need, we\'ll find the factory.'}
@@ -1692,7 +1692,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                         `}</style>
                         
                         {/* Gamified Stepper */}
-                        <div className="mb-12 relative">
+                        <div className="mb-6 sm:mb-12 relative">
                             {/* Progress Bar Background */}
                             <div className="absolute top-4 left-0 w-full h-2 bg-gray-200 dark:bg-gray-800 rounded-full" />
                             {/* Progress Bar Fill */}
@@ -1700,14 +1700,14 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                             <div className="flex justify-between">
                                 {steps.map((step) => (
                                     <div key={step.id} className="flex flex-col items-center group cursor-default relative">
-                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center border-4 transition-all duration-500 z-10 ${
+                                        <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center border-4 transition-all duration-500 z-10 ${
                                             currentStep > step.id ? 'bg-gradient-to-br from-red-600 to-orange-500 border-white dark:border-gray-900 text-white shadow-lg' :
                                             currentStep === step.id ? 'bg-white dark:bg-gray-900 border-red-500 text-red-500 shadow-lg scale-110' :
                                             'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-400'
                                         }`}>
-                                            {currentStep > step.id ? <Check size={20} /> : step.icon}
+                                            {currentStep > step.id ? <Check size={16} /> : <span className="scale-75 sm:scale-100">{step.icon}</span>}
                                         </div>
-                                        <span className={`mt-2 text-xs font-bold uppercase tracking-wider transition-colors ${currentStep >= step.id ? 'text-gray-800 dark:text-white' : 'text-gray-400'}`}>{step.title}</span>
+                                        <span className={`mt-1 sm:mt-2 text-[9px] sm:text-xs font-bold uppercase tracking-wider transition-colors ${currentStep >= step.id ? 'text-gray-800 dark:text-white' : 'text-gray-400'}`}>{step.title}</span>
                                     </div>
                                 ))}
                             </div>
@@ -1812,19 +1812,19 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                         </div>
 
                                         {/* Gamified Category Selection */}
-                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 mb-5 sm:mb-8">
                                             {CATEGORY_OPTIONS.map((cat) => (
                                                 <button
                                                     key={cat.id}
                                                     type="button"
                                                     onClick={() => handleChipSelect('category', cat.id)}
-                                                    className={`relative rounded-2xl border-2 transition-all duration-300 flex flex-col items-center justify-start gap-0 group overflow-hidden ${
+                                                    className={`relative rounded-xl sm:rounded-2xl border-2 transition-all duration-300 flex flex-col items-center justify-start gap-0 group overflow-hidden ${
                                                         activeItem.category === cat.id
                                                             ? 'border-[#c20c0b] shadow-lg scale-105'
                                                             : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:-translate-y-1 shadow-sm'
                                                     }`}
                                                 >
-                                                    <div className="w-full h-32 overflow-hidden">
+                                                    <div className="w-full h-24 sm:h-32 overflow-hidden">
                                                         <img src={cat.image} alt={cat.label} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                                                     </div>
                                                     <div className={`w-full py-3 px-2 text-center transition-colors ${activeItem.category === cat.id ? 'bg-[#c20c0b] text-white' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'}`}>

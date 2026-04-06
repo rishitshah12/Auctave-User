@@ -116,8 +116,8 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
 
                 <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-sm border border-gray-200 dark:border-white/10 overflow-hidden">
                     {/* Hero Image Section */}
-                    <div 
-                        className="relative h-96 md:h-[500px] group cursor-zoom-in"
+                    <div
+                        className="relative h-52 sm:h-96 md:h-[500px] group cursor-zoom-in"
                         onClick={() => setIsLightboxOpen(true)}
                     >
                         <img 
@@ -150,11 +150,11 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                         )}
 
                         {/* Hero Content Overlay */}
-                        <div className="absolute bottom-0 left-0 p-6 md:p-8 w-full">
-                            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                        <div className="absolute bottom-0 left-0 p-4 sm:p-6 md:p-8 w-full">
+                            <div className="flex flex-col md:flex-row md:items-end justify-between gap-3">
                                 <div>
-                                    <div className="flex items-center gap-3 mb-2 flex-wrap">
-                                        <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">{factory.name}</h1>
+                                    <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2 flex-wrap">
+                                        <h1 className="text-xl sm:text-3xl md:text-4xl font-bold text-white tracking-tight">{factory.name}</h1>
                                         {factory.rating >= 4.5 && (
                                             <span className="px-2 py-0.5 rounded bg-[#c20c0b] text-white text-[10px] font-bold uppercase tracking-wider shadow-sm">Top Rated</span>
                                         )}
@@ -176,8 +176,8 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                     </div>
 
                     {/* Tab Navigation */}
-                    <div className="border-b border-gray-200 dark:border-white/10 px-6 md:px-8">
-                        <div className="flex space-x-8">
+                    <div className="border-b border-gray-200 dark:border-white/10 px-3 sm:px-6 md:px-8">
+                        <div className="flex space-x-4 sm:space-x-8">
                             <button
                                 onClick={() => setActiveTab('overview')}
                                 className={`py-4 text-sm font-bold border-b-2 transition-colors cursor-pointer ${activeTab === 'overview' ? 'border-[#c20c0b] text-[#c20c0b]' : 'border-transparent text-gray-500 dark:text-gray-200 hover:text-gray-700 dark:hover:text-white'}`}
@@ -193,11 +193,11 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                         </div>
                     </div>
 
-                    <div className="p-6 md:p-8">
+                    <div className="p-4 sm:p-6 md:p-8">
                         {activeTab === 'overview' ? (
                             <>
                                 {/* Tags */}
-                                <div className="flex flex-wrap gap-2 mb-8">
+                                <div className="flex flex-wrap gap-2 mb-4 sm:mb-8">
                                     {factory.tags?.map(tag => {
                                         const [text, tagColor] = tag.split(':');
                                         return (
@@ -217,9 +217,9 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                                     })}
                                 </div>
 
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-8">
                             {/* Main Info Column */}
-                            <div className="lg:col-span-2 space-y-8">
+                            <div className="lg:col-span-2 space-y-6 sm:space-y-8">
                                 <div>
                                     <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-3">About Factory</h3>
                                     <p className="text-gray-600 dark:text-gray-200 leading-relaxed text-sm md:text-base">{factory.description}</p>
@@ -315,7 +315,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                     </div>
 
                     {/* Footer Action Bar */}
-                    <div className="border-t border-gray-200 dark:border-white/10 p-6 bg-gray-50/50 dark:bg-gray-800/30">
+                    <div className="border-t border-gray-200 dark:border-white/10 p-4 sm:p-6 bg-gray-50/50 dark:bg-gray-800/30">
                         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                         <div>
                                 <h4 className="font-bold text-gray-900 dark:text-white">Interested in this factory?</h4>
