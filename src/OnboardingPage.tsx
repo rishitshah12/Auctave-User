@@ -690,9 +690,11 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete
     // Disable browser back button on step 0
     useEffect(() => {
         if (step !== 0) return;
-        history.pushState(null, '', window.location.href);
+        // Push twice so the first back press stays on the same URL instead of leaving
+        window.history.pushState(null, '', window.location.href);
+        window.history.pushState(null, '', window.location.href);
         const handlePopState = () => {
-            history.pushState(null, '', window.location.href);
+            window.history.pushState(null, '', window.location.href);
         };
         window.addEventListener('popstate', handlePopState);
         return () => window.removeEventListener('popstate', handlePopState);

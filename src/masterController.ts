@@ -145,9 +145,11 @@ export class MasterController {
             return 'createPassword';
         }
 
-        // 2. Force profile completion
+        // 2. Force profile completion — admin users go to the profile editor;
+        //    client users are handled by the onboarding hard gate in App.tsx.
         if (!profile) {
-            return 'profile';
+            if (isAdmin) return 'profile';
+            return null;
         }
 
         return null;
