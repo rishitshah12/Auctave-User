@@ -1,4 +1,5 @@
 import React, { FC, useState, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import {
     Star, MapPin, ChevronLeft, ChevronRight, BookOpen, Activity, ShieldCheck, X, ZoomIn, TrendingUp, AlertCircle, CheckCircle2
 } from 'lucide-react';
@@ -516,8 +517,8 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
             </div>
 
             {/* ── Lightbox (shared mobile + desktop) ── */}
-            {isLightboxOpen && (
-                <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex items-center justify-center p-4 animate-fade-in" onClick={() => setIsLightboxOpen(false)}>
+            {isLightboxOpen && ReactDOM.createPortal(
+                <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex items-center justify-center p-4" onClick={() => setIsLightboxOpen(false)}>
                     <button onClick={() => setIsLightboxOpen(false)} className="absolute top-6 right-6 text-white/70 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors z-50">
                         <X size={32} />
                     </button>
@@ -539,7 +540,8 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                             ))}
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </MainLayout>
     );

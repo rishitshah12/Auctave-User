@@ -1,4 +1,5 @@
 import React, { FC, useState, useMemo } from 'react';
+import ReactDOM from 'react-dom';
 import {
     Search, LayoutGrid, List, Filter, FileDown, Star, ChevronLeft, ChevronRight,
     X, Tag, Package, Ruler, Clock, DollarSign, Layers, Eye, Download, Sparkles, Scroll,
@@ -253,7 +254,7 @@ const FabricCard: FC<{ fabric: FabricOption }> = ({ fabric }) => (
 const ProductDetailModal: FC<{ product: CatalogProduct; onClose: () => void }> = ({ product, onClose }) => {
     const [imgIdx, setImgIdx] = useState(0);
     const validImages = product.images.filter(Boolean);
-    return (
+    return ReactDOM.createPortal(
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" onClick={onClose}>
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
             <div className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-gray-700" onClick={e => e.stopPropagation()}>
@@ -357,7 +358,8 @@ const ProductDetailModal: FC<{ product: CatalogProduct; onClose: () => void }> =
                     </div>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 
