@@ -2,6 +2,11 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+html.dark,
+html.dark body {
+    background-color: #18171c;
+}
+
 /* ─── TipTap Editor Styles ─────────────────────────────────────── */
 .tiptap {
     outline: none;

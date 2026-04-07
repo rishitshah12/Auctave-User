@@ -589,7 +589,7 @@ export const MainLayout: FC<MainLayoutProps> = (props) => {
     const showNav = !!props.user && !props.hideSidebar;
 
     return (
-        <div className="flex min-h-screen bg-gray-50 dark:bg-black text-gray-900 dark:text-white font-inter transition-colors duration-200 relative flex-col">
+        <div className="flex min-h-screen bg-gray-50 dark:bg-[#18171c] text-gray-900 dark:text-white font-inter transition-colors duration-200 relative flex-col">
             {/* Accent Gradient (dark mode) */}
             <div className="absolute top-0 left-0 right-0 h-[300px] bg-gradient-to-b from-[#450a0a]/60 via-[var(--color-primary)]/10 to-transparent pointer-events-none z-0 dark:block hidden animate-gradient-slow" />
 
