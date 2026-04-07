@@ -274,6 +274,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
     const [isFiltering, setIsFiltering] = useState(() => !sessionStorage.getItem(CACHE_KEY));
     // State for the user profile dropdown menu
     const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+    const [isPerformanceExpanded, setIsPerformanceExpanded] = useState(false);
     const profileDropdownRef = useRef<HTMLDivElement>(null);
     const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -856,11 +857,24 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
 
             {/* Dashboard Stats: Displays key metrics like Active Orders */}
             <section className="mb-8">
-                <div className="flex items-center gap-2 mb-5">
-                    <Award size={20} className="text-[#c20c0b]" />
-                    <h2 className="text-lg font-bold text-gray-800 dark:text-white">Your Performance</h2>
-                </div>
-                <Dashboard quoteRequests={quoteRequests} handleSetCurrentPage={handleSetCurrentPage} setSelectedGarmentCategory={setSelectedGarmentCategory} />
+                <button
+                    onClick={() => setIsPerformanceExpanded(prev => !prev)}
+                    className="flex items-center justify-between w-full mb-0 group"
+                >
+                    <div className="flex items-center gap-2">
+                        <Award size={20} className="text-[#c20c0b]" />
+                        <h2 className="text-lg font-bold text-gray-800 dark:text-white">Your Performance</h2>
+                    </div>
+                    <ChevronDown
+                        size={18}
+                        className={`text-gray-500 dark:text-gray-400 transition-transform duration-300 ${isPerformanceExpanded ? 'rotate-180' : ''}`}
+                    />
+                </button>
+                {isPerformanceExpanded && (
+                    <div className="mt-5">
+                        <Dashboard quoteRequests={quoteRequests} handleSetCurrentPage={handleSetCurrentPage} setSelectedGarmentCategory={setSelectedGarmentCategory} />
+                    </div>
+                )}
             </section>
 
             {/* Category Carousel: Horizontal scrollable list of garment types */}
