@@ -321,6 +321,8 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
 
     // New Zomato-style UI states
     const [activeTab, setActiveTab] = useState<TabType>('overview');
+    const [showMoreTabs, setShowMoreTabs] = useState(false);
+    const moreTabsRef = useRef<HTMLDivElement>(null);
     const [isChatPanelOpen, setIsChatPanelOpen] = useState(false);
     const [activeChatItemId, setActiveChatItemId] = useState<number | null>(null);
     const chatPanelRef = useRef<HTMLDivElement>(null);
@@ -1467,11 +1469,21 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
             <div className="max-w-6xl mx-auto px-2 sm:px-6 lg:px-8 py-3 sm:py-6 pb-36 md:pb-8">
                 {/* Compact Header - Zomato Style */}
                 <div className="mb-6">
-                    {/* Back button row */}
-                    <button onClick={() => handleSetCurrentPage('myQuotes')} className="group flex items-center text-gray-500 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors mb-4">
-                        <ChevronLeft size={20} className="mr-1" />
-                        <span className="text-sm font-medium">Back to Quotes</span>
-                    </button>
+                    {/* Back button row + Download top-right */}
+                    <div className="flex items-center justify-between mb-4">
+                        <button onClick={() => handleSetCurrentPage('myQuotes')} className="group flex items-center text-gray-500 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors">
+                            <ChevronLeft size={20} className="mr-1" />
+                            <span className="text-sm font-medium">Back to Quotes</span>
+                        </button>
+                        <button
+                            onClick={handleDownloadPdf}
+                            className="md:hidden flex items-center gap-1.5 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:border-gray-400 dark:hover:border-gray-500 rounded-xl text-sm font-medium transition-all shadow-sm"
+                            title="Download Quote PDF"
+                        >
+                            <Download size={15} />
+                            <span>Download</span>
+                        </button>
+                    </div>
 
                     {/* Main Header Card - Compact */}
                     <div ref={quoteDetailsRef} className="bg-white dark:bg-gray-900/60 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
@@ -1532,30 +1544,87 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                     </div>
                 </div>
 
-                {/* Zomato-style Tabs */}
+                {/* Tabs */}
                 <div className="sticky top-14 md:top-0 z-30 -mx-3 px-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 bg-gray-50/95 dark:bg-gray-950/95 backdrop-blur-md py-2 sm:py-3 mb-3 sm:mb-6 border-b border-gray-200 dark:border-gray-800">
-                    <div className="max-w-6xl mx-auto flex items-center gap-1 overflow-x-auto scrollbar-hide">
-                        {tabs.map(tab => (
-                            <button
-                                key={tab.id}
-                                onClick={() => setActiveTab(tab.id)}
-                                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
-                                    activeTab === tab.id
-                                        ? 'bg-[#c20c0b] text-white shadow-md'
-                                        : 'text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800 hover:shadow-sm'
-                                }`}
-                            >
-                                {tab.icon}
-                                <span>{tab.label}</span>
-                                {tab.badge !== undefined && tab.badge > 0 && (
-                                    <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                    <div className="max-w-6xl mx-auto flex items-center gap-1">
+                        {/* Mobile: Overview + Products + More */}
+                        <div className="flex items-center gap-1 md:hidden w-full">
+                            {tabs.slice(0, 2).map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap flex-1 justify-center ${
                                         activeTab === tab.id
-                                            ? 'bg-white/20 text-white'
-                                            : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
-                                    }`}>{tab.badge}</span>
+                                            ? 'bg-[#c20c0b] text-white shadow-md'
+                                            : 'text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800 hover:shadow-sm'
+                                    }`}
+                                >
+                                    {tab.icon}
+                                    <span>{tab.label}</span>
+                                    {tab.badge !== undefined && tab.badge > 0 && (
+                                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>{tab.badge}</span>
+                                    )}
+                                </button>
+                            ))}
+                            {/* More button */}
+                            <div className="relative" ref={moreTabsRef}>
+                                <button
+                                    onClick={() => setShowMoreTabs(p => !p)}
+                                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
+                                        tabs.slice(2).some(t => t.id === activeTab)
+                                            ? 'bg-[#c20c0b] text-white shadow-md'
+                                            : 'text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800 hover:shadow-sm'
+                                    }`}
+                                >
+                                    <span>More</span>
+                                    <ChevronDown size={14} className={`transition-transform duration-200 ${showMoreTabs ? 'rotate-180' : ''}`} />
+                                </button>
+                                {showMoreTabs && (
+                                    <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden z-50">
+                                        <div className="p-2 grid grid-cols-1 gap-1">
+                                            {tabs.slice(2).map(tab => (
+                                                <button
+                                                    key={tab.id}
+                                                    onClick={() => { setActiveTab(tab.id); setShowMoreTabs(false); }}
+                                                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-left ${
+                                                        activeTab === tab.id
+                                                            ? 'bg-[#c20c0b]/10 text-[#c20c0b]'
+                                                            : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'
+                                                    }`}
+                                                >
+                                                    {tab.icon}
+                                                    <span className="flex-1">{tab.label}</span>
+                                                    {tab.badge !== undefined && tab.badge > 0 && (
+                                                        <span className="text-xs px-1.5 py-0.5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300">{tab.badge}</span>
+                                                    )}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
                                 )}
-                            </button>
-                        ))}
+                            </div>
+                        </div>
+
+                        {/* Desktop: all tabs */}
+                        <div className="hidden md:flex items-center gap-1 overflow-x-auto scrollbar-hide">
+                            {tabs.map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
+                                        activeTab === tab.id
+                                            ? 'bg-[#c20c0b] text-white shadow-md'
+                                            : 'text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800 hover:shadow-sm'
+                                    }`}
+                                >
+                                    {tab.icon}
+                                    <span>{tab.label}</span>
+                                    {tab.badge !== undefined && tab.badge > 0 && (
+                                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>{tab.badge}</span>
+                                    )}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </div>
 
@@ -1572,18 +1641,18 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                 <StatusTimeline status={status} />
 
                                 {/* Quick Summary */}
-                                <div className="grid grid-cols-3 gap-4 mt-6">
-                                    <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 text-center">
-                                        <p className="text-2xl font-bold text-gray-900 dark:text-white">{order.lineItems.length}</p>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Products</p>
+                                <div className="grid grid-cols-3 gap-2 sm:gap-4 mt-6">
+                                    <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3 sm:p-4 text-center">
+                                        <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{order.lineItems.length}</p>
+                                        <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 uppercase mt-0.5">Products</p>
                                     </div>
-                                    <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 text-center">
-                                        <p className="text-2xl font-bold text-gray-900 dark:text-white">{order.lineItems.reduce((acc, item) => acc + (item.qty || 0), 0).toLocaleString()}</p>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Total Qty</p>
+                                    <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3 sm:p-4 text-center">
+                                        <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{order.lineItems.reduce((acc, item) => acc + (item.qty || 0), 0).toLocaleString()}</p>
+                                        <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 uppercase mt-0.5">Total Qty</p>
                                     </div>
-                                    <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 text-center">
-                                        <p className="text-2xl font-bold text-gray-900 dark:text-white">{response_details?.leadTime || '—'}</p>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Lead Time</p>
+                                    <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3 sm:p-4 text-center">
+                                        <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white truncate">{response_details?.leadTime || '—'}</p>
+                                        <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 uppercase mt-0.5">Lead Time</p>
                                     </div>
                                 </div>
 
@@ -1848,10 +1917,45 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                             <div key={index} className="transition-all duration-200">
                                                 <div
                                                     onClick={() => toggleExpand(index)}
-                                                    className={`p-4 grid grid-cols-1 md:grid-cols-12 gap-4 items-center cursor-pointer transition-colors ${isExpanded ? 'bg-[#c20c0b]/5 dark:bg-[#c20c0b]/10' : 'hover:bg-gray-50 dark:hover:bg-white/5'}`}
+                                                    className={`p-4 cursor-pointer transition-colors ${isExpanded ? 'bg-[#c20c0b]/5 dark:bg-[#c20c0b]/10' : 'hover:bg-gray-50 dark:hover:bg-white/5'}`}
                                                 >
+                                                    {/* Mobile layout */}
+                                                    <div className="flex items-start gap-3 md:hidden">
+                                                        <div className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 font-bold text-xs w-7 h-7 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 shrink-0 mt-0.5">
+                                                            {index + 1}
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-start justify-between gap-2">
+                                                                <div className="min-w-0">
+                                                                    <h4 className="font-bold text-gray-900 dark:text-white text-sm leading-tight">{item.category}</h4>
+                                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">{item.fabricQuality} • {item.weightGSM} GSM</p>
+                                                                </div>
+                                                                <div className="flex items-center gap-1.5 shrink-0">
+                                                                    {isExpanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center gap-3 mt-2 flex-wrap">
+                                                                <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">{item.qty} {item.quantityType === 'container' ? '' : 'units'}</span>
+                                                                {!showAgreedPrice && (
+                                                                    <span className="text-xs text-gray-600 dark:text-gray-300">Target: <span className="font-semibold text-gray-900 dark:text-white">${item.targetPrice}</span></span>
+                                                                )}
+                                                                <span className="text-xs">
+                                                                    {showAgreedPrice ? (
+                                                                        <span className="font-bold text-green-600 dark:text-green-400">Final: ${agreedPrice}</span>
+                                                                    ) : isAdminApproved && itemResponse?.price ? (
+                                                                        <span className="font-bold text-green-600 dark:text-green-400">Quoted: ${itemResponse.price}</span>
+                                                                    ) : itemResponse?.price ? (
+                                                                        <span className="font-bold text-[#c20c0b] dark:text-red-400">Quoted: ${itemResponse.price}</span>
+                                                                    ) : null}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Desktop layout */}
+                                                    <div className="hidden md:grid grid-cols-12 gap-4 items-center">
                                                     {/* Product Info */}
-                                            <div className="md:col-span-4 flex items-center gap-3">
+                                            <div className="col-span-4 flex items-center gap-3">
                                                 <div className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 font-bold text-xs w-7 h-7 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 shrink-0">
                                                     {index + 1}
                                                 </div>
@@ -1864,18 +1968,16 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                             </div>
 
                                             {/* Qty */}
-                                            <div className="md:col-span-2 text-sm text-gray-700 dark:text-gray-200 md:text-center">
-                                                <span className="md:hidden font-medium text-gray-500 mr-2">Qty:</span>
+                                            <div className="col-span-2 text-sm text-gray-700 dark:text-gray-200 text-center">
                                                 {item.qty} {item.quantityType === 'container' ? '' : 'units'}
                                             </div>
 
-                                            {/* Target Price — hidden once both parties agreed */}
-                                            <div className="md:col-span-2 text-sm text-right flex items-center justify-end gap-2">
+                                            {/* Target Price */}
+                                            <div className="col-span-2 text-sm text-right flex items-center justify-end gap-2">
                                                 {showAgreedPrice ? (
-                                                    <span className="text-gray-300 dark:text-gray-600 text-xs italic hidden md:block">—</span>
+                                                    <span className="text-gray-300 dark:text-gray-600 text-xs italic">—</span>
                                                 ) : (
                                                     <>
-                                                        <span className="md:hidden font-medium text-gray-500">Target:</span>
                                                         <span className="font-medium text-gray-900 dark:text-white">${item.targetPrice}</span>
                                                         {(['Responded', 'In Negotiation', 'Admin Accepted'] as string[]).includes(status) && (
                                                             <button
@@ -1891,8 +1993,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                             </div>
 
                                             {/* Quoted / Final Price */}
-                                            <div className="md:col-span-2 text-sm text-right">
-                                                <span className="md:hidden font-medium text-gray-500 mr-2">{showAgreedPrice ? 'Final:' : 'Quoted:'}</span>
+                                            <div className="col-span-2 text-sm text-right">
                                                 {showAgreedPrice ? (
                                                     <span className="font-bold text-green-600 dark:text-green-400">${agreedPrice}</span>
                                                 ) : isAdminApproved && itemResponse?.price ? (
@@ -1905,7 +2006,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                             </div>
 
                                             {/* Expand Icon */}
-                                            <div className="md:col-span-2 flex justify-end items-center gap-2">
+                                            <div className="col-span-2 flex justify-end items-center gap-2">
                                                 {(status === 'Responded' || status === 'In Negotiation' || status === 'Admin Accepted' || status === 'Client Accepted') && (
                                                     <button
                                                         onClick={(e) => handleToggleLineItemApproval(item.id, e)}
@@ -1949,7 +2050,8 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                 {isExpanded ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
                                             </div>
                                         </div>
-                                        
+                                        </div>
+
                                         {isExpanded && (
                                             <div className="p-5 border-t border-gray-100 dark:border-white/10 bg-gray-50/50 dark:bg-gray-800/30 animate-fade-in">
                                                 {/* Item Details Grid */}
@@ -2973,9 +3075,6 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
 
                 {/* Mobile Sticky Action Bar — sits above the bottom nav */}
                 <div className="fixed bottom-[62px] left-0 right-0 md:hidden z-30 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-3 flex items-center gap-3 shadow-lg">
-                    <button onClick={handleDownloadPdf} className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white border border-gray-200 dark:border-gray-700 rounded-lg">
-                        <Download size={20} />
-                    </button>
                     <button onClick={() => setIsHistoryModalOpen(true)} className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white border border-gray-200 dark:border-gray-700 rounded-lg">
                         <History size={20} />
                     </button>

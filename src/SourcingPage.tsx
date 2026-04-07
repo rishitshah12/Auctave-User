@@ -859,11 +859,11 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
             <section className="mb-8">
                 <button
                     onClick={() => setIsPerformanceExpanded(prev => !prev)}
-                    className="flex items-center justify-between w-full mb-0 group"
+                    className="flex items-center justify-between w-full px-4 py-3 rounded-2xl bg-gray-100 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700/50 hover:bg-gray-200 dark:hover:bg-gray-700/60 transition-colors duration-200 group"
                 >
                     <div className="flex items-center gap-2">
                         <Award size={20} className="text-[#c20c0b]" />
-                        <h2 className="text-lg font-bold text-gray-800 dark:text-white">Your Performance</h2>
+                        <h2 className="text-base font-bold text-gray-800 dark:text-white">Active Orders Overview</h2>
                     </div>
                     <ChevronDown
                         size={18}
