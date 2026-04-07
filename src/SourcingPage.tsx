@@ -33,18 +33,18 @@ interface SourcingPageProps {
     setGlobalLoading?: (isLoading: boolean) => void;
 }
 
-const DashboardCard: FC<{ icon: ReactNode; title: string; value: string | number; colorClass: string; index?: number }> = React.memo(({ icon, title, value, colorClass, index = 0 }) => (
-    <div className={`relative p-3 sm:p-5 rounded-xl sm:rounded-2xl overflow-hidden bg-white dark:bg-gray-900/40 dark:backdrop-blur-md shadow-md sm:shadow-lg border border-gray-200 dark:border-white/10 transition-all duration-300 hover:scale-[1.03] hover:-translate-y-0.5 cursor-pointer group hover-pulse-glow animate-stagger-in`} style={{ animationDelay: `${index * 100}ms` }}>
-        <div className={`absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r ${colorClass} transition-all duration-300 group-hover:h-2`}></div>
-        <div className="absolute -bottom-6 -right-6 w-24 h-24 rounded-full opacity-[0.07] group-hover:opacity-[0.12] transition-opacity duration-500 bg-gradient-to-br from-current" style={{ color: colorClass.includes('red') || colorClass.includes('#c20c0b') ? '#c20c0b' : colorClass.includes('blue') ? '#2563EB' : colorClass.includes('green') ? '#059669' : '#D97706' }}></div>
-        <div className="flex items-start justify-between relative z-10">
-            <div>
-                <p className="text-[11px] sm:text-sm font-medium text-gray-500 dark:text-gray-300 tracking-wide">{title}</p>
-                <p className="text-xl sm:text-3xl font-extrabold text-gray-800 dark:text-white mt-0.5 sm:mt-1 animate-count-up">{value}</p>
+const DashboardCard: FC<{ icon: ReactNode; title: string; value: string | number; colorClass: string; accentColor: string; index?: number }> = React.memo(({ icon, title, value, colorClass, accentColor, index = 0 }) => (
+    <div className={`relative overflow-hidden bg-white dark:bg-gray-900/50 rounded-2xl border border-gray-100 dark:border-white/8 shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer group animate-stagger-in`} style={{ animationDelay: `${index * 80}ms` }}>
+        {/* Accent left bar */}
+        <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${colorClass} rounded-l-2xl`} />
+        {/* Soft glow bg */}
+        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-2xl" style={{ background: `radial-gradient(ellipse at top right, ${accentColor}18 0%, transparent 70%)` }} />
+        <div className="relative z-10 p-3 sm:p-5 pl-4 sm:pl-6">
+            <div className={`inline-flex p-2 sm:p-2.5 rounded-xl bg-gradient-to-br ${colorClass} shadow-md mb-2 sm:mb-3 group-hover:scale-110 transition-transform duration-300`}>
+                <div className="text-white [&>svg]:w-4 [&>svg]:h-4 sm:[&>svg]:w-[22px] sm:[&>svg]:h-[22px]">{icon}</div>
             </div>
-            <div className={`p-2 sm:p-3 rounded-lg sm:rounded-xl bg-gradient-to-br ${colorClass} shadow-md group-hover:shadow-xl transition-all duration-300 group-hover:scale-110`}>
-                <div className="text-white scale-90 sm:scale-100">{icon}</div>
-            </div>
+            <p className="text-[22px] sm:text-3xl font-black text-gray-900 dark:text-white leading-none tabular-nums">{value}</p>
+            <p className="text-[11px] sm:text-xs font-semibold text-gray-400 dark:text-gray-500 mt-1 uppercase tracking-wide leading-tight">{title}</p>
         </div>
     </div>
 ));
@@ -127,19 +127,24 @@ const Dashboard: FC<{ quoteRequests: QuoteRequest[]; handleSetCurrentPage: (page
     ];
 
     return(
-        <section className="mb-8 space-y-8 animate-fade-in">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                <DashboardCard title="Accepted Orders" value={activeOrdersCount} icon={<Briefcase size={22}/>} colorClass="from-[#c20c0b] to-red-500" index={0} />
-                <DashboardCard title="Units (Accepted)" value={unitsInProduction.toLocaleString()} icon={<Truck size={22}/>} colorClass="from-blue-500 to-cyan-500" index={1} />
-                <DashboardCard title="Total Value" value={`$${totalOrderValue.toLocaleString()}`} icon={<DollarSign size={22}/>} colorClass="from-green-500 to-emerald-500" index={2} />
-                <DashboardCard title="Engaged Factories" value={uniqueFactories} icon={<Building size={22}/>} colorClass="from-orange-500 to-amber-500" index={3} />
+        <section className="mb-6 sm:mb-8 space-y-4 sm:space-y-8 animate-fade-in">
+            {/* Stats cards — 2-col on mobile, 4-col on desktop */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+                <DashboardCard title="Accepted Orders" value={activeOrdersCount} icon={<Briefcase size={22}/>} colorClass="from-[#c20c0b] to-red-500" accentColor="#c20c0b" index={0} />
+                <DashboardCard title="Units (Accepted)" value={unitsInProduction.toLocaleString()} icon={<Truck size={22}/>} colorClass="from-blue-500 to-cyan-500" accentColor="#3B82F6" index={1} />
+                <DashboardCard title="Total Value" value={`$${totalOrderValue.toLocaleString()}`} icon={<DollarSign size={22}/>} colorClass="from-green-500 to-emerald-500" accentColor="#10B981" index={2} />
+                <DashboardCard title="Factories" value={uniqueFactories} icon={<Building size={22}/>} colorClass="from-orange-500 to-amber-500" accentColor="#F97316" index={3} />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Quote Status Chart */}
-                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-4 sm:p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 flex flex-col transition-all duration-300 hover:shadow-xl animate-stagger-in" style={{ animationDelay: '400ms' }}>
-                    <h3 className="text-sm sm:text-lg font-bold text-gray-800 dark:text-white mb-3 sm:mb-4 flex items-center gap-2"><Sparkles size={16} className="text-amber-500" /> Quote Status Distribution</h3>
-                    <div className="flex-grow min-h-[200px] sm:min-h-[300px]">
+            {/* Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6">
+                {/* Quote Status Donut */}
+                <div className="bg-white dark:bg-gray-900/50 p-4 sm:p-6 rounded-2xl border border-gray-100 dark:border-white/8 shadow-sm animate-stagger-in" style={{ animationDelay: '320ms' }}>
+                    <h3 className="text-sm font-bold text-gray-800 dark:text-white mb-1 flex items-center gap-2">
+                        <Sparkles size={14} className="text-amber-500 flex-shrink-0" /> Quote Status
+                    </h3>
+                    <p className="text-xs text-gray-400 mb-3">Tap a slice to filter quotes</p>
+                    <div className="h-[200px] sm:h-[260px]">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                 <defs>
@@ -154,49 +159,52 @@ const Dashboard: FC<{ quoteRequests: QuoteRequest[]; handleSetCurrentPage: (page
                                     data={pieData}
                                     cx="50%"
                                     cy="50%"
-                                    innerRadius={60}
-                                    outerRadius={100}
-                                    fill="#8884d8"
-                                    paddingAngle={5}
+                                    innerRadius="38%"
+                                    outerRadius="65%"
+                                    paddingAngle={3}
                                     dataKey="value"
-                                    label={({ name, percent = 0 }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                                    label={false}
+                                    labelLine={false}
                                     onClick={(data) => {
                                         if (data && data.name && data.name !== 'No Data') {
                                             handleSetCurrentPage('myQuotes', data.name);
                                         }
                                     }}
-                                    animationDuration={1000}
+                                    animationDuration={900}
                                     animationEasing="ease-out"
                                 >
                                     {pieData.map((entry, index) => {
                                         const grad = STATUS_GRADIENTS[entry.name] || STATUS_GRADIENTS['No Data'];
                                         return (
-                                            <Cell 
-                                                key={`cell-${index}`} 
-                                                fill={`url(#${grad.id})`} 
+                                            <Cell
+                                                key={`cell-${index}`}
+                                                fill={`url(#${grad.id})`}
+                                                stroke="transparent"
                                                 style={{ cursor: entry.name !== 'No Data' ? 'pointer' : 'default' }}
-                                                className="transition-all duration-300 hover:brightness-110 hover:drop-shadow-[0_0_10px_rgba(0,0,0,0.5)] stroke-none"
                                             />
                                         );
                                     })}
                                 </Pie>
-                                <Tooltip 
-                                    contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
-                                    itemStyle={{ color: '#374151' }}
+                                <Tooltip
+                                    contentStyle={{ backgroundColor: '#1f2937', borderRadius: '10px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.3)', color: '#f9fafb', fontSize: '13px' }}
+                                    itemStyle={{ color: '#f9fafb' }}
                                 />
-                                <Legend verticalAlign="bottom" height={36}/>
+                                <Legend verticalAlign="bottom" height={40} iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} />
                             </PieChart>
                         </ResponsiveContainer>
                     </div>
                 </div>
 
-                {/* Category Volume Chart */}
-                <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-4 sm:p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 flex flex-col transition-all duration-300 hover:shadow-xl animate-stagger-in" style={{ animationDelay: '500ms' }}>
-                    <h3 className="text-sm sm:text-lg font-bold text-gray-800 dark:text-white mb-3 sm:mb-4 flex items-center gap-2"><TrendingUp size={16} className="text-blue-500" /> Volume by Category</h3>
-                    <div className="flex-grow min-h-[200px] sm:min-h-[300px]">
+                {/* Category Volume Bar */}
+                <div className="bg-white dark:bg-gray-900/50 p-4 sm:p-6 rounded-2xl border border-gray-100 dark:border-white/8 shadow-sm animate-stagger-in" style={{ animationDelay: '400ms' }}>
+                    <h3 className="text-sm font-bold text-gray-800 dark:text-white mb-1 flex items-center gap-2">
+                        <TrendingUp size={14} className="text-blue-500 flex-shrink-0" /> Volume by Category
+                    </h3>
+                    <p className="text-xs text-gray-400 mb-3">Tap a bar to filter by category</p>
+                    <div className="h-[200px] sm:h-[260px]">
                         {barData.length > 0 ? (
                             <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={barData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                                <BarChart data={barData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
                                     <defs>
                                         {CATEGORY_GRADIENTS.map(grad => (
                                             <linearGradient key={grad.id} id={grad.id} x1="0" y1="0" x2="0" y2="1">
@@ -205,30 +213,30 @@ const Dashboard: FC<{ quoteRequests: QuoteRequest[]; handleSetCurrentPage: (page
                                             </linearGradient>
                                         ))}
                                     </defs>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" opacity={0.5} />
-                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 12 }} />
-                                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 12 }} />
-                                    <Tooltip 
-                                        cursor={{ fill: 'transparent' }}
-                                        contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
-                                        itemStyle={{ color: '#374151' }}
+                                    <CartesianGrid strokeDasharray="2 4" vertical={false} stroke="#E5E7EB" opacity={0.4} />
+                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#9CA3AF', fontSize: 10 }} interval={0} />
+                                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9CA3AF', fontSize: 10 }} width={36} />
+                                    <Tooltip
+                                        cursor={{ fill: 'rgba(0,0,0,0.04)', radius: 6 }}
+                                        contentStyle={{ backgroundColor: '#1f2937', borderRadius: '10px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.3)', color: '#f9fafb', fontSize: '13px' }}
+                                        itemStyle={{ color: '#f9fafb' }}
                                     />
-                                    <Bar dataKey="units" fill="#c20c0b" radius={[4, 4, 0, 0]} barSize={50} animationDuration={1500} animationEasing="ease-out">
+                                    <Bar dataKey="units" radius={[6, 6, 0, 0]} maxBarSize={48} animationDuration={1200} animationEasing="ease-out">
                                         {barData.map((entry, index) => (
-                                            <Cell 
-                                                key={`cell-${index}`} 
-                                                fill={`url(#${CATEGORY_GRADIENTS[index % CATEGORY_GRADIENTS.length].id})`} 
+                                            <Cell
+                                                key={`cell-${index}`}
+                                                fill={`url(#${CATEGORY_GRADIENTS[index % CATEGORY_GRADIENTS.length].id})`}
                                                 style={{ cursor: 'pointer' }}
                                                 onClick={() => setSelectedGarmentCategory(entry.name)}
-                                                className="transition-all duration-300 hover:brightness-110 hover:drop-shadow-[0_0_10px_rgba(0,0,0,0.5)]"
                                             />
                                         ))}
                                     </Bar>
                                 </BarChart>
                             </ResponsiveContainer>
                         ) : (
-                            <div className="h-full flex items-center justify-center text-gray-400">
-                                No volume data available
+                            <div className="h-full flex flex-col items-center justify-center gap-2 text-gray-400">
+                                <TrendingUp size={28} className="opacity-30" />
+                                <p className="text-sm">No volume data yet</p>
                             </div>
                         )}
                     </div>
@@ -254,6 +262,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [showSearchDropdown, setShowSearchDropdown] = useState(false);
     const searchContainerRef = useRef<HTMLDivElement>(null);
+    const searchContainerMobileRef = useRef<HTMLDivElement>(null);
     // State to track active filters (rating, location, etc.)
     const [filters, setFilters] = useState(initialFilters);
     // State to control visibility of the side filter panel
@@ -363,10 +372,13 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
         };
     }, [fetchFactories]);
 
-    // Close search dropdown on outside click
+    // Close search dropdown on outside click (checks both mobile + desktop refs)
     useEffect(() => {
         const handleSearchClickOutside = (event: MouseEvent) => {
-            if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
+            const target = event.target as Node;
+            const inDesktop = searchContainerRef.current?.contains(target);
+            const inMobile = searchContainerMobileRef.current?.contains(target);
+            if (!inDesktop && !inMobile) {
                 setShowSearchDropdown(false);
             }
         };
@@ -655,142 +667,172 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
         },
     ];
 
+    // Shared search input markup — ref is provided by the calling context (mobile vs desktop)
+    const makeSearchInput = (containerRef: React.RefObject<HTMLDivElement | null>) => (
+        <div className="relative flex-grow" ref={containerRef}>
+            <div className="relative group">
+                <Search className="h-5 w-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#c20c0b] transition-colors z-10" />
+                <input
+                    type="text"
+                    placeholder="Search factory, location, product..."
+                    value={searchTerm}
+                    onChange={(e) => { setSearchTerm(e.target.value); setShowSearchDropdown(true); }}
+                    onFocus={() => { if (searchTerm.trim()) setShowSearchDropdown(true); }}
+                    className={`w-full pl-11 pr-10 py-3.5 border border-gray-200 dark:border-gray-700 ${showSearchDropdown && searchSuggestions.length > 0 ? 'rounded-t-2xl rounded-b-none border-b-0' : 'rounded-2xl'} focus:outline-none focus:ring-2 focus:ring-[#c20c0b] focus:border-transparent shadow-sm bg-white dark:bg-gray-900/80 dark:backdrop-blur-md dark:text-white text-gray-900 text-sm`}
+                />
+                {searchTerm && (
+                    <button onClick={() => { setSearchTerm(''); setShowSearchDropdown(false); }} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors z-10">
+                        <X size={16} className="text-gray-400" />
+                    </button>
+                )}
+            </div>
+            {/* Predictive Search Dropdown */}
+            {showSearchDropdown && searchSuggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 bg-white dark:bg-gray-900/95 dark:backdrop-blur-md border border-t-0 border-gray-200 dark:border-gray-700 rounded-b-2xl shadow-2xl z-50 overflow-hidden max-h-[360px] overflow-y-auto">
+                    {searchSuggestions.map((suggestion, idx) => {
+                        const IconEl = suggestion.icon === 'building' ? Building
+                            : suggestion.icon === 'globe' ? Globe
+                            : suggestion.icon === 'package' ? Package
+                            : suggestion.icon === 'zap' ? Zap
+                            : Award;
+                        const colorClass = suggestion.type === 'Factory' ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/30'
+                            : suggestion.type === 'Location' ? 'text-emerald-500 bg-emerald-50 dark:bg-emerald-900/30'
+                            : suggestion.type === 'Product' ? 'text-purple-500 bg-purple-50 dark:bg-purple-900/30'
+                            : suggestion.type === 'Tag' ? 'text-amber-500 bg-amber-50 dark:bg-amber-900/30'
+                            : 'text-rose-500 bg-rose-50 dark:bg-rose-900/30';
+                        const termLower = searchTerm.toLowerCase();
+                        const labelLower = suggestion.label.toLowerCase();
+                        const matchIdx = labelLower.indexOf(termLower);
+                        const before = suggestion.label.slice(0, matchIdx);
+                        const match = suggestion.label.slice(matchIdx, matchIdx + searchTerm.length);
+                        const after = suggestion.label.slice(matchIdx + searchTerm.length);
+
+                        return (
+                            <button
+                                key={`${suggestion.type}-${suggestion.label}-${idx}`}
+                                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors text-left group/item"
+                                onClick={() => { setSearchTerm(suggestion.label); setShowSearchDropdown(false); }}
+                            >
+                                <div className={`p-2 rounded-lg ${colorClass} flex-shrink-0`}>
+                                    <IconEl size={16} />
+                                </div>
+                                <div className="flex-grow min-w-0">
+                                    <p className="text-sm font-medium text-gray-800 dark:text-white truncate">
+                                        {matchIdx >= 0 ? (<>{before}<span className="text-[#c20c0b] font-bold">{match}</span>{after}</>) : suggestion.label}
+                                    </p>
+                                    <p className="text-xs text-gray-400 dark:text-gray-500">
+                                        {suggestion.type} · {suggestion.factories.length} {suggestion.factories.length === 1 ? 'factory' : 'factories'}
+                                    </p>
+                                </div>
+                                <ArrowRight size={14} className="text-gray-300 dark:text-gray-600 flex-shrink-0 opacity-0 group-hover/item:opacity-100 transition-opacity" />
+                            </button>
+                        );
+                    })}
+                    {filteredFactories.length > 0 && (
+                        <div className="px-4 py-2.5 border-t border-gray-100 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-800/30">
+                            <p className="text-xs text-gray-400 dark:text-gray-500">
+                                Showing <span className="font-semibold text-gray-600 dark:text-gray-300">{filteredFactories.length}</span> matching {filteredFactories.length === 1 ? 'factory' : 'factories'}
+                            </p>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+
     return (
         <MainLayout {...props}>
-            {/* Hero Welcome Section */}
-            <header className="mb-5 sm:mb-8 relative">
-                <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 p-4 sm:p-8 shadow-2xl border border-white/5">
-                    {/* Animated background blobs */}
+            {/* ── MOBILE HEADER: greeting → search ─────────────────── */}
+            <header className="sm:hidden mb-5">
+                {/* Greeting */}
+                <div className="mb-4">
+                    <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-0.5 flex items-center gap-1.5">
+                        <span>{greeting.emoji}</span>{greeting.text}
+                    </p>
+                    <h1 className="text-[26px] font-black text-gray-900 dark:text-white leading-tight tracking-tight">
+                        Hey, <span className="bg-gradient-to-r from-[#c20c0b] to-orange-500 bg-clip-text text-transparent">{firstName}!</span>
+                    </h1>
+                    <p className="text-[13px] text-gray-500 dark:text-gray-400 mt-0.5">
+                        {userProfile?.companyName ? `${userProfile.companyName} · ` : ''}Find your perfect factory
+                    </p>
+                </div>
+
+                {/* Search + Filter row */}
+                <div className="flex gap-2">
+                    {makeSearchInput(searchContainerMobileRef)}
+                    <button onClick={() => setShowFilterPanel(true)} className="flex-shrink-0 w-[50px] h-[50px] bg-white dark:bg-gray-900/80 border border-gray-200 dark:border-gray-700 rounded-2xl flex items-center justify-center shadow-sm text-gray-600 dark:text-white active:scale-95 transition-transform">
+                        <SlidersHorizontal size={18} />
+                    </button>
+                </div>
+            </header>
+
+            {/* ── DESKTOP HERO: dark gradient + floating search ─────── */}
+            <header className="hidden sm:block mb-8 relative">
+                <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 p-8 shadow-2xl border border-white/5">
                     <div className="absolute top-0 left-0 w-72 h-72 bg-pink-500/30 rounded-full filter blur-3xl animate-blob"></div>
                     <div className="absolute top-10 right-10 w-64 h-64 bg-purple-500/30 rounded-full filter blur-3xl animate-blob-delay-2"></div>
                     <div className="absolute -bottom-10 left-1/3 w-56 h-56 bg-cyan-500/30 rounded-full filter blur-3xl animate-blob-delay-4"></div>
-
-                    {/* Grid pattern overlay */}
                     <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '24px 24px' }}></div>
-
-                    {/* Content */}
-                    <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+                    <div className="relative z-10 flex items-start justify-between gap-4">
                         <div className="flex-1">
                             <div className="flex items-center gap-2 mb-1">
-                                <span className="text-xl sm:text-2xl">{greeting.emoji}</span>
-                                <p className="text-gray-300 text-xs sm:text-sm font-medium tracking-wide uppercase">{greeting.text}</p>
+                                <span className="text-2xl">{greeting.emoji}</span>
+                                <p className="text-gray-300 text-sm font-medium tracking-wide uppercase">{greeting.text}</p>
                             </div>
-                            <h1 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold text-white leading-tight">
-                                Welcome, <span className="bg-gradient-to-r from-blue-400 via-sky-300 to-cyan-300 bg-clip-text text-transparent animate-gradient-x font-black">{firstName}</span>
+                            <h1 className="text-4xl lg:text-5xl font-extrabold text-white leading-tight">
+                                Welcome, <span className="bg-gradient-to-r from-blue-400 via-sky-300 to-cyan-300 bg-clip-text text-transparent font-black">{firstName}</span>
                             </h1>
-                            <p className="text-gray-400 mt-1.5 text-xs sm:text-base max-w-xl line-clamp-2 sm:line-clamp-none">
+                            <p className="text-gray-400 mt-1.5 text-base max-w-xl">
                                 {userProfile?.companyName ? `${userProfile.companyName} · ` : ''}Discover top factories, get instant quotes, and scale production.
                             </p>
-
-                            {/* Quick action buttons */}
-                            <div className="flex flex-wrap gap-2 sm:gap-3 mt-3 sm:mt-5">
-                                <button onClick={() => handleSetCurrentPage('orderForm')} className="px-4 sm:px-5 py-2 sm:py-2.5 bg-gradient-to-r from-[#c20c0b] to-red-600 text-white rounded-xl font-semibold text-sm shadow-lg shadow-red-500/25 hover:shadow-red-500/40 transition-all duration-300 hover:scale-[1.03] flex items-center gap-1.5 sm:gap-2">
+                            <div className="flex gap-3 mt-5">
+                                <button onClick={() => handleSetCurrentPage('orderForm')} className="px-5 py-2.5 bg-gradient-to-r from-[#c20c0b] to-red-600 text-white rounded-xl font-semibold text-sm shadow-lg shadow-red-500/25 hover:shadow-red-500/40 transition-all duration-300 hover:scale-[1.03] flex items-center gap-2">
                                     <Zap size={15} /> Place Order
                                 </button>
-                                <button onClick={() => handleSetCurrentPage('myQuotes')} className="px-4 sm:px-5 py-2 sm:py-2.5 bg-white/10 backdrop-blur-sm text-white rounded-xl font-semibold text-sm border border-white/20 hover:bg-white/20 transition-all duration-300 flex items-center gap-1.5 sm:gap-2">
+                                <button onClick={() => handleSetCurrentPage('myQuotes')} className="px-5 py-2.5 bg-white/10 backdrop-blur-sm text-white rounded-xl font-semibold text-sm border border-white/20 hover:bg-white/20 transition-all duration-300 flex items-center gap-2">
                                     My Quotes <ArrowRight size={15} />
                                 </button>
                             </div>
                         </div>
-
-                        {/* Right side: Profile cluster — desktop only */}
-                        <div className="hidden sm:flex items-center space-x-2 self-start sm:self-center">
+                        <div className="flex items-center self-center">
                             <ProfileDropdown />
                         </div>
                     </div>
                 </div>
-
-                {/* Search Bar - floating below the hero */}
-                <div className="relative -mt-4 sm:-mt-5 mx-2 sm:mx-8 flex flex-col sm:flex-row gap-2">
-                    <div className="relative flex-grow" ref={searchContainerRef}>
-                        <div className="relative group">
-                            <Search className="h-5 w-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#c20c0b] transition-colors z-10" />
-                            <input
-                                type="text"
-                                placeholder="Search by name, location, product, tag, certification..."
-                                value={searchTerm}
-                                onChange={(e) => { setSearchTerm(e.target.value); setShowSearchDropdown(true); }}
-                                onFocus={() => { if (searchTerm.trim()) setShowSearchDropdown(true); }}
-                                className={`w-full pl-12 pr-10 py-3.5 border border-gray-200 dark:border-gray-700 ${showSearchDropdown && searchSuggestions.length > 0 ? 'rounded-t-2xl rounded-b-none border-b-0' : 'rounded-2xl'} focus:outline-none focus:ring-2 focus:ring-[#c20c0b] focus:border-transparent shadow-lg bg-white dark:bg-gray-900/80 dark:backdrop-blur-md dark:text-white text-gray-900 text-sm`}
-                            />
-                            {searchTerm && (
-                                <button onClick={() => { setSearchTerm(''); setShowSearchDropdown(false); }} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors z-10">
-                                    <X size={16} className="text-gray-400" />
-                                </button>
-                            )}
-                        </div>
-                        {/* Predictive Search Dropdown */}
-                        {showSearchDropdown && searchSuggestions.length > 0 && (
-                            <div className="absolute top-full left-0 right-0 bg-white dark:bg-gray-900/95 dark:backdrop-blur-md border border-t-0 border-gray-200 dark:border-gray-700 rounded-b-2xl shadow-2xl z-50 overflow-hidden max-h-[360px] overflow-y-auto">
-                                {searchSuggestions.map((suggestion, idx) => {
-                                    const IconEl = suggestion.icon === 'building' ? Building
-                                        : suggestion.icon === 'globe' ? Globe
-                                        : suggestion.icon === 'package' ? Package
-                                        : suggestion.icon === 'zap' ? Zap
-                                        : Award;
-                                    const colorClass = suggestion.type === 'Factory' ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/30'
-                                        : suggestion.type === 'Location' ? 'text-emerald-500 bg-emerald-50 dark:bg-emerald-900/30'
-                                        : suggestion.type === 'Product' ? 'text-purple-500 bg-purple-50 dark:bg-purple-900/30'
-                                        : suggestion.type === 'Tag' ? 'text-amber-500 bg-amber-50 dark:bg-amber-900/30'
-                                        : 'text-rose-500 bg-rose-50 dark:bg-rose-900/30';
-                                    // Highlight matching portion
-                                    const termLower = searchTerm.toLowerCase();
-                                    const labelLower = suggestion.label.toLowerCase();
-                                    const matchIdx = labelLower.indexOf(termLower);
-                                    const before = suggestion.label.slice(0, matchIdx);
-                                    const match = suggestion.label.slice(matchIdx, matchIdx + searchTerm.length);
-                                    const after = suggestion.label.slice(matchIdx + searchTerm.length);
-
-                                    return (
-                                        <button
-                                            key={`${suggestion.type}-${suggestion.label}-${idx}`}
-                                            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors text-left group/item"
-                                            onClick={() => {
-                                                setSearchTerm(suggestion.label);
-                                                setShowSearchDropdown(false);
-                                            }}
-                                        >
-                                            <div className={`p-2 rounded-lg ${colorClass} flex-shrink-0`}>
-                                                <IconEl size={16} />
-                                            </div>
-                                            <div className="flex-grow min-w-0">
-                                                <p className="text-sm font-medium text-gray-800 dark:text-white truncate">
-                                                    {matchIdx >= 0 ? (<>{before}<span className="text-[#c20c0b] font-bold">{match}</span>{after}</>) : suggestion.label}
-                                                </p>
-                                                <p className="text-xs text-gray-400 dark:text-gray-500">
-                                                    {suggestion.type} · {suggestion.factories.length} {suggestion.factories.length === 1 ? 'factory' : 'factories'}
-                                                </p>
-                                            </div>
-                                            <ArrowRight size={14} className="text-gray-300 dark:text-gray-600 flex-shrink-0 opacity-0 group-hover/item:opacity-100 transition-opacity" />
-                                        </button>
-                                    );
-                                })}
-                                {filteredFactories.length > 0 && (
-                                    <div className="px-4 py-2.5 border-t border-gray-100 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-800/30">
-                                        <p className="text-xs text-gray-400 dark:text-gray-500">
-                                            Showing <span className="font-semibold text-gray-600 dark:text-gray-300">{filteredFactories.length}</span> matching {filteredFactories.length === 1 ? 'factory' : 'factories'}
-                                        </p>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                    <button onClick={() => setShowFilterPanel(true)} className="flex-shrink-0 px-5 py-3.5 bg-white dark:bg-gray-900/80 dark:backdrop-blur-md border border-gray-200 dark:border-gray-700 rounded-2xl flex items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800 font-semibold shadow-lg text-gray-700 dark:text-white text-sm transition-all duration-200 hover:scale-[1.02]"><SlidersHorizontal size={16} /> <span className="hidden sm:inline">Filters</span></button>
+                {/* Floating search */}
+                <div className="relative -mt-5 mx-8 flex gap-2">
+                    {makeSearchInput(searchContainerRef)}
+                    <button onClick={() => setShowFilterPanel(true)} className="flex-shrink-0 px-5 py-3.5 bg-white dark:bg-gray-900/80 dark:backdrop-blur-md border border-gray-200 dark:border-gray-700 rounded-2xl flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800 font-semibold shadow-lg text-gray-700 dark:text-white text-sm transition-all">
+                        <SlidersHorizontal size={16} /> Filters
+                    </button>
                 </div>
             </header>
 
             {/* Promotional Banners */}
             <section className="mb-5 sm:mb-8">
-                <div className="grid grid-cols-3 gap-2 sm:gap-4">
+                {/* Mobile: horizontal scroll */}
+                <div className="sm:hidden flex gap-3 overflow-x-auto pb-1 scrollbar-hide -mx-3 px-3">
                     {promoBanners.map((banner, i) => (
-                        <div key={banner.title} className="relative overflow-hidden rounded-xl sm:rounded-2xl p-3 sm:p-5 bg-white dark:bg-gray-900/40 dark:backdrop-blur-md border border-gray-200 dark:border-white/10 shadow-md hover:shadow-xl transition-all duration-300 group cursor-pointer hover:-translate-y-1 animate-banner-slide banner-shimmer" style={{ animationDelay: `${i * 150}ms` }}>
+                        <div key={banner.title} className="flex-shrink-0 w-[160px] relative overflow-hidden rounded-2xl p-3.5 bg-white dark:bg-gray-900/50 border border-gray-100 dark:border-white/8 shadow-sm active:scale-95 transition-transform">
+                            <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${banner.gradient} flex items-center justify-center text-white shadow-md mb-2.5 [&>svg]:w-4 [&>svg]:h-4`}>
+                                {banner.icon}
+                            </div>
+                            <h3 className="font-bold text-gray-900 dark:text-white text-[13px] leading-snug">{banner.title}</h3>
+                            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed">{banner.description}</p>
+                        </div>
+                    ))}
+                </div>
+                {/* Desktop: 3-col grid */}
+                <div className="hidden sm:grid sm:grid-cols-3 gap-4">
+                    {promoBanners.map((banner, i) => (
+                        <div key={banner.title} className="relative overflow-hidden rounded-2xl p-5 bg-white dark:bg-gray-900/40 dark:backdrop-blur-md border border-gray-200 dark:border-white/10 shadow-md hover:shadow-xl transition-all duration-300 group cursor-pointer hover:-translate-y-1 animate-banner-slide" style={{ animationDelay: `${i * 150}ms` }}>
                             <div className={`absolute -top-6 -right-6 w-24 h-24 rounded-full ${banner.bgGlow} filter blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500`}></div>
                             <div className="relative z-10">
-                                <div className={`w-8 h-8 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br ${banner.gradient} flex items-center justify-center text-white shadow-lg mb-2 sm:mb-3 group-hover:scale-110 transition-transform duration-300`}>
-                                    <span className="scale-75 sm:scale-100">{banner.icon}</span>
+                                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${banner.gradient} flex items-center justify-center text-white shadow-lg mb-3 group-hover:scale-110 transition-transform duration-300`}>
+                                    {banner.icon}
                                 </div>
-                                <h3 className="font-bold text-gray-900 dark:text-white text-[11px] sm:text-sm leading-tight">{banner.title}</h3>
-                                <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-relaxed hidden sm:block">{banner.description}</p>
+                                <h3 className="font-bold text-gray-900 dark:text-white text-sm leading-tight">{banner.title}</h3>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">{banner.description}</p>
                             </div>
                         </div>
                     ))}

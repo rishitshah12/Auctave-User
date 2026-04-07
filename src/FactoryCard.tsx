@@ -31,106 +31,99 @@ export const FactoryCard: FC<FactoryCardProps> = React.memo(({ factory, onSelect
     const tierCfg = TRUST_TIER_CONFIG[tier];
     const showTierBanner = tier !== 'unverified';
     const isPromoted = factory.tags.some(t => t.split(':')[0] === 'Prime');
+    const onTimeRate = factory.onTimeDeliveryRate;
+    const onTimeColor = onTimeRate === undefined ? 'text-gray-400' : onTimeRate >= 90 ? 'text-emerald-500' : onTimeRate >= 75 ? 'text-amber-500' : 'text-red-500';
 
     return (
-        <div onClick={onSelect} style={style} className="bg-gray-50 dark:bg-black rounded-2xl hover:shadow-lg transition-all duration-300 cursor-pointer group flex flex-col animate-card-enter hover:-translate-y-1 h-full">
+        <div
+            onClick={onSelect}
+            style={style}
+            className="bg-white dark:bg-gray-900/60 rounded-2xl border border-gray-100 dark:border-white/8 shadow-sm hover:shadow-xl active:scale-[0.98] transition-all duration-300 cursor-pointer group flex flex-col animate-card-enter overflow-hidden h-full"
+        >
+            {/* Image */}
+            <div className="relative overflow-hidden" style={{ aspectRatio: '16/9' }}>
+                <img
+                    src={factory.imageUrl}
+                    alt={factory.name}
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                    onError={(e) => {
+                        (e.target as HTMLImageElement).onerror = null;
+                        (e.target as HTMLImageElement).src = `https://placehold.co/600x400/e9d5ff/4c1d95?text=${encodeURIComponent(factory.name || 'Factory')}`;
+                    }}
+                />
 
-            {/* Image with all corners rounded, padded inside card */}
-            <div className="p-3 pb-0">
-                <div className="relative rounded-xl overflow-hidden" style={{ aspectRatio: '3/2' }}>
-                    <img
-                        src={factory.imageUrl}
-                        alt={factory.name}
-                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                        onError={(e) => {
-                            (e.target as HTMLImageElement).onerror = null;
-                            (e.target as HTMLImageElement).src = `https://placehold.co/600x400/e9d5ff/4c1d95?text=${encodeURIComponent(factory.name || 'Factory')}`;
-                        }}
-                    />
+                {/* Bottom gradient for readability */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
 
-                    {/* Promoted badge — top-left */}
-                    {isPromoted && (
-                        <div className="absolute top-2.5 left-2.5 bg-black/50 backdrop-blur-sm text-white text-[10px] font-semibold px-2 py-0.5 rounded-md z-10">
-                            Promoted
-                        </div>
-                    )}
-
-                    {/* Tier badge — top-left (below promoted if present) */}
-                    {showTierBanner && (
-                        <div
-                            className={`absolute ${isPromoted ? 'top-9' : 'top-2.5'} left-2.5 flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold z-10 shadow-sm`}
-                            style={{ background: tierCfg.bannerGradient, color: tierCfg.bannerTextColor }}
-                        >
-                            <Medal size={9} />
-                            {tierCfg.label}
-                        </div>
-                    )}
-
-                    {/* Rating badge — top-right */}
-                    <div className="absolute top-2.5 right-2.5 flex items-center gap-0.5 bg-green-700/90 backdrop-blur-sm text-white font-bold px-2 py-0.5 rounded-md text-xs z-10">
-                        <span>{factory.rating}</span>
-                        <Star size={10} className="fill-current" />
+                {/* Promoted badge */}
+                {isPromoted && (
+                    <div className="absolute top-2.5 left-2.5 bg-black/55 backdrop-blur-sm text-white text-[10px] font-semibold px-2 py-0.5 rounded-md z-10">
+                        Promoted
                     </div>
+                )}
 
-                    {/* Offer banner — bottom-left, small, with fade-out to right */}
-                    {factory.offer && (
-                        <div className="absolute bottom-0 left-0 z-10 max-w-[75%]">
-                            <div
-                                className="flex items-center gap-1.5 pl-3 pr-5 py-1.5"
-                                style={{
-                                    background: 'linear-gradient(to right, rgba(37, 99, 235, 0.92) 60%, rgba(37, 99, 235, 0) 100%)',
-                                    borderTopRightRadius: '12px',
-                                }}
-                            >
-                                <BadgePercent size={13} className="text-white flex-shrink-0" />
-                                <span className="text-white text-xs font-bold whitespace-nowrap">{factory.offer}</span>
-                            </div>
-                        </div>
-                    )}
+                {/* Tier badge */}
+                {showTierBanner && (
+                    <div
+                        className={`absolute ${isPromoted ? 'top-9' : 'top-2.5'} left-2.5 flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold z-10 shadow-sm`}
+                        style={{ background: tierCfg.bannerGradient, color: tierCfg.bannerTextColor }}
+                    >
+                        <Medal size={9} />
+                        {tierCfg.label}
+                    </div>
+                )}
+
+                {/* Rating — top-right */}
+                <div className="absolute top-2.5 right-2.5 flex items-center gap-0.5 bg-black/55 backdrop-blur-sm text-white font-bold px-2 py-0.5 rounded-md text-xs z-10">
+                    <Star size={10} className="fill-yellow-400 text-yellow-400" />
+                    <span className="ml-0.5">{factory.rating}</span>
                 </div>
+
+                {/* Offer badge — bottom left */}
+                {factory.offer && (
+                    <div className="absolute bottom-2.5 left-2.5 z-10">
+                        <div className="flex items-center gap-1 bg-blue-600/90 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-0.5 rounded-md">
+                            <BadgePercent size={10} className="flex-shrink-0" />
+                            {factory.offer}
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Content */}
-            <div className="px-3.5 pt-3 pb-3.5 flex flex-col flex-grow">
-                {/* Name + rating row */}
-                <div className="flex items-start justify-between gap-2 mb-0.5">
-                    <h3 className="font-bold text-[15px] text-gray-900 dark:text-white leading-snug group-hover:text-[#c20c0b] transition-colors line-clamp-1">
-                        {factory.name}
-                    </h3>
-                </div>
+            <div className="px-4 pt-3 pb-4 flex flex-col flex-grow">
+                {/* Factory name — larger on mobile */}
+                <h3 className="font-bold text-[17px] sm:text-[15px] text-gray-900 dark:text-white leading-snug group-hover:text-[#c20c0b] transition-colors duration-200 line-clamp-1 mb-0.5">
+                    {factory.name}
+                </h3>
 
                 {/* Specialties */}
-                <p className="text-[13px] text-gray-500 dark:text-gray-400 line-clamp-1 mb-0.5">
-                    {factory.specialties.join(', ')}
+                <p className="text-[12px] sm:text-[12px] text-gray-400 dark:text-gray-500 line-clamp-1 mb-2">
+                    {factory.specialties.join(' · ')}
                 </p>
 
                 {/* Location */}
                 <div className="flex items-center gap-1 mb-3">
-                    <MapPin size={11} className="text-gray-400 flex-shrink-0" />
-                    <p className="text-xs text-gray-400 dark:text-gray-500 line-clamp-1">{factory.location}</p>
+                    <MapPin size={11} className="text-[#c20c0b] flex-shrink-0" />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1">{factory.location}</p>
                 </div>
 
-                {/* Thin divider */}
+                {/* Divider */}
                 <div className="border-t border-gray-100 dark:border-gray-800" />
 
                 {/* Metrics strip */}
-                <div className="flex items-center gap-4 pt-2.5 text-xs text-gray-500 dark:text-gray-400">
-                    <div className="flex items-center gap-1.5">
-                        <CheckCircle2 size={13} className="text-green-600 flex-shrink-0" />
-                        <span className="font-semibold text-gray-700 dark:text-gray-200">{factory.completedOrdersCount ?? 0}+</span>
-                        <span>orders</span>
+                <div className="flex items-center justify-between pt-2.5">
+                    <div className="flex items-center gap-1">
+                        <CheckCircle2 size={13} className="text-emerald-500 flex-shrink-0" />
+                        <span className="text-xs font-bold text-gray-700 dark:text-gray-200">{factory.completedOrdersCount ?? 0}+</span>
+                        <span className="text-xs text-gray-400">orders</span>
                     </div>
-                    <div className="w-px h-3.5 bg-gray-200 dark:bg-gray-700" />
-                    <div className="flex items-center gap-1.5">
-                        <Clock size={13} className="text-gray-400 flex-shrink-0" />
-                        {factory.onTimeDeliveryRate !== undefined ? (
-                            <span className={`font-semibold ${factory.onTimeDeliveryRate >= 90 ? 'text-green-600 dark:text-green-400' : factory.onTimeDeliveryRate >= 75 ? 'text-yellow-600' : 'text-red-500'}`}>
-                                {factory.onTimeDeliveryRate}%
-                            </span>
-                        ) : (
-                            <span className="text-gray-400">N/A</span>
-                        )}
-                        <span>on-time</span>
+                    <div className="flex items-center gap-1">
+                        <Clock size={12} className="text-gray-400 flex-shrink-0" />
+                        <span className={`text-xs font-bold ${onTimeColor}`}>
+                            {onTimeRate !== undefined ? `${onTimeRate}%` : 'N/A'}
+                        </span>
+                        <span className="text-xs text-gray-400">on-time</span>
                     </div>
                 </div>
             </div>
