@@ -51,12 +51,17 @@ const STYLES = `
     0%, 60%, 100% { opacity: 0.15; }
     30%           { opacity: 1; }
   }
+  .kp-needle { stroke: #000000; }
+  .kp-label  { color: #000000; }
+  .kp-fabric { stroke: #e84040; }
   @media (prefers-color-scheme: dark) {
     .kp-needle { stroke: #ffffff; }
     .kp-label  { color: #ffffff; }
+    .kp-fabric { stroke: #ff2020; }
   }
   .dark .kp-needle { stroke: #ffffff; }
   .dark .kp-label  { color: #ffffff; }
+  .dark .kp-fabric { stroke: #ff2020; }
 `;
 
 
@@ -101,11 +106,11 @@ export const KnittingPreloader: React.FC<KnittingPreloaderProps> = ({
           {/* Fabric */}
           <g style={{ transformOrigin: '80px 60px', animation: 'kp-fabric 1.2s ease-in-out infinite' }}>
             <rect x={50} y={60} width={60} height={70} rx={2}
-              fill="none" stroke="#e84040" strokeWidth={2.5} strokeLinejoin="round" />
+              fill="none" stroke="#e84040" strokeWidth={2.5} strokeLinejoin="round" className="kp-fabric" />
 
             {[60, 70, 80, 90, 100].map(x => (
               <line key={x} x1={x} y1={60} x2={x} y2={130}
-                stroke="#e84040" strokeWidth={1.5} opacity={0.55} />
+                stroke="#e84040" strokeWidth={1.5} opacity={0.55} className="kp-fabric" />
             ))}
 
             {[
@@ -114,14 +119,14 @@ export const KnittingPreloader: React.FC<KnittingPreloaderProps> = ({
               { d: 'M50,120 Q57.5,110 65,120 T80,120 T95,120 T110,120', delay: '0.9s' },
             ].map(({ d, delay }, i) => (
               <path key={i} d={d} fill="none" stroke="#e84040" strokeWidth={2.5}
-                strokeLinecap="round" strokeDasharray="10 5"
+                strokeLinecap="round" strokeDasharray="10 5" className="kp-fabric"
                 style={{ animation: 'kp-wave 3s linear infinite', animationDelay: delay }} />
             ))}
 
             {/* Fringe */}
             {[[55, 50], [70, 70], [90, 90], [105, 110]].map(([x1, x2], i) => (
               <line key={i} x1={x1} y1={130} x2={x2} y2={148}
-                stroke="#e84040" strokeWidth={2.2} strokeLinecap="round" />
+                stroke="#e84040" strokeWidth={2.2} strokeLinecap="round" className="kp-fabric" />
             ))}
           </g>
         </g>
@@ -146,8 +151,6 @@ export const KnittingPreloader: React.FC<KnittingPreloaderProps> = ({
           fontSize: 10,
           letterSpacing: '0.35em',
           textTransform: 'uppercase',
-          color: '#1a1c2c',
-          // dark mode handled via .kp-label CSS class
           fontWeight: 700,
           fontFamily: 'sans-serif',
           animation: 'kp-word-in 0.45s ease-out forwards',
