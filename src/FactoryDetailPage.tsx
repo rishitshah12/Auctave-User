@@ -78,6 +78,10 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
     }, [initialTab]);
 
     useEffect(() => {
+        window.scrollTo({ top: 0, behavior: 'instant' });
+    }, []);
+
+    useEffect(() => {
         if (!isLightboxOpen) return;
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') setIsLightboxOpen(false);
