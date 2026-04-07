@@ -343,7 +343,7 @@ const FloatingOrbs = () => (
 );
 
 // ─── Step Bar ─────────────────────────────────────────────────────────────────
-const StepBar = ({ current }: { current: number }) => {
+const StepBar = ({ current, isMobile }: { current: number; isMobile?: boolean }) => {
     const steps = [
         { label: 'Welcome', icon: Sparkles },
         { label: 'Personal', icon: User },
@@ -351,8 +351,11 @@ const StepBar = ({ current }: { current: number }) => {
         { label: 'Expertise', icon: Briefcase },
         { label: 'Done', icon: Check },
     ];
+    const circleSize = isMobile ? 28 : 34;
+    const iconSize = isMobile ? 12 : 15;
+    const connectorW = isMobile ? 14 : 36;
     return (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0, marginBottom: 36 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0, marginBottom: isMobile ? 20 : 36 }}>
             {steps.map((step, i) => {
                 const Icon = step.icon;
                 const done = i < current;
@@ -360,19 +363,22 @@ const StepBar = ({ current }: { current: number }) => {
                 const isLast = i === steps.length - 1;
                 return (
                     <React.Fragment key={i}>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: isMobile ? 4 : 6 }}>
                             <div style={{
-                                width: 34, height: 34, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                width: circleSize, height: circleSize, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 transition: 'all 0.4s cubic-bezier(0.4,0,0.2,1)',
                                 background: done ? 'linear-gradient(135deg,#c20c0b,#ff4040)' : active ? 'rgba(194,12,11,0.15)' : 'rgba(255,255,255,0.05)',
                                 border: active ? '2px solid #c20c0b' : done ? '2px solid transparent' : '2px solid rgba(255,255,255,0.12)',
                                 boxShadow: active ? '0 0 16px rgba(194,12,11,0.4)' : done ? '0 0 12px rgba(194,12,11,0.3)' : 'none',
+                                flexShrink: 0,
                             }}>
-                                <Icon size={15} color={done || active ? (done ? '#fff' : '#c20c0b') : 'rgba(255,255,255,0.3)'} strokeWidth={2.5} />
+                                <Icon size={iconSize} color={done || active ? (done ? '#fff' : '#c20c0b') : 'rgba(255,255,255,0.3)'} strokeWidth={2.5} />
                             </div>
-                            <span style={{ fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: active ? '#fff' : done ? 'rgba(194,12,11,0.9)' : 'rgba(255,255,255,0.22)', fontWeight: active ? 700 : 500, transition: 'color 0.3s' }}>{step.label}</span>
+                            {!isMobile && (
+                                <span style={{ fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: active ? '#fff' : done ? 'rgba(194,12,11,0.9)' : 'rgba(255,255,255,0.22)', fontWeight: active ? 700 : 500, transition: 'color 0.3s' }}>{step.label}</span>
+                            )}
                         </div>
-                        {!isLast && <div style={{ height: 2, width: 36, marginBottom: 20, background: i < current ? 'linear-gradient(90deg,#c20c0b,#ff4040)' : 'rgba(255,255,255,0.08)', transition: 'background 0.4s', borderRadius: 1 }} />}
+                        {!isLast && <div style={{ height: 2, width: connectorW, marginBottom: isMobile ? 0 : 20, background: i < current ? 'linear-gradient(90deg,#c20c0b,#ff4040)' : 'rgba(255,255,255,0.08)', transition: 'background 0.4s', borderRadius: 1, flexShrink: 0 }} />}
                     </React.Fragment>
                 );
             })}
@@ -558,8 +564,8 @@ const CategoryChip = ({ label, selected, onClick }: { label: string; selected: b
 );
 
 // ─── Avatar Picker ────────────────────────────────────────────────────────────
-const AvatarPicker = ({ user, avatarUrl, onChange }: {
-    user: any; avatarUrl: string; onChange: (url: string) => void;
+const AvatarPicker = ({ user, avatarUrl, onChange, isMobile }: {
+    user: any; avatarUrl: string; onChange: (url: string) => void; isMobile?: boolean;
 }) => {
     const fileRef = useRef<HTMLInputElement>(null);
     const [uploading, setUploading] = useState(false);
@@ -595,7 +601,7 @@ const AvatarPicker = ({ user, avatarUrl, onChange }: {
         .split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase();
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 28 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: isMobile ? 16 : 28 }}>
             {/* Avatar circle */}
             <div style={{ position: 'relative', cursor: 'pointer' }} onClick={() => fileRef.current?.click()}>
                 <div style={{
@@ -667,6 +673,13 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete
     const [animating, setAnimating] = useState(false);
     const [celebrating, setCelebrating] = useState(false);
     const [confetti, setConfetti] = useState<{ id: number; x: number; color: string; delay: number; size: number }[]>([]);
+    const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
+
+    useEffect(() => {
+        const handler = () => setIsMobile(window.innerWidth < 640);
+        window.addEventListener('resize', handler);
+        return () => window.removeEventListener('resize', handler);
+    }, []);
 
     const firstName = user?.user_metadata?.full_name?.split(' ')[0]
         || user?.user_metadata?.name?.split(' ')[0]
@@ -763,24 +776,24 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete
         // ── Step 0: Welcome ──────────────────────────────────────────────────
         if (step === 0) return (
             <div style={{ ...slideStyle(), display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-                <div style={{ width: 72, height: 72, borderRadius: 20, background: 'linear-gradient(135deg,#c20c0b,#7a0808)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24, boxShadow: '0 0 40px rgba(194,12,11,0.35),0 8px 32px rgba(0,0,0,0.5)' }}>
-                    <Package size={36} color="#fff" strokeWidth={1.5} />
+                <div style={{ width: isMobile ? 58 : 72, height: isMobile ? 58 : 72, borderRadius: isMobile ? 16 : 20, background: 'linear-gradient(135deg,#c20c0b,#7a0808)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: isMobile ? 16 : 24, boxShadow: '0 0 40px rgba(194,12,11,0.35),0 8px 32px rgba(0,0,0,0.5)' }}>
+                    <Package size={isMobile ? 28 : 36} color="#fff" strokeWidth={1.5} />
                 </div>
-                <span style={{ display: 'inline-block', padding: '4px 14px', borderRadius: 100, border: '1px solid rgba(194,12,11,0.4)', background: 'rgba(194,12,11,0.1)', color: '#ff6b6b', fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16 }}>Auctave Exports · Welcome</span>
-                <h1 style={{ fontSize: 40, fontWeight: 800, color: '#fff', lineHeight: 1.1, marginBottom: 12, letterSpacing: '-0.03em' }}>
+                <span style={{ display: 'inline-block', padding: '4px 14px', borderRadius: 100, border: '1px solid rgba(194,12,11,0.4)', background: 'rgba(194,12,11,0.1)', color: '#ff6b6b', fontSize: isMobile ? 10 : 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: isMobile ? 12 : 16 }}>Auctave Exports · Welcome</span>
+                <h1 style={{ fontSize: isMobile ? 30 : 40, fontWeight: 800, color: '#fff', lineHeight: 1.15, marginBottom: isMobile ? 10 : 12, letterSpacing: '-0.03em' }}>
                     Welcome,<br /><span style={{ color: '#c20c0b' }}>{firstName}</span>
                 </h1>
-                <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.5)', maxWidth: 380, lineHeight: 1.7, marginBottom: 40 }}>
+                <p style={{ fontSize: isMobile ? 14 : 16, color: 'rgba(255,255,255,0.5)', maxWidth: 380, lineHeight: 1.65, marginBottom: isMobile ? 24 : 40 }}>
                     You're joining a global garment intelligence platform. Let's set up your profile — it only takes a minute.
                 </p>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 44 }}>
+                <div style={{ display: 'flex', gap: isMobile ? 8 : 10, flexWrap: 'wrap', justifyContent: 'center', marginBottom: isMobile ? 28 : 44 }}>
                     {[{ icon: TrendingUp, label: 'Live Tracking' }, { icon: Users, label: 'Global Network' }, { icon: Zap, label: 'AI Sourcing' }].map(({ icon: Icon, label }) => (
-                        <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 100, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: 500 }}>
-                            <Icon size={13} />{label}
+                        <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: isMobile ? '6px 12px' : '7px 14px', borderRadius: 100, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.6)', fontSize: isMobile ? 12 : 13, fontWeight: 500 }}>
+                            <Icon size={12} />{label}
                         </div>
                     ))}
                 </div>
-                <button onClick={() => goTo(1)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 36px', borderRadius: 14, background: 'linear-gradient(135deg,#c20c0b,#9a0909)', color: '#fff', fontWeight: 700, fontSize: 16, border: 'none', cursor: 'pointer', boxShadow: '0 4px 24px rgba(194,12,11,0.45)', transition: 'all 0.2s', letterSpacing: '-0.01em' }}
+                <button onClick={() => goTo(1)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: isMobile ? '13px 28px' : '14px 36px', borderRadius: 14, background: 'linear-gradient(135deg,#c20c0b,#9a0909)', color: '#fff', fontWeight: 700, fontSize: isMobile ? 15 : 16, border: 'none', cursor: 'pointer', boxShadow: '0 4px 24px rgba(194,12,11,0.45)', transition: 'all 0.2s', letterSpacing: '-0.01em', width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'center' : 'flex-start' }}
                     onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(194,12,11,0.55)'; }}
                     onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 24px rgba(194,12,11,0.45)'; }}>
                     Let's Begin <ArrowRight size={18} strokeWidth={2.5} />
@@ -791,22 +804,23 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete
         // ── Step 1: Personal + Photo ─────────────────────────────────────────
         if (step === 1) return (
             <div style={slideStyle()}>
-                <div style={{ marginBottom: 24 }}>
-                    <h2 style={{ fontSize: 26, fontWeight: 800, color: '#fff', marginBottom: 5, letterSpacing: '-0.03em' }}>Personal Details</h2>
-                    <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14 }}>Add a photo and tell us your name.</p>
+                <div style={{ marginBottom: isMobile ? 16 : 24 }}>
+                    <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, color: '#fff', marginBottom: 4, letterSpacing: '-0.03em' }}>Personal Details</h2>
+                    <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: isMobile ? 13 : 14 }}>Add a photo and tell us your name.</p>
                 </div>
 
                 <AvatarPicker
                     user={user}
                     avatarUrl={form.avatarUrl}
                     onChange={url => setForm(p => ({ ...p, avatarUrl: url }))}
+                    isMobile={isMobile}
                 />
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 10 : 14 }}>
                     <ElegantInput label="Full Name" value={form.name} onChange={v => setForm(p => ({ ...p, name: v }))} placeholder="Jane Smith" required icon={User} />
                     <ElegantInput label="Email Address" value={form.email} readOnly icon={Mail} />
                 </div>
-                <p style={{ marginTop: 10, fontSize: 11.5, color: 'rgba(255,255,255,0.22)', letterSpacing: '0.02em' }}>
+                <p style={{ marginTop: 8, fontSize: 11, color: 'rgba(255,255,255,0.22)', letterSpacing: '0.02em' }}>
                     Email is pre-filled from your account and cannot be changed here.
                 </p>
             </div>
@@ -815,11 +829,11 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete
         // ── Step 2: Business + Phone ─────────────────────────────────────────
         if (step === 2) return (
             <div style={slideStyle()}>
-                <div style={{ marginBottom: 24 }}>
-                    <h2 style={{ fontSize: 26, fontWeight: 800, color: '#fff', marginBottom: 5, letterSpacing: '-0.03em' }}>Your Business</h2>
-                    <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14 }}>Tell us about your company so we can match you with the right factories.</p>
+                <div style={{ marginBottom: isMobile ? 14 : 24 }}>
+                    <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, color: '#fff', marginBottom: 4, letterSpacing: '-0.03em' }}>Your Business</h2>
+                    <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: isMobile ? 13 : 14 }}>Tell us about your company so we can match you with the right factories.</p>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 10 : 14 }}>
                     <ElegantInput label="Company Name" value={form.companyName} onChange={v => setForm(p => ({ ...p, companyName: v }))} placeholder="Acme Fashion Co." required icon={Building2} />
                     <ElegantSelect label="Country / Region" value={form.country} onChange={handleCountryChange} options={COUNTRIES} icon={Globe} required />
                     <PhoneInput country={form.country} value={form.phone} onChange={v => setForm(p => ({ ...p, phone: v }))} />
@@ -837,9 +851,9 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete
         // ── Step 3: Expertise (categories only) ──────────────────────────────
         if (step === 3) return (
             <div style={slideStyle()}>
-                <div style={{ marginBottom: 24 }}>
-                    <h2 style={{ fontSize: 26, fontWeight: 800, color: '#fff', marginBottom: 5, letterSpacing: '-0.03em' }}>Your Expertise</h2>
-                    <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14 }}>Select your garment categories (up to 4) — we'll tailor your factory matches.</p>
+                <div style={{ marginBottom: isMobile ? 14 : 24 }}>
+                    <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, color: '#fff', marginBottom: 4, letterSpacing: '-0.03em' }}>Your Expertise</h2>
+                    <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: isMobile ? 13 : 14 }}>Select your garment categories (up to 4) — we'll tailor your factory matches.</p>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                     <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)' }}>Specialization</span>
@@ -872,10 +886,10 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete
                     </div>
                 </div>
 
-                <h2 style={{ fontSize: 34, fontWeight: 800, color: '#fff', marginBottom: 8, letterSpacing: '-0.03em', lineHeight: 1.1 }}>
+                <h2 style={{ fontSize: isMobile ? 26 : 34, fontWeight: 800, color: '#fff', marginBottom: 8, letterSpacing: '-0.03em', lineHeight: 1.1 }}>
                     You're all set,<br /><span style={{ color: '#c20c0b' }}>{firstName}!</span>
                 </h2>
-                <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 15, maxWidth: 340, lineHeight: 1.7, marginBottom: 32 }}>
+                <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: isMobile ? 13 : 15, maxWidth: 340, lineHeight: 1.65, marginBottom: isMobile ? 20 : 32 }}>
                     Your profile is ready. You now have full access to Auctave's global factory network and AI-powered sourcing.
                 </p>
 
@@ -928,7 +942,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete
                 @keyframes dropDown { from{opacity:0;transform:translateY(-6px) scaleY(0.96)} to{opacity:1;transform:translateY(0) scaleY(1)} }
             `}</style>
 
-            <div style={{ position: 'fixed', inset: 0, background: '#06060a', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, overflowY: 'auto', padding: '24px 16px' }}>
+            <div style={{ position: 'fixed', inset: 0, background: '#06060a', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, overflowY: 'auto', padding: isMobile ? '12px 8px' : '24px 16px' }}>
 
                 {/* ── Scrolling photo background — rotated for quirky diagonal feel ── */}
                 <div style={{ position: 'fixed', top: '-12%', left: '-12%', right: '-12%', bottom: '-12%', overflow: 'hidden', pointerEvents: 'none', transform: 'rotate(-5deg) scale(1.18)', transformOrigin: 'center center' }}>
@@ -962,8 +976,10 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete
                 <div style={{
                     position: 'relative', width: '100%', maxWidth: step === 3 ? 660 : 560,
                     background: 'rgba(12,12,16,0.92)', backdropFilter: 'blur(36px)', WebkitBackdropFilter: 'blur(36px)',
-                    border: '1px solid rgba(255,255,255,0.09)', borderRadius: 28,
-                    padding: step === 0 ? '60px 56px' : '44px 56px',
+                    border: '1px solid rgba(255,255,255,0.09)', borderRadius: isMobile ? 20 : 28,
+                    padding: step === 0
+                        ? (isMobile ? '36px 22px' : '60px 56px')
+                        : (isMobile ? '28px 20px' : '44px 56px'),
                     boxShadow: '0 48px 120px rgba(0,0,0,0.85), 0 0 0 1px rgba(255,255,255,0.05) inset, 0 0 80px rgba(194,12,11,0.05) inset',
                     animation: 'fadeUp 0.5s ease both', zIndex: 1,
                     transition: 'max-width 0.3s ease',
@@ -971,7 +987,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete
                     {/* Top shimmer */}
                     <div style={{ position: 'absolute', top: 0, left: '10%', right: '10%', height: 1, background: 'linear-gradient(90deg,transparent,rgba(194,12,11,0.6),rgba(255,100,100,0.4),transparent)', borderRadius: 1 }} />
 
-                    {step > 0 && step < 4 && <StepBar current={step} />}
+                    {step > 0 && step < 4 && <StepBar current={step} isMobile={isMobile} />}
 
                     <div style={{ overflow: step === 3 ? 'visible' : 'hidden' }}>
                         {renderStep()}
@@ -979,20 +995,20 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete
 
                     {/* Nav footer for steps 1–3 */}
                     {step >= 1 && step <= 3 && (
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 26, paddingTop: 18, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                            <button onClick={() => goTo(step - 1)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '9px 16px', borderRadius: 10, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)', fontSize: 14, fontWeight: 500, cursor: 'pointer', transition: 'all 0.2s' }}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: isMobile ? 18 : 26, paddingTop: isMobile ? 14 : 18, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                            <button onClick={() => goTo(step - 1)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: isMobile ? '8px 12px' : '9px 16px', borderRadius: 10, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)', fontSize: isMobile ? 13 : 14, fontWeight: 500, cursor: 'pointer', transition: 'all 0.2s' }}
                                 onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#fff'; }}
                                 onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'rgba(255,255,255,0.5)'; }}>
-                                <ChevronLeft size={15} /> Back
+                                <ChevronLeft size={14} /> Back
                             </button>
 
                             <div style={{ display: 'flex', gap: 5 }}>
                                 {[1, 2, 3].map(i => (
-                                    <div key={i} style={{ width: i === step ? 18 : 6, height: 6, borderRadius: 3, background: i === step ? '#c20c0b' : i < step ? 'rgba(194,12,11,0.4)' : 'rgba(255,255,255,0.12)', transition: 'all 0.3s' }} />
+                                    <div key={i} style={{ width: i === step ? 16 : 6, height: 6, borderRadius: 3, background: i === step ? '#c20c0b' : i < step ? 'rgba(194,12,11,0.4)' : 'rgba(255,255,255,0.12)', transition: 'all 0.3s' }} />
                                 ))}
                             </div>
 
-                            <button onClick={() => goTo(step + 1)} disabled={!isStepValid()} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '9px 20px', borderRadius: 10, background: isStepValid() ? 'linear-gradient(135deg,#c20c0b,#9a0909)' : 'rgba(255,255,255,0.05)', border: 'none', color: isStepValid() ? '#fff' : 'rgba(255,255,255,0.22)', fontSize: 14, fontWeight: 700, cursor: isStepValid() ? 'pointer' : 'not-allowed', transition: 'all 0.2s', boxShadow: isStepValid() ? '0 2px 12px rgba(194,12,11,0.35)' : 'none' }}
+                            <button onClick={() => goTo(step + 1)} disabled={!isStepValid()} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: isMobile ? '8px 16px' : '9px 20px', borderRadius: 10, background: isStepValid() ? 'linear-gradient(135deg,#c20c0b,#9a0909)' : 'rgba(255,255,255,0.05)', border: 'none', color: isStepValid() ? '#fff' : 'rgba(255,255,255,0.22)', fontSize: isMobile ? 13 : 14, fontWeight: 700, cursor: isStepValid() ? 'pointer' : 'not-allowed', transition: 'all 0.2s', boxShadow: isStepValid() ? '0 2px 12px rgba(194,12,11,0.35)' : 'none' }}
                                 onMouseEnter={e => { if (isStepValid()) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 18px rgba(194,12,11,0.5)'; } }}
                                 onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = isStepValid() ? '0 2px 12px rgba(194,12,11,0.35)' : 'none'; }}>
                                 {step === 3 ? 'Review' : 'Continue'} <ArrowRight size={14} strokeWidth={2.5} />
