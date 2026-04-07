@@ -577,6 +577,12 @@ export const MainLayout: FC<MainLayoutProps> = (props) => {
     const [isNotifOpen, setIsNotifOpen] = useState(false);
     const { notifications } = useNotifications();
 
+    useEffect(() => {
+        const handler = () => setIsNotifOpen(true);
+        document.addEventListener('open-notifications', handler);
+        return () => document.removeEventListener('open-notifications', handler);
+    }, []);
+
     const totalUnread = notifications.filter(n => !n.isRead).length;
 
     const unreadByPage: Record<string, number> = {
@@ -600,16 +606,7 @@ export const MainLayout: FC<MainLayoutProps> = (props) => {
                 </div>
             )}
 
-            {/* Mobile sticky header */}
-            {showNav && (
-                <MobileHeader
-                    currentPage={props.currentPage}
-                    isAdmin={props.isAdmin}
-                    onOpenNotif={() => setIsNotifOpen(true)}
-                    unreadCount={totalUnread}
-                    handleSetCurrentPage={props.handleSetCurrentPage}
-                />
-            )}
+            {/* Mobile sticky header removed — bell lives on Sourcing page only */}
 
             {/* Body row: sidebar + content */}
             <div className="flex flex-1 relative z-10">

@@ -4,7 +4,7 @@ import React, { FC, useState, useMemo, useEffect, useRef, ReactNode, useCallback
 import {
     Search, Star, SlidersHorizontal, ChevronDown, Menu, User as UserIcon, LogOut, Briefcase, Truck, DollarSign,
     Building, ChevronLeft, ChevronRight, Package, Trash2, X,
-    Sparkles, TrendingUp, ArrowRight, Zap, Globe, Award, ShieldCheck, Clock
+    Sparkles, TrendingUp, ArrowRight, Zap, Globe, Award, ShieldCheck, Clock, Bell
 } from 'lucide-react';
 import { Factory, UserProfile, QuoteRequest } from '../src/types';
 import {
@@ -13,6 +13,7 @@ import {
 import { supabase } from '../src/supabaseClient';
 import { MainLayout } from '../src/MainLayout';
 import { FactoryCard } from '../src/FactoryCard';
+import { useNotifications } from '../src/NotificationContext';
 
 interface SourcingPageProps {
     pageKey: number;
@@ -248,7 +249,9 @@ const Dashboard: FC<{ quoteRequests: QuoteRequest[]; handleSetCurrentPage: (page
 
 export const SourcingPage: FC<SourcingPageProps> = (props) => {
     const { pageKey, user, userProfile, handleSelectFactory, toggleMenu, selectedGarmentCategory, setSelectedGarmentCategory, handleSetCurrentPage, handleSignOut, showToast, quoteRequests = [], setGlobalLoading } = props;
-    
+    const { notifications } = useNotifications();
+    const unreadCount = notifications.filter(n => !n.isRead).length;
+
     const CACHE_KEY = 'garment_erp_factories_v2';
     // State to hold the complete list of factories fetched from the database
     const [allFactories, setAllFactories] = useState<Factory[]>(() => {
@@ -744,17 +747,29 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
         <MainLayout {...props}>
             {/* ── MOBILE HEADER: greeting → search ─────────────────── */}
             <header className="sm:hidden mb-5">
-                {/* Greeting */}
-                <div className="mb-4">
-                    <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-0.5 flex items-center gap-1.5">
-                        <span>{greeting.emoji}</span>{greeting.text}
-                    </p>
-                    <h1 className="text-[26px] font-black text-gray-900 dark:text-white leading-tight tracking-tight">
-                        Hey, <span className="bg-gradient-to-r from-[#c20c0b] to-orange-500 bg-clip-text text-transparent">{firstName}!</span>
-                    </h1>
-                    <p className="text-[13px] text-gray-500 dark:text-gray-400 mt-0.5">
-                        {userProfile?.companyName ? `${userProfile.companyName} · ` : ''}Find your perfect factory
-                    </p>
+                {/* Greeting row with notification bell */}
+                <div className="flex items-start justify-between mb-4">
+                    <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-0.5 flex items-center gap-1.5">
+                            <span>{greeting.emoji}</span>{greeting.text}
+                        </p>
+                        <h1 className="text-[26px] font-black text-gray-900 dark:text-white leading-tight tracking-tight">
+                            Hey, <span className="bg-gradient-to-r from-[#c20c0b] to-orange-500 bg-clip-text text-transparent">{firstName}!</span>
+                        </h1>
+                        <p className="text-[13px] text-gray-500 dark:text-gray-400 mt-0.5">
+                            {userProfile?.companyName ? `${userProfile.companyName} · ` : ''}Find your perfect factory
+                        </p>
+                    </div>
+                    {/* Notification bell */}
+                    <button
+                        onClick={() => document.dispatchEvent(new CustomEvent('open-notifications'))}
+                        className="relative w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-xl bg-white dark:bg-white/8 border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-300 shadow-sm active:scale-95 transition-transform ml-3 mt-1"
+                    >
+                        <Bell className="w-[18px] h-[18px]" />
+                        {unreadCount > 0 && (
+                            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-white dark:ring-[#18171c]" />
+                        )}
+                    </button>
                 </div>
 
                 {/* Search + Filter row */}
