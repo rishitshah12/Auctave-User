@@ -1,8 +1,8 @@
-import React, { FC, ReactNode, useState, useEffect } from 'react';
+import React, { FC, ReactNode, useState, useEffect, useRef } from 'react';
 import {
     Search, DollarSign, Plus, X,
     List, Truck, LogOut, Settings, Flame, FileQuestion,
-    LayoutDashboard, Users, Building, ImageIcon, Bell, Menu, ChevronLeft
+    LayoutDashboard, Users, Building, ImageIcon, Bell, ChevronLeft
 } from 'lucide-react';
 import { NotificationBellButton, NotificationPanel } from './NotificationPanel';
 import { useNotifications } from './NotificationContext';
@@ -83,12 +83,11 @@ const NavItem: FC<{
 // ── Mobile Header ─────────────────────────────────────────────────────────────
 const MobileHeader: FC<{
     currentPage: string;
-    toggleMenu: () => void;
     isAdmin?: boolean;
     onOpenNotif: () => void;
     unreadCount: number;
     handleSetCurrentPage: (page: string, data?: any) => void;
-}> = ({ currentPage, toggleMenu, isAdmin, onOpenNotif, unreadCount, handleSetCurrentPage }) => {
+}> = ({ currentPage, isAdmin, onOpenNotif, unreadCount, handleSetCurrentPage }) => {
     const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
 
     useEffect(() => {
@@ -101,7 +100,7 @@ const MobileHeader: FC<{
 
     const title = PAGE_TITLES[currentPage] || 'Garment ERP';
 
-    // Pages where we show a back arrow instead of hamburger (detail pages)
+    // Pages where we show a back arrow (detail pages)
     const isDetailPage = ['quoteDetail', 'factoryDetail', 'onboarding'].includes(currentPage);
 
     return (
@@ -114,15 +113,22 @@ const MobileHeader: FC<{
                 WebkitBackdropFilter: 'blur(20px)',
             }}
         >
-            {/* Left — hamburger or back */}
-            <button
-                onClick={isDetailPage ? () => history.back() : toggleMenu}
-                className="w-10 h-10 flex items-center justify-center rounded-xl text-gray-700 dark:text-gray-200 active:bg-gray-100 dark:active:bg-white/10 transition-colors"
-            >
-                {isDetailPage
-                    ? <ChevronLeft className="w-5 h-5" />
-                    : <Menu className="w-5 h-5" />}
-            </button>
+            {/* Left — back button on detail pages, logo on main pages */}
+            {isDetailPage ? (
+                <button
+                    onClick={() => history.back()}
+                    className="w-10 h-10 flex items-center justify-center rounded-xl text-gray-700 dark:text-gray-200 active:bg-gray-100 dark:active:bg-white/10 transition-colors"
+                >
+                    <ChevronLeft className="w-5 h-5" />
+                </button>
+            ) : (
+                <div className="w-10 h-10 flex items-center justify-center">
+                    <div className="w-7 h-7 rounded-[10px] flex items-center justify-center"
+                        style={{ background: 'linear-gradient(135deg, #c20c0b, #350e4a)' }}>
+                        <span className="text-white font-bold text-xs select-none">A</span>
+                    </div>
+                </div>
+            )}
 
             {/* Center — page title */}
             <span className="absolute left-1/2 -translate-x-1/2 text-[15px] font-bold text-gray-900 dark:text-white tracking-tight pointer-events-none">
@@ -303,9 +309,12 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'> & { onOpenNotif
 const BottomNavBar: FC<{
     currentPage: string;
     handleSetCurrentPage: (page: string) => void;
+    menuItems: Array<{ label: string; shortLabel: string; page: string; icon: React.ReactNode }>;
     unreadByPage: Record<string, number>;
-}> = ({ currentPage, handleSetCurrentPage, unreadByPage }) => {
+}> = ({ currentPage, handleSetCurrentPage, menuItems, unreadByPage }) => {
     const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+    const [visible, setVisible] = useState(true);
+    const lastScrollY = useRef(0);
 
     useEffect(() => {
         const observer = new MutationObserver(() =>
@@ -315,79 +324,71 @@ const BottomNavBar: FC<{
         return () => observer.disconnect();
     }, []);
 
-    const navItems = [
-        { name: 'Sourcing',  page: 'sourcing',  icon: Search },
-        { name: 'Quotes',    page: 'myQuotes',  icon: FileQuestion },
-        { name: '',          page: 'orderForm', icon: Plus, isFab: true },
-        { name: 'Orders',    page: 'crm',       icon: List },
-        { name: 'Trending',  page: 'trending',  icon: Flame },
-    ];
+    useEffect(() => {
+        const handleScroll = () => {
+            const current = window.scrollY;
+            if (current <= 10) {
+                setVisible(true);
+            } else {
+                setVisible(current < lastScrollY.current);
+            }
+            lastScrollY.current = current;
+        };
+        window.addEventListener('scroll', handleScroll, { passive: true });
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
 
     return (
         <div
-            className="fixed bottom-0 left-0 right-0 md:hidden z-40"
+            className={`fixed bottom-0 left-0 right-0 md:hidden z-40 transition-transform duration-300 ease-in-out ${
+                visible ? 'translate-y-0' : 'translate-y-full'
+            }`}
             style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
         >
             <div
-                className="flex items-end justify-around px-2 h-[62px] border-t"
+                className="border-t overflow-x-auto scrollbar-none"
                 style={{
-                    background: isDark ? 'rgba(10,10,14,0.94)' : 'rgba(255,255,255,0.94)',
+                    background: isDark ? 'rgba(10,10,14,0.96)' : 'rgba(255,255,255,0.96)',
                     borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
                     backdropFilter: 'blur(24px)',
                     WebkitBackdropFilter: 'blur(24px)',
                 }}
             >
-                {navItems.map(item => {
-                    if (item.isFab) {
+                <div className="flex items-center h-[62px] px-1 min-w-max">
+                    {menuItems.map(item => {
+                        const isActive = currentPage === item.page;
+                        const badge = unreadByPage[item.page] || 0;
+
                         return (
                             <button
-                                key="fab"
+                                key={item.page}
                                 onClick={() => handleSetCurrentPage(item.page)}
-                                className="relative -top-4 w-14 h-14 rounded-full flex items-center justify-center text-white shadow-xl flex-shrink-0 active:scale-95 transition-transform"
-                                style={{
-                                    background: 'linear-gradient(135deg, #c20c0b, #7f1010)',
-                                    boxShadow: '0 8px 24px rgba(194,12,11,0.45)',
-                                }}
+                                className="relative flex flex-col items-center justify-center gap-[3px] w-[68px] h-full pt-1 flex-shrink-0 active:opacity-70 transition-opacity"
                             >
-                                <Plus className="w-6 h-6" strokeWidth={2.5} />
+                                <span className="relative">
+                                    <span className={`block transition-colors [&>svg]:transition-colors ${
+                                        isActive ? 'text-[#c20c0b] [&>svg]:stroke-[2.5]' : isDark ? 'text-gray-400 [&>svg]:stroke-[1.8]' : 'text-gray-500 [&>svg]:stroke-[1.8]'
+                                    }`}>
+                                        {item.icon}
+                                    </span>
+                                    {badge > 0 && (
+                                        <span className="absolute -top-1 -right-1.5 h-[14px] min-w-[14px] px-0.5 bg-rose-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center leading-none">
+                                            {badge > 9 ? '9+' : badge}
+                                        </span>
+                                    )}
+                                </span>
+                                <span className={`text-[10px] font-semibold transition-colors leading-tight text-center ${
+                                    isActive ? 'text-[#c20c0b]' : isDark ? 'text-gray-500' : 'text-gray-400'
+                                }`}>
+                                    {item.shortLabel}
+                                </span>
+                                {isActive && (
+                                    <span className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-[2.5px] rounded-b-full bg-[#c20c0b]" />
+                                )}
                             </button>
                         );
-                    }
-
-                    const isActive = currentPage === item.page;
-                    const badge = unreadByPage[item.page] || 0;
-                    const Icon = item.icon;
-
-                    return (
-                        <button
-                            key={item.page}
-                            onClick={() => handleSetCurrentPage(item.page)}
-                            className="flex flex-col items-center justify-center gap-[3px] flex-1 h-full pt-1 active:opacity-70 transition-opacity"
-                        >
-                            <span className="relative">
-                                <Icon
-                                    className={`w-[22px] h-[22px] transition-colors ${
-                                        isActive ? 'text-[#c20c0b]' : isDark ? 'text-gray-400' : 'text-gray-500'
-                                    }`}
-                                    strokeWidth={isActive ? 2.5 : 1.8}
-                                />
-                                {badge > 0 && (
-                                    <span className="absolute -top-1 -right-1.5 h-[14px] min-w-[14px] px-0.5 bg-rose-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center leading-none">
-                                        {badge > 9 ? '9+' : badge}
-                                    </span>
-                                )}
-                            </span>
-                            <span className={`text-[10px] font-semibold transition-colors ${
-                                isActive ? 'text-[#c20c0b]' : isDark ? 'text-gray-500' : 'text-gray-400'
-                            }`}>
-                                {item.name}
-                            </span>
-                            {isActive && (
-                                <span className="absolute bottom-0 w-6 h-[2px] rounded-t-full bg-[#c20c0b] translate-y-px" />
-                            )}
-                        </button>
-                    );
-                })}
+                    })}
+                </div>
             </div>
         </div>
     );
@@ -401,9 +402,35 @@ export const MainLayout: FC<MainLayoutProps> = (props) => {
     const totalUnread = notifications.filter(n => !n.isRead).length;
 
     const unreadByPage: Record<string, number> = {
-        myQuotes: notifications.filter(n => n.category === 'rfq' && !n.isRead).length,
-        crm:      notifications.filter(n => n.category === 'crm' && !n.isRead).length,
+        myQuotes:  notifications.filter(n => n.category === 'rfq' && !n.isRead).length,
+        crm:       notifications.filter(n => n.category === 'crm' && !n.isRead).length,
+        adminRFQ:  notifications.filter(n => n.category === 'rfq' && !n.isRead).length,
+        adminCRM:  notifications.filter(n => n.category === 'crm' && !n.isRead).length,
     };
+
+    const clientMenuItems = [
+        { label: 'Sourcing',    shortLabel: 'Sourcing',   page: 'sourcing',          icon: <Search className="h-[22px] w-[22px]" /> },
+        { label: 'My Quotes',   shortLabel: 'Quotes',     page: 'myQuotes',          icon: <FileQuestion className="h-[22px] w-[22px]" /> },
+        { label: 'CRM Portal',  shortLabel: 'CRM',        page: 'crm',               icon: <List className="h-[22px] w-[22px]" /> },
+        { label: 'Tracking',    shortLabel: 'Tracking',   page: 'tracking',          icon: <Truck className="h-[22px] w-[22px]" /> },
+        { label: 'Billing',     shortLabel: 'Billing',    page: 'billing',           icon: <DollarSign className="h-[22px] w-[22px]" /> },
+        { label: 'Place Order', shortLabel: 'Order',      page: 'orderForm',         icon: <Plus className="h-[22px] w-[22px]" /> },
+        { label: 'Trending',    shortLabel: 'Trending',   page: 'trending',          icon: <Flame className="h-[22px] w-[22px]" /> },
+        { label: 'Settings',    shortLabel: 'Settings',   page: 'settings',          icon: <Settings className="h-[22px] w-[22px]" /> },
+    ];
+
+    const adminMenuItems = [
+        { label: 'Dashboard',   shortLabel: 'Dashboard',  page: 'adminDashboard',    icon: <LayoutDashboard className="h-[22px] w-[22px]" /> },
+        { label: 'Users',       shortLabel: 'Users',      page: 'adminUsers',        icon: <Users className="h-[22px] w-[22px]" /> },
+        { label: 'Factories',   shortLabel: 'Factory',    page: 'adminFactories',    icon: <Building className="h-[22px] w-[22px]" /> },
+        { label: 'CRM',         shortLabel: 'CRM',        page: 'adminCRM',          icon: <List className="h-[22px] w-[22px]" /> },
+        { label: 'RFQ',         shortLabel: 'RFQ',        page: 'adminRFQ',          icon: <FileQuestion className="h-[22px] w-[22px]" /> },
+        { label: 'Trending',    shortLabel: 'Trending',   page: 'adminTrending',     icon: <Flame className="h-[22px] w-[22px]" /> },
+        { label: 'Login Imgs',  shortLabel: 'Login Imgs', page: 'adminLoginSettings',icon: <ImageIcon className="h-[22px] w-[22px]" /> },
+        { label: 'Settings',    shortLabel: 'Settings',   page: 'settings',          icon: <Settings className="h-[22px] w-[22px]" /> },
+    ];
+
+    const mobileMenuItems = props.isAdmin ? adminMenuItems : clientMenuItems;
 
     const showNav = !!props.user && !props.hideSidebar;
 
@@ -423,7 +450,6 @@ export const MainLayout: FC<MainLayoutProps> = (props) => {
             {showNav && (
                 <MobileHeader
                     currentPage={props.currentPage}
-                    toggleMenu={props.toggleMenu}
                     isAdmin={props.isAdmin}
                     onOpenNotif={() => setIsNotifOpen(true)}
                     unreadCount={totalUnread}
@@ -463,11 +489,12 @@ export const MainLayout: FC<MainLayoutProps> = (props) => {
                 }}
             />
 
-            {/* Bottom nav (client-only) */}
-            {showNav && !props.isAdmin && (
+            {/* Bottom nav (mobile — all users) */}
+            {showNav && (
                 <BottomNavBar
                     currentPage={props.currentPage}
                     handleSetCurrentPage={props.handleSetCurrentPage}
+                    menuItems={mobileMenuItems}
                     unreadByPage={unreadByPage}
                 />
             )}
