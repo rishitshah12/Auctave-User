@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
     ArrowRight, Check, ChevronLeft, User, Building2, Globe, Briefcase,
-    Phone, Mail, Sparkles, Package, TrendingUp, Zap, Users, Camera, Edit3
+    Phone, Mail, Sparkles, Package, TrendingUp, Zap, Users, Camera, Edit3,
+    Sun, Moon
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 
@@ -20,6 +21,7 @@ interface OnboardingPageProps {
     user: any;
     onComplete: (data: Partial<UserProfile>) => Promise<void>;
     isLoading: boolean;
+    onThemeChange?: (dark: boolean) => void;
 }
 
 // ─── All 195 countries ────────────────────────────────────────────────────────
@@ -264,6 +266,205 @@ const DIAL: Record<string, { code: string; flag: string }> = {
     'Zimbabwe': { code: '+263', flag: '🇿🇼' },
 };
 
+// ─── Hello in local languages ─────────────────────────────────────────────────
+const HELLO_MAP: Record<string, { word: string; romanized?: string; language: string }> = {
+    'Afghanistan': { word: 'سلام', romanized: 'Salaam', language: 'Dari' },
+    'Albania': { word: 'Përshëndetje', language: 'Albanian' },
+    'Algeria': { word: 'مرحبا', romanized: 'Marhaba', language: 'Arabic' },
+    'Andorra': { word: 'Hola', language: 'Catalan' },
+    'Angola': { word: 'Olá', language: 'Portuguese' },
+    'Antigua and Barbuda': { word: 'Hello', language: 'English' },
+    'Argentina': { word: 'Hola', language: 'Spanish' },
+    'Armenia': { word: 'Բարև', romanized: 'Barev', language: 'Armenian' },
+    'Australia': { word: "G'day", language: 'English' },
+    'Austria': { word: 'Servus', language: 'Austrian German' },
+    'Azerbaijan': { word: 'Salam', language: 'Azerbaijani' },
+    'Bahamas': { word: 'Hello', language: 'English' },
+    'Bahrain': { word: 'مرحبا', romanized: 'Marhaba', language: 'Arabic' },
+    'Bangladesh': { word: 'নমস্কার', romanized: 'Nomoshkar', language: 'Bengali' },
+    'Barbados': { word: 'Hello', language: 'English' },
+    'Belarus': { word: 'Прывітанне', romanized: 'Pryvitannie', language: 'Belarusian' },
+    'Belgium': { word: 'Bonjour', language: 'French' },
+    'Belize': { word: 'Hello', language: 'English' },
+    'Benin': { word: 'Bonjour', language: 'French' },
+    'Bhutan': { word: 'Kuzu Zangpo', language: 'Dzongkha' },
+    'Bolivia': { word: 'Hola', language: 'Spanish' },
+    'Bosnia and Herzegovina': { word: 'Zdravo', language: 'Bosnian' },
+    'Botswana': { word: 'Dumela', language: 'Setswana' },
+    'Brazil': { word: 'Olá', language: 'Portuguese' },
+    'Brunei': { word: 'Halo', language: 'Malay' },
+    'Bulgaria': { word: 'Здравей', romanized: 'Zdravey', language: 'Bulgarian' },
+    'Burkina Faso': { word: 'Bonjour', language: 'French' },
+    'Burundi': { word: 'Bonjour', language: 'French' },
+    'Cabo Verde': { word: 'Olá', language: 'Portuguese' },
+    'Cambodia': { word: 'ជំរាបសួរ', romanized: 'Chumreap suor', language: 'Khmer' },
+    'Cameroon': { word: 'Bonjour', language: 'French' },
+    'Canada': { word: 'Hello', language: 'English' },
+    'Central African Republic': { word: 'Bonjour', language: 'French' },
+    'Chad': { word: 'Bonjour', language: 'French' },
+    'Chile': { word: 'Hola', language: 'Spanish' },
+    'China': { word: '你好', romanized: 'Nǐ hǎo', language: 'Mandarin' },
+    'Colombia': { word: 'Hola', language: 'Spanish' },
+    'Comoros': { word: 'Bonjour', language: 'French' },
+    'Congo': { word: 'Bonjour', language: 'French' },
+    'Costa Rica': { word: 'Hola', language: 'Spanish' },
+    'Croatia': { word: 'Bok', language: 'Croatian' },
+    'Cuba': { word: 'Hola', language: 'Spanish' },
+    'Cyprus': { word: 'Γεια σου', romanized: 'Yia sou', language: 'Greek' },
+    'Czech Republic': { word: 'Ahoj', language: 'Czech' },
+    'DR Congo': { word: 'Bonjour', language: 'French' },
+    'Denmark': { word: 'Hej', language: 'Danish' },
+    'Djibouti': { word: 'Bonjour', language: 'French' },
+    'Dominica': { word: 'Hello', language: 'English' },
+    'Dominican Republic': { word: 'Hola', language: 'Spanish' },
+    'Ecuador': { word: 'Hola', language: 'Spanish' },
+    'Egypt': { word: 'أهلاً', romanized: 'Ahlan', language: 'Arabic' },
+    'El Salvador': { word: 'Hola', language: 'Spanish' },
+    'Equatorial Guinea': { word: 'Hola', language: 'Spanish' },
+    'Eritrea': { word: 'ሰላም', romanized: 'Selam', language: 'Tigrinya' },
+    'Estonia': { word: 'Tere', language: 'Estonian' },
+    'Eswatini': { word: 'Sawubona', language: 'Swazi' },
+    'Ethiopia': { word: 'ሰላም', romanized: 'Selam', language: 'Amharic' },
+    'Fiji': { word: 'Bula', language: 'Fijian' },
+    'Finland': { word: 'Hei', language: 'Finnish' },
+    'France': { word: 'Bonjour', language: 'French' },
+    'Gabon': { word: 'Bonjour', language: 'French' },
+    'Gambia': { word: 'Hello', language: 'English' },
+    'Georgia': { word: 'გამარჯობა', romanized: 'Gamarjoba', language: 'Georgian' },
+    'Germany': { word: 'Hallo', language: 'German' },
+    'Ghana': { word: 'Akwaaba', language: 'Akan' },
+    'Greece': { word: 'Γεια σου', romanized: 'Yia sou', language: 'Greek' },
+    'Grenada': { word: 'Hello', language: 'English' },
+    'Guatemala': { word: 'Hola', language: 'Spanish' },
+    'Guinea': { word: 'Bonjour', language: 'French' },
+    'Guinea-Bissau': { word: 'Olá', language: 'Portuguese' },
+    'Guyana': { word: 'Hello', language: 'English' },
+    'Haiti': { word: 'Bonjou', language: 'Haitian Creole' },
+    'Honduras': { word: 'Hola', language: 'Spanish' },
+    'Hungary': { word: 'Szia', language: 'Hungarian' },
+    'Iceland': { word: 'Halló', language: 'Icelandic' },
+    'India': { word: 'नमस्ते', romanized: 'Namaste', language: 'Hindi' },
+    'Indonesia': { word: 'Halo', language: 'Indonesian' },
+    'Iran': { word: 'سلام', romanized: 'Salaam', language: 'Persian' },
+    'Iraq': { word: 'مرحبا', romanized: 'Marhaba', language: 'Arabic' },
+    'Ireland': { word: 'Dia dhuit', language: 'Irish' },
+    'Israel': { word: 'שָׁלוֹם', romanized: 'Shalom', language: 'Hebrew' },
+    'Italy': { word: 'Ciao', language: 'Italian' },
+    'Jamaica': { word: 'Wah gwaan', language: 'Patois' },
+    'Japan': { word: 'こんにちは', romanized: 'Konnichiwa', language: 'Japanese' },
+    'Jordan': { word: 'مرحبا', romanized: 'Marhaba', language: 'Arabic' },
+    'Kazakhstan': { word: 'Сәлем', romanized: 'Salem', language: 'Kazakh' },
+    'Kenya': { word: 'Jambo', language: 'Swahili' },
+    'Kiribati': { word: 'Hello', language: 'English' },
+    'Kuwait': { word: 'مرحبا', romanized: 'Marhaba', language: 'Arabic' },
+    'Kyrgyzstan': { word: 'Салам', romanized: 'Salam', language: 'Kyrgyz' },
+    'Laos': { word: 'ສະບາຍດີ', romanized: 'Sabaidee', language: 'Lao' },
+    'Latvia': { word: 'Sveiki', language: 'Latvian' },
+    'Lebanon': { word: 'مرحبا', romanized: 'Marhaba', language: 'Arabic' },
+    'Lesotho': { word: 'Lumela', language: 'Sesotho' },
+    'Liberia': { word: 'Hello', language: 'English' },
+    'Libya': { word: 'مرحبا', romanized: 'Marhaba', language: 'Arabic' },
+    'Liechtenstein': { word: 'Hallo', language: 'German' },
+    'Lithuania': { word: 'Labas', language: 'Lithuanian' },
+    'Luxembourg': { word: 'Moien', language: 'Luxembourgish' },
+    'Madagascar': { word: 'Manao ahoana', language: 'Malagasy' },
+    'Malawi': { word: 'Moni', language: 'Chichewa' },
+    'Malaysia': { word: 'Helo', language: 'Malay' },
+    'Maldives': { word: 'ހެލޯ', romanized: 'Hello', language: 'Dhivehi' },
+    'Mali': { word: 'Bonjour', language: 'French' },
+    'Malta': { word: 'Bonġu', language: 'Maltese' },
+    'Marshall Islands': { word: 'Iakwe', language: 'Marshallese' },
+    'Mauritania': { word: 'مرحبا', romanized: 'Marhaba', language: 'Arabic' },
+    'Mauritius': { word: 'Bonjour', language: 'French' },
+    'Mexico': { word: 'Hola', language: 'Spanish' },
+    'Micronesia': { word: 'Hello', language: 'English' },
+    'Moldova': { word: 'Bună', language: 'Romanian' },
+    'Monaco': { word: 'Bonjour', language: 'French' },
+    'Mongolia': { word: 'Сайн уу', romanized: 'Sain uu', language: 'Mongolian' },
+    'Montenegro': { word: 'Zdravo', language: 'Montenegrin' },
+    'Morocco': { word: 'مرحبا', romanized: 'Marhaba', language: 'Arabic' },
+    'Mozambique': { word: 'Olá', language: 'Portuguese' },
+    'Myanmar': { word: 'မင်္ဂလာပါ', romanized: 'Mingalarbar', language: 'Burmese' },
+    'Namibia': { word: 'Hallo', language: 'Afrikaans' },
+    'Nauru': { word: 'Ekamawir', language: 'Nauruan' },
+    'Nepal': { word: 'नमस्ते', romanized: 'Namaste', language: 'Nepali' },
+    'Netherlands': { word: 'Hallo', language: 'Dutch' },
+    'New Zealand': { word: 'Kia ora', language: 'Māori' },
+    'Nicaragua': { word: 'Hola', language: 'Spanish' },
+    'Niger': { word: 'Bonjour', language: 'French' },
+    'Nigeria': { word: 'Nno', language: 'Igbo' },
+    'North Korea': { word: '안녕하세요', romanized: 'Annyeonghaseyo', language: 'Korean' },
+    'North Macedonia': { word: 'Здраво', romanized: 'Zdravo', language: 'Macedonian' },
+    'Norway': { word: 'Hei', language: 'Norwegian' },
+    'Oman': { word: 'مرحبا', romanized: 'Marhaba', language: 'Arabic' },
+    'Pakistan': { word: 'آداب', romanized: 'Aadaab', language: 'Urdu' },
+    'Palau': { word: 'Alii', language: 'Palauan' },
+    'Palestine': { word: 'مرحبا', romanized: 'Marhaba', language: 'Arabic' },
+    'Panama': { word: 'Hola', language: 'Spanish' },
+    'Papua New Guinea': { word: 'Hello', language: 'English' },
+    'Paraguay': { word: 'Mba\'éichapa', language: 'Guaraní' },
+    'Peru': { word: 'Hola', language: 'Spanish' },
+    'Philippines': { word: 'Kamusta', language: 'Filipino' },
+    'Poland': { word: 'Cześć', romanized: "Cheshch", language: 'Polish' },
+    'Portugal': { word: 'Olá', language: 'Portuguese' },
+    'Qatar': { word: 'مرحبا', romanized: 'Marhaba', language: 'Arabic' },
+    'Romania': { word: 'Bună', language: 'Romanian' },
+    'Russia': { word: 'Привет', romanized: 'Privet', language: 'Russian' },
+    'Rwanda': { word: 'Muraho', language: 'Kinyarwanda' },
+    'Saint Kitts and Nevis': { word: 'Hello', language: 'English' },
+    'Saint Lucia': { word: 'Hello', language: 'English' },
+    'Saint Vincent and the Grenadines': { word: 'Hello', language: 'English' },
+    'Samoa': { word: 'Talofa', language: 'Samoan' },
+    'San Marino': { word: 'Ciao', language: 'Italian' },
+    'São Tomé and Príncipe': { word: 'Olá', language: 'Portuguese' },
+    'Saudi Arabia': { word: 'مرحبا', romanized: 'Marhaba', language: 'Arabic' },
+    'Senegal': { word: 'Bonjour', language: 'French' },
+    'Serbia': { word: 'Zdravo', language: 'Serbian' },
+    'Seychelles': { word: 'Bonjour', language: 'French' },
+    'Sierra Leone': { word: 'Hello', language: 'English' },
+    'Singapore': { word: '你好', romanized: 'Nǐ hǎo', language: 'Mandarin' },
+    'Slovakia': { word: 'Ahoj', language: 'Slovak' },
+    'Slovenia': { word: 'Zdravo', language: 'Slovenian' },
+    'Solomon Islands': { word: 'Hello', language: 'English' },
+    'Somalia': { word: 'Salaan', language: 'Somali' },
+    'South Africa': { word: 'Sawubona', language: 'Zulu' },
+    'South Korea': { word: '안녕하세요', romanized: 'Annyeonghaseyo', language: 'Korean' },
+    'South Sudan': { word: 'Hello', language: 'English' },
+    'Spain': { word: 'Hola', language: 'Spanish' },
+    'Sri Lanka': { word: 'ආයුබෝවන්', romanized: 'Ayubowan', language: 'Sinhala' },
+    'Sudan': { word: 'مرحبا', romanized: 'Marhaba', language: 'Arabic' },
+    'Suriname': { word: 'Hallo', language: 'Dutch' },
+    'Sweden': { word: 'Hej', language: 'Swedish' },
+    'Switzerland': { word: 'Grüezi', language: 'Swiss German' },
+    'Syria': { word: 'مرحبا', romanized: 'Marhaba', language: 'Arabic' },
+    'Taiwan': { word: '你好', romanized: 'Nǐ hǎo', language: 'Mandarin' },
+    'Tajikistan': { word: 'Салом', romanized: 'Salom', language: 'Tajik' },
+    'Tanzania': { word: 'Jambo', language: 'Swahili' },
+    'Thailand': { word: 'สวัสดี', romanized: 'Sawasdee', language: 'Thai' },
+    'Timor-Leste': { word: 'Olá', language: 'Portuguese' },
+    'Togo': { word: 'Bonjour', language: 'French' },
+    'Tonga': { word: 'Mālō e lelei', language: 'Tongan' },
+    'Trinidad and Tobago': { word: 'Hello', language: 'English' },
+    'Tunisia': { word: 'مرحبا', romanized: 'Marhaba', language: 'Arabic' },
+    'Turkey': { word: 'Merhaba', language: 'Turkish' },
+    'Turkmenistan': { word: 'Salam', language: 'Turkmen' },
+    'Tuvalu': { word: 'Hello', language: 'English' },
+    'Uganda': { word: 'Oli otya', language: 'Luganda' },
+    'Ukraine': { word: 'Привіт', romanized: 'Pryvit', language: 'Ukrainian' },
+    'United Arab Emirates': { word: 'مرحبا', romanized: 'Marhaba', language: 'Arabic' },
+    'United Kingdom': { word: 'Hello', language: 'English' },
+    'United States of America': { word: 'Hello', language: 'English' },
+    'Uruguay': { word: 'Hola', language: 'Spanish' },
+    'Uzbekistan': { word: 'Salom', language: 'Uzbek' },
+    'Vanuatu': { word: 'Hello', language: 'English' },
+    'Vatican City': { word: 'Ciao', language: 'Italian' },
+    'Venezuela': { word: 'Hola', language: 'Spanish' },
+    'Vietnam': { word: 'Xin chào', language: 'Vietnamese' },
+    'Yemen': { word: 'مرحبا', romanized: 'Marhaba', language: 'Arabic' },
+    'Zambia': { word: 'Muli bwanji', language: 'Nyanja' },
+    'Zimbabwe': { word: 'Mhoro', language: 'Shona' },
+};
+
 const JOB_ROLES = [
     'Owner / Founder',
     'CEO / President',
@@ -349,6 +550,7 @@ const StepBar = ({ current, isMobile }: { current: number; isMobile?: boolean })
         { label: 'Personal', icon: User },
         { label: 'Business', icon: Building2 },
         { label: 'Expertise', icon: Briefcase },
+        { label: 'Theme', icon: Sun },
         { label: 'Done', icon: Check },
     ];
     const circleSize = isMobile ? 28 : 34;
@@ -667,12 +869,11 @@ const AvatarPicker = ({ user, avatarUrl, onChange, isMobile }: {
 };
 
 // ─── Main Onboarding Component ────────────────────────────────────────────────
-export const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete, isLoading }) => {
+export const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete, isLoading, onThemeChange }) => {
     const [step, setStep] = useState(0);
     const [direction, setDirection] = useState<'forward' | 'back'>('forward');
     const [animating, setAnimating] = useState(false);
-    const [celebrating, setCelebrating] = useState(false);
-    const [confetti, setConfetti] = useState<{ id: number; x: number; color: string; delay: number; size: number }[]>([]);
+    const [showingHello, setShowingHello] = useState(false);
     const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
 
     useEffect(() => {
@@ -686,6 +887,8 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete
         || user?.email?.split('@')[0]
         || 'there';
 
+    const [selectedTheme, setSelectedTheme] = useState<'light' | 'dark'>('dark');
+
     const [form, setForm] = useState({
         avatarUrl: '',
         name: user?.user_metadata?.full_name || user?.user_metadata?.name || '',
@@ -698,7 +901,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete
         categories: [] as string[],
     });
 
-    const TOTAL_STEPS = 5;
+    const TOTAL_STEPS = 6;
 
     // Disable browser back button on step 0
     useEffect(() => {
@@ -739,22 +942,27 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete
         });
     };
 
-    const handleComplete = async () => {
-        const items = Array.from({ length: 40 }, (_, i) => ({
-            id: i, x: Math.random() * 100,
-            color: ['#c20c0b', '#ff6b6b', '#fbbf24', '#34d399', '#60a5fa', '#a78bfa'][Math.floor(Math.random() * 6)],
-            delay: Math.random() * 0.8, size: 6 + Math.random() * 8,
-        }));
-        setConfetti(items); setCelebrating(true);
+    const handleComplete = () => {
+        const isDark = selectedTheme === 'dark';
+        localStorage.setItem('garment_erp_dark_mode', String(isDark));
+        if (isDark) document.documentElement.classList.add('dark');
+        else document.documentElement.classList.remove('dark');
+        onThemeChange?.(isDark);
+        // Persist to Supabase so preference syncs across all devices
+        supabase.auth.updateUser({ data: { darkMode: isDark } });
 
-        const finalRole = form.jobRole === 'Other' ? form.customRole : form.jobRole;
-        const dialPrefix = form.country && DIAL[form.country] ? DIAL[form.country].code + ' ' : '';
-        const fullPhone = form.phone ? `${dialPrefix}${form.phone}` : '';
-        await onComplete({
-            name: form.name, email: form.email, phone: fullPhone,
-            companyName: form.companyName, country: form.country,
-            jobRole: finalRole, categorySpecialization: form.categories.join(', '),
-        });
+        // Show hello animation, then save profile and enter platform
+        setShowingHello(true);
+        setTimeout(async () => {
+            const finalRole = form.jobRole === 'Other' ? form.customRole : form.jobRole;
+            const dialPrefix = form.country && DIAL[form.country] ? DIAL[form.country].code + ' ' : '';
+            const fullPhone = form.phone ? `${dialPrefix}${form.phone}` : '';
+            await onComplete({
+                name: form.name, email: form.email, phone: fullPhone,
+                companyName: form.companyName, country: form.country,
+                jobRole: finalRole, categorySpecialization: form.categories.join(', '),
+            });
+        }, 4000);
     };
 
     const isStepValid = () => {
@@ -867,12 +1075,65 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete
             </div>
         );
 
-        // ── Step 4: All Done ─────────────────────────────────────────────────
+        // ── Step 4: Theme Selection ──────────────────────────────────────────
         if (step === 4) return (
+            <div style={{ ...slideStyle(), display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+                <div style={{ marginBottom: isMobile ? 20 : 32 }}>
+                    <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, color: '#fff', marginBottom: 8, letterSpacing: '-0.03em' }}>Choose Your Theme</h2>
+                    <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: isMobile ? 13 : 14 }}>Pick how you'd like the platform to look. You can always change this later.</p>
+                </div>
+                <div style={{ display: 'flex', gap: isMobile ? 16 : 24, justifyContent: 'center', width: '100%' }}>
+                    {([
+                        { id: 'light' as const, label: 'Light', Icon: Sun, bg: 'linear-gradient(135deg,#f5f5f0,#e8e8e0)', iconColor: '#f59e0b', desc: 'Clean & bright' },
+                        { id: 'dark' as const, label: 'Dark', Icon: Moon, bg: 'linear-gradient(135deg,#1a1a2e,#0c0c16)', iconColor: '#a78bfa', desc: 'Easy on the eyes' },
+                    ] as const).map(({ id, label, Icon, bg, iconColor, desc }) => {
+                        const isSelected = selectedTheme === id;
+                        return (
+                            <button
+                                key={id}
+                                onClick={() => setSelectedTheme(id)}
+                                style={{
+                                    flex: 1, maxWidth: isMobile ? 140 : 180,
+                                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: isMobile ? 12 : 16,
+                                    padding: isMobile ? '20px 16px' : '28px 24px',
+                                    borderRadius: 18, border: isSelected ? '2px solid #c20c0b' : '2px solid rgba(255,255,255,0.1)',
+                                    background: isSelected ? 'rgba(194,12,11,0.08)' : 'rgba(255,255,255,0.04)',
+                                    cursor: 'pointer', transition: 'all 0.2s',
+                                    boxShadow: isSelected ? '0 0 0 4px rgba(194,12,11,0.15), 0 4px 24px rgba(0,0,0,0.4)' : '0 4px 16px rgba(0,0,0,0.3)',
+                                    outline: 'none',
+                                }}
+                                onMouseEnter={e => { if (!isSelected) { e.currentTarget.style.border = '2px solid rgba(255,255,255,0.22)'; e.currentTarget.style.background = 'rgba(255,255,255,0.07)'; } }}
+                                onMouseLeave={e => { if (!isSelected) { e.currentTarget.style.border = '2px solid rgba(255,255,255,0.1)'; e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; } }}
+                            >
+                                <div style={{
+                                    width: isMobile ? 64 : 80, height: isMobile ? 64 : 80,
+                                    borderRadius: 18, background: bg,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+                                    transition: 'transform 0.2s',
+                                    transform: isSelected ? 'scale(1.06)' : 'scale(1)',
+                                }}>
+                                    <Icon size={isMobile ? 28 : 34} color={iconColor} strokeWidth={1.8} />
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: isMobile ? 15 : 17, fontWeight: 700, color: isSelected ? '#fff' : 'rgba(255,255,255,0.7)', marginBottom: 3 }}>{label}</div>
+                                    <div style={{ fontSize: isMobile ? 11 : 12, color: 'rgba(255,255,255,0.35)' }}>{desc}</div>
+                                </div>
+                                {isSelected && (
+                                    <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#c20c0b', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(194,12,11,0.5)' }}>
+                                        <Check size={12} color="#fff" strokeWidth={3} />
+                                    </div>
+                                )}
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+
+        // ── Step 5: All Done ─────────────────────────────────────────────────
+        if (step === 5) return (
             <div style={{ ...slideStyle(), textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                {celebrating && confetti.map(c => (
-                    <div key={c.id} style={{ position: 'fixed', top: -10, left: `${c.x}%`, width: c.size, height: c.size, background: c.color, borderRadius: Math.random() > 0.5 ? '50%' : '2px', animation: `confettiFall ${1.8 + c.delay}s ease-in forwards`, animationDelay: `${c.delay}s`, zIndex: 9999, opacity: 0 }} />
-                ))}
 
                 {/* Avatar or checkmark */}
                 <div style={{ position: 'relative', marginBottom: 24 }}>
@@ -909,21 +1170,97 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete
                     ) : null)}
                 </div>
 
-                <button onClick={handleComplete} disabled={isLoading} style={{
+                <button onClick={handleComplete} style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '15px 44px', borderRadius: 14, width: '100%',
-                    background: isLoading ? 'rgba(194,12,11,0.4)' : 'linear-gradient(135deg,#c20c0b,#9a0909)', color: '#fff', fontWeight: 700, fontSize: 16, border: 'none',
-                    cursor: isLoading ? 'not-allowed' : 'pointer', boxShadow: isLoading ? 'none' : '0 4px 24px rgba(194,12,11,0.45)', transition: 'all 0.2s',
+                    background: 'linear-gradient(135deg,#c20c0b,#9a0909)', color: '#fff', fontWeight: 700, fontSize: 16, border: 'none',
+                    cursor: 'pointer', boxShadow: '0 4px 24px rgba(194,12,11,0.45)', transition: 'all 0.2s',
                 }}
-                    onMouseEnter={e => { if (!isLoading) { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(194,12,11,0.55)'; } }}
-                    onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = isLoading ? 'none' : '0 4px 24px rgba(194,12,11,0.45)'; }}>
-                    {isLoading ? (
-                        <><div style={{ width: 18, height: 18, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} /> Saving your profile…</>
-                    ) : <>Enter Dashboard <ArrowRight size={18} strokeWidth={2.5} /></>}
+                    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(194,12,11,0.55)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 24px rgba(194,12,11,0.45)'; }}>
+                    <>Enter Dashboard <ArrowRight size={18} strokeWidth={2.5} /></>
                 </button>
             </div>
         );
         return null;
     };
+
+    // ── Hello splash screen ──────────────────────────────────────────────────
+    if (showingHello) {
+        const helloData = HELLO_MAP[form.country] || { word: 'Hello', language: 'English' };
+        const flag = DIAL[form.country]?.flag ?? '';
+        const showRomanized = helloData.romanized && helloData.romanized !== helloData.word;
+        const isDark = selectedTheme === 'dark';
+
+        // Theme-aware colours
+        const bg = isDark ? '#06060a' : '#f5f3ef';
+        const bgGradient = isDark
+            ? 'linear-gradient(135deg, rgba(194,12,11,0.08) 0%, transparent 45%, rgba(255,80,0,0.06) 100%)'
+            : 'linear-gradient(135deg, rgba(194,12,11,0.06) 0%, transparent 45%, rgba(255,140,0,0.08) 100%)';
+        const subColor = isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.45)';
+        const langColor = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.25)';
+
+        return (
+            <>
+                <style>{`
+                    @keyframes helloWord { 0%{opacity:0;transform:scale(0.55) translateY(24px)} 20%{opacity:1;transform:scale(1.06) translateY(0)} 32%{transform:scale(1)} 70%{opacity:1;transform:scale(1)} 100%{opacity:0;transform:scale(1.1) translateY(-16px)} }
+                    @keyframes helloSub { 0%,15%{opacity:0;transform:translateY(12px)} 32%{opacity:1;transform:translateY(0)} 70%{opacity:1} 100%{opacity:0} }
+                    @keyframes helloFlag { 0%{opacity:0;transform:scale(0.4)} 22%{opacity:1;transform:scale(1.12)} 32%{transform:scale(1)} 70%{opacity:1} 100%{opacity:0} }
+                    @keyframes helloScreen { 0%{opacity:0} 6%{opacity:1} 80%{opacity:1} 100%{opacity:0} }
+                    @keyframes helloPulse { 0%,100%{opacity:0.5} 50%{opacity:1} }
+                `}</style>
+                <div style={{
+                    position: 'fixed', inset: 0, background: bg,
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    zIndex: 99999, animation: 'helloScreen 4.2s ease forwards', overflow: 'hidden',
+                }}>
+                    {/* Diagonal gradient sweep */}
+                    <div style={{ position: 'absolute', inset: 0, background: bgGradient, pointerEvents: 'none' }} />
+
+                    {/* Ambient glow orbs */}
+                    <div style={{ position: 'absolute', top: '-10%', left: '50%', transform: 'translateX(-50%)', width: isMobile ? 320 : 520, height: isMobile ? 320 : 520, borderRadius: '50%', background: 'radial-gradient(ellipse,rgba(194,12,11,0.18) 0%,transparent 65%)', animation: 'helloPulse 2s ease-in-out infinite', pointerEvents: 'none' }} />
+                    <div style={{ position: 'absolute', bottom: '-10%', right: '-5%', width: isMobile ? 240 : 380, height: isMobile ? 240 : 380, borderRadius: '50%', background: 'radial-gradient(ellipse,rgba(255,100,0,0.12) 0%,transparent 65%)', animation: 'helloPulse 2.6s ease-in-out infinite 0.8s', pointerEvents: 'none' }} />
+                    <div style={{ position: 'absolute', bottom: '-10%', left: '-5%', width: isMobile ? 180 : 300, height: isMobile ? 180 : 300, borderRadius: '50%', background: 'radial-gradient(ellipse,rgba(201,165,78,0.10) 0%,transparent 65%)', animation: 'helloPulse 3s ease-in-out infinite 1.2s', pointerEvents: 'none' }} />
+
+                    {/* Flag */}
+                    {flag && (
+                        <div style={{ fontSize: isMobile ? 52 : 72, lineHeight: 1, marginBottom: isMobile ? 20 : 28, animation: 'helloFlag 4.2s ease forwards', filter: 'drop-shadow(0 4px 24px rgba(0,0,0,0.3))' }}>
+                            {flag}
+                        </div>
+                    )}
+
+                    {/* Hello word — reddish-orange gradient */}
+                    <div style={{
+                        fontSize: isMobile ? 72 : 110,
+                        fontWeight: 900,
+                        letterSpacing: '-0.03em',
+                        lineHeight: 1,
+                        background: 'linear-gradient(135deg, #ff6b35 0%, #e63000 32%, #c20c0b 60%, #ff4500 100%)',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        backgroundClip: 'text',
+                        animation: 'helloWord 4.2s ease forwards',
+                        filter: 'drop-shadow(0 0 48px rgba(194,12,11,0.45))',
+                        textAlign: 'center',
+                        padding: '0 16px',
+                    }}>
+                        {helloData.word}
+                    </div>
+
+                    {/* Romanized pronunciation */}
+                    {showRomanized && (
+                        <div style={{ fontSize: isMobile ? 20 : 28, fontWeight: 600, color: subColor, marginTop: isMobile ? 10 : 14, letterSpacing: '0.04em', animation: 'helloSub 4.2s ease forwards', textAlign: 'center' }}>
+                            {helloData.romanized}
+                        </div>
+                    )}
+
+                    {/* Language label */}
+                    <div style={{ fontSize: isMobile ? 11 : 13, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: langColor, marginTop: isMobile ? 18 : 24, animation: 'helloSub 4.2s ease forwards', textAlign: 'center' }}>
+                        {helloData.language}
+                    </div>
+                </div>
+            </>
+        );
+    }
 
     return (
         <>
@@ -934,6 +1271,10 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete
                 @keyframes spin { to{transform:rotate(360deg)} }
                 @keyframes popIn { 0%{transform:scale(0.4);opacity:0} 60%{transform:scale(1.12)} 100%{transform:scale(1);opacity:1} }
                 @keyframes confettiFall { 0%{transform:translateY(0) rotate(0deg);opacity:1} 100%{transform:translateY(100vh) rotate(720deg);opacity:0} }
+                @keyframes helloWord { 0%{opacity:0;transform:scale(0.6) translateY(20px)} 18%{opacity:1;transform:scale(1.06) translateY(0)} 28%{transform:scale(1)} 72%{opacity:1;transform:scale(1)} 100%{opacity:0;transform:scale(1.08) translateY(-12px)} }
+                @keyframes helloSub { 0%,12%{opacity:0;transform:translateY(10px)} 28%{opacity:1;transform:translateY(0)} 72%{opacity:1} 100%{opacity:0} }
+                @keyframes helloScreen { 0%{opacity:0} 8%{opacity:1} 82%{opacity:1} 100%{opacity:0} }
+                @keyframes helloPulse { 0%,100%{box-shadow:0 0 80px rgba(194,12,11,0.25),0 0 160px rgba(255,80,0,0.1)} 50%{box-shadow:0 0 120px rgba(194,12,11,0.4),0 0 240px rgba(255,80,0,0.2)} }
                 @keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
                 @keyframes fadeDown { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
                 @keyframes scrollUp { 0%{transform:translateY(0)} 100%{transform:translateY(-50%)} }
@@ -987,14 +1328,14 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete
                     {/* Top shimmer */}
                     <div style={{ position: 'absolute', top: 0, left: '10%', right: '10%', height: 1, background: 'linear-gradient(90deg,transparent,rgba(194,12,11,0.6),rgba(255,100,100,0.4),transparent)', borderRadius: 1 }} />
 
-                    {step > 0 && step < 4 && <StepBar current={step} isMobile={isMobile} />}
+                    {step > 0 && step < 5 && <StepBar current={step} isMobile={isMobile} />}
 
                     <div style={{ overflow: step === 3 ? 'visible' : 'hidden' }}>
                         {renderStep()}
                     </div>
 
-                    {/* Nav footer for steps 1–3 */}
-                    {step >= 1 && step <= 3 && (
+                    {/* Nav footer for steps 1–4 */}
+                    {step >= 1 && step <= 4 && (
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: isMobile ? 18 : 26, paddingTop: isMobile ? 14 : 18, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                             <button onClick={() => goTo(step - 1)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: isMobile ? '8px 12px' : '9px 16px', borderRadius: 10, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)', fontSize: isMobile ? 13 : 14, fontWeight: 500, cursor: 'pointer', transition: 'all 0.2s' }}
                                 onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#fff'; }}
@@ -1003,7 +1344,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete
                             </button>
 
                             <div style={{ display: 'flex', gap: 5 }}>
-                                {[1, 2, 3].map(i => (
+                                {[1, 2, 3, 4].map(i => (
                                     <div key={i} style={{ width: i === step ? 16 : 6, height: 6, borderRadius: 3, background: i === step ? '#c20c0b' : i < step ? 'rgba(194,12,11,0.4)' : 'rgba(255,255,255,0.12)', transition: 'all 0.3s' }} />
                                 ))}
                             </div>
@@ -1011,7 +1352,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete
                             <button onClick={() => goTo(step + 1)} disabled={!isStepValid()} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: isMobile ? '8px 16px' : '9px 20px', borderRadius: 10, background: isStepValid() ? 'linear-gradient(135deg,#c20c0b,#9a0909)' : 'rgba(255,255,255,0.05)', border: 'none', color: isStepValid() ? '#fff' : 'rgba(255,255,255,0.22)', fontSize: isMobile ? 13 : 14, fontWeight: 700, cursor: isStepValid() ? 'pointer' : 'not-allowed', transition: 'all 0.2s', boxShadow: isStepValid() ? '0 2px 12px rgba(194,12,11,0.35)' : 'none' }}
                                 onMouseEnter={e => { if (isStepValid()) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 18px rgba(194,12,11,0.5)'; } }}
                                 onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = isStepValid() ? '0 2px 12px rgba(194,12,11,0.35)' : 'none'; }}>
-                                {step === 3 ? 'Review' : 'Continue'} <ArrowRight size={14} strokeWidth={2.5} />
+                                {step === 4 ? 'Review' : 'Continue'} <ArrowRight size={14} strokeWidth={2.5} />
                             </button>
                         </div>
                     )}

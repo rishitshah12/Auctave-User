@@ -2992,7 +2992,7 @@ User message: "${userMsg}"`;
         // Hard gate: if user is authenticated, has no profile, and is a new signup, show onboarding.
         // Existing users without a profile record are NOT gated — they go straight to the app.
         if (user && userProfile === null && isNewUserSignup && currentPage !== 'login' && currentPage !== 'createPassword') {
-            return <OnboardingPage user={user} onComplete={saveUserProfile} isLoading={isProfileLoading} />;
+            return <OnboardingPage user={user} onComplete={saveUserProfile} isLoading={isProfileLoading} onThemeChange={setDarkMode} />;
         }
 
         // 1. Check Dynamic Routes from MasterController (Enables Extensibility)
@@ -3006,7 +3006,7 @@ User message: "${userMsg}"`;
             case 'login': return <LoginPage showToast={showToast} setAuthError={setAuthError} authError={authError} />;
             case 'profile': return (userProfile || !isNewUserSignup)
                 ? <ProfilePage />
-                : <OnboardingPage user={user} onComplete={saveUserProfile} isLoading={isProfileLoading} />;
+                : <OnboardingPage user={user} onComplete={saveUserProfile} isLoading={isProfileLoading} onThemeChange={setDarkMode} />;
             case 'createPassword': return <CreatePasswordPage />;
             case 'sourcing': return <SourcingPage
                 {...layoutProps}

@@ -528,15 +528,15 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
         };
         return (
             <div className="relative">
-                <button onClick={() => scroll('left')} className="absolute left-0 z-10 p-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-full shadow-md top-1/2 -translate-y-1/2 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white dark:hover:bg-gray-700 transition-all">
+                <button onClick={() => scroll('left')} className="hidden sm:block absolute left-0 z-10 p-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-full shadow-md top-1/2 -translate-y-1/2 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white dark:hover:bg-gray-700 transition-all">
                     <ChevronLeft className="w-6 h-6 text-gray-700 dark:text-gray-200" />
                 </button>
-                <div ref={scrollRef} className="flex items-center space-x-3 sm:space-x-4 overflow-x-auto pb-3 px-10 sm:px-12 scrollbar-hide">
+                <div ref={scrollRef} className="flex items-center space-x-3 sm:space-x-4 overflow-x-auto pb-3 px-2 sm:px-12 scrollbar-hide">
                     {displayCategories.map(cat => {
                         const isSelected = selectedGarmentCategory === cat.name;
                         return (
-                            <button key={cat.name} onClick={() => setSelectedGarmentCategory(cat.name)} className="flex-shrink-0 flex flex-col items-center justify-start space-y-1.5 p-1 transition-transform active:scale-95 group w-[68px] sm:w-24 text-center">
-                                <div className={`w-[56px] h-[56px] sm:w-20 sm:h-20 rounded-full flex items-center justify-center transition-all duration-300 shadow-md group-hover:shadow-[0_0_15px_rgba(194,12,11,0.5)] ${isSelected ? 'p-[3px] bg-gradient-to-br from-red-500 to-pink-700' : 'bg-transparent'}`}>
+                            <button key={cat.name} onClick={() => setSelectedGarmentCategory(cat.name)} className="flex-shrink-0 flex flex-col items-center justify-start space-y-1.5 p-1 transition-transform active:scale-95 group w-[80px] sm:w-24 text-center">
+                                <div className={`w-[72px] h-[72px] sm:w-20 sm:h-20 rounded-full flex items-center justify-center transition-all duration-300 shadow-md group-hover:shadow-[0_0_15px_rgba(194,12,11,0.5)] ${isSelected ? 'p-[3px] bg-gradient-to-br from-red-500 to-pink-700' : 'bg-transparent'}`}>
                                     <div className={`w-full h-full rounded-full bg-white dark:bg-gray-800 flex items-center justify-center ${!isSelected ? 'ring-1 ring-gray-200 dark:ring-white/10' : ''}`}>
                                         {cat.imageUrl ? <img src={cat.imageUrl} alt={cat.name} className="w-full h-full object-cover rounded-full" onError={(e) => { (e.target as HTMLImageElement).onerror = null; (e.target as HTMLImageElement).src=`https://placehold.co/80x80/e9d5ff/4c1d95?text=${cat.name}`; }} /> : <div className="text-gray-600 scale-75 sm:scale-100">{cat.icon}</div>}
                                     </div>
@@ -546,7 +546,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                         );
                     })}
                 </div>
-                <button onClick={() => scroll('right')} className="absolute right-0 z-10 p-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-full shadow-md top-1/2 -translate-y-1/2 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white dark:hover:bg-gray-700 transition-all">
+                <button onClick={() => scroll('right')} className="hidden sm:block absolute right-0 z-10 p-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-full shadow-md top-1/2 -translate-y-1/2 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white dark:hover:bg-gray-700 transition-all">
                     <ChevronRight className="w-6 h-6 text-gray-700 dark:text-gray-200" />
                 </button>
             </div>
