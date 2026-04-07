@@ -2,7 +2,8 @@ import React, { FC, ReactNode, useState, useEffect, useRef } from 'react';
 import {
     Search, DollarSign, Plus, X,
     List, Truck, LogOut, Settings, Flame, FileQuestion,
-    LayoutDashboard, Users, Building, ImageIcon, Bell, ChevronLeft
+    LayoutDashboard, Users, Building, ImageIcon, Bell, ChevronLeft,
+    MessageCircle, Grid3X3, User
 } from 'lucide-react';
 import { NotificationBellButton, NotificationPanel } from './NotificationPanel';
 import { useNotifications } from './NotificationContext';
@@ -146,6 +147,96 @@ const MobileHeader: FC<{
                 )}
             </button>
         </header>
+    );
+};
+
+// ── More Panel (mobile) ───────────────────────────────────────────────────────
+const MorePanel: FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    moreItems: Array<{ label: string; page: string; icon: React.ReactNode; badge?: number }>;
+    currentPage: string;
+    handleSetCurrentPage: (page: string) => void;
+}> = ({ isOpen, onClose, moreItems, currentPage, handleSetCurrentPage }) => {
+    const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+
+    useEffect(() => {
+        const observer = new MutationObserver(() =>
+            setIsDark(document.documentElement.classList.contains('dark'))
+        );
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+        return () => observer.disconnect();
+    }, []);
+
+    return (
+        <>
+            {/* Backdrop */}
+            {isOpen && (
+                <div
+                    className="fixed inset-0 z-[45] md:hidden"
+                    style={{
+                        background: 'rgba(0,0,0,0.45)',
+                        backdropFilter: 'blur(6px)',
+                        WebkitBackdropFilter: 'blur(6px)',
+                    }}
+                    onClick={onClose}
+                />
+            )}
+            {/* Sheet */}
+            <div
+                className={`fixed left-0 right-0 z-[46] md:hidden transition-all duration-300 ease-out ${
+                    isOpen ? 'opacity-100 pointer-events-auto translate-y-0' : 'opacity-0 pointer-events-none translate-y-3'
+                }`}
+                style={{ bottom: 'calc(62px + env(safe-area-inset-bottom))' }}
+            >
+                <div
+                    className="mx-3 mb-2 rounded-2xl p-4 shadow-2xl"
+                    style={{
+                        background: isDark ? 'rgba(15,15,22,0.97)' : 'rgba(255,255,255,0.97)',
+                        backdropFilter: 'blur(28px)',
+                        WebkitBackdropFilter: 'blur(28px)',
+                        border: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(0,0,0,0.06)',
+                    }}
+                >
+                    <div className="grid grid-cols-3 gap-2">
+                        {moreItems.map(item => {
+                            const isActive = currentPage === item.page;
+                            return (
+                                <button
+                                    key={item.page}
+                                    onClick={() => { handleSetCurrentPage(item.page); onClose(); }}
+                                    className="flex flex-col items-center gap-2 py-3 rounded-xl active:scale-95 transition-transform"
+                                >
+                                    <div
+                                        className="w-[52px] h-[52px] rounded-[16px] flex items-center justify-center relative"
+                                        style={isActive ? {
+                                            background: 'linear-gradient(135deg, #c20c0b 0%, #350e4a 100%)',
+                                            boxShadow: '0 4px 16px rgba(194,12,11,0.35)',
+                                        } : {
+                                            background: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)',
+                                        }}
+                                    >
+                                        <span className={isActive ? 'text-white' : isDark ? 'text-gray-300' : 'text-gray-600'}>
+                                            {item.icon}
+                                        </span>
+                                        {(item.badge ?? 0) > 0 && (
+                                            <span className="absolute -top-1 -right-1 h-[15px] min-w-[15px] px-0.5 bg-rose-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center leading-none">
+                                                {(item.badge ?? 0) > 9 ? '9+' : item.badge}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <span className={`text-[11px] font-semibold leading-tight text-center ${
+                                        isActive ? 'text-[#c20c0b]' : isDark ? 'text-gray-400' : 'text-gray-600'
+                                    }`}>
+                                        {item.label}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+        </>
     );
 };
 
@@ -309,11 +400,12 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'> & { onOpenNotif
 const BottomNavBar: FC<{
     currentPage: string;
     handleSetCurrentPage: (page: string) => void;
-    menuItems: Array<{ label: string; shortLabel: string; page: string; icon: React.ReactNode }>;
+    isAdmin?: boolean;
     unreadByPage: Record<string, number>;
-}> = ({ currentPage, handleSetCurrentPage, menuItems, unreadByPage }) => {
+}> = ({ currentPage, handleSetCurrentPage, isAdmin, unreadByPage }) => {
     const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
     const [visible, setVisible] = useState(true);
+    const [moreOpen, setMoreOpen] = useState(false);
     const lastScrollY = useRef(0);
 
     useEffect(() => {
@@ -329,8 +421,11 @@ const BottomNavBar: FC<{
             const current = window.scrollY;
             if (current <= 10) {
                 setVisible(true);
+            } else if (current < lastScrollY.current) {
+                setVisible(true);
             } else {
-                setVisible(current < lastScrollY.current);
+                setVisible(false);
+                setMoreOpen(false);
             }
             lastScrollY.current = current;
         };
@@ -338,59 +433,167 @@ const BottomNavBar: FC<{
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
 
-    return (
-        <div
-            className={`fixed bottom-0 left-0 right-0 md:hidden z-40 transition-transform duration-300 ease-in-out ${
-                visible ? 'translate-y-0' : 'translate-y-full'
-            }`}
-            style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
-        >
-            <div
-                className="border-t overflow-x-auto scrollbar-none"
-                style={{
-                    background: isDark ? 'rgba(10,10,14,0.96)' : 'rgba(255,255,255,0.96)',
-                    borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
-                    backdropFilter: 'blur(24px)',
-                    WebkitBackdropFilter: 'blur(24px)',
-                }}
-            >
-                <div className="flex items-center h-[62px] px-1 min-w-max">
-                    {menuItems.map(item => {
-                        const isActive = currentPage === item.page;
-                        const badge = unreadByPage[item.page] || 0;
+    const clientMainItems = [
+        { label: 'Sourcing', page: 'sourcing',  icon: <Search className="h-[22px] w-[22px]" /> },
+        { label: 'Quotes',   page: 'myQuotes',  icon: <FileQuestion className="h-[22px] w-[22px]" />, badge: unreadByPage['myQuotes'] },
+        { label: 'Trending', page: 'trending',  icon: <Flame className="h-[22px] w-[22px]" /> },
+    ];
+    const clientMoreItems = [
+        { label: 'CRM',      page: 'crm',       icon: <List className="h-[22px] w-[22px]" />,        badge: unreadByPage['crm'] },
+        { label: 'Tracking', page: 'tracking',  icon: <Truck className="h-[22px] w-[22px]" /> },
+        { label: 'Billing',  page: 'billing',   icon: <DollarSign className="h-[22px] w-[22px]" /> },
+        { label: 'Settings', page: 'settings',  icon: <Settings className="h-[22px] w-[22px]" /> },
+        { label: 'Profile',  page: 'profile',   icon: <User className="h-[22px] w-[22px]" /> },
+    ];
 
-                        return (
-                            <button
-                                key={item.page}
-                                onClick={() => handleSetCurrentPage(item.page)}
-                                className="relative flex flex-col items-center justify-center gap-[3px] w-[68px] h-full pt-1 flex-shrink-0 active:opacity-70 transition-opacity"
-                            >
-                                <span className="relative">
-                                    <span className={`block transition-colors [&>svg]:transition-colors ${
-                                        isActive ? 'text-[#c20c0b] [&>svg]:stroke-[2.5]' : isDark ? 'text-gray-400 [&>svg]:stroke-[1.8]' : 'text-gray-500 [&>svg]:stroke-[1.8]'
-                                    }`}>
-                                        {item.icon}
-                                    </span>
-                                    {badge > 0 && (
-                                        <span className="absolute -top-1 -right-1.5 h-[14px] min-w-[14px] px-0.5 bg-rose-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center leading-none">
-                                            {badge > 9 ? '9+' : badge}
+    const adminMainItems = [
+        { label: 'Dashboard', page: 'adminDashboard', icon: <LayoutDashboard className="h-[22px] w-[22px]" /> },
+        { label: 'RFQ',       page: 'adminRFQ',       icon: <FileQuestion className="h-[22px] w-[22px]" />, badge: unreadByPage['adminRFQ'] },
+        { label: 'Trending',  page: 'adminTrending',  icon: <Flame className="h-[22px] w-[22px]" /> },
+    ];
+    const adminMoreItems = [
+        { label: 'Users',      page: 'adminUsers',         icon: <Users className="h-[22px] w-[22px]" /> },
+        { label: 'Factories',  page: 'adminFactories',     icon: <Building className="h-[22px] w-[22px]" /> },
+        { label: 'CRM',        page: 'adminCRM',           icon: <List className="h-[22px] w-[22px]" />,    badge: unreadByPage['adminCRM'] },
+        { label: 'Login Imgs', page: 'adminLoginSettings', icon: <ImageIcon className="h-[22px] w-[22px]" /> },
+        { label: 'Settings',   page: 'settings',           icon: <Settings className="h-[22px] w-[22px]" /> },
+    ];
+
+    const mainItems = isAdmin ? adminMainItems : clientMainItems;
+    const moreItems = isAdmin ? adminMoreItems : clientMoreItems;
+    const isMorePageActive = moreItems.some(i => i.page === currentPage);
+    const totalMoreBadge = moreItems.reduce((sum, i) => sum + (i.badge || 0), 0);
+
+    return (
+        <>
+            <MorePanel
+                isOpen={moreOpen}
+                onClose={() => setMoreOpen(false)}
+                moreItems={moreItems}
+                currentPage={currentPage}
+                handleSetCurrentPage={handleSetCurrentPage}
+            />
+
+            {/* Floating action buttons */}
+            <div
+                className={`fixed right-4 z-[44] md:hidden flex flex-col gap-3 items-center transition-all duration-300 ease-in-out ${
+                    visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
+                }`}
+                style={{ bottom: 'calc(74px + env(safe-area-inset-bottom))' }}
+            >
+                {/* Chat floating button */}
+                <button
+                    className="w-11 h-11 rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform"
+                    style={{
+                        background: isDark ? 'rgba(22,22,30,0.96)' : 'rgba(255,255,255,0.96)',
+                        border: isDark ? '1px solid rgba(255,255,255,0.10)' : '1px solid rgba(0,0,0,0.08)',
+                        backdropFilter: 'blur(12px)',
+                        WebkitBackdropFilter: 'blur(12px)',
+                        boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+                    }}
+                    title="Chat"
+                >
+                    <MessageCircle className="w-[18px] h-[18px] text-[#c20c0b]" />
+                </button>
+
+                {/* Place Order FAB — client only */}
+                {!isAdmin && (
+                    <button
+                        onClick={() => { handleSetCurrentPage('orderForm'); setMoreOpen(false); }}
+                        className="w-14 h-14 rounded-full flex items-center justify-center active:scale-95 transition-transform"
+                        style={{
+                            background: 'linear-gradient(135deg, #c20c0b 0%, #350e4a 100%)',
+                            boxShadow: '0 4px 20px rgba(194,12,11,0.45)',
+                        }}
+                        title="Place Order"
+                    >
+                        <Plus className="w-6 h-6 text-white stroke-[2.5]" />
+                    </button>
+                )}
+            </div>
+
+            {/* Bottom bar */}
+            <div
+                className={`fixed bottom-0 left-0 right-0 md:hidden z-40 transition-transform duration-300 ease-in-out ${
+                    visible ? 'translate-y-0' : 'translate-y-full'
+                }`}
+                style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+            >
+                <div
+                    className="border-t"
+                    style={{
+                        background: isDark ? 'rgba(10,10,14,0.96)' : 'rgba(255,255,255,0.96)',
+                        borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+                        backdropFilter: 'blur(24px)',
+                        WebkitBackdropFilter: 'blur(24px)',
+                    }}
+                >
+                    <div className="flex items-center h-[62px] px-2">
+                        {/* Main items */}
+                        {mainItems.map(item => {
+                            const isActive = currentPage === item.page;
+                            return (
+                                <button
+                                    key={item.page}
+                                    onClick={() => { handleSetCurrentPage(item.page); setMoreOpen(false); }}
+                                    className="relative flex flex-col items-center justify-center gap-[3px] flex-1 h-full pt-1 active:opacity-70 transition-opacity"
+                                >
+                                    <span className="relative">
+                                        <span className={`block [&>svg]:transition-colors ${
+                                            isActive ? 'text-[#c20c0b] [&>svg]:stroke-[2.5]' : isDark ? 'text-gray-400 [&>svg]:stroke-[1.8]' : 'text-gray-500 [&>svg]:stroke-[1.8]'
+                                        }`}>
+                                            {item.icon}
                                         </span>
+                                        {(item.badge ?? 0) > 0 && (
+                                            <span className="absolute -top-1 -right-1.5 h-[14px] min-w-[14px] px-0.5 bg-rose-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center leading-none">
+                                                {(item.badge ?? 0) > 9 ? '9+' : item.badge}
+                                            </span>
+                                        )}
+                                    </span>
+                                    <span className={`text-[10px] font-semibold leading-tight ${
+                                        isActive ? 'text-[#c20c0b]' : isDark ? 'text-gray-500' : 'text-gray-400'
+                                    }`}>
+                                        {item.label}
+                                    </span>
+                                    {isActive && (
+                                        <span className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-[2.5px] rounded-b-full bg-[#c20c0b]" />
                                     )}
-                                </span>
-                                <span className={`text-[10px] font-semibold transition-colors leading-tight text-center ${
-                                    isActive ? 'text-[#c20c0b]' : isDark ? 'text-gray-500' : 'text-gray-400'
+                                </button>
+                            );
+                        })}
+
+                        {/* More button */}
+                        <button
+                            onClick={() => setMoreOpen(prev => !prev)}
+                            className="relative flex flex-col items-center justify-center gap-[3px] flex-1 h-full pt-1 active:opacity-70 transition-opacity"
+                        >
+                            <span className="relative">
+                                <span className={`block [&>svg]:transition-colors ${
+                                    moreOpen || isMorePageActive
+                                        ? 'text-[#c20c0b] [&>svg]:stroke-[2.5]'
+                                        : isDark ? 'text-gray-400 [&>svg]:stroke-[1.8]' : 'text-gray-500 [&>svg]:stroke-[1.8]'
                                 }`}>
-                                    {item.shortLabel}
+                                    <Grid3X3 className="h-[22px] w-[22px]" />
                                 </span>
-                                {isActive && (
-                                    <span className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-[2.5px] rounded-b-full bg-[#c20c0b]" />
+                                {totalMoreBadge > 0 && !moreOpen && (
+                                    <span className="absolute -top-1 -right-1.5 h-[14px] min-w-[14px] px-0.5 bg-rose-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center leading-none">
+                                        {totalMoreBadge > 9 ? '9+' : totalMoreBadge}
+                                    </span>
                                 )}
-                            </button>
-                        );
-                    })}
+                            </span>
+                            <span className={`text-[10px] font-semibold leading-tight ${
+                                moreOpen || isMorePageActive ? 'text-[#c20c0b]' : isDark ? 'text-gray-500' : 'text-gray-400'
+                            }`}>
+                                More
+                            </span>
+                            {(moreOpen || isMorePageActive) && (
+                                <span className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-[2.5px] rounded-b-full bg-[#c20c0b]" />
+                            )}
+                        </button>
+                    </div>
                 </div>
             </div>
-        </div>
+        </>
     );
 };
 
@@ -407,30 +610,6 @@ export const MainLayout: FC<MainLayoutProps> = (props) => {
         adminRFQ:  notifications.filter(n => n.category === 'rfq' && !n.isRead).length,
         adminCRM:  notifications.filter(n => n.category === 'crm' && !n.isRead).length,
     };
-
-    const clientMenuItems = [
-        { label: 'Sourcing',    shortLabel: 'Sourcing',   page: 'sourcing',          icon: <Search className="h-[22px] w-[22px]" /> },
-        { label: 'My Quotes',   shortLabel: 'Quotes',     page: 'myQuotes',          icon: <FileQuestion className="h-[22px] w-[22px]" /> },
-        { label: 'CRM Portal',  shortLabel: 'CRM',        page: 'crm',               icon: <List className="h-[22px] w-[22px]" /> },
-        { label: 'Tracking',    shortLabel: 'Tracking',   page: 'tracking',          icon: <Truck className="h-[22px] w-[22px]" /> },
-        { label: 'Billing',     shortLabel: 'Billing',    page: 'billing',           icon: <DollarSign className="h-[22px] w-[22px]" /> },
-        { label: 'Place Order', shortLabel: 'Order',      page: 'orderForm',         icon: <Plus className="h-[22px] w-[22px]" /> },
-        { label: 'Trending',    shortLabel: 'Trending',   page: 'trending',          icon: <Flame className="h-[22px] w-[22px]" /> },
-        { label: 'Settings',    shortLabel: 'Settings',   page: 'settings',          icon: <Settings className="h-[22px] w-[22px]" /> },
-    ];
-
-    const adminMenuItems = [
-        { label: 'Dashboard',   shortLabel: 'Dashboard',  page: 'adminDashboard',    icon: <LayoutDashboard className="h-[22px] w-[22px]" /> },
-        { label: 'Users',       shortLabel: 'Users',      page: 'adminUsers',        icon: <Users className="h-[22px] w-[22px]" /> },
-        { label: 'Factories',   shortLabel: 'Factory',    page: 'adminFactories',    icon: <Building className="h-[22px] w-[22px]" /> },
-        { label: 'CRM',         shortLabel: 'CRM',        page: 'adminCRM',          icon: <List className="h-[22px] w-[22px]" /> },
-        { label: 'RFQ',         shortLabel: 'RFQ',        page: 'adminRFQ',          icon: <FileQuestion className="h-[22px] w-[22px]" /> },
-        { label: 'Trending',    shortLabel: 'Trending',   page: 'adminTrending',     icon: <Flame className="h-[22px] w-[22px]" /> },
-        { label: 'Login Imgs',  shortLabel: 'Login Imgs', page: 'adminLoginSettings',icon: <ImageIcon className="h-[22px] w-[22px]" /> },
-        { label: 'Settings',    shortLabel: 'Settings',   page: 'settings',          icon: <Settings className="h-[22px] w-[22px]" /> },
-    ];
-
-    const mobileMenuItems = props.isAdmin ? adminMenuItems : clientMenuItems;
 
     const showNav = !!props.user && !props.hideSidebar;
 
@@ -494,7 +673,7 @@ export const MainLayout: FC<MainLayoutProps> = (props) => {
                 <BottomNavBar
                     currentPage={props.currentPage}
                     handleSetCurrentPage={props.handleSetCurrentPage}
-                    menuItems={mobileMenuItems}
+                    isAdmin={props.isAdmin}
                     unreadByPage={unreadByPage}
                 />
             )}
