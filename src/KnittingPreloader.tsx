@@ -51,6 +51,12 @@ const STYLES = `
     0%, 60%, 100% { opacity: 0.15; }
     30%           { opacity: 1; }
   }
+  @media (prefers-color-scheme: dark) {
+    .kp-needle { stroke: #ffffff; }
+    .kp-label  { color: #ffffff; }
+  }
+  .dark .kp-needle { stroke: #ffffff; }
+  .dark .kp-label  { color: #ffffff; }
 `;
 
 
@@ -88,9 +94,9 @@ export const KnittingPreloader: React.FC<KnittingPreloaderProps> = ({
         {/* Bottom needle */}
         <g style={{ transformOrigin: '30px 60px', animation: 'kp-bottom-needle 1.2s ease-in-out infinite' }}>
           <line x1={35} y1={60} x2={135} y2={60}
-            stroke="#1a1c2c" strokeWidth={3} strokeLinecap="round" />
+            stroke="#1a1c2c" strokeWidth={3} strokeLinecap="round" className="kp-needle" />
           <circle cx={30} cy={60} r={5}
-            fill="none" stroke="#1a1c2c" strokeWidth={3} />
+            fill="none" stroke="#1a1c2c" strokeWidth={3} className="kp-needle" />
 
           {/* Fabric */}
           <g style={{ transformOrigin: '80px 60px', animation: 'kp-fabric 1.2s ease-in-out infinite' }}>
@@ -123,9 +129,9 @@ export const KnittingPreloader: React.FC<KnittingPreloaderProps> = ({
         {/* Top needle */}
         <g style={{ transformOrigin: '130px 40px', animation: 'kp-top-needle 1.2s ease-in-out infinite' }}>
           <line x1={25} y1={40} x2={125} y2={40}
-            stroke="#1a1c2c" strokeWidth={3} strokeLinecap="round" />
+            stroke="#1a1c2c" strokeWidth={3} strokeLinecap="round" className="kp-needle" />
           <circle cx={130} cy={40} r={5}
-            fill="none" stroke="#1a1c2c" strokeWidth={3} />
+            fill="none" stroke="#1a1c2c" strokeWidth={3} className="kp-needle" />
         </g>
 
       </svg>
@@ -141,10 +147,12 @@ export const KnittingPreloader: React.FC<KnittingPreloaderProps> = ({
           letterSpacing: '0.35em',
           textTransform: 'uppercase',
           color: '#1a1c2c',
+          // dark mode handled via .kp-label CSS class
           fontWeight: 700,
           fontFamily: 'sans-serif',
           animation: 'kp-word-in 0.45s ease-out forwards',
         }}
+        className="kp-label"
       >
         {WORDS[wordIdx]}
         {/* Three dots staggered one after another */}
