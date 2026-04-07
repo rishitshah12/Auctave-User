@@ -3,7 +3,7 @@ import {
     Search, DollarSign, Plus, X,
     List, Truck, LogOut, Settings, Flame, FileQuestion,
     LayoutDashboard, Users, Building, ImageIcon, Bell, ChevronLeft,
-    MessageCircle, Grid3X3, User
+    Grid3X3, User
 } from 'lucide-react';
 import { NotificationBellButton, NotificationPanel } from './NotificationPanel';
 import { useNotifications } from './NotificationContext';
@@ -187,7 +187,7 @@ const MorePanel: FC<{
                 className={`fixed left-0 right-0 z-[46] md:hidden transition-all duration-300 ease-out ${
                     isOpen ? 'opacity-100 pointer-events-auto translate-y-0' : 'opacity-0 pointer-events-none translate-y-3'
                 }`}
-                style={{ bottom: 'calc(62px + env(safe-area-inset-bottom))' }}
+                style={{ bottom: 'calc(env(safe-area-inset-bottom) + 84px)' }}
             >
                 <div
                     className="mx-3 mb-2 rounded-2xl p-4 shadow-2xl"
@@ -474,123 +474,98 @@ const BottomNavBar: FC<{
                 handleSetCurrentPage={handleSetCurrentPage}
             />
 
-            {/* Floating action buttons */}
+            {/* Pill nav + FABs row */}
             <div
-                className={`fixed right-4 z-[44] md:hidden flex flex-col gap-3 items-center transition-all duration-300 ease-in-out ${
+                className={`fixed left-4 right-4 z-40 md:hidden transition-all duration-300 ease-in-out ${
                     visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
                 }`}
-                style={{ bottom: 'calc(74px + env(safe-area-inset-bottom))' }}
+                style={{ bottom: 'calc(env(safe-area-inset-bottom) + 16px)' }}
             >
-                {/* Chat floating button */}
-                <button
-                    className="w-11 h-11 rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform"
-                    style={{
-                        background: isDark ? 'rgba(22,22,30,0.96)' : 'rgba(255,255,255,0.96)',
-                        border: isDark ? '1px solid rgba(255,255,255,0.10)' : '1px solid rgba(0,0,0,0.08)',
-                        backdropFilter: 'blur(12px)',
-                        WebkitBackdropFilter: 'blur(12px)',
-                        boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
-                    }}
-                    title="Chat"
-                >
-                    <MessageCircle className="w-[18px] h-[18px] text-[#c20c0b]" />
-                </button>
-
-                {/* Place Order FAB — client only */}
-                {!isAdmin && (
-                    <button
-                        onClick={() => { handleSetCurrentPage('orderForm'); setMoreOpen(false); }}
-                        className="w-14 h-14 rounded-full flex items-center justify-center active:scale-95 transition-transform"
+                <div className="flex items-end gap-3">
+                    {/* ── Pill nav ── */}
+                    <div
+                        className="flex-1 rounded-full overflow-hidden"
                         style={{
-                            background: 'linear-gradient(135deg, #c20c0b 0%, #350e4a 100%)',
-                            boxShadow: '0 4px 20px rgba(194,12,11,0.45)',
+                            background: isDark ? 'rgba(12,12,18,0.97)' : 'rgba(255,255,255,0.97)',
+                            border: isDark ? '1px solid rgba(255,255,255,0.10)' : '1px solid rgba(0,0,0,0.09)',
+                            backdropFilter: 'blur(24px)',
+                            WebkitBackdropFilter: 'blur(24px)',
+                            boxShadow: isDark ? '0 8px 32px rgba(0,0,0,0.5)' : '0 8px 32px rgba(0,0,0,0.12)',
                         }}
-                        title="Place Order"
                     >
-                        <Plus className="w-6 h-6 text-white stroke-[2.5]" />
-                    </button>
-                )}
-            </div>
-
-            {/* Bottom bar */}
-            <div
-                className={`fixed bottom-0 left-0 right-0 md:hidden z-40 transition-transform duration-300 ease-in-out ${
-                    visible ? 'translate-y-0' : 'translate-y-full'
-                }`}
-                style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
-            >
-                <div
-                    className="border-t"
-                    style={{
-                        background: isDark ? 'rgba(10,10,14,0.96)' : 'rgba(255,255,255,0.96)',
-                        borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
-                        backdropFilter: 'blur(24px)',
-                        WebkitBackdropFilter: 'blur(24px)',
-                    }}
-                >
-                    <div className="flex items-center h-[62px] px-2">
-                        {/* Main items */}
-                        {mainItems.map(item => {
-                            const isActive = currentPage === item.page;
-                            return (
-                                <button
-                                    key={item.page}
-                                    onClick={() => { handleSetCurrentPage(item.page); setMoreOpen(false); }}
-                                    className="relative flex flex-col items-center justify-center gap-[3px] flex-1 h-full pt-1 active:opacity-70 transition-opacity"
-                                >
-                                    <span className="relative">
-                                        <span className={`block [&>svg]:transition-colors ${
-                                            isActive ? 'text-[#c20c0b] [&>svg]:stroke-[2.5]' : isDark ? 'text-gray-400 [&>svg]:stroke-[1.8]' : 'text-gray-500 [&>svg]:stroke-[1.8]'
-                                        }`}>
-                                            {item.icon}
-                                        </span>
-                                        {(item.badge ?? 0) > 0 && (
-                                            <span className="absolute -top-1 -right-1.5 h-[14px] min-w-[14px] px-0.5 bg-rose-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center leading-none">
-                                                {(item.badge ?? 0) > 9 ? '9+' : item.badge}
+                        <div className="flex items-center h-[58px] px-1">
+                            {/* Main tab items */}
+                            {mainItems.map(item => {
+                                const isActive = currentPage === item.page;
+                                return (
+                                    <button
+                                        key={item.page}
+                                        onClick={() => { handleSetCurrentPage(item.page); setMoreOpen(false); }}
+                                        className="relative flex flex-col items-center justify-center gap-[3px] flex-1 h-full active:opacity-60 transition-opacity"
+                                    >
+                                        <span className="relative">
+                                            <span className={`block [&>svg]:transition-colors ${
+                                                isActive ? 'text-[#c20c0b] [&>svg]:stroke-[2.5]' : isDark ? 'text-gray-400 [&>svg]:stroke-[1.8]' : 'text-gray-500 [&>svg]:stroke-[1.8]'
+                                            }`}>
+                                                {item.icon}
                                             </span>
-                                        )}
-                                    </span>
-                                    <span className={`text-[10px] font-semibold leading-tight ${
-                                        isActive ? 'text-[#c20c0b]' : isDark ? 'text-gray-500' : 'text-gray-400'
-                                    }`}>
-                                        {item.label}
-                                    </span>
-                                    {isActive && (
-                                        <span className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-[2.5px] rounded-b-full bg-[#c20c0b]" />
-                                    )}
-                                </button>
-                            );
-                        })}
+                                            {(item.badge ?? 0) > 0 && (
+                                                <span className="absolute -top-1 -right-1.5 h-[14px] min-w-[14px] px-0.5 bg-rose-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center leading-none">
+                                                    {(item.badge ?? 0) > 9 ? '9+' : item.badge}
+                                                </span>
+                                            )}
+                                        </span>
+                                        <span className={`text-[10px] font-semibold leading-tight ${
+                                            isActive ? 'text-[#c20c0b]' : isDark ? 'text-gray-500' : 'text-gray-400'
+                                        }`}>
+                                            {item.label}
+                                        </span>
+                                    </button>
+                                );
+                            })}
 
-                        {/* More button */}
-                        <button
-                            onClick={() => setMoreOpen(prev => !prev)}
-                            className="relative flex flex-col items-center justify-center gap-[3px] flex-1 h-full pt-1 active:opacity-70 transition-opacity"
-                        >
-                            <span className="relative">
-                                <span className={`block [&>svg]:transition-colors ${
-                                    moreOpen || isMorePageActive
-                                        ? 'text-[#c20c0b] [&>svg]:stroke-[2.5]'
-                                        : isDark ? 'text-gray-400 [&>svg]:stroke-[1.8]' : 'text-gray-500 [&>svg]:stroke-[1.8]'
-                                }`}>
-                                    <Grid3X3 className="h-[22px] w-[22px]" />
-                                </span>
-                                {totalMoreBadge > 0 && !moreOpen && (
-                                    <span className="absolute -top-1 -right-1.5 h-[14px] min-w-[14px] px-0.5 bg-rose-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center leading-none">
-                                        {totalMoreBadge > 9 ? '9+' : totalMoreBadge}
+                            {/* More button */}
+                            <button
+                                onClick={() => setMoreOpen(prev => !prev)}
+                                className="relative flex flex-col items-center justify-center gap-[3px] flex-1 h-full active:opacity-60 transition-opacity"
+                            >
+                                <span className="relative">
+                                    <span className={`block [&>svg]:transition-colors ${
+                                        moreOpen || isMorePageActive
+                                            ? 'text-[#c20c0b] [&>svg]:stroke-[2.5]'
+                                            : isDark ? 'text-gray-400 [&>svg]:stroke-[1.8]' : 'text-gray-500 [&>svg]:stroke-[1.8]'
+                                    }`}>
+                                        <Grid3X3 className="h-[22px] w-[22px]" />
                                     </span>
-                                )}
-                            </span>
-                            <span className={`text-[10px] font-semibold leading-tight ${
-                                moreOpen || isMorePageActive ? 'text-[#c20c0b]' : isDark ? 'text-gray-500' : 'text-gray-400'
-                            }`}>
-                                More
-                            </span>
-                            {(moreOpen || isMorePageActive) && (
-                                <span className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-[2.5px] rounded-b-full bg-[#c20c0b]" />
-                            )}
-                        </button>
+                                    {totalMoreBadge > 0 && !moreOpen && (
+                                        <span className="absolute -top-1 -right-1.5 h-[14px] min-w-[14px] px-0.5 bg-rose-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center leading-none">
+                                            {totalMoreBadge > 9 ? '9+' : totalMoreBadge}
+                                        </span>
+                                    )}
+                                </span>
+                                <span className={`text-[10px] font-semibold leading-tight ${
+                                    moreOpen || isMorePageActive ? 'text-[#c20c0b]' : isDark ? 'text-gray-500' : 'text-gray-400'
+                                }`}>
+                                    More
+                                </span>
+                            </button>
+                        </div>
                     </div>
+
+                    {/* ── Place Order FAB (client only) ── */}
+                    {!isAdmin && (
+                        <button
+                            onClick={() => { handleSetCurrentPage('orderForm'); setMoreOpen(false); }}
+                            className="w-[58px] h-[58px] rounded-full flex items-center justify-center flex-shrink-0 active:scale-90 transition-transform"
+                            style={{
+                                background: 'linear-gradient(135deg, #c20c0b 0%, #350e4a 100%)',
+                                boxShadow: '0 4px 20px rgba(194,12,11,0.45)',
+                            }}
+                            title="Place Order"
+                        >
+                            <Plus className="w-6 h-6 text-white stroke-[2.5]" />
+                        </button>
+                    )}
                 </div>
             </div>
         </>

@@ -2487,7 +2487,7 @@ User message: "${userMsg}"`;
         return (
             <>
                 {/* Floating button */}
-                <div className="fixed bottom-24 md:bottom-6 right-6 z-50">
+                <div className="fixed bottom-[148px] md:bottom-6 right-6 z-50">
                     <button
                         onClick={() => setIsOpen(!isOpen)}
                         className="relative bg-gradient-to-br from-red-500 to-red-700 text-white p-4 rounded-full shadow-[0_4px_16px_rgba(185,28,28,0.3)] hover:shadow-[0_6px_20px_rgba(185,28,28,0.45)] transition-all duration-300 hover:scale-110 group"
@@ -2504,7 +2504,7 @@ User message: "${userMsg}"`;
 
                 {isOpen && createPortal(
                     <div
-                        className="fixed bottom-24 md:bottom-6 right-6 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl flex flex-col z-50 border border-gray-200 dark:border-white/10 overflow-hidden select-none"
+                        className="fixed bottom-[148px] md:bottom-6 right-6 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl flex flex-col z-50 border border-gray-200 dark:border-white/10 overflow-hidden select-none"
                         style={{ width: panelSize.w, height: panelSize.h }}
                     >
                         {/* Resize handle */}
