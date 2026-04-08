@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
     ArrowRight, Check, ChevronLeft, User, Building2, Globe, Briefcase,
     Phone, Mail, Sparkles, Package, TrendingUp, Zap, Users, Camera, Edit3,
@@ -774,13 +774,163 @@ const CategoryChip = ({ label, selected, onClick }: { label: string; selected: b
     </button>
 );
 
+// ─── Photo Reposition Modal ───────────────────────────────────────────────────
+const PhotoRepositionModal = ({ src, onConfirm, onCancel }: {
+    src: string;
+    onConfirm: (dataUrl: string) => void;
+    onCancel: () => void;
+}) => {
+    const SIZE = 280;
+    const OUT = 240;
+    const [offset, setOffset] = useState({ x: 0, y: 0 });
+    const [scale, setScale] = useState(1);
+    const [naturalSize, setNaturalSize] = useState({ w: 0, h: 0 });
+    const dragging = useRef(false);
+    const lastPos = useRef({ x: 0, y: 0 });
+    const imgRef = useRef<HTMLImageElement>(null);
+
+    const { renderedW, renderedH } = useMemo(() => {
+        if (!naturalSize.w || !naturalSize.h) return { renderedW: SIZE, renderedH: SIZE };
+        const ratio = naturalSize.w / naturalSize.h;
+        if (ratio > 1) return { renderedW: SIZE * ratio, renderedH: SIZE };
+        return { renderedW: SIZE, renderedH: SIZE / ratio };
+    }, [naturalSize]);
+
+    const clamp = (ox: number, oy: number, sc: number) => {
+        const maxX = Math.max(0, (renderedW * sc - SIZE) / 2);
+        const maxY = Math.max(0, (renderedH * sc - SIZE) / 2);
+        return {
+            x: Math.max(-maxX, Math.min(maxX, ox)),
+            y: Math.max(-maxY, Math.min(maxY, oy)),
+        };
+    };
+
+    const onPointerDown = (e: React.PointerEvent) => {
+        dragging.current = true;
+        lastPos.current = { x: e.clientX, y: e.clientY };
+        e.currentTarget.setPointerCapture(e.pointerId);
+    };
+    const onPointerMove = (e: React.PointerEvent) => {
+        if (!dragging.current) return;
+        const dx = e.clientX - lastPos.current.x;
+        const dy = e.clientY - lastPos.current.y;
+        lastPos.current = { x: e.clientX, y: e.clientY };
+        setOffset(prev => clamp(prev.x + dx, prev.y + dy, scale));
+    };
+    const onPointerUp = () => { dragging.current = false; };
+
+    const onScaleChange = (s: number) => {
+        setScale(s);
+        setOffset(prev => clamp(prev.x, prev.y, s));
+    };
+
+    const handleConfirm = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = OUT;
+        canvas.height = OUT;
+        const ctx = canvas.getContext('2d')!;
+        ctx.beginPath();
+        ctx.arc(OUT / 2, OUT / 2, OUT / 2, 0, Math.PI * 2);
+        ctx.clip();
+        const factor = OUT / SIZE;
+        const dw = renderedW * scale * factor;
+        const dh = renderedH * scale * factor;
+        const dx = (OUT - renderedW * scale * factor) / 2 + offset.x * factor;
+        const dy = (OUT - renderedH * scale * factor) / 2 + offset.y * factor;
+        ctx.drawImage(imgRef.current!, dx, dy, dw, dh);
+        onConfirm(canvas.toDataURL('image/jpeg', 0.9));
+    };
+
+    return (
+        <div style={{
+            position: 'fixed', inset: 0, zIndex: 2000,
+            background: 'rgba(0,0,0,0.92)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            backdropFilter: 'blur(12px)',
+        }}>
+            <div style={{ color: '#fff', fontSize: 15, fontWeight: 600, marginBottom: 24, letterSpacing: '0.01em' }}>
+                Drag to reposition
+            </div>
+
+            {/* Circular crop viewport */}
+            <div
+                style={{
+                    width: SIZE, height: SIZE, borderRadius: '50%',
+                    overflow: 'hidden', cursor: dragging.current ? 'grabbing' : 'grab',
+                    userSelect: 'none', touchAction: 'none',
+                    border: '2.5px solid rgba(194,12,11,0.7)',
+                    boxShadow: '0 0 0 9999px rgba(0,0,0,0.55), 0 0 40px rgba(194,12,11,0.25)',
+                    position: 'relative', flexShrink: 0,
+                }}
+                onPointerDown={onPointerDown}
+                onPointerMove={onPointerMove}
+                onPointerUp={onPointerUp}
+                onPointerLeave={onPointerUp}
+            >
+                <img
+                    ref={imgRef}
+                    src={src}
+                    onLoad={e => {
+                        const img = e.currentTarget;
+                        setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
+                    }}
+                    alt=""
+                    draggable={false}
+                    style={{
+                        position: 'absolute',
+                        width: renderedW * scale,
+                        height: renderedH * scale,
+                        left: '50%', top: '50%',
+                        transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
+                        pointerEvents: 'none',
+                    }}
+                />
+            </div>
+
+            {/* Zoom slider */}
+            <div style={{ marginTop: 28, display: 'flex', alignItems: 'center', gap: 14 }}>
+                <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 18, lineHeight: 1, userSelect: 'none' }}>−</span>
+                <input
+                    type="range" min={1} max={3} step={0.01}
+                    value={scale}
+                    onChange={e => onScaleChange(parseFloat(e.target.value))}
+                    style={{ width: 160, accentColor: '#c20c0b', cursor: 'pointer' }}
+                />
+                <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 18, lineHeight: 1, userSelect: 'none' }}>+</span>
+            </div>
+
+            {/* Action buttons */}
+            <div style={{ marginTop: 32, display: 'flex', gap: 12 }}>
+                <button onClick={onCancel} style={{
+                    padding: '11px 32px', borderRadius: 12,
+                    border: '1px solid rgba(255,255,255,0.15)',
+                    background: 'rgba(255,255,255,0.07)',
+                    color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                    transition: 'background 0.15s',
+                }}>
+                    Cancel
+                </button>
+                <button onClick={handleConfirm} style={{
+                    padding: '11px 32px', borderRadius: 12,
+                    border: 'none',
+                    background: 'linear-gradient(135deg,#c20c0b,#9a0909)',
+                    color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                    boxShadow: '0 4px 20px rgba(194,12,11,0.45)',
+                }}>
+                    Done
+                </button>
+            </div>
+        </div>
+    );
+};
+
 // ─── Avatar Picker ────────────────────────────────────────────────────────────
 const AvatarPicker = ({ user, avatarUrl, onChange, isMobile }: {
     user: any; avatarUrl: string; onChange: (url: string) => void; isMobile?: boolean;
 }) => {
     const fileRef = useRef<HTMLInputElement>(null);
-    const [uploading, setUploading] = useState(false);
     const [fromGoogle, setFromGoogle] = useState(false);
+    const [repoSrc, setRepoSrc] = useState<string | null>(null);
 
     // Auto-fetch Google profile picture on mount
     useEffect(() => {
@@ -794,86 +944,93 @@ const AvatarPicker = ({ user, avatarUrl, onChange, isMobile }: {
     const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        setUploading(true);
-        try {
-            const resized = await resizeImage(file, 240);
-            onChange(resized);
-            setFromGoogle(false);
-            // Persist to Supabase auth metadata
-            await supabase.auth.updateUser({ data: { avatar_url: resized } });
-        } finally {
-            setUploading(false);
-        }
-        // Reset so same file can be re-picked
+        // Load at larger size so user has room to pan/zoom in the reposition modal
+        const large = await resizeImage(file, 1200);
+        setRepoSrc(large);
         e.target.value = '';
+    };
+
+    const handleRepoConfirm = (croppedUrl: string) => {
+        setRepoSrc(null);
+        onChange(croppedUrl);
+        setFromGoogle(false);
+        // Persist to Supabase auth metadata in the background
+        supabase.auth.updateUser({ data: { avatar_url: croppedUrl } });
     };
 
     const initials = (user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email || '?')
         .split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase();
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: isMobile ? 16 : 28 }}>
-            {/* Avatar circle */}
-            <div style={{ position: 'relative', cursor: 'pointer' }} onClick={() => fileRef.current?.click()}>
-                <div style={{
-                    width: 88, height: 88, borderRadius: '50%',
-                    background: avatarUrl ? 'transparent' : 'linear-gradient(135deg,#c20c0b,#7a0808)',
-                    border: '2.5px solid rgba(194,12,11,0.4)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    overflow: 'hidden', position: 'relative',
-                    boxShadow: '0 0 24px rgba(194,12,11,0.25), 0 4px 16px rgba(0,0,0,0.5)',
-                }}>
-                    {avatarUrl ? (
-                        <img src={avatarUrl} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    ) : (
-                        <span style={{ fontSize: 28, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em' }}>{initials}</span>
-                    )}
-                    {/* Hover overlay */}
+        <>
+            {repoSrc && (
+                <PhotoRepositionModal
+                    src={repoSrc}
+                    onConfirm={handleRepoConfirm}
+                    onCancel={() => setRepoSrc(null)}
+                />
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: isMobile ? 16 : 28 }}>
+                {/* Avatar circle */}
+                <div style={{ position: 'relative', cursor: 'pointer' }} onClick={() => fileRef.current?.click()}>
                     <div style={{
-                        position: 'absolute', inset: 0,
-                        background: 'rgba(0,0,0,0.55)',
+                        width: 88, height: 88, borderRadius: '50%',
+                        background: avatarUrl ? 'transparent' : 'linear-gradient(135deg,#c20c0b,#7a0808)',
+                        border: '2.5px solid rgba(194,12,11,0.4)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        opacity: uploading ? 1 : 0, transition: 'opacity 0.2s',
-                        borderRadius: '50%',
-                    }}
-                        onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
-                        onMouseLeave={e => !uploading && (e.currentTarget.style.opacity = '0')}
-                    >
-                        {uploading
-                            ? <div style={{ width: 20, height: 20, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
-                            : <Camera size={20} color="#fff" />}
+                        overflow: 'hidden', position: 'relative',
+                        boxShadow: '0 0 24px rgba(194,12,11,0.25), 0 4px 16px rgba(0,0,0,0.5)',
+                    }}>
+                        {avatarUrl ? (
+                            <img src={avatarUrl} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                            <span style={{ fontSize: 28, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em' }}>{initials}</span>
+                        )}
+                        {/* Hover overlay */}
+                        <div style={{
+                            position: 'absolute', inset: 0,
+                            background: 'rgba(0,0,0,0.55)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            opacity: 0, transition: 'opacity 0.2s',
+                            borderRadius: '50%',
+                        }}
+                            onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+                            onMouseLeave={e => (e.currentTarget.style.opacity = '0')}
+                        >
+                            <Camera size={20} color="#fff" />
+                        </div>
+                    </div>
+                    {/* Edit badge */}
+                    <div style={{
+                        position: 'absolute', bottom: 0, right: 0,
+                        width: 26, height: 26, borderRadius: '50%',
+                        background: 'linear-gradient(135deg,#c20c0b,#9a0909)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        border: '2px solid #0c0c0f',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
+                    }}>
+                        <Edit3 size={11} color="#fff" />
                     </div>
                 </div>
-                {/* Edit badge */}
-                <div style={{
-                    position: 'absolute', bottom: 0, right: 0,
-                    width: 26, height: 26, borderRadius: '50%',
-                    background: 'linear-gradient(135deg,#c20c0b,#9a0909)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    border: '2px solid #0c0c0f',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
-                }}>
-                    <Edit3 size={11} color="#fff" />
+
+                <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} />
+
+                <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                    <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>
+                        Click to change photo
+                    </span>
+                    {fromGoogle && (
+                        <span style={{
+                            fontSize: 11, color: '#60a5fa', fontWeight: 600,
+                            display: 'flex', alignItems: 'center', gap: 4,
+                        }}>
+                            <svg width="10" height="10" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" /><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" /><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" /><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" /></svg>
+                            Auto-fetched from Google
+                        </span>
+                    )}
                 </div>
             </div>
-
-            <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} />
-
-            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>
-                    {uploading ? 'Uploading…' : 'Click to change photo'}
-                </span>
-                {fromGoogle && (
-                    <span style={{
-                        fontSize: 11, color: '#60a5fa', fontWeight: 600,
-                        display: 'flex', alignItems: 'center', gap: 4,
-                    }}>
-                        <svg width="10" height="10" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" /><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" /><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" /><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" /></svg>
-                        Auto-fetched from Google
-                    </span>
-                )}
-            </div>
-        </div>
+        </>
     );
 };
 
