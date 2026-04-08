@@ -138,6 +138,8 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                     <img
                         src={gallery[currentImageIndex]}
                         alt={factory.name}
+                        loading="eager"
+                        decoding="async"
                         className="w-full h-full object-cover"
                     />
                     {/* Gradient overlays */}
@@ -377,7 +379,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                 <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-sm border border-gray-200 dark:border-white/10 overflow-hidden">
                     {/* Hero Image */}
                     <div className="relative h-96 md:h-[500px] group cursor-zoom-in" onClick={() => setIsLightboxOpen(true)}>
-                        <img src={gallery[currentImageIndex]} alt={factory.name} className="w-full h-full object-cover transition-transform duration-700" />
+                        <img src={gallery[currentImageIndex]} alt={factory.name} loading="eager" decoding="async" className="w-full h-full object-cover transition-transform duration-700" />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
                         <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/40 backdrop-blur-md text-white p-2 rounded-full border border-white/10 z-20">
                             <ZoomIn size={20} />

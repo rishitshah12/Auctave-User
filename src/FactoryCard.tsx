@@ -47,6 +47,7 @@ export const FactoryCard: FC<FactoryCardProps> = React.memo(({ factory, onSelect
                         src={factory.imageUrl}
                         alt={factory.name}
                         loading="lazy"
+                        decoding="async"
                         className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                         onError={(e) => {
                             (e.target as HTMLImageElement).onerror = null;
