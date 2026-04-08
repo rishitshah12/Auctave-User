@@ -1918,21 +1918,21 @@ const AppContent: FC = () => {
         ];
         return (
             <MainLayout {...layoutProps}>
-                <div className="max-w-4xl mx-auto">
-                    <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-8">Settings</h1>
-                    <div className="space-y-6">
+                <div className="max-w-4xl mx-auto px-1 sm:px-4">
+                    <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-white mb-5 sm:mb-8">Settings</h1>
+                    <div className="space-y-4 sm:space-y-6">
                         {/* Dark Mode Toggle */}
-                        <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10 flex items-center justify-between transition-colors">
-                            <div className="flex items-center gap-4">
-                                <div className="bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 p-3 rounded-lg">
-                                    <Moon size={20} />
+                        <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md p-4 sm:p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10 flex items-center justify-between transition-colors">
+                            <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0 mr-4">
+                                <div className="bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 p-2.5 sm:p-3 rounded-lg shrink-0">
+                                    <Moon size={18} />
                                 </div>
-                                <div>
-                                    <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Dark Mode</h3>
-                                    <p className="text-sm text-gray-500 dark:text-gray-200">Adjust the appearance of the application</p>
+                                <div className="min-w-0">
+                                    <h3 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-white leading-snug">Dark Mode</h3>
+                                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5 leading-tight">Adjust the appearance of the application</p>
                                 </div>
                             </div>
-                            <button 
+                            <button
                                 onClick={() => {
                                     const newMode = !darkMode;
                                     setDarkMode(newMode);
@@ -1941,37 +1941,37 @@ const AppContent: FC = () => {
                                         supabase.auth.updateUser({ data: { darkMode: newMode } });
                                     }
                                 }}
-                                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${darkMode ? 'bg-purple-600' : 'bg-gray-200'}`}
+                                className={`relative inline-flex h-6 w-10 sm:h-7 sm:w-12 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 shrink-0 ${darkMode ? 'bg-purple-600' : 'bg-gray-200'}`}
                             >
-                                <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${darkMode ? 'translate-x-6' : 'translate-x-1'}`} />
+                                <span className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full bg-white shadow transition-transform ${darkMode ? 'translate-x-5 sm:translate-x-6' : 'translate-x-1'}`} />
                             </button>
                         </div>
 
                         {settingsOptions.map((opt, index) => (
-                            <div key={index} className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10 flex items-center justify-between transition-colors">
-                                <div className="flex items-center gap-4">
-                                    <div className="bg-red-100 dark:bg-red-900/30 text-[var(--color-primary)] dark:text-red-400 p-3 rounded-lg">{opt.icon}</div>
-                                    <div>
-                                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">{opt.title}</h3>
-                                        <p className="text-sm text-gray-500 dark:text-gray-200">{opt.description}</p>
+                            <div key={index} className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md p-4 sm:p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10 flex items-center justify-between gap-3 transition-colors">
+                                <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+                                    <div className="bg-red-100 dark:bg-red-900/30 text-[var(--color-primary)] dark:text-red-400 p-2.5 sm:p-3 rounded-lg shrink-0">{opt.icon}</div>
+                                    <div className="min-w-0">
+                                        <h3 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-white leading-snug">{opt.title}</h3>
+                                        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5 leading-tight">{opt.description}</p>
                                     </div>
                                 </div>
-                                <button onClick={opt.action} className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-white font-semibold py-2 px-4 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition text-sm">
+                                <button onClick={opt.action} className="shrink-0 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-white font-semibold py-2 px-3 sm:px-4 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition text-xs sm:text-sm whitespace-nowrap">
                                     {opt.buttonLabel}
                                 </button>
                             </div>
                         ))}
-                            <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10 transition-colors">
-                                <div className="flex items-center gap-4">
-                                    <div className="bg-red-100 dark:bg-red-900/30 text-[var(--color-primary)] dark:text-red-400 p-3 rounded-lg"><MapPin size={20}/></div>
-                                    <div>
-                                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Change Location</h3>
-                                        <p className="text-sm text-gray-500 dark:text-gray-200">Update your primary business location.</p>
+                            <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md p-4 sm:p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10 transition-colors">
+                                <div className="flex items-center gap-3 sm:gap-4">
+                                    <div className="bg-red-100 dark:bg-red-900/30 text-[var(--color-primary)] dark:text-red-400 p-2.5 sm:p-3 rounded-lg shrink-0"><MapPin size={18}/></div>
+                                    <div className="min-w-0">
+                                        <h3 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-white leading-snug">Change Location</h3>
+                                        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5 leading-tight">Update your primary business location.</p>
                                     </div>
                                 </div>
-                                <div className="mt-4 flex gap-4 items-center">
-                                    <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} className="flex-grow p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
-                                    <button onClick={handleLocationSave} className="bg-[var(--color-primary)] text-white font-semibold py-2 px-4 rounded-lg hover:bg-[var(--color-primary-hover)] transition">Save</button>
+                                <div className="mt-4 flex flex-col sm:flex-row gap-2 sm:gap-4">
+                                    <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} className="flex-grow p-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
+                                    <button onClick={handleLocationSave} className="w-full sm:w-auto bg-[var(--color-primary)] text-white font-semibold py-2.5 px-5 rounded-lg hover:bg-[var(--color-primary-hover)] transition text-sm">Save</button>
                                 </div>
                             </div>
                     </div>
