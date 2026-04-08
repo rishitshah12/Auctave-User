@@ -1227,9 +1227,15 @@ const AppContent: FC = () => {
     // Function to save or update user profile in Supabase
     const saveUserProfile = async (profileData: Partial<UserProfile>) => {
         if (!user) return;
-        setIsProfileLoading(true);
-        
-        // Prepare data for database update
+
+        // Optimistic update: transition to the platform immediately so it renders
+        // during the hello splash animation (no wait time after the splash).
+        setUserProfile(prev => ({ ...prev, ...profileData } as UserProfile));
+        setIsNewUserSignup(false);
+        if (user) localStorage.removeItem(`garment_new_signup_${user.id}`);
+        handleSetCurrentPage(isAdmin ? 'adminDashboard' : 'sourcing');
+
+        // Persist to DB in the background while the platform is already loading
         const updates = {
             id: user.id,
             name: profileData.name,
@@ -1244,26 +1250,15 @@ const AppContent: FC = () => {
         };
 
         const tableName = isAdmin ? 'admins' : 'clients';
-        // Perform upsert (insert or update)
         const { error } = await supabase.from(tableName).upsert(updates);
 
         if (error) {
             console.error("Profile save error:", error);
-            if (error.message.includes("Could not find the table") || error.code === '42P01') {
-                showToast(`Setup Error: '${tableName}' table missing. Run the SQL script in Supabase.`, 'error');
-            } else {
-                showToast(error.message, 'error');
-            }
-        } else {
-            // Update local state on success
-            setUserProfile(prev => ({ ...prev, ...profileData } as UserProfile));
-            // Clear new-signup flag so onboarding won't show again
-            setIsNewUserSignup(false);
-            if (user) localStorage.removeItem(`garment_new_signup_${user.id}`);
-            showToast('Profile saved successfully!');
-            handleSetCurrentPage(isAdmin ? 'adminDashboard' : 'sourcing');
+            const msg = (error.message.includes("Could not find the table") || error.code === '42P01')
+                ? `Setup Error: '${tableName}' table missing. Run the SQL script in Supabase.`
+                : error.message;
+            showToast(msg, 'error');
         }
-        setIsProfileLoading(false);
     };
 
     // --- Quote Request Functions ---

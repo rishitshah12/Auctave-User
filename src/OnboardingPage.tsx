@@ -950,7 +950,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete
         });
     };
 
-    const handleComplete = async () => {
+    const handleComplete = () => {
         const isDark = selectedTheme === 'dark';
         localStorage.setItem('garment_erp_dark_mode', String(isDark));
         if (isDark) document.documentElement.classList.add('dark');
@@ -959,7 +959,13 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete
         // Persist to Supabase so preference syncs across all devices
         supabase.auth.updateUser({ data: { darkMode: isDark } });
 
-        // Fire hello splash in App.tsx (renders independently, won't be cut off)
+        const finalRole = form.jobRole === 'Other' ? form.customRole : form.jobRole;
+        const dialPrefix = form.country && DIAL[form.country] ? DIAL[form.country].code + ' ' : '';
+        const fullPhone = form.phone ? `${dialPrefix}${form.phone}` : '';
+
+        // Fire splash and optimistic save simultaneously.
+        // saveUserProfile updates local state immediately (no DB wait), so the platform
+        // renders under the splash — zero load time when the animation ends.
         const helloData = HELLO_MAP[form.country] || { word: 'Hello', language: 'English' };
         onBeforeComplete?.({
             word: helloData.word,
@@ -969,11 +975,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete
             theme: selectedTheme,
         });
 
-        // Save profile immediately — concurrent with hello animation in parent
-        const finalRole = form.jobRole === 'Other' ? form.customRole : form.jobRole;
-        const dialPrefix = form.country && DIAL[form.country] ? DIAL[form.country].code + ' ' : '';
-        const fullPhone = form.phone ? `${dialPrefix}${form.phone}` : '';
-        await onComplete({
+        onComplete({
             name: form.name, email: form.email, phone: fullPhone,
             companyName: form.companyName, country: form.country,
             jobRole: finalRole, categorySpecialization: form.categories.join(', '),
