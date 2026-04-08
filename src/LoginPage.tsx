@@ -250,6 +250,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
     };
 
     useEffect(() => {
+        // Preload lazy chunks so they're in the browser's HTTP cache before the
+        // user returns from Google OAuth. Without this, the OnboardingPage chunk
+        // downloads after redirect, causing a visible Suspense spinner on first signup.
+        import('./OnboardingPage');
+        import('./SourcingPage');
+    }, []);
+
+    useEffect(() => {
         (async () => {
             const [remoteImages, remoteContent] = await Promise.all([
                 loginSettingsService.get<string[][]>('login_bg_images'),

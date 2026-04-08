@@ -1,5 +1,4 @@
 import React, { useState, useEffect, FC, useRef, useCallback, useMemo } from 'react';
-import { compressImage } from './imageCompression';
 import {
     Plus, X, Trash2, Image as ImageIcon, Edit, MapPin, Star,
     ChevronLeft, ChevronRight, GripVertical, UploadCloud, Palette,
@@ -613,21 +612,12 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
         target: 'gallery' | 'catalog' | 'fabric-swatch' | 'brochure' = 'gallery',
     ): Promise<string | null> => {
         try {
-            // Compress images before uploading — resizes to display dimensions and
-            // converts to WebP for 30-40% smaller files at identical visual quality.
-            // PDFs and other non-image files are passed through unchanged.
-            const compressionTarget =
-                target === 'catalog'      ? 'catalog' :
-                target === 'fabric-swatch'? 'swatch'  :
-                                            'gallery'; // covers both gallery and cover
-            const ready = await compressImage(file, compressionTarget);
-
-            const fileExt = ready.name.split('.').pop();
+            const fileExt = file.name.split('.').pop();
             const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
             const filePath = `factories/${fileName}`;
             const { error: uploadError } = await props.supabase.storage
                 .from('factory-gallery')
-                .upload(filePath, ready, { contentType: ready.type });
+                .upload(filePath, file, { contentType: file.type });
             if (uploadError) throw uploadError;
             const { data: { publicUrl } } = props.supabase.storage
                 .from('factory-gallery')
