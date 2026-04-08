@@ -311,9 +311,13 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                 if (signal.aborted) return;
                 const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 15000));
 
-                // Fetch all rows from the 'factories' table in Supabase
+                // Fetch only the columns needed for card display and filtering.
+                // gallery, catalog, machine_slots are heavy and only needed in FactoryDetailPage
+                // (which re-fetches via factoryService.getById on mount).
                 const { data, error } = await Promise.race([
-                    supabase.from('factories').select('*').abortSignal(signal),
+                    supabase.from('factories').select(
+                        'id,name,location,description,rating,turnaround,minimum_order_quantity,offer,cover_image_url,tags,certifications,specialties,trust_tier,completed_orders_count,on_time_delivery_rate,quality_rejection_rate'
+                    ).abortSignal(signal),
                     timeoutPromise
                 ]) as any;
 
@@ -334,12 +338,12 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                         minimumOrderQuantity: f.minimum_order_quantity,
                         offer: f.offer,
                         imageUrl: f.cover_image_url,
-                        gallery: f.gallery || [],
+                        gallery: [],          // not fetched here — FactoryDetailPage loads it on demand
                         tags: f.tags || [],
                         certifications: f.certifications || [],
                         specialties: f.specialties || [],
-                        productionLines: f.machine_slots || [],
-                        catalog: f.catalog || { products: [], fabricOptions: [] },
+                        productionLines: [], // not fetched here — FactoryDetailPage loads it on demand
+                        catalog: { products: [], fabricOptions: [] }, // not fetched here
                         trustTier: (f.trust_tier as Factory['trustTier']) || 'unverified',
                         completedOrdersCount: f.completed_orders_count ?? 0,
                         onTimeDeliveryRate: f.on_time_delivery_rate ?? undefined,
@@ -912,7 +916,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                         Array.from({ length: 6 }).map((_, index) => <SkeletonCard key={index} />)
                     ) : filteredFactories.length > 0 ? (
                         filteredFactories.map((factory, index) => (
-                            <FactoryCard key={factory.id} factory={factory} onSelect={() => handleSelectFactory(factory)} style={{ animationDelay: `${index * 60}ms` }} />
+                            <FactoryCard key={factory.id} factory={factory} onSelect={() => handleSelectFactory(factory)} style={{ animationDelay: `${Math.min(index * 30, 300)}ms` }} />
                         ))
                     ) : (
                         <div className="col-span-full text-center py-16 bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-sm border border-gray-200 dark:border-white/10">
