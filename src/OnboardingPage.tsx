@@ -792,13 +792,22 @@ const PhotoRepositionModal = ({ src, onConfirm, onCancel }: {
     const dragging = useRef(false);
     const lastPos = useRef({ x: 0, y: 0 });
 
-    // Smallest scale where the image still fully covers the circle
+    // Scale where image just covers the circle (default starting zoom)
     const minScale = useMemo(() => {
         if (!naturalSize.w || !naturalSize.h) return 1;
         return Math.max(CIRCLE_D / naturalSize.w, CIRCLE_D / naturalSize.h);
     }, [naturalSize]);
 
-    // On first load, fit the image to cover the circle
+    // Absolute min: image longest side = circle diameter (fully visible inside circle)
+    const sliderMin = useMemo(() => {
+        if (!naturalSize.w || !naturalSize.h) return 0.1;
+        return Math.min(CIRCLE_D / naturalSize.w, CIRCLE_D / naturalSize.h);
+    }, [naturalSize]);
+
+    // Absolute max: 5× the cover scale
+    const sliderMax = useMemo(() => minScale * 5, [minScale]);
+
+    // On first load, start at cover scale (image fills circle, like WhatsApp)
     useEffect(() => {
         if (naturalSize.w > 0) {
             setScale(minScale);
@@ -806,11 +815,12 @@ const PhotoRepositionModal = ({ src, onConfirm, onCancel }: {
         }
     }, [minScale]);
 
-    // Clamp so the image edge never exposes the circle interior
+    // Clamp offset so image can't be dragged completely off-screen
     const clampOffset = (ox: number, oy: number, sc: number) => {
         if (!naturalSize.w) return { x: 0, y: 0 };
-        const maxX = Math.max(0, naturalSize.w * sc / 2 - CIRCLE_R);
-        const maxY = Math.max(0, naturalSize.h * sc / 2 - CIRCLE_R);
+        // Allow dragging until only a small edge remains visible (20px)
+        const maxX = naturalSize.w * sc / 2 + CIRCLE_R - 20;
+        const maxY = naturalSize.h * sc / 2 + CIRCLE_R - 20;
         return {
             x: Math.max(-maxX, Math.min(maxX, ox)),
             y: Math.max(-maxY, Math.min(maxY, oy)),
@@ -932,12 +942,12 @@ const PhotoRepositionModal = ({ src, onConfirm, onCancel }: {
                     <span
                         style={{ color: 'rgba(255,255,255,0.5)', fontSize: 22, lineHeight: 1, cursor: 'pointer', padding: '4px 8px' }}
                         onPointerDown={e => e.stopPropagation()}
-                        onClick={() => handleScaleChange(Math.max(minScale, scale - minScale * 0.1))}
+                        onClick={() => handleScaleChange(Math.max(sliderMin, scale - sliderMin * 0.2))}
                     >−</span>
                     <input
                         type="range"
-                        min={minScale}
-                        max={minScale * 3}
+                        min={sliderMin}
+                        max={sliderMax}
                         step={0.0001}
                         value={scale}
                         onPointerDown={e => e.stopPropagation()}
@@ -947,7 +957,7 @@ const PhotoRepositionModal = ({ src, onConfirm, onCancel }: {
                     <span
                         style={{ color: 'rgba(255,255,255,0.5)', fontSize: 22, lineHeight: 1, cursor: 'pointer', padding: '4px 8px' }}
                         onPointerDown={e => e.stopPropagation()}
-                        onClick={() => handleScaleChange(Math.min(minScale * 3, scale + minScale * 0.1))}
+                        onClick={() => handleScaleChange(Math.min(sliderMax, scale + sliderMin * 0.2))}
                     >+</span>
                 </div>
 
