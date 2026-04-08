@@ -1,4 +1,5 @@
 import React, { useState, useEffect, FC, useRef, useCallback, useMemo } from 'react';
+import { compressImage } from './imageCompression';
 import {
     Plus, X, Trash2, Image as ImageIcon, Edit, MapPin, Star,
     ChevronLeft, ChevronRight, GripVertical, UploadCloud, Palette,
@@ -607,14 +608,30 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
     };
 
     // --- Upload ---
-    const uploadFileToStorage = async (file: File): Promise<string | null> => {
+    const uploadFileToStorage = async (
+        file: File,
+        target: 'gallery' | 'catalog' | 'fabric-swatch' | 'brochure' = 'gallery',
+    ): Promise<string | null> => {
         try {
-            const fileExt = file.name.split('.').pop();
+            // Compress images before uploading — resizes to display dimensions and
+            // converts to WebP for 30-40% smaller files at identical visual quality.
+            // PDFs and other non-image files are passed through unchanged.
+            const compressionTarget =
+                target === 'catalog'      ? 'catalog' :
+                target === 'fabric-swatch'? 'swatch'  :
+                                            'gallery'; // covers both gallery and cover
+            const ready = await compressImage(file, compressionTarget);
+
+            const fileExt = ready.name.split('.').pop();
             const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
             const filePath = `factories/${fileName}`;
-            const { error: uploadError } = await props.supabase.storage.from('factory-gallery').upload(filePath, file);
+            const { error: uploadError } = await props.supabase.storage
+                .from('factory-gallery')
+                .upload(filePath, ready, { contentType: ready.type });
             if (uploadError) throw uploadError;
-            const { data: { publicUrl } } = props.supabase.storage.from('factory-gallery').getPublicUrl(filePath);
+            const { data: { publicUrl } } = props.supabase.storage
+                .from('factory-gallery')
+                .getPublicUrl(filePath);
             return publicUrl;
         } catch (error: any) {
             showToast('Upload failed: ' + error.message, 'error');
@@ -627,7 +644,7 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
         if (Array.isArray(e)) { if (e.length > 0) file = e[0]; }
         else { if (e.target.files?.length) file = e.target.files[0]; }
         if (!file) return;
-        const publicUrl = await uploadFileToStorage(file);
+        const publicUrl = await uploadFileToStorage(file, target);
         if (publicUrl) {
             if (target === 'gallery') setEditingFactory(prev => ({ ...prev, gallery: [...(prev.gallery || []), publicUrl] }));
             else if (target === 'catalog' && index !== undefined) addProductImage(index, publicUrl);

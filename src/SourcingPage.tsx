@@ -1,6 +1,6 @@
 // Import React and necessary hooks for state and side effects
 import React, { FC, useState, useMemo, useEffect, useRef, ReactNode, useCallback } from 'react';
-import { getCache, setCache, TTL_FACTORIES } from './sessionCache';
+import { getCache, getCacheStale, setCache, TTL_FACTORIES } from './sessionCache';
 // Import icons for UI elements
 import {
     Search, Star, SlidersHorizontal, ChevronDown, Menu, User as UserIcon, LogOut, Briefcase, Truck, DollarSign,
@@ -255,7 +255,9 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
 
     const CACHE_KEY = 'garment_erp_factories_v2';
     // State to hold the complete list of factories fetched from the database
-    const [allFactories, setAllFactories] = useState<Factory[]>(() => getCache<Factory[]>(CACHE_KEY, TTL_FACTORIES) ?? []);
+    // Stale-while-revalidate: show any cached data immediately (even if expired),
+    // so the user never stares at a skeleton when we have something to show.
+    const [allFactories, setAllFactories] = useState<Factory[]>(() => getCacheStale<Factory[]>(CACHE_KEY) ?? []);
 
     // Default values for filters to allow easy resetting
     const initialFilters = { rating: 0, maxMoq: 10000, tags: [] as string[], categories: [] as string[], location: '', certifications: [] as string[], minTrustTier: '' as '' | 'bronze' | 'silver' | 'gold' };
@@ -269,7 +271,8 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
     // State to control visibility of the side filter panel
     const [showFilterPanel, setShowFilterPanel] = useState(false);
     // State to show loading indicators while data is being fetched
-    const [isFiltering, setIsFiltering] = useState(() => !getCache(CACHE_KEY, TTL_FACTORIES));
+    // Only show skeleton if there's truly nothing to show — stale data is fine to display
+    const [isFiltering, setIsFiltering] = useState(() => !getCacheStale(CACHE_KEY));
     // State for the user profile dropdown menu
     const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
     const [isPerformanceExpanded, setIsPerformanceExpanded] = useState(false);
@@ -299,17 +302,24 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
         abortControllerRef.current = new AbortController();
         const signal = abortControllerRef.current.signal;
 
-        const hasCache = !!getCache(CACHE_KEY, TTL_FACTORIES);
-        if (!hasCache) {
+        const hasStaleCache = !!getCacheStale(CACHE_KEY);
+        const hasFreshCache = !!getCache(CACHE_KEY, TTL_FACTORIES);
+
+        // If we have fresh cached data, skip the fetch entirely
+        if (hasFreshCache) return;
+
+        // If no cache at all, show skeleton while loading
+        if (!hasStaleCache) {
             setIsFiltering(true);
             if (setGlobalLoading) setGlobalLoading(true);
         }
+        // If stale cache exists, data is already showing — fetch silently in background
 
         let attempts = 0;
         while (attempts < 3) {
             try {
                 if (signal.aborted) return;
-                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 15000));
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 7000));
 
                 // Fetch only the columns needed for card display and filtering.
                 // gallery, catalog, machine_slots are heavy and only needed in FactoryDetailPage

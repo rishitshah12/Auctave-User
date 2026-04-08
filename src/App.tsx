@@ -372,6 +372,12 @@ const AppContent: FC = () => {
             console.error("CMS Boot Failed:", err);
             showToast(`CMS Startup Error: ${err.message}`, 'error');
         });
+
+        // Pre-warm the Supabase connection immediately on app load.
+        // This fires a lightweight 1-row query so the database wakes up in the
+        // background while the user is on the login screen — not while they wait
+        // for data after logging in. Result is discarded; errors are silently ignored.
+        supabase.from('factories').select('id').limit(1).then(() => {});
     }, []);
 
     // Effect to handle authentication state changes
@@ -575,21 +581,6 @@ const AppContent: FC = () => {
         };
     }, []);
 
-    // --- Connection Test ---
-    // Effect to test Supabase connection on mount
-    useEffect(() => {
-        const testConnection = async () => {
-            // Test connection by checking if we can reach the Supabase instance
-            const { error } = await supabase.from('clients').select('count', { count: 'exact', head: true });
-            if (error) {
-                // It might fail if table doesn't exist yet, which is expected on fresh start
-                console.log('Supabase connection check:', error.message);
-            } else {
-                console.log('✅ Supabase connection successful!');
-            }
-        };
-        testConnection();
-    }, []);
 
     // --- Mock Data Fetching ---
     // Effect to load mock quotes when user is logged in
