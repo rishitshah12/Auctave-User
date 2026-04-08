@@ -870,23 +870,23 @@ const PhotoRepositionModal = ({ src, onConfirm, onCancel }: {
         onConfirm(canvas.toDataURL('image/jpeg', 0.92));
     };
 
-    // Image dimensions — only set width, let height be auto to guarantee no skewing
-    const imgDisplayW = naturalSize.w ? naturalSize.w * scale : undefined;
+    // Zoom normalized to 1.0 = image just covers the circle
+    const zoomDisplay = minScale > 0 ? (scale / minScale).toFixed(1) : '1.0';
 
     return (
-        // Full-screen drag surface — no overflow:hidden so box-shadow spans the whole screen
+        // Full-screen drag surface — no overflow:hidden anywhere
         <div
             style={{
                 position: 'fixed', inset: 0, zIndex: 2000,
                 background: '#111',
                 userSelect: 'none', touchAction: 'none',
-                cursor: dragging.current ? 'grabbing' : 'grab',
+                cursor: 'grab',
             }}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
         >
-            {/* Image — positioned at screen center + offset, only width set (height auto = correct AR) */}
+            {/* Image — z-index 1, only width set (height auto preserves aspect ratio, never skews) */}
             <img
                 ref={imgRef}
                 src={src}
@@ -897,31 +897,42 @@ const PhotoRepositionModal = ({ src, onConfirm, onCancel }: {
                     position: 'absolute',
                     left: '50%',
                     top: '42%',
-                    width: imgDisplayW,
+                    width: naturalSize.w ? naturalSize.w * scale : undefined,
                     height: 'auto',
                     transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
                     pointerEvents: 'none',
                     opacity: naturalSize.w ? 1 : 0,
-                    transition: 'opacity 0.15s',
+                    zIndex: 1,
                 }}
             />
 
-            {/* Circle overlay — box-shadow covers the whole screen since there's no overflow:hidden */}
+            {/*
+              Dim overlay with circular cutout.
+              Using mask-image instead of box-shadow so it is never clipped by stacking context.
+              The gradient is centered at "50% 42%" matching where the circle sits.
+            */}
             <div style={{
-                position: 'absolute',
-                left: '50%',
-                top: '42%',
+                position: 'absolute', inset: 0, zIndex: 2,
+                background: 'rgba(0,0,0,0.65)',
+                WebkitMaskImage: `radial-gradient(circle ${CIRCLE_R}px at 50% 42%, transparent ${CIRCLE_R - 1}px, black ${CIRCLE_R}px)`,
+                maskImage: `radial-gradient(circle ${CIRCLE_R}px at 50% 42%, transparent ${CIRCLE_R - 1}px, black ${CIRCLE_R}px)`,
+                pointerEvents: 'none',
+            }} />
+
+            {/* Circle border ring — sits on top of overlay */}
+            <div style={{
+                position: 'absolute', zIndex: 3,
+                left: '50%', top: '42%',
                 transform: 'translate(-50%, -50%)',
                 width: CIRCLE_D, height: CIRCLE_D,
                 borderRadius: '50%',
-                boxShadow: '0 0 0 9999px rgba(0,0,0,0.62)',
-                border: '2px solid rgba(255,255,255,0.3)',
+                border: '2px solid rgba(255,255,255,0.35)',
                 pointerEvents: 'none',
             }} />
 
             {/* Top label */}
             <div style={{
-                position: 'absolute', top: 28, left: 0, right: 0,
+                position: 'absolute', top: 28, left: 0, right: 0, zIndex: 4,
                 textAlign: 'center', color: '#fff',
                 fontSize: 15, fontWeight: 600, letterSpacing: '0.01em',
                 pointerEvents: 'none',
@@ -931,34 +942,39 @@ const PhotoRepositionModal = ({ src, onConfirm, onCancel }: {
 
             {/* Bottom controls */}
             <div style={{
-                position: 'absolute', bottom: 0, left: 0, right: 0,
+                position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 4,
                 display: 'flex', flexDirection: 'column', alignItems: 'center',
                 padding: '0 0 40px',
-                gap: 20,
-                background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%)',
+                gap: 16,
+                background: 'linear-gradient(to top, rgba(0,0,0,0.9) 0%, transparent 100%)',
             }}>
-                {/* Zoom slider */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                    <span
-                        style={{ color: 'rgba(255,255,255,0.5)', fontSize: 22, lineHeight: 1, cursor: 'pointer', padding: '4px 8px' }}
-                        onPointerDown={e => e.stopPropagation()}
-                        onClick={() => handleScaleChange(Math.max(sliderMin, scale - sliderMin * 0.2))}
-                    >−</span>
-                    <input
-                        type="range"
-                        min={sliderMin}
-                        max={sliderMax}
-                        step={0.0001}
-                        value={scale}
-                        onPointerDown={e => e.stopPropagation()}
-                        onChange={e => handleScaleChange(parseFloat(e.target.value))}
-                        style={{ width: 200, accentColor: '#c20c0b', cursor: 'pointer' }}
-                    />
-                    <span
-                        style={{ color: 'rgba(255,255,255,0.5)', fontSize: 22, lineHeight: 1, cursor: 'pointer', padding: '4px 8px' }}
-                        onPointerDown={e => e.stopPropagation()}
-                        onClick={() => handleScaleChange(Math.min(sliderMax, scale + sliderMin * 0.2))}
-                    >+</span>
+                {/* Zoom slider + level */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', fontWeight: 500, letterSpacing: '0.04em' }}>
+                        {zoomDisplay}×
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                        <span
+                            style={{ color: 'rgba(255,255,255,0.5)', fontSize: 22, lineHeight: 1, cursor: 'pointer', padding: '4px 8px' }}
+                            onPointerDown={e => e.stopPropagation()}
+                            onClick={() => handleScaleChange(Math.max(sliderMin, scale - sliderMin * 0.2))}
+                        >−</span>
+                        <input
+                            type="range"
+                            min={sliderMin}
+                            max={sliderMax}
+                            step={0.0001}
+                            value={scale}
+                            onPointerDown={e => e.stopPropagation()}
+                            onChange={e => handleScaleChange(parseFloat(e.target.value))}
+                            style={{ width: 200, accentColor: '#c20c0b', cursor: 'pointer' }}
+                        />
+                        <span
+                            style={{ color: 'rgba(255,255,255,0.5)', fontSize: 22, lineHeight: 1, cursor: 'pointer', padding: '4px 8px' }}
+                            onPointerDown={e => e.stopPropagation()}
+                            onClick={() => handleScaleChange(Math.min(sliderMax, scale + sliderMin * 0.2))}
+                        >+</span>
+                    </div>
                 </div>
 
                 {/* Buttons */}

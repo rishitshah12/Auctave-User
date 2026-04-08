@@ -48,7 +48,7 @@ const FactoryDetailPage = lazy(() => import('./FactoryDetailPage').then(m => ({ 
 import { theme } from './theme';
 import { ToastProvider, useToast } from './ToastContext';
 import { NotificationProvider, useNotifications } from './NotificationContext';
-import { getCache, TTL_FACTORIES } from './sessionCache';
+import { getCache, setCache, getCacheStale, TTL_FACTORIES } from './sessionCache';
 
 // ─── Image resize helper ──────────────────────────────────────────────────────
 function resizeImage(file: File, maxPx = 240): Promise<string> {
@@ -672,6 +672,45 @@ const AppContent: FC = () => {
             if (quotesAbortController.current) quotesAbortController.current.abort();
         };
     }, [user, isAdmin, currentPage, fetchUserQuotes, quoteRequests.length]);
+
+    // Prefetch factory data during onboarding so SourcingPage renders instantly on first sign-up.
+    // Fires once when a new-user signup is detected; writes to the same sessionStorage cache key
+    // that SourcingPage reads on mount. By the time the user finishes the 3-step form the data
+    // is already cached, giving the same zero-wait experience as returning users.
+    const FACTORY_CACHE_KEY = 'garment_erp_factories_v2';
+    useEffect(() => {
+        if (!isNewUserSignup) return;
+        // Skip if cache is already fresh — nothing to do
+        if (getCache(FACTORY_CACHE_KEY, TTL_FACTORIES)) return;
+        // Don't kick off a second prefetch if stale data already exists
+        if (getCacheStale(FACTORY_CACHE_KEY)) return;
+
+        let cancelled = false;
+        (async () => {
+            try {
+                const { data, error } = await supabase.from('factories').select(
+                    'id,name,location,description,rating,turnaround,minimum_order_quantity,offer,cover_image_url,tags,certifications,specialties,trust_tier,completed_orders_count,on_time_delivery_rate,quality_rejection_rate'
+                );
+                if (cancelled || error || !data) return;
+                const factories: Factory[] = data.map((f: any) => ({
+                    id: f.id, name: f.name, location: f.location, description: f.description,
+                    rating: f.rating, turnaround: f.turnaround,
+                    minimumOrderQuantity: f.minimum_order_quantity, offer: f.offer,
+                    imageUrl: f.cover_image_url, gallery: [], tags: f.tags || [],
+                    certifications: f.certifications || [], specialties: f.specialties || [],
+                    productionLines: [], catalog: { products: [], fabricOptions: [] },
+                    trustTier: (f.trust_tier as Factory['trustTier']) || 'unverified',
+                    completedOrdersCount: f.completed_orders_count ?? 0,
+                    onTimeDeliveryRate: f.on_time_delivery_rate ?? undefined,
+                    qualityRejectionRate: f.quality_rejection_rate ?? undefined,
+                }));
+                setCache(FACTORY_CACHE_KEY, factories);
+            } catch {
+                // Prefetch failure is non-critical — SourcingPage will fetch on mount as fallback
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [isNewUserSignup]);
 
     // Shared helper: fire a rich RFQ notification for a quote status change
     const fireQuoteNotification = useCallback((tq: QuoteRequest, newStatus: string) => {
