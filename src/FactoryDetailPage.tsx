@@ -47,14 +47,30 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
     const [activeTab, setActiveTab] = useState<'overview' | 'catalog'>(initialTab);
     const [isLightboxOpen, setIsLightboxOpen] = useState(false);
 
-    // Fetch fresh data on mount and subscribe to real-time updates
+    // Fetch the heavy fields (gallery, catalog, machine_slots) that are not included
+    // in the slim SourcingPage list query, then merge them into local state.
+    // Uses a direct Supabase query to avoid the BaseService permission-check overhead.
     useEffect(() => {
         if (!propFactory?.id) return;
 
-        // Initial fresh fetch
-        factoryService.getById(propFactory.id).then(({ data }) => {
-            if (data) setFactory(data);
-        });
+        const fetchHeavyFields = () =>
+            supabase
+                .from('factories')
+                .select('gallery, catalog, machine_slots')
+                .eq('id', propFactory.id)
+                .single()
+                .then(({ data }) => {
+                    if (data) {
+                        setFactory(prev => ({
+                            ...prev,
+                            gallery: data.gallery || [],
+                            catalog: data.catalog || { products: [], fabricOptions: [] },
+                            productionLines: data.machine_slots || [],
+                        }));
+                    }
+                });
+
+        fetchHeavyFields();
 
         // Real-time subscription — reflects admin changes instantly
         const channel = supabase
@@ -64,11 +80,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                 schema: 'public',
                 table: 'factories',
                 filter: `id=eq.${propFactory.id}`,
-            }, () => {
-                factoryService.getById(propFactory.id).then(({ data }) => {
-                    if (data) setFactory(data);
-                });
-            })
+            }, fetchHeavyFields)
             .subscribe();
 
         return () => { channel.unsubscribe(); };
