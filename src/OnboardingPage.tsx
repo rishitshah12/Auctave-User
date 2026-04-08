@@ -17,11 +17,20 @@ interface UserProfile {
     yearlyEstRevenue: string;
 }
 
+export interface HelloSplashData {
+    word: string;
+    romanized?: string;
+    language: string;
+    flag: string;
+    theme: 'light' | 'dark';
+}
+
 interface OnboardingPageProps {
     user: any;
     onComplete: (data: Partial<UserProfile>) => Promise<void>;
     isLoading: boolean;
     onThemeChange?: (dark: boolean) => void;
+    onBeforeComplete?: (data: HelloSplashData) => void;
 }
 
 // ─── All 195 countries ────────────────────────────────────────────────────────
@@ -869,11 +878,10 @@ const AvatarPicker = ({ user, avatarUrl, onChange, isMobile }: {
 };
 
 // ─── Main Onboarding Component ────────────────────────────────────────────────
-export const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete, isLoading, onThemeChange }) => {
+export const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete, isLoading, onThemeChange, onBeforeComplete }) => {
     const [step, setStep] = useState(0);
     const [direction, setDirection] = useState<'forward' | 'back'>('forward');
     const [animating, setAnimating] = useState(false);
-    const [showingHello, setShowingHello] = useState(false);
     const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
 
     useEffect(() => {
@@ -942,7 +950,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete
         });
     };
 
-    const handleComplete = () => {
+    const handleComplete = async () => {
         const isDark = selectedTheme === 'dark';
         localStorage.setItem('garment_erp_dark_mode', String(isDark));
         if (isDark) document.documentElement.classList.add('dark');
@@ -951,18 +959,25 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete
         // Persist to Supabase so preference syncs across all devices
         supabase.auth.updateUser({ data: { darkMode: isDark } });
 
-        // Show hello animation, then save profile and enter platform
-        setShowingHello(true);
-        setTimeout(async () => {
-            const finalRole = form.jobRole === 'Other' ? form.customRole : form.jobRole;
-            const dialPrefix = form.country && DIAL[form.country] ? DIAL[form.country].code + ' ' : '';
-            const fullPhone = form.phone ? `${dialPrefix}${form.phone}` : '';
-            await onComplete({
-                name: form.name, email: form.email, phone: fullPhone,
-                companyName: form.companyName, country: form.country,
-                jobRole: finalRole, categorySpecialization: form.categories.join(', '),
-            });
-        }, 4000);
+        // Fire hello splash in App.tsx (renders independently, won't be cut off)
+        const helloData = HELLO_MAP[form.country] || { word: 'Hello', language: 'English' };
+        onBeforeComplete?.({
+            word: helloData.word,
+            romanized: helloData.romanized,
+            language: helloData.language,
+            flag: DIAL[form.country]?.flag ?? '',
+            theme: selectedTheme,
+        });
+
+        // Save profile immediately — concurrent with hello animation in parent
+        const finalRole = form.jobRole === 'Other' ? form.customRole : form.jobRole;
+        const dialPrefix = form.country && DIAL[form.country] ? DIAL[form.country].code + ' ' : '';
+        const fullPhone = form.phone ? `${dialPrefix}${form.phone}` : '';
+        await onComplete({
+            name: form.name, email: form.email, phone: fullPhone,
+            companyName: form.companyName, country: form.country,
+            jobRole: finalRole, categorySpecialization: form.categories.join(', '),
+        });
     };
 
     const isStepValid = () => {
@@ -1184,84 +1199,6 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete
         return null;
     };
 
-    // ── Hello splash screen ──────────────────────────────────────────────────
-    if (showingHello) {
-        const helloData = HELLO_MAP[form.country] || { word: 'Hello', language: 'English' };
-        const flag = DIAL[form.country]?.flag ?? '';
-        const showRomanized = helloData.romanized && helloData.romanized !== helloData.word;
-        const isDark = selectedTheme === 'dark';
-
-        // Theme-aware colours
-        const bg = isDark ? '#06060a' : '#f5f3ef';
-        const bgGradient = isDark
-            ? 'linear-gradient(135deg, rgba(194,12,11,0.08) 0%, transparent 45%, rgba(255,80,0,0.06) 100%)'
-            : 'linear-gradient(135deg, rgba(194,12,11,0.06) 0%, transparent 45%, rgba(255,140,0,0.08) 100%)';
-        const subColor = isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.45)';
-        const langColor = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.25)';
-
-        return (
-            <>
-                <style>{`
-                    @keyframes helloWord { 0%{opacity:0;transform:scale(0.55) translateY(24px)} 20%{opacity:1;transform:scale(1.06) translateY(0)} 32%{transform:scale(1)} 70%{opacity:1;transform:scale(1)} 100%{opacity:0;transform:scale(1.1) translateY(-16px)} }
-                    @keyframes helloSub { 0%,15%{opacity:0;transform:translateY(12px)} 32%{opacity:1;transform:translateY(0)} 70%{opacity:1} 100%{opacity:0} }
-                    @keyframes helloFlag { 0%{opacity:0;transform:scale(0.4)} 22%{opacity:1;transform:scale(1.12)} 32%{transform:scale(1)} 70%{opacity:1} 100%{opacity:0} }
-                    @keyframes helloScreen { 0%{opacity:0} 6%{opacity:1} 80%{opacity:1} 100%{opacity:0} }
-                    @keyframes helloPulse { 0%,100%{opacity:0.5} 50%{opacity:1} }
-                `}</style>
-                <div style={{
-                    position: 'fixed', inset: 0, background: bg,
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                    zIndex: 99999, animation: 'helloScreen 4.2s ease forwards', overflow: 'hidden',
-                }}>
-                    {/* Diagonal gradient sweep */}
-                    <div style={{ position: 'absolute', inset: 0, background: bgGradient, pointerEvents: 'none' }} />
-
-                    {/* Ambient glow orbs */}
-                    <div style={{ position: 'absolute', top: '-10%', left: '50%', transform: 'translateX(-50%)', width: isMobile ? 320 : 520, height: isMobile ? 320 : 520, borderRadius: '50%', background: 'radial-gradient(ellipse,rgba(194,12,11,0.18) 0%,transparent 65%)', animation: 'helloPulse 2s ease-in-out infinite', pointerEvents: 'none' }} />
-                    <div style={{ position: 'absolute', bottom: '-10%', right: '-5%', width: isMobile ? 240 : 380, height: isMobile ? 240 : 380, borderRadius: '50%', background: 'radial-gradient(ellipse,rgba(255,100,0,0.12) 0%,transparent 65%)', animation: 'helloPulse 2.6s ease-in-out infinite 0.8s', pointerEvents: 'none' }} />
-                    <div style={{ position: 'absolute', bottom: '-10%', left: '-5%', width: isMobile ? 180 : 300, height: isMobile ? 180 : 300, borderRadius: '50%', background: 'radial-gradient(ellipse,rgba(201,165,78,0.10) 0%,transparent 65%)', animation: 'helloPulse 3s ease-in-out infinite 1.2s', pointerEvents: 'none' }} />
-
-                    {/* Flag */}
-                    {flag && (
-                        <div style={{ fontSize: isMobile ? 52 : 72, lineHeight: 1, marginBottom: isMobile ? 20 : 28, animation: 'helloFlag 4.2s ease forwards', filter: 'drop-shadow(0 4px 24px rgba(0,0,0,0.3))' }}>
-                            {flag}
-                        </div>
-                    )}
-
-                    {/* Hello word — reddish-orange gradient */}
-                    <div style={{
-                        fontSize: isMobile ? 72 : 110,
-                        fontWeight: 900,
-                        letterSpacing: '-0.03em',
-                        lineHeight: 1,
-                        background: 'linear-gradient(135deg, #ff6b35 0%, #e63000 32%, #c20c0b 60%, #ff4500 100%)',
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent',
-                        backgroundClip: 'text',
-                        animation: 'helloWord 4.2s ease forwards',
-                        filter: 'drop-shadow(0 0 48px rgba(194,12,11,0.45))',
-                        textAlign: 'center',
-                        padding: '0 16px',
-                    }}>
-                        {helloData.word}
-                    </div>
-
-                    {/* Romanized pronunciation */}
-                    {showRomanized && (
-                        <div style={{ fontSize: isMobile ? 20 : 28, fontWeight: 600, color: subColor, marginTop: isMobile ? 10 : 14, letterSpacing: '0.04em', animation: 'helloSub 4.2s ease forwards', textAlign: 'center' }}>
-                            {helloData.romanized}
-                        </div>
-                    )}
-
-                    {/* Language label */}
-                    <div style={{ fontSize: isMobile ? 11 : 13, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: langColor, marginTop: isMobile ? 18 : 24, animation: 'helloSub 4.2s ease forwards', textAlign: 'center' }}>
-                        {helloData.language}
-                    </div>
-                </div>
-            </>
-        );
-    }
-
     return (
         <>
             <style>{`
@@ -1271,10 +1208,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete
                 @keyframes spin { to{transform:rotate(360deg)} }
                 @keyframes popIn { 0%{transform:scale(0.4);opacity:0} 60%{transform:scale(1.12)} 100%{transform:scale(1);opacity:1} }
                 @keyframes confettiFall { 0%{transform:translateY(0) rotate(0deg);opacity:1} 100%{transform:translateY(100vh) rotate(720deg);opacity:0} }
-                @keyframes helloWord { 0%{opacity:0;transform:scale(0.6) translateY(20px)} 18%{opacity:1;transform:scale(1.06) translateY(0)} 28%{transform:scale(1)} 72%{opacity:1;transform:scale(1)} 100%{opacity:0;transform:scale(1.08) translateY(-12px)} }
-                @keyframes helloSub { 0%,12%{opacity:0;transform:translateY(10px)} 28%{opacity:1;transform:translateY(0)} 72%{opacity:1} 100%{opacity:0} }
-                @keyframes helloScreen { 0%{opacity:0} 8%{opacity:1} 82%{opacity:1} 100%{opacity:0} }
-                @keyframes helloPulse { 0%,100%{box-shadow:0 0 80px rgba(194,12,11,0.25),0 0 160px rgba(255,80,0,0.1)} 50%{box-shadow:0 0 120px rgba(194,12,11,0.4),0 0 240px rgba(255,80,0,0.2)} }
+
                 @keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
                 @keyframes fadeDown { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
                 @keyframes scrollUp { 0%{transform:translateY(0)} 100%{transform:translateY(-50%)} }

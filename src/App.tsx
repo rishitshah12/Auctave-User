@@ -24,7 +24,7 @@ import { UserProfile, OrderFormData, Factory, QuoteRequest, CrmOrder, CrmProduct
 // Import custom components for specific pages and UI elements
 import { MainLayout } from '../src/MainLayout';
 import { LoginPage } from '../src/LoginPage';
-import { OnboardingPage } from './OnboardingPage';
+import { OnboardingPage, HelloSplashData } from './OnboardingPage';
 import { SourcingPage } from '../src/SourcingPage';
 import { FactoryCard } from '../src/FactoryCard';
 import { OrderFormPage } from './OrderFormPage';
@@ -80,6 +80,66 @@ interface AIChatMessage {
     startOrderData?: { category?: string; qty?: string; fabric?: string };
 }
 
+// --- Hello Splash Overlay ---
+const HelloSplashOverlay: FC<{ data: import('./OnboardingPage').HelloSplashData }> = ({ data }) => {
+    const isMobile = window.innerWidth < 640;
+    const isDark = data.theme === 'dark';
+    const bg = isDark ? '#06060a' : '#f5f3ef';
+    const bgGradient = isDark
+        ? 'linear-gradient(135deg, rgba(194,12,11,0.08) 0%, transparent 45%, rgba(255,80,0,0.06) 100%)'
+        : 'linear-gradient(135deg, rgba(194,12,11,0.06) 0%, transparent 45%, rgba(255,140,0,0.08) 100%)';
+    const subColor = isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.45)';
+    const langColor = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.25)';
+    const showRomanized = data.romanized && data.romanized !== data.word;
+
+    return (
+        <>
+            <style>{`
+                @keyframes helloWord { 0%{opacity:0;transform:scale(0.55) translateY(24px)} 20%{opacity:1;transform:scale(1.06) translateY(0)} 32%{transform:scale(1)} 72%{opacity:1;transform:scale(1)} 100%{opacity:0;transform:scale(1.1) translateY(-16px)} }
+                @keyframes helloSub { 0%,15%{opacity:0;transform:translateY(12px)} 32%{opacity:1;transform:translateY(0)} 72%{opacity:1} 100%{opacity:0} }
+                @keyframes helloFlag { 0%{opacity:0;transform:scale(0.4)} 22%{opacity:1;transform:scale(1.12)} 32%{transform:scale(1)} 72%{opacity:1} 100%{opacity:0} }
+                @keyframes helloScreen { 0%{opacity:0} 6%{opacity:1} 82%{opacity:1} 100%{opacity:0} }
+                @keyframes helloPulse { 0%,100%{opacity:0.5} 50%{opacity:1} }
+            `}</style>
+            <div style={{
+                position: 'fixed', inset: 0, background: bg,
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                zIndex: 99999, animation: 'helloScreen 2.2s ease forwards', overflow: 'hidden',
+                pointerEvents: 'none',
+            }}>
+                <div style={{ position: 'absolute', inset: 0, background: bgGradient }} />
+                <div style={{ position: 'absolute', top: '-10%', left: '50%', transform: 'translateX(-50%)', width: isMobile ? 320 : 520, height: isMobile ? 320 : 520, borderRadius: '50%', background: 'radial-gradient(ellipse,rgba(194,12,11,0.18) 0%,transparent 65%)', animation: 'helloPulse 2s ease-in-out infinite' }} />
+                <div style={{ position: 'absolute', bottom: '-10%', right: '-5%', width: isMobile ? 240 : 380, height: isMobile ? 240 : 380, borderRadius: '50%', background: 'radial-gradient(ellipse,rgba(255,100,0,0.12) 0%,transparent 65%)', animation: 'helloPulse 2.6s ease-in-out infinite 0.8s' }} />
+                <div style={{ position: 'absolute', bottom: '-10%', left: '-5%', width: isMobile ? 180 : 300, height: isMobile ? 180 : 300, borderRadius: '50%', background: 'radial-gradient(ellipse,rgba(201,165,78,0.10) 0%,transparent 65%)', animation: 'helloPulse 3s ease-in-out infinite 1.2s' }} />
+
+                {data.flag && (
+                    <div style={{ fontSize: isMobile ? 52 : 72, lineHeight: 1, marginBottom: isMobile ? 20 : 28, animation: 'helloFlag 2.2s ease forwards', filter: 'drop-shadow(0 4px 24px rgba(0,0,0,0.3))', position: 'relative' }}>
+                        {data.flag}
+                    </div>
+                )}
+                <div style={{
+                    fontSize: isMobile ? 72 : 110, fontWeight: 900, letterSpacing: '-0.03em', lineHeight: 1,
+                    background: 'linear-gradient(135deg, #ff6b35 0%, #e63000 32%, #c20c0b 60%, #ff4500 100%)',
+                    WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+                    animation: 'helloWord 2.2s ease forwards',
+                    filter: 'drop-shadow(0 0 48px rgba(194,12,11,0.45))',
+                    textAlign: 'center', padding: '0 16px', position: 'relative',
+                }}>
+                    {data.word}
+                </div>
+                {showRomanized && (
+                    <div style={{ fontSize: isMobile ? 20 : 28, fontWeight: 600, color: subColor, marginTop: isMobile ? 10 : 14, letterSpacing: '0.04em', animation: 'helloSub 2.2s ease forwards', textAlign: 'center', position: 'relative' }}>
+                        {data.romanized}
+                    </div>
+                )}
+                <div style={{ fontSize: isMobile ? 11 : 13, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: langColor, marginTop: isMobile ? 18 : 24, animation: 'helloSub 2.2s ease forwards', textAlign: 'center', position: 'relative' }}>
+                    {data.language}
+                </div>
+            </div>
+        </>
+    );
+};
+
 // --- Main App Component ---
 // This is the root component of the application
 const AppContent: FC = () => {
@@ -130,6 +190,9 @@ const AppContent: FC = () => {
     const lastAdminRFQAtRef = useRef<string>('');
     // Quote ID to auto-open when navigating to adminRFQ
     const [adminRFQInitialId, setAdminRFQInitialId] = useState<string | null>(null);
+
+    // Hello splash overlay shown after onboarding completes
+    const [helloSplash, setHelloSplash] = useState<HelloSplashData | null>(null);
 
     // State for dark mode
     const [darkMode, setDarkMode] = useState<boolean>(() => {
@@ -2992,7 +3055,7 @@ User message: "${userMsg}"`;
         // Hard gate: if user is authenticated, has no profile, and is a new signup, show onboarding.
         // Existing users without a profile record are NOT gated — they go straight to the app.
         if (user && userProfile === null && isNewUserSignup && currentPage !== 'login' && currentPage !== 'createPassword') {
-            return <OnboardingPage user={user} onComplete={saveUserProfile} isLoading={isProfileLoading} onThemeChange={setDarkMode} />;
+            return <OnboardingPage user={user} onComplete={saveUserProfile} isLoading={isProfileLoading} onThemeChange={setDarkMode} onBeforeComplete={(data) => { setHelloSplash(data); setTimeout(() => setHelloSplash(null), 2200); }} />;
         }
 
         // 1. Check Dynamic Routes from MasterController (Enables Extensibility)
@@ -3006,7 +3069,7 @@ User message: "${userMsg}"`;
             case 'login': return <LoginPage showToast={showToast} setAuthError={setAuthError} authError={authError} />;
             case 'profile': return (userProfile || !isNewUserSignup)
                 ? <ProfilePage />
-                : <OnboardingPage user={user} onComplete={saveUserProfile} isLoading={isProfileLoading} onThemeChange={setDarkMode} />;
+                : <OnboardingPage user={user} onComplete={saveUserProfile} isLoading={isProfileLoading} onThemeChange={setDarkMode} onBeforeComplete={(data) => { setHelloSplash(data); setTimeout(() => setHelloSplash(null), 2200); }} />;
             case 'createPassword': return <CreatePasswordPage />;
             case 'sourcing': return <SourcingPage
                 {...layoutProps}
@@ -3346,6 +3409,8 @@ User message: "${userMsg}"`;
             {user && userProfile && !isAdmin && <AIChatSupport />}
             {/* Universal RFQ chat panel — admin only */}
             {user && isAdmin && <AdminUniversalChat onNavigate={handleSetCurrentPage} />}
+            {/* Hello splash overlay — shown after onboarding, sits above everything */}
+            {helloSplash && <HelloSplashOverlay data={helloSplash} />}
         </div>
     );
 };
