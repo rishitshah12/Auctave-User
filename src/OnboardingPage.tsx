@@ -1028,8 +1028,28 @@ const AvatarPicker = ({ user, avatarUrl, onChange, isMobile }: {
         supabase.auth.updateUser({ data: { avatar_url: croppedUrl } });
     };
 
+    const [menuOpen, setMenuOpen] = useState(false);
+
     const initials = (user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email || '?')
         .split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase();
+
+    const handleAvatarClick = () => {
+        if (avatarUrl) {
+            setMenuOpen(prev => !prev);
+        } else {
+            fileRef.current?.click();
+        }
+    };
+
+    const handleAdjust = () => {
+        setMenuOpen(false);
+        setRepoSrc(avatarUrl);
+    };
+
+    const handleUploadNew = () => {
+        setMenuOpen(false);
+        fileRef.current?.click();
+    };
 
     return (
         <>
@@ -1040,9 +1060,13 @@ const AvatarPicker = ({ user, avatarUrl, onChange, isMobile }: {
                     onCancel={() => setRepoSrc(null)}
                 />
             )}
+            {/* Dismiss menu on outside click */}
+            {menuOpen && (
+                <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setMenuOpen(false)} />
+            )}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: isMobile ? 16 : 28 }}>
                 {/* Avatar circle */}
-                <div style={{ position: 'relative', cursor: 'pointer' }} onClick={() => fileRef.current?.click()}>
+                <div style={{ position: 'relative', cursor: 'pointer' }} onClick={handleAvatarClick}>
                     <div style={{
                         width: 88, height: 88, borderRadius: '50%',
                         background: avatarUrl ? 'transparent' : 'linear-gradient(135deg,#c20c0b,#7a0808)',
@@ -1081,13 +1105,64 @@ const AvatarPicker = ({ user, avatarUrl, onChange, isMobile }: {
                     }}>
                         <Edit3 size={11} color="#fff" />
                     </div>
+
+                    {/* Options popup menu */}
+                    {menuOpen && (
+                        <div
+                            onClick={e => e.stopPropagation()}
+                            style={{
+                                position: 'absolute', top: 'calc(100% + 10px)', left: '50%',
+                                transform: 'translateX(-50%)',
+                                zIndex: 100,
+                                background: '#1a1a1f',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                borderRadius: 12,
+                                overflow: 'hidden',
+                                boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+                                minWidth: 180,
+                                animation: 'fadeInDown 0.12s ease',
+                            }}
+                        >
+                            <button
+                                onClick={handleAdjust}
+                                style={{
+                                    width: '100%', padding: '12px 16px',
+                                    background: 'none', border: 'none',
+                                    color: '#fff', fontSize: 13, fontWeight: 500,
+                                    cursor: 'pointer', textAlign: 'left',
+                                    display: 'flex', alignItems: 'center', gap: 10,
+                                    borderBottom: '1px solid rgba(255,255,255,0.07)',
+                                }}
+                                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
+                                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                            >
+                                <Edit3 size={14} color="#c20c0b" />
+                                Adjust photo
+                            </button>
+                            <button
+                                onClick={handleUploadNew}
+                                style={{
+                                    width: '100%', padding: '12px 16px',
+                                    background: 'none', border: 'none',
+                                    color: '#fff', fontSize: 13, fontWeight: 500,
+                                    cursor: 'pointer', textAlign: 'left',
+                                    display: 'flex', alignItems: 'center', gap: 10,
+                                }}
+                                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
+                                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                            >
+                                <Camera size={14} color="#c20c0b" />
+                                Upload new photo
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} />
 
                 <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                     <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>
-                        Click to change photo
+                        {avatarUrl ? 'Click to edit photo' : 'Click to add photo'}
                     </span>
                     {fromGoogle && (
                         <span style={{
@@ -1444,6 +1519,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete
                 @keyframes scrollDown { 0%{transform:translateY(-50%)} 100%{transform:translateY(0)} }
                 @keyframes orbPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.72;transform:scale(1.06)} }
                 @keyframes dropDown { from{opacity:0;transform:translateY(-6px) scaleY(0.96)} to{opacity:1;transform:translateY(0) scaleY(1)} }
+                @keyframes fadeInDown { from{opacity:0;transform:translateX(-50%) translateY(-6px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
             `}</style>
 
             <div style={{ position: 'fixed', inset: 0, background: '#06060a', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, overflowY: 'auto', padding: isMobile ? '12px 8px' : '24px 16px' }}>
