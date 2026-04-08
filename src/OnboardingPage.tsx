@@ -780,45 +780,37 @@ const PhotoRepositionModal = ({ src, onConfirm, onCancel }: {
     onConfirm: (dataUrl: string) => void;
     onCancel: () => void;
 }) => {
-    // Circle diameter shown in UI; output canvas size
-    const CIRCLE_D = 280;
+    const CIRCLE_D = 260;
     const CIRCLE_R = CIRCLE_D / 2;
     const CANVAS_OUT = 240;
-    // Container that holds the draggable image (wider than the circle so you see the full photo)
-    const CONTAINER_W = 340;
-    const CONTAINER_H = 400;
 
     const imgRef = useRef<HTMLImageElement>(null);
     const [naturalSize, setNaturalSize] = useState({ w: 0, h: 0 });
-    const [offset, setOffset] = useState({ x: 0, y: 0 }); // offset from container center
+    // offset = how far the image center is from the circle center
+    const [offset, setOffset] = useState({ x: 0, y: 0 });
     const [scale, setScale] = useState(1);
     const dragging = useRef(false);
     const lastPos = useRef({ x: 0, y: 0 });
 
-    // Minimum scale = image just covers the circle (same as WhatsApp's default zoom-out limit)
+    // Smallest scale where the image still fully covers the circle
     const minScale = useMemo(() => {
         if (!naturalSize.w || !naturalSize.h) return 1;
         return Math.max(CIRCLE_D / naturalSize.w, CIRCLE_D / naturalSize.h);
     }, [naturalSize]);
 
-    // Once image loads, set initial scale so it covers the circle
+    // On first load, fit the image to cover the circle
     useEffect(() => {
-        if (minScale > 0) {
+        if (naturalSize.w > 0) {
             setScale(minScale);
             setOffset({ x: 0, y: 0 });
         }
     }, [minScale]);
 
-    const imgW = naturalSize.w * scale;
-    const imgH = naturalSize.h * scale;
-
-    // Clamp so the circle is always fully covered by the image
+    // Clamp so the image edge never exposes the circle interior
     const clampOffset = (ox: number, oy: number, sc: number) => {
         if (!naturalSize.w) return { x: 0, y: 0 };
-        const iw = naturalSize.w * sc;
-        const ih = naturalSize.h * sc;
-        const maxX = Math.max(0, iw / 2 - CIRCLE_R);
-        const maxY = Math.max(0, ih / 2 - CIRCLE_R);
+        const maxX = Math.max(0, naturalSize.w * sc / 2 - CIRCLE_R);
+        const maxY = Math.max(0, naturalSize.h * sc / 2 - CIRCLE_R);
         return {
             x: Math.max(-maxX, Math.min(maxX, ox)),
             y: Math.max(-maxY, Math.min(maxY, oy)),
@@ -826,9 +818,11 @@ const PhotoRepositionModal = ({ src, onConfirm, onCancel }: {
     };
 
     const onPointerDown = (e: React.PointerEvent) => {
+        const tag = (e.target as HTMLElement).tagName;
+        if (tag === 'INPUT' || tag === 'BUTTON') return;
         dragging.current = true;
         lastPos.current = { x: e.clientX, y: e.clientY };
-        e.currentTarget.setPointerCapture(e.pointerId);
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     };
     const onPointerMove = (e: React.PointerEvent) => {
         if (!dragging.current) return;
@@ -850,121 +844,141 @@ const PhotoRepositionModal = ({ src, onConfirm, onCancel }: {
         canvas.width = CANVAS_OUT;
         canvas.height = CANVAS_OUT;
         const ctx = canvas.getContext('2d')!;
-        // Clip to circle
         ctx.beginPath();
         ctx.arc(CANVAS_OUT / 2, CANVAS_OUT / 2, CANVAS_OUT / 2, 0, Math.PI * 2);
         ctx.clip();
-        // Map display coords → output canvas coords
-        // Image center in container = (CONTAINER_W/2 + offset.x, CONTAINER_H/2 + offset.y)
-        // Circle top-left in container = (CONTAINER_W/2 - CIRCLE_R, CONTAINER_H/2 - CIRCLE_R)
-        const factor = CANVAS_OUT / CIRCLE_D;
-        const imgLeftInContainer = CONTAINER_W / 2 + offset.x - imgW / 2;
-        const imgTopInContainer = CONTAINER_H / 2 + offset.y - imgH / 2;
-        const circleLeftInContainer = CONTAINER_W / 2 - CIRCLE_R;
-        const circleTopInContainer = CONTAINER_H / 2 - CIRCLE_R;
-        const dx = (imgLeftInContainer - circleLeftInContainer) * factor;
-        const dy = (imgTopInContainer - circleTopInContainer) * factor;
-        ctx.drawImage(imgRef.current, dx, dy, imgW * factor, imgH * factor);
-        onConfirm(canvas.toDataURL('image/jpeg', 0.9));
+        // In display space, circle center = image center + offset (reversed)
+        // So image center relative to circle top-left = (CIRCLE_R - offset.x, CIRCLE_R - offset.y)
+        // Image top-left relative to circle top-left:
+        const sc = scale;
+        const iw = naturalSize.w * sc;
+        const ih = naturalSize.h * sc;
+        const imgLeftRelCircle = CIRCLE_R + offset.x - iw / 2;
+        const imgTopRelCircle = CIRCLE_R + offset.y - ih / 2;
+        const f = CANVAS_OUT / CIRCLE_D;
+        ctx.drawImage(imgRef.current, imgLeftRelCircle * f, imgTopRelCircle * f, iw * f, ih * f);
+        onConfirm(canvas.toDataURL('image/jpeg', 0.92));
     };
 
+    // Image dimensions — only set width, let height be auto to guarantee no skewing
+    const imgDisplayW = naturalSize.w ? naturalSize.w * scale : undefined;
+
     return (
-        <div style={{
-            position: 'fixed', inset: 0, zIndex: 2000,
-            background: 'rgba(0,0,0,0.95)',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            backdropFilter: 'blur(16px)',
-        }}>
-            <div style={{ color: '#fff', fontSize: 15, fontWeight: 600, marginBottom: 20, letterSpacing: '0.01em' }}>
+        // Full-screen drag surface — no overflow:hidden so box-shadow spans the whole screen
+        <div
+            style={{
+                position: 'fixed', inset: 0, zIndex: 2000,
+                background: '#111',
+                userSelect: 'none', touchAction: 'none',
+                cursor: dragging.current ? 'grabbing' : 'grab',
+            }}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+        >
+            {/* Image — positioned at screen center + offset, only width set (height auto = correct AR) */}
+            <img
+                ref={imgRef}
+                src={src}
+                onLoad={e => setNaturalSize({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
+                alt=""
+                draggable={false}
+                style={{
+                    position: 'absolute',
+                    left: '50%',
+                    top: '42%',
+                    width: imgDisplayW,
+                    height: 'auto',
+                    transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
+                    pointerEvents: 'none',
+                    opacity: naturalSize.w ? 1 : 0,
+                    transition: 'opacity 0.15s',
+                }}
+            />
+
+            {/* Circle overlay — box-shadow covers the whole screen since there's no overflow:hidden */}
+            <div style={{
+                position: 'absolute',
+                left: '50%',
+                top: '42%',
+                transform: 'translate(-50%, -50%)',
+                width: CIRCLE_D, height: CIRCLE_D,
+                borderRadius: '50%',
+                boxShadow: '0 0 0 9999px rgba(0,0,0,0.62)',
+                border: '2px solid rgba(255,255,255,0.3)',
+                pointerEvents: 'none',
+            }} />
+
+            {/* Top label */}
+            <div style={{
+                position: 'absolute', top: 28, left: 0, right: 0,
+                textAlign: 'center', color: '#fff',
+                fontSize: 15, fontWeight: 600, letterSpacing: '0.01em',
+                pointerEvents: 'none',
+            }}>
                 Drag to reposition
             </div>
 
-            {/* Drag area — full image visible, circle is just an overlay guide */}
-            <div
-                style={{
-                    width: CONTAINER_W, height: CONTAINER_H,
-                    position: 'relative', overflow: 'hidden',
-                    cursor: 'grab', userSelect: 'none', touchAction: 'none',
-                    background: '#000',
-                    borderRadius: 12,
-                }}
-                onPointerDown={onPointerDown}
-                onPointerMove={onPointerMove}
-                onPointerUp={onPointerUp}
-                onPointerLeave={onPointerUp}
-            >
-                {/* The image — full natural proportions, positioned freely */}
-                <img
-                    ref={imgRef}
-                    src={src}
-                    onLoad={e => {
-                        const img = e.currentTarget;
-                        setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
-                    }}
-                    alt=""
-                    draggable={false}
-                    style={{
-                        position: 'absolute',
-                        width: imgW || 'auto',
-                        height: imgH || 'auto',
-                        left: CONTAINER_W / 2 + offset.x - imgW / 2,
-                        top: CONTAINER_H / 2 + offset.y - imgH / 2,
-                        pointerEvents: 'none',
-                        // No width/height set until naturalSize known → avoids flash of skewed image
-                        ...(naturalSize.w === 0 ? { width: 'auto', height: 'auto', opacity: 0 } : {}),
-                    }}
-                />
+            {/* Bottom controls */}
+            <div style={{
+                position: 'absolute', bottom: 0, left: 0, right: 0,
+                display: 'flex', flexDirection: 'column', alignItems: 'center',
+                padding: '0 0 40px',
+                gap: 20,
+                background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%)',
+            }}>
+                {/* Zoom slider */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <span
+                        style={{ color: 'rgba(255,255,255,0.5)', fontSize: 22, lineHeight: 1, cursor: 'pointer', padding: '4px 8px' }}
+                        onPointerDown={e => e.stopPropagation()}
+                        onClick={() => handleScaleChange(Math.max(minScale, scale - minScale * 0.1))}
+                    >−</span>
+                    <input
+                        type="range"
+                        min={minScale}
+                        max={minScale * 3}
+                        step={0.0001}
+                        value={scale}
+                        onPointerDown={e => e.stopPropagation()}
+                        onChange={e => handleScaleChange(parseFloat(e.target.value))}
+                        style={{ width: 200, accentColor: '#c20c0b', cursor: 'pointer' }}
+                    />
+                    <span
+                        style={{ color: 'rgba(255,255,255,0.5)', fontSize: 22, lineHeight: 1, cursor: 'pointer', padding: '4px 8px' }}
+                        onPointerDown={e => e.stopPropagation()}
+                        onClick={() => handleScaleChange(Math.min(minScale * 3, scale + minScale * 0.1))}
+                    >+</span>
+                </div>
 
-                {/* Dimmed overlay with circular cutout — the box-shadow trick */}
-                <div style={{
-                    position: 'absolute',
-                    left: CONTAINER_W / 2 - CIRCLE_R,
-                    top: CONTAINER_H / 2 - CIRCLE_R,
-                    width: CIRCLE_D, height: CIRCLE_D,
-                    borderRadius: '50%',
-                    boxShadow: '0 0 0 9999px rgba(0,0,0,0.55)',
-                    border: '2px solid rgba(255,255,255,0.35)',
-                    pointerEvents: 'none',
-                }} />
-            </div>
-
-            {/* Zoom slider — min=minScale (covers circle), max=3× minScale */}
-            <div style={{ marginTop: 24, display: 'flex', alignItems: 'center', gap: 14 }}>
-                <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 20, lineHeight: 1, userSelect: 'none', cursor: 'pointer' }}
-                    onClick={() => handleScaleChange(Math.max(minScale, scale - 0.1))}>−</span>
-                <input
-                    type="range"
-                    min={minScale}
-                    max={minScale * 3}
-                    step={0.001}
-                    value={scale}
-                    onChange={e => handleScaleChange(parseFloat(e.target.value))}
-                    style={{ width: 180, accentColor: '#c20c0b', cursor: 'pointer' }}
-                />
-                <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 20, lineHeight: 1, userSelect: 'none', cursor: 'pointer' }}
-                    onClick={() => handleScaleChange(Math.min(minScale * 3, scale + 0.1))}>+</span>
-            </div>
-
-            {/* Action buttons */}
-            <div style={{ marginTop: 28, display: 'flex', gap: 12 }}>
-                <button onClick={onCancel} style={{
-                    padding: '11px 32px', borderRadius: 12,
-                    border: '1px solid rgba(255,255,255,0.15)',
-                    background: 'rgba(255,255,255,0.07)',
-                    color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer',
-                    transition: 'background 0.15s',
-                }}>
-                    Cancel
-                </button>
-                <button onClick={handleConfirm} style={{
-                    padding: '11px 32px', borderRadius: 12,
-                    border: 'none',
-                    background: 'linear-gradient(135deg,#c20c0b,#9a0909)',
-                    color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer',
-                    boxShadow: '0 4px 20px rgba(194,12,11,0.45)',
-                }}>
-                    Done
-                </button>
+                {/* Buttons */}
+                <div style={{ display: 'flex', gap: 12 }}>
+                    <button
+                        onPointerDown={e => e.stopPropagation()}
+                        onClick={onCancel}
+                        style={{
+                            padding: '11px 32px', borderRadius: 12,
+                            border: '1px solid rgba(255,255,255,0.18)',
+                            background: 'rgba(255,255,255,0.08)',
+                            color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                        }}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onPointerDown={e => e.stopPropagation()}
+                        onClick={handleConfirm}
+                        style={{
+                            padding: '11px 36px', borderRadius: 12,
+                            border: 'none',
+                            background: 'linear-gradient(135deg,#c20c0b,#9a0909)',
+                            color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                            boxShadow: '0 4px 20px rgba(194,12,11,0.45)',
+                        }}
+                    >
+                        Done
+                    </button>
+                </div>
             </div>
         </div>
     );
