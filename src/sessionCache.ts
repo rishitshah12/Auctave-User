@@ -56,6 +56,7 @@ export function getCacheStale<T>(key: string): T | null {
 }
 
 // TTL constants used across the app
-export const TTL_FACTORIES = 20 * 60 * 1000; // 20 min — factories change infrequently
-export const TTL_QUOTES    =  5 * 60 * 1000; //  5 min — quotes update more often
-export const TTL_ORDERS    = 10 * 60 * 1000; // 10 min — CRM orders
+export const TTL_FACTORIES     = 20 * 60 * 1000; // 20 min — factories change infrequently
+export const TTL_FACTORY_DETAIL = 10 * 60 * 1000; // 10 min — heavy fields (gallery/catalog/slots)
+export const TTL_QUOTES        =  5 * 60 * 1000; //  5 min — quotes update more often
+export const TTL_ORDERS        = 10 * 60 * 1000; // 10 min — CRM orders

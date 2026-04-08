@@ -24,9 +24,10 @@ interface FactoryCardProps {
     factory: Factory;
     onSelect: () => void;
     style: React.CSSProperties;
+    onPrefetch?: () => void;
 }
 
-export const FactoryCard: FC<FactoryCardProps> = React.memo(({ factory, onSelect, style }) => {
+export const FactoryCard: FC<FactoryCardProps> = React.memo(({ factory, onSelect, style, onPrefetch }) => {
     const tier = factory.trustTier || 'unverified';
     const tierCfg = TRUST_TIER_CONFIG[tier];
     const showTierBanner = tier !== 'unverified';
@@ -37,6 +38,7 @@ export const FactoryCard: FC<FactoryCardProps> = React.memo(({ factory, onSelect
     return (
         <div
             onClick={onSelect}
+            onMouseEnter={onPrefetch}
             style={style}
             className="bg-white sm:bg-gray-50 dark:bg-gray-900/60 sm:dark:bg-black rounded-2xl border border-gray-100 sm:border-0 dark:border-white/8 shadow-sm sm:shadow-none hover:shadow-xl sm:hover:shadow-lg active:scale-[0.98] sm:active:scale-100 sm:hover:-translate-y-1 transition-all duration-300 cursor-pointer group flex flex-col animate-card-enter overflow-hidden sm:overflow-visible h-full"
         >

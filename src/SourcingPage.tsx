@@ -1,6 +1,6 @@
 // Import React and necessary hooks for state and side effects
 import React, { FC, useState, useMemo, useEffect, useRef, ReactNode, useCallback } from 'react';
-import { getCache, getCacheStale, setCache, TTL_FACTORIES } from './sessionCache';
+import { getCache, getCacheStale, setCache, TTL_FACTORIES, TTL_FACTORY_DETAIL } from './sessionCache';
 // Import icons for UI elements
 import {
     Search, Star, SlidersHorizontal, ChevronDown, Menu, User as UserIcon, LogOut, Briefcase, Truck, DollarSign,
@@ -387,6 +387,28 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
             if (abortControllerRef.current) abortControllerRef.current.abort();
         };
     }, [fetchFactories]);
+
+    // Track in-flight prefetch requests so hover doesn't fire duplicate fetches
+    const prefetchingRef = useRef<Set<string>>(new Set());
+
+    const prefetchFactoryDetail = useCallback((factoryId: string) => {
+        const cacheKey = `garment_erp_factory_detail_${factoryId}`;
+        // Skip if already cached (fresh) or a fetch is already in-flight
+        if (getCache(cacheKey, TTL_FACTORY_DETAIL)) return;
+        if (prefetchingRef.current.has(factoryId)) return;
+        prefetchingRef.current.add(factoryId);
+
+        Promise.resolve(
+            supabase
+                .from('factories')
+                .select('gallery, catalog, machine_slots')
+                .eq('id', factoryId)
+                .single()
+        ).then(({ data }) => {
+            prefetchingRef.current.delete(factoryId);
+            if (data) setCache(cacheKey, data);
+        }).catch(() => { prefetchingRef.current.delete(factoryId); });
+    }, []);
 
     // Close search dropdown on outside click (checks both mobile + desktop refs)
     useEffect(() => {
@@ -926,7 +948,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                         Array.from({ length: 6 }).map((_, index) => <SkeletonCard key={index} />)
                     ) : filteredFactories.length > 0 ? (
                         filteredFactories.map((factory, index) => (
-                            <FactoryCard key={factory.id} factory={factory} onSelect={() => handleSelectFactory(factory)} style={{ animationDelay: `${Math.min(index * 30, 300)}ms` }} />
+                            <FactoryCard key={factory.id} factory={factory} onSelect={() => handleSelectFactory(factory)} onPrefetch={() => prefetchFactoryDetail(factory.id)} style={{ animationDelay: `${Math.min(index * 30, 300)}ms` }} />
                         ))
                     ) : (
                         <div className="col-span-full text-center py-16 bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-sm border border-gray-200 dark:border-white/10">

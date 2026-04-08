@@ -10,6 +10,7 @@ import ProductCatalog from '../src/ProductCatalog';
 import ProductionFloorLayout from '../src/ProductionFloorLayout';
 import { factoryService } from '../src/factory.service';
 import { supabase } from '../src/supabaseClient';
+import { getCache, setCache, TTL_FACTORY_DETAIL } from '../src/sessionCache';
 
 interface FactoryDetailPageProps {
     // Props for MainLayout
@@ -49,9 +50,21 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
 
     // Fetch the heavy fields (gallery, catalog, machine_slots) that are not included
     // in the slim SourcingPage list query, then merge them into local state.
-    // Uses a direct Supabase query to avoid the BaseService permission-check overhead.
+    // Checks sessionStorage cache first (populated by hover-prefetch in SourcingPage)
+    // so the detail page renders instantly when the user hovers before clicking.
     useEffect(() => {
         if (!propFactory?.id) return;
+
+        const cacheKey = `garment_erp_factory_detail_${propFactory.id}`;
+
+        const applyData = (data: { gallery: any; catalog: any; machine_slots: any }) => {
+            setFactory(prev => ({
+                ...prev,
+                gallery: data.gallery || [],
+                catalog: data.catalog || { products: [], fabricOptions: [] },
+                productionLines: data.machine_slots || [],
+            }));
+        };
 
         const fetchHeavyFields = () =>
             supabase
@@ -61,16 +74,19 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                 .single()
                 .then(({ data }) => {
                     if (data) {
-                        setFactory(prev => ({
-                            ...prev,
-                            gallery: data.gallery || [],
-                            catalog: data.catalog || { products: [], fabricOptions: [] },
-                            productionLines: data.machine_slots || [],
-                        }));
+                        setCache(cacheKey, data);
+                        applyData(data);
                     }
                 });
 
-        fetchHeavyFields();
+        // Use cached data immediately if available — skips the initial network round-trip.
+        // Real-time subscription is still set up so admin edits reflect live.
+        const cached = getCache<{ gallery: any; catalog: any; machine_slots: any }>(cacheKey, TTL_FACTORY_DETAIL);
+        if (cached) {
+            applyData(cached);
+        } else {
+            fetchHeavyFields();
+        }
 
         // Real-time subscription — reflects admin changes instantly
         const channel = supabase
