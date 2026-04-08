@@ -84,57 +84,57 @@ interface AIChatMessage {
 const HelloSplashOverlay: FC<{ data: import('./OnboardingPage').HelloSplashData }> = ({ data }) => {
     const isMobile = window.innerWidth < 640;
     const isDark = data.theme === 'dark';
-    const bg = isDark ? '#06060a' : '#f5f3ef';
+    const bg = isDark ? '#080810' : '#f8f6f2';
     const bgGradient = isDark
-        ? 'linear-gradient(135deg, rgba(194,12,11,0.08) 0%, transparent 45%, rgba(255,80,0,0.06) 100%)'
-        : 'linear-gradient(135deg, rgba(194,12,11,0.06) 0%, transparent 45%, rgba(255,140,0,0.08) 100%)';
-    const subColor = isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.45)';
-    const langColor = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.25)';
+        ? 'linear-gradient(160deg, rgba(194,12,11,0.06) 0%, transparent 40%, rgba(120,40,0,0.05) 75%, rgba(194,12,11,0.04) 100%)'
+        : 'linear-gradient(160deg, rgba(194,12,11,0.05) 0%, transparent 40%, rgba(255,140,0,0.06) 75%, rgba(194,12,11,0.04) 100%)';
+    const subColor = isDark ? 'rgba(255,255,255,0.42)' : 'rgba(0,0,0,0.38)';
     const showRomanized = data.romanized && data.romanized !== data.word;
 
     return (
         <>
             <style>{`
-                @keyframes helloWord { 0%{opacity:0;transform:scale(0.55) translateY(24px)} 20%{opacity:1;transform:scale(1.06) translateY(0)} 32%{transform:scale(1)} 72%{opacity:1;transform:scale(1)} 100%{opacity:0;transform:scale(1.1) translateY(-16px)} }
-                @keyframes helloSub { 0%,15%{opacity:0;transform:translateY(12px)} 32%{opacity:1;transform:translateY(0)} 72%{opacity:1} 100%{opacity:0} }
-                @keyframes helloFlag { 0%{opacity:0;transform:scale(0.4)} 22%{opacity:1;transform:scale(1.12)} 32%{transform:scale(1)} 72%{opacity:1} 100%{opacity:0} }
-                @keyframes helloScreen { 0%{opacity:0} 6%{opacity:1} 82%{opacity:1} 100%{opacity:0} }
-                @keyframes helloPulse { 0%,100%{opacity:0.5} 50%{opacity:1} }
+                @keyframes helloWord { 0%{opacity:0;transform:translateY(18px)} 22%{opacity:1;transform:translateY(0)} 70%{opacity:1;transform:translateY(0)} 100%{opacity:0;transform:translateY(-10px)} }
+                @keyframes helloSub { 0%,18%{opacity:0;transform:translateY(10px)} 36%{opacity:1;transform:translateY(0)} 70%{opacity:1} 100%{opacity:0} }
+                @keyframes helloScreen { 0%{opacity:0} 5%{opacity:1} 80%{opacity:1} 100%{opacity:0} }
+                @keyframes helloPulse { 0%,100%{opacity:0.35} 50%{opacity:0.7} }
+                @keyframes helloOrb { 0%,100%{transform:translateX(-50%) scale(1)} 50%{transform:translateX(-50%) scale(1.08)} }
+                @keyframes helloShimmer { 0%{background-position:200% center} 100%{background-position:-200% center} }
             `}</style>
             <div style={{
                 position: 'fixed', inset: 0, background: bg,
                 display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                zIndex: 99999, animation: 'helloScreen 2.2s ease forwards', overflow: 'hidden',
+                zIndex: 99999, animation: 'helloScreen 3s cubic-bezier(0.4,0,0.2,1) forwards', overflow: 'hidden',
                 pointerEvents: 'none',
             }}>
+                {/* Layered background */}
                 <div style={{ position: 'absolute', inset: 0, background: bgGradient }} />
-                <div style={{ position: 'absolute', top: '-10%', left: '50%', transform: 'translateX(-50%)', width: isMobile ? 320 : 520, height: isMobile ? 320 : 520, borderRadius: '50%', background: 'radial-gradient(ellipse,rgba(194,12,11,0.18) 0%,transparent 65%)', animation: 'helloPulse 2s ease-in-out infinite' }} />
-                <div style={{ position: 'absolute', bottom: '-10%', right: '-5%', width: isMobile ? 240 : 380, height: isMobile ? 240 : 380, borderRadius: '50%', background: 'radial-gradient(ellipse,rgba(255,100,0,0.12) 0%,transparent 65%)', animation: 'helloPulse 2.6s ease-in-out infinite 0.8s' }} />
-                <div style={{ position: 'absolute', bottom: '-10%', left: '-5%', width: isMobile ? 180 : 300, height: isMobile ? 180 : 300, borderRadius: '50%', background: 'radial-gradient(ellipse,rgba(201,165,78,0.10) 0%,transparent 65%)', animation: 'helloPulse 3s ease-in-out infinite 1.2s' }} />
+                {/* Noise texture overlay for depth */}
+                <div style={{ position: 'absolute', inset: 0, opacity: isDark ? 0.04 : 0.03, backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noise\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noise)\'/%3E%3C/svg%3E")', backgroundSize: '180px' }} />
+                {/* Soft top glow orb */}
+                <div style={{ position: 'absolute', top: '-15%', left: '50%', transform: 'translateX(-50%)', width: isMobile ? 360 : 600, height: isMobile ? 360 : 600, borderRadius: '50%', background: isDark ? 'radial-gradient(ellipse,rgba(194,12,11,0.14) 0%,transparent 68%)' : 'radial-gradient(ellipse,rgba(194,12,11,0.10) 0%,transparent 68%)', animation: 'helloOrb 4s ease-in-out infinite' }} />
+                {/* Bottom-right accent */}
+                <div style={{ position: 'absolute', bottom: '-12%', right: '-8%', width: isMobile ? 260 : 420, height: isMobile ? 260 : 420, borderRadius: '50%', background: isDark ? 'radial-gradient(ellipse,rgba(180,60,0,0.09) 0%,transparent 68%)' : 'radial-gradient(ellipse,rgba(255,110,0,0.08) 0%,transparent 68%)', animation: 'helloPulse 3.5s ease-in-out infinite 0.6s' }} />
+                {/* Bottom-left accent */}
+                <div style={{ position: 'absolute', bottom: '-8%', left: '-6%', width: isMobile ? 200 : 340, height: isMobile ? 200 : 340, borderRadius: '50%', background: isDark ? 'radial-gradient(ellipse,rgba(201,165,78,0.07) 0%,transparent 68%)' : 'radial-gradient(ellipse,rgba(201,165,78,0.07) 0%,transparent 68%)', animation: 'helloPulse 4s ease-in-out infinite 1.4s' }} />
 
-                {data.flag && (
-                    <div style={{ fontSize: isMobile ? 52 : 72, lineHeight: 1, marginBottom: isMobile ? 20 : 28, animation: 'helloFlag 2.2s ease forwards', filter: 'drop-shadow(0 4px 24px rgba(0,0,0,0.3))', position: 'relative' }}>
-                        {data.flag}
-                    </div>
-                )}
+                {/* Hello word */}
                 <div style={{
-                    fontSize: isMobile ? 72 : 110, fontWeight: 900, letterSpacing: '-0.03em', lineHeight: 1,
-                    background: 'linear-gradient(135deg, #ff6b35 0%, #e63000 32%, #c20c0b 60%, #ff4500 100%)',
+                    fontSize: isMobile ? 76 : 116, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1,
+                    background: 'linear-gradient(125deg, #ff7043 0%, #e53000 30%, #c20c0b 58%, #ff5722 85%, #ff8a50 100%)',
+                    backgroundSize: '300% auto',
                     WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-                    animation: 'helloWord 2.2s ease forwards',
-                    filter: 'drop-shadow(0 0 48px rgba(194,12,11,0.45))',
-                    textAlign: 'center', padding: '0 16px', position: 'relative',
+                    animation: 'helloWord 3s cubic-bezier(0.4,0,0.2,1) forwards',
+                    filter: isDark ? 'drop-shadow(0 2px 40px rgba(194,12,11,0.35))' : 'drop-shadow(0 2px 32px rgba(194,12,11,0.22))',
+                    textAlign: 'center', padding: '0 24px', position: 'relative',
                 }}>
                     {data.word}
                 </div>
                 {showRomanized && (
-                    <div style={{ fontSize: isMobile ? 20 : 28, fontWeight: 600, color: subColor, marginTop: isMobile ? 10 : 14, letterSpacing: '0.04em', animation: 'helloSub 2.2s ease forwards', textAlign: 'center', position: 'relative' }}>
+                    <div style={{ fontSize: isMobile ? 18 : 24, fontWeight: 500, color: subColor, marginTop: isMobile ? 12 : 16, letterSpacing: '0.06em', animation: 'helloSub 3s cubic-bezier(0.4,0,0.2,1) forwards', textAlign: 'center', position: 'relative' }}>
                         {data.romanized}
                     </div>
                 )}
-                <div style={{ fontSize: isMobile ? 11 : 13, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: langColor, marginTop: isMobile ? 18 : 24, animation: 'helloSub 2.2s ease forwards', textAlign: 'center', position: 'relative' }}>
-                    {data.language}
-                </div>
             </div>
         </>
     );
@@ -3050,7 +3050,7 @@ User message: "${userMsg}"`;
         // Hard gate: if user is authenticated, has no profile, and is a new signup, show onboarding.
         // Existing users without a profile record are NOT gated — they go straight to the app.
         if (user && userProfile === null && isNewUserSignup && currentPage !== 'login' && currentPage !== 'createPassword') {
-            return <OnboardingPage user={user} onComplete={saveUserProfile} isLoading={isProfileLoading} onThemeChange={setDarkMode} onBeforeComplete={(data) => { setHelloSplash(data); setTimeout(() => setHelloSplash(null), 2200); }} />;
+            return <OnboardingPage user={user} onComplete={saveUserProfile} isLoading={isProfileLoading} onThemeChange={setDarkMode} onBeforeComplete={(data) => { setHelloSplash(data); setTimeout(() => setHelloSplash(null), 3000); }} />;
         }
 
         // 1. Check Dynamic Routes from MasterController (Enables Extensibility)
@@ -3064,7 +3064,7 @@ User message: "${userMsg}"`;
             case 'login': return <LoginPage showToast={showToast} setAuthError={setAuthError} authError={authError} />;
             case 'profile': return (userProfile || !isNewUserSignup)
                 ? <ProfilePage />
-                : <OnboardingPage user={user} onComplete={saveUserProfile} isLoading={isProfileLoading} onThemeChange={setDarkMode} onBeforeComplete={(data) => { setHelloSplash(data); setTimeout(() => setHelloSplash(null), 2200); }} />;
+                : <OnboardingPage user={user} onComplete={saveUserProfile} isLoading={isProfileLoading} onThemeChange={setDarkMode} onBeforeComplete={(data) => { setHelloSplash(data); setTimeout(() => setHelloSplash(null), 3000); }} />;
             case 'createPassword': return <CreatePasswordPage />;
             case 'sourcing': return <SourcingPage
                 {...layoutProps}
