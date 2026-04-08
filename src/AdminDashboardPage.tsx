@@ -1,4 +1,5 @@
 import React, { useEffect, useState, FC, useRef, useCallback, useMemo } from 'react';
+import { getCache, setCache, TTL_FACTORIES } from './sessionCache';
 import {
     Users, Package, DollarSign, Activity, Building, Flame,
     Calendar, TrendingUp, CheckCircle2, Scissors, LayoutDashboard,
@@ -262,7 +263,7 @@ const ProductionCalendar = ({ timelineData, darkMode }: { timelineData: any[]; d
 export const AdminDashboardPage: FC<AdminDashboardPageProps> = (props) => {
     const CACHE_KEY = 'garment_erp_admin_stats';
     const CRM_CACHE_KEY = 'garment_erp_admin_crm_orders';
-    const FACTORIES_CACHE_KEY = 'garment_erp_admin_factories';
+    const FACTORIES_CACHE_KEY = 'garment_erp_factories_v2'; // shared key — avoids duplicate network fetches
 
     const [stats, setStats] = useState<DashboardStats>(() => {
         const cached = sessionStorage.getItem(CACHE_KEY);
@@ -274,10 +275,7 @@ export const AdminDashboardPage: FC<AdminDashboardPageProps> = (props) => {
         const cached = sessionStorage.getItem(CRM_CACHE_KEY);
         return cached ? JSON.parse(cached) : [];
     });
-    const [factories, setFactories] = useState<Factory[]>(() => {
-        const cached = sessionStorage.getItem(FACTORIES_CACHE_KEY);
-        return cached ? JSON.parse(cached) : [];
-    });
+    const [factories, setFactories] = useState<Factory[]>(() => getCache<Factory[]>(FACTORIES_CACHE_KEY, TTL_FACTORIES) ?? []);
     const [isLoading, setIsLoading] = useState(() => !sessionStorage.getItem(CACHE_KEY));
     const [crmLoading, setCrmLoading] = useState(() => !sessionStorage.getItem(CRM_CACHE_KEY));
     const abortControllerRef = useRef<AbortController | null>(null);
@@ -320,7 +318,7 @@ export const AdminDashboardPage: FC<AdminDashboardPageProps> = (props) => {
 
                 if (!factoriesRes.error && factoriesRes.data) {
                     setFactories(factoriesRes.data);
-                    sessionStorage.setItem(FACTORIES_CACHE_KEY, JSON.stringify(factoriesRes.data));
+                    setCache(FACTORIES_CACHE_KEY, factoriesRes.data);
                 }
                 return;
             } catch (error: any) {

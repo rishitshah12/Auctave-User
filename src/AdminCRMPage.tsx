@@ -1,4 +1,5 @@
 import React, { useState, useEffect, FC, useRef, useCallback, useMemo } from 'react';
+import { getCache, setCache, TTL_FACTORIES } from './sessionCache';
 import { KnittingPreloader } from './KnittingPreloader';
 import { createPortal } from 'react-dom';
 import { MainLayout } from './MainLayout';
@@ -1868,17 +1869,14 @@ const getDraftKey = (orderId: string) => `crm_draft_order_${orderId}`;
 // ── Main component ─────────────────────────────────────────────────────────────
 export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
     const CLIENTS_CACHE_KEY = 'garment_erp_admin_clients';
-    const FACTORIES_CACHE_KEY = 'garment_erp_admin_crm_factories';
+    const FACTORIES_CACHE_KEY = 'garment_erp_factories_v2'; // shared key — avoids duplicate network fetches
 
     // ── data ──
     const [clients, setClients] = useState<any[]>(() => {
         const cached = sessionStorage.getItem(CLIENTS_CACHE_KEY);
         return cached ? JSON.parse(cached) : [];
     });
-    const [factories, setFactories] = useState<any[]>(() => {
-        const cached = sessionStorage.getItem(FACTORIES_CACHE_KEY);
-        return cached ? JSON.parse(cached) : [];
-    });
+    const [factories, setFactories] = useState<any[]>(() => getCache<any[]>(FACTORIES_CACHE_KEY, TTL_FACTORIES) ?? []);
     const [orders, setOrders] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
 
@@ -2010,7 +2008,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                 const { data: factoriesData } = await factoryService.getAll();
                 if (!signal.aborted) {
                     setFactories(factoriesData || []);
-                    sessionStorage.setItem(FACTORIES_CACHE_KEY, JSON.stringify(factoriesData || []));
+                    setCache(FACTORIES_CACHE_KEY, factoriesData || []);
                 }
             } catch (err) {
                 console.error('Error fetching initial data', err);

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { getCache, setCache, TTL_FACTORIES } from './sessionCache';
 import { KnittingPreloader } from './KnittingPreloader';
 import { crmService } from './crm.service';
 import { factoryService } from './factory.service';
@@ -385,16 +386,13 @@ const AggregateStatsView = ({ stats, darkMode }: { stats: any; darkMode?: boolea
 
 export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user, darkMode }: CrmDashboardProps) {
     const ORDERS_CACHE_KEY = 'garment_erp_client_orders';
-    const FACTORIES_CACHE_KEY = 'garment_erp_crm_factories';
+    const FACTORIES_CACHE_KEY = 'garment_erp_factories_v2'; // shared key — avoids duplicate network fetches
 
     const [crmData, setCrmData] = useState<{ [key: string]: CrmOrder }>(() => {
         const cached = sessionStorage.getItem(ORDERS_CACHE_KEY);
         return cached ? JSON.parse(cached) : {};
     });
-    const [allFactories, setAllFactories] = useState<Factory[]>(() => {
-        const cached = sessionStorage.getItem(FACTORIES_CACHE_KEY);
-        return cached ? JSON.parse(cached) : [];
-    });
+    const [allFactories, setAllFactories] = useState<Factory[]>(() => getCache<Factory[]>(FACTORIES_CACHE_KEY, TTL_FACTORIES) ?? []);
     const [loading, setLoading] = useState(() => !sessionStorage.getItem(ORDERS_CACHE_KEY));
     const [topTab, setTopTab] = useState<TopTab>('active');
     const [selectedOrderKey, setSelectedOrderKey] = useState<string | null>(null);
@@ -472,7 +470,7 @@ export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user
                     }
                     if (!signal.aborted) {
                         setAllFactories(factoriesRes.data || []);
-                        sessionStorage.setItem(FACTORIES_CACHE_KEY, JSON.stringify(factoriesRes.data || []));
+                        setCache(FACTORIES_CACHE_KEY, factoriesRes.data || []);
                     }
                 }
                 if (!signal.aborted) setLoading(false);

@@ -1,5 +1,6 @@
 // Import React and necessary hooks for state and side effects
 import React, { FC, useState, useMemo, useEffect, useRef, ReactNode, useCallback } from 'react';
+import { getCache, setCache, TTL_FACTORIES } from './sessionCache';
 // Import icons for UI elements
 import {
     Search, Star, SlidersHorizontal, ChevronDown, Menu, User as UserIcon, LogOut, Briefcase, Truck, DollarSign,
@@ -254,10 +255,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
 
     const CACHE_KEY = 'garment_erp_factories_v2';
     // State to hold the complete list of factories fetched from the database
-    const [allFactories, setAllFactories] = useState<Factory[]>(() => {
-        const cached = sessionStorage.getItem(CACHE_KEY);
-        return cached ? JSON.parse(cached) : [];
-    });
+    const [allFactories, setAllFactories] = useState<Factory[]>(() => getCache<Factory[]>(CACHE_KEY, TTL_FACTORIES) ?? []);
 
     // Default values for filters to allow easy resetting
     const initialFilters = { rating: 0, maxMoq: 10000, tags: [] as string[], categories: [] as string[], location: '', certifications: [] as string[], minTrustTier: '' as '' | 'bronze' | 'silver' | 'gold' };
@@ -271,7 +269,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
     // State to control visibility of the side filter panel
     const [showFilterPanel, setShowFilterPanel] = useState(false);
     // State to show loading indicators while data is being fetched
-    const [isFiltering, setIsFiltering] = useState(() => !sessionStorage.getItem(CACHE_KEY));
+    const [isFiltering, setIsFiltering] = useState(() => !getCache(CACHE_KEY, TTL_FACTORIES));
     // State for the user profile dropdown menu
     const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
     const [isPerformanceExpanded, setIsPerformanceExpanded] = useState(false);
@@ -301,7 +299,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
         abortControllerRef.current = new AbortController();
         const signal = abortControllerRef.current.signal;
 
-        const hasCache = !!sessionStorage.getItem(CACHE_KEY);
+        const hasCache = !!getCache(CACHE_KEY, TTL_FACTORIES);
         if (!hasCache) {
             setIsFiltering(true);
             if (setGlobalLoading) setGlobalLoading(true);
@@ -349,7 +347,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                     }));
                     // Update state with the processed list of factories
                     setAllFactories(transformedFactories);
-                    sessionStorage.setItem(CACHE_KEY, JSON.stringify(transformedFactories));
+                    setCache(CACHE_KEY, transformedFactories);
                 }
                 break;
             } catch (err: any) {

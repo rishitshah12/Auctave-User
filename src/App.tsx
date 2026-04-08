@@ -1,5 +1,5 @@
 // Import React library and hooks for state management (useState), side effects (useEffect), references (useRef), memoization (useMemo), and types (FC, ReactNode)
-import React, { useState, useEffect, useRef, useMemo, FC, ReactNode, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, FC, ReactNode, useCallback, Suspense, lazy } from 'react';
 import { createPortal } from 'react-dom';
 import { KnittingPreloader } from './KnittingPreloader';
 // Import the configured Supabase client for backend database and auth interactions
@@ -15,41 +15,40 @@ import {
     Tag, Weight, Palette, Box, Map as MapIcon, Download, BookOpen, Building, Trash2, Upload, Globe, Moon, Sparkles,
     Camera, Edit3, ArrowLeft, Search, RefreshCw, ExternalLink, GripVertical, Paperclip, Eye, Check, CheckCheck, LogOut
 } from 'lucide-react';
-// Import charting components from recharts for data visualization
-import {
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Pie, Cell, PieChart
-} from 'recharts';
 // Import TypeScript interfaces/types for data structures used in the app
 import { UserProfile, OrderFormData, Factory, QuoteRequest, CrmOrder, CrmProduct, CrmTask, ToastState, NegotiationHistoryItem } from './types';
 // Import custom components for specific pages and UI elements
 import { MainLayout } from '../src/MainLayout';
 import { LoginPage } from '../src/LoginPage';
-import { OnboardingPage, HelloSplashData } from './OnboardingPage';
-import { SourcingPage } from '../src/SourcingPage';
 import { FactoryCard } from '../src/FactoryCard';
-import { OrderFormPage } from './OrderFormPage';
-import { CRMPage } from './CRMPage';
-import CrmDashboard from './CrmDashboard';
 import { AiCard } from '../src/AiCard';
 import { masterController } from './masterController';
 import './index'; // Register Factory Module
-import { AdminDashboardPage } from './AdminDashboardPage';
-import { AdminUsersPage } from './AdminUsersPage';
-import { AdminFactoriesPage } from './AdminFactoriesPage';
-import { AdminCRMPage } from './AdminCRMPage';
-import { AdminTrendingPage } from './AdminTrendingPage';
-import { TrendingPage as TrendingPageComponent } from './TrendingPage';
-import { AdminRFQPage } from './AdminRFQPage';
-import { AdminLoginSettingsPage } from './AdminLoginSettingsPage';
-import { AdminUniversalChat } from './AdminUniversalChat';
 import { quoteService } from './quote.service';
 import { crmService } from './crm.service';
-import { MyQuotesPage } from './MyQuotesPage';
-import { QuoteDetailPage } from './QuoteDetailPage';
-import { FactoryDetailPage } from './FactoryDetailPage';
+
+// Lazy-loaded page components — only downloaded when the user navigates to them
+import type { HelloSplashData } from './OnboardingPage';
+const OnboardingPage = lazy(() => import('./OnboardingPage').then(m => ({ default: m.OnboardingPage })));
+const SourcingPage = lazy(() => import('../src/SourcingPage').then(m => ({ default: m.SourcingPage })));
+const OrderFormPage = lazy(() => import('./OrderFormPage').then(m => ({ default: m.OrderFormPage })));
+const CrmDashboard = lazy(() => import('./CrmDashboard'));
+const AdminDashboardPage = lazy(() => import('./AdminDashboardPage').then(m => ({ default: m.AdminDashboardPage })));
+const AdminUsersPage = lazy(() => import('./AdminUsersPage').then(m => ({ default: m.AdminUsersPage })));
+const AdminFactoriesPage = lazy(() => import('./AdminFactoriesPage').then(m => ({ default: m.AdminFactoriesPage })));
+const AdminCRMPage = lazy(() => import('./AdminCRMPage').then(m => ({ default: m.AdminCRMPage })));
+const AdminTrendingPage = lazy(() => import('./AdminTrendingPage').then(m => ({ default: m.AdminTrendingPage })));
+const TrendingPageComponent = lazy(() => import('./TrendingPage').then(m => ({ default: m.TrendingPage })));
+const AdminRFQPage = lazy(() => import('./AdminRFQPage').then(m => ({ default: m.AdminRFQPage })));
+const AdminLoginSettingsPage = lazy(() => import('./AdminLoginSettingsPage').then(m => ({ default: m.AdminLoginSettingsPage })));
+const AdminUniversalChat = lazy(() => import('./AdminUniversalChat').then(m => ({ default: m.AdminUniversalChat })));
+const MyQuotesPage = lazy(() => import('./MyQuotesPage').then(m => ({ default: m.MyQuotesPage })));
+const QuoteDetailPage = lazy(() => import('./QuoteDetailPage').then(m => ({ default: m.QuoteDetailPage })));
+const FactoryDetailPage = lazy(() => import('./FactoryDetailPage').then(m => ({ default: m.FactoryDetailPage })));
 import { theme } from './theme';
 import { ToastProvider, useToast } from './ToastContext';
 import { NotificationProvider, useNotifications } from './NotificationContext';
+import { getCache, TTL_FACTORIES } from './sessionCache';
 
 // ─── Image resize helper ──────────────────────────────────────────────────────
 function resizeImage(file: File, maxPx = 240): Promise<string> {
@@ -1007,32 +1006,8 @@ const AppContent: FC = () => {
     }, [user, isAdmin, addNotification]);
 
     // ── Polling fallback: new RFQ submissions (admin, every 45 s) ────────────
-    useEffect(() => {
-        if (!user || !isAdmin) return;
-        const poll = async () => {
-            const { data } = await quoteService.getAllQuotes();
-            if (!data) return;
-            // First call: initialise baseline timestamp, don't notify
-            if (!lastAdminRFQAtRef.current) {
-                lastAdminRFQAtRef.current = data[0]?.created_at || new Date().toISOString();
-                return;
-            }
-            const newQuotes = data.filter((q: any) => q.created_at > lastAdminRFQAtRef.current);
-            newQuotes.forEach((q: any) => {
-                addNotification({
-                    category: 'rfq',
-                    title: 'New RFQ Submitted',
-                    message: `A new quote request has been submitted${q.factory_data?.name ? ` for ${q.factory_data.name}` : ''}.`,
-                    action: { page: 'adminRFQ' },
-                });
-            });
-            if (newQuotes.length > 0) {
-                lastAdminRFQAtRef.current = newQuotes[0].created_at;
-            }
-        };
-        const id = setInterval(poll, 45_000);
-        return () => clearInterval(id);
-    }, [user, isAdmin, addNotification]);
+    // Note: admin new-RFQ notifications are handled by the realtime subscription above (admin-new-rfq channel).
+    // Polling was removed — it fetched ALL quotes every 45 s, which is wasteful and redundant.
 
     // --- Authentication & Profile Functions ---
 
@@ -2169,9 +2144,10 @@ const AppContent: FC = () => {
         // ── Factory data for AI context ───────────────────────────────────────
         const factoriesRef = useRef<Factory[]>([]);
         useEffect(() => {
-            const cached = sessionStorage.getItem('garment_erp_factories_v2');
+            const FACTORIES_KEY = 'garment_erp_factories_v2';
+            const cached = getCache<Factory[]>(FACTORIES_KEY, TTL_FACTORIES);
             if (cached) {
-                try { factoriesRef.current = JSON.parse(cached); } catch { /* ignore */ }
+                factoriesRef.current = cached;
                 return;
             }
             supabase.from('factories').select('id,name,location,specialties,tags,rating,turnaround,minimum_order_quantity,certifications,trust_tier,description').then(({ data }) => {
@@ -3415,11 +3391,15 @@ User message: "${userMsg}"`;
                 }
             `}</style>
             {/* Render the current page content */}
-            {renderPage()}
+            <Suspense fallback={<KnittingPreloader fullScreen />}>
+                {renderPage()}
+            </Suspense>
             {/* Render AI Chat Support for non-admin users */}
             {user && userProfile && !isAdmin && <AIChatSupport />}
             {/* Universal RFQ chat panel — admin only */}
-            {user && isAdmin && <AdminUniversalChat onNavigate={handleSetCurrentPage} />}
+            <Suspense fallback={null}>
+                {user && isAdmin && <AdminUniversalChat onNavigate={handleSetCurrentPage} />}
+            </Suspense>
             {/* Hello splash overlay — shown after onboarding, sits above everything */}
             {helloSplash && <HelloSplashOverlay data={helloSplash} />}
         </div>
