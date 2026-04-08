@@ -13,7 +13,7 @@ import {
     History, Edit, Anchor, Ship, Warehouse, PackageCheck, Award, Users, Activity, Shield,
     BarChart as BarChartIcon, FileQuestion, ClipboardCheck, Lock,
     Tag, Weight, Palette, Box, Map as MapIcon, Download, BookOpen, Building, Trash2, Upload, Globe, Moon, Sparkles,
-    Camera, Edit3, ArrowLeft, Search, RefreshCw, ExternalLink, GripVertical, Paperclip, Eye, Check, CheckCheck
+    Camera, Edit3, ArrowLeft, Search, RefreshCw, ExternalLink, GripVertical, Paperclip, Eye, Check, CheckCheck, LogOut
 } from 'lucide-react';
 // Import charting components from recharts for data visualization
 import {
@@ -1974,6 +1974,22 @@ const AppContent: FC = () => {
                                     <button onClick={handleLocationSave} className="w-full sm:w-auto bg-[var(--color-primary)] text-white font-semibold py-2.5 px-5 rounded-lg hover:bg-[var(--color-primary-hover)] transition text-sm">Save</button>
                                 </div>
                             </div>
+
+                        {/* Logout — mobile only */}
+                        <div className="sm:hidden">
+                            <button
+                                onClick={() => handleSignOut()}
+                                className="w-full flex items-center gap-3 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                            >
+                                <div className="bg-red-100 dark:bg-red-900/30 p-2.5 rounded-lg shrink-0">
+                                    <LogOut size={18} />
+                                </div>
+                                <div className="text-left">
+                                    <p className="text-base font-semibold leading-snug">Log Out</p>
+                                    <p className="text-xs text-red-500 dark:text-red-400 mt-0.5 leading-tight">Sign out of your account</p>
+                                </div>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </MainLayout>
