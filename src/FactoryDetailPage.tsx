@@ -189,7 +189,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
 
                     {/* Slide dots */}
                     {gallery.length > 1 && (
-                        <div className="absolute bottom-[96px] left-1/2 -translate-x-1/2 flex gap-1.5 pointer-events-none">
+                        <div className="absolute bottom-[148px] left-1/2 -translate-x-1/2 flex gap-1.5 pointer-events-none">
                             {gallery.map((_, i) => (
                                 <span
                                     key={i}
