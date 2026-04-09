@@ -674,24 +674,23 @@ const AppContent: FC = () => {
     }, [user, isAdmin, currentPage, fetchUserQuotes, quoteRequests.length]);
 
     // Prefetch all factory data during onboarding so both SourcingPage and FactoryDetailPage
-    // render instantly on first sign-up. Fetches slim + heavy fields in one query, writes the
-    // slim list to the SourcingPage cache and heavy fields (gallery/catalog/machine_slots) to
-    // per-factory cache keys — giving new users the same zero-wait experience as returning users.
+    // render instantly on first sign-up. Uses a ref so the fetch fires exactly once and is
+    // never cancelled — isNewUserSignup going false (on form complete) must NOT abort it.
     const FACTORY_CACHE_KEY = 'garment_erp_factories_v2';
+    const onboardingPrefetchFired = useRef(false);
     useEffect(() => {
         if (!isNewUserSignup) return;
-        // Skip if cache is already fresh — nothing to do
-        if (getCache(FACTORY_CACHE_KEY, TTL_FACTORIES)) return;
-        // Don't kick off a second prefetch if stale data already exists
-        if (getCacheStale(FACTORY_CACHE_KEY)) return;
+        if (onboardingPrefetchFired.current) return;
 
-        let cancelled = false;
+        onboardingPrefetchFired.current = true;
+
+        // Fire-and-forget: no cleanup/cancellation — must complete even after nav to sourcing
         (async () => {
             try {
                 const { data, error } = await supabase.from('factories').select(
                     'id,name,location,description,rating,turnaround,minimum_order_quantity,offer,cover_image_url,tags,certifications,specialties,trust_tier,completed_orders_count,on_time_delivery_rate,quality_rejection_rate,gallery,catalog,machine_slots'
                 );
-                if (cancelled || error || !data) return;
+                if (error || !data) return;
                 const factories: Factory[] = data.map((f: any) => ({
                     id: f.id, name: f.name, location: f.location, description: f.description,
                     rating: f.rating, turnaround: f.turnaround,
@@ -708,7 +707,6 @@ const AppContent: FC = () => {
                 setCache(FACTORY_CACHE_KEY, factories);
                 // Cache heavy fields per-factory for FactoryDetailPage
                 for (const f of data) {
-                    if (cancelled) break;
                     setCache(`garment_erp_factory_detail_${f.id}`, {
                         gallery: f.gallery,
                         catalog: f.catalog,
@@ -719,7 +717,6 @@ const AppContent: FC = () => {
                 // Prefetch failure is non-critical — pages will fetch on mount as fallback
             }
         })();
-        return () => { cancelled = true; };
     }, [isNewUserSignup]);
 
     // Shared helper: fire a rich RFQ notification for a quote status change
