@@ -47,6 +47,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [activeTab, setActiveTab] = useState<'overview' | 'catalog'>(initialTab);
     const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+    const [isFetchingDetails, setIsFetchingDetails] = useState(false);
 
     // Fetch the heavy fields (gallery, catalog, machine_slots) that are not included
     // in the slim SourcingPage list query, then merge them into local state.
@@ -66,7 +67,8 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
             }));
         };
 
-        const fetchHeavyFields = () =>
+        const fetchHeavyFields = () => {
+            setIsFetchingDetails(true);
             supabase
                 .from('factories')
                 .select('gallery, catalog, machine_slots')
@@ -77,7 +79,9 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                         setCache(cacheKey, data);
                         applyData(data);
                     }
+                    setIsFetchingDetails(false);
                 });
+        };
 
         // Use cached data immediately if available — skips the initial network round-trip.
         // Real-time subscription is still set up so admin edits reflect live.
@@ -126,7 +130,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
         return null;
     }
 
-    const { gallery } = factory;
+    const gallery = factory.gallery?.length ? factory.gallery : (factory.imageUrl ? [factory.imageUrl] : []);
 
     const nextImage = () => {
         setCurrentImageIndex((prevIndex) => (prevIndex + 1) % gallery.length);
@@ -354,7 +358,15 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                             )}
                         </div>
                     ) : (
-                        <ProductCatalog catalog={factory.catalog} />
+                        isFetchingDetails && (!factory.catalog?.products?.length && !factory.catalog?.fabricOptions?.length) ? (
+                            <div className="grid grid-cols-2 gap-3 animate-pulse pt-2">
+                                {[1, 2, 3, 4].map((i) => (
+                                    <div key={i} className="bg-gray-100 dark:bg-white/5 rounded-2xl h-48 w-full"></div>
+                                ))}
+                            </div>
+                        ) : (
+                            <ProductCatalog catalog={factory.catalog} />
+                        )
                     )}
                 </div>
 
@@ -527,7 +539,15 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                                 </div>
                             </>
                         ) : (
-                            <ProductCatalog catalog={factory.catalog} />
+                            isFetchingDetails && (!factory.catalog?.products?.length && !factory.catalog?.fabricOptions?.length) ? (
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 animate-pulse mt-4">
+                                    {[1, 2, 3, 4, 5, 6].map((i) => (
+                                        <div key={i} className="bg-gray-100 dark:bg-gray-800 rounded-2xl h-64 w-full"></div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <ProductCatalog catalog={factory.catalog} />
+                            )
                         )}
                     </div>
 

@@ -688,7 +688,7 @@ const AppContent: FC = () => {
         (async () => {
             try {
                 const { data, error } = await supabase.from('factories').select(
-                    'id,name,location,description,rating,turnaround,minimum_order_quantity,offer,cover_image_url,tags,certifications,specialties,trust_tier,completed_orders_count,on_time_delivery_rate,quality_rejection_rate,gallery,catalog,machine_slots'
+                    'id,name,location,description,rating,turnaround,minimum_order_quantity,offer,cover_image_url,tags,certifications,specialties,trust_tier,completed_orders_count,on_time_delivery_rate,quality_rejection_rate'
                 );
                 if (error || !data) return;
                 const factories: Factory[] = data.map((f: any) => ({
@@ -705,14 +705,6 @@ const AppContent: FC = () => {
                 }));
                 // Cache the slim list for SourcingPage
                 setCache(FACTORY_CACHE_KEY, factories);
-                // Cache heavy fields per-factory for FactoryDetailPage
-                for (const f of data) {
-                    setCache(`garment_erp_factory_detail_${f.id}`, {
-                        gallery: f.gallery,
-                        catalog: f.catalog,
-                        machine_slots: f.machine_slots,
-                    });
-                }
             } catch {
                 // Prefetch failure is non-critical — pages will fetch on mount as fallback
             }
