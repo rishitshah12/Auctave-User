@@ -760,7 +760,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
     }, [formState]);
 
     const [activeItemIndex, setActiveItemIndex] = useState(0);
-    const [mobileProductDropdownOpen, setMobileProductDropdownOpen] = useState(false);
+    const [mobileProductDropOpen, setMobileProductDropOpen] = useState(false);
 
     // Computed current step based on active product
     const currentStep = productSteps[activeItemIndex] || 1;
@@ -1719,99 +1719,86 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                         {/* Product Cards - Vertical Grid Layout */}
                         {currentStep <= 3 ? (
                             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
-                                {/* Mobile: Compact Product Dropdown Selector */}
-                                <div className="lg:hidden">
-                                    <div
-                                        className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm cursor-pointer"
-                                        onClick={() => setMobileProductDropdownOpen(o => !o)}
-                                    >
-                                        {(() => {
-                                            const item = formState.lineItems[activeItemIndex];
-                                            const completion = calculateProductCompletion(item);
-                                            const color = PRODUCT_COLORS[activeItemIndex % PRODUCT_COLORS.length];
-                                            const catOption = CATEGORY_OPTIONS.find(c => c.id === item.category);
-                                            const image = catOption ? catOption.image : null;
-                                            const icon = getCategoryIcon(item.category);
-                                            return (
-                                                <>
-                                                    <div className="flex items-center gap-3 min-w-0">
-                                                        <div className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold shrink-0 bg-gray-900 text-white dark:bg-white dark:text-gray-900`}>
-                                                            {activeItemIndex + 1}
-                                                        </div>
-                                                        <div className="h-9 w-9 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex-shrink-0 flex items-center justify-center">
-                                                            {image ? <img src={image} alt={item.category} className="w-full h-full object-cover" /> : <span className="text-base">{icon}</span>}
-                                                        </div>
-                                                        <div className="min-w-0">
-                                                            <p className="font-bold text-sm text-gray-900 dark:text-white truncate">{item.category || 'New Item'}</p>
-                                                            <p className="text-xs text-gray-400">{item.qty > 0 ? `${item.qty.toLocaleString()} units` : 'Qty pending'} · {activeItemIndex + 1}/{formState.lineItems.length}</p>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-2 shrink-0">
-                                                        {completion.percentage === 100
-                                                            ? <span className="text-green-500"><Check size={15} /></span>
-                                                            : <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${color.light} ${color.text}`}>{completion.percentage}%</span>
-                                                        }
-                                                        <button
-                                                            type="button"
-                                                            onClick={e => { e.stopPropagation(); handleAddItem(); }}
-                                                            disabled={currentStep < 3}
-                                                            className={`p-1.5 rounded-lg ${currentStep < 3 ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-white'}`}
-                                                            title={currentStep < 3 ? 'Complete previous steps first' : 'Add Product'}
-                                                        ><Plus size={15} /></button>
-                                                        <ChevronDown size={16} className={`text-gray-400 transition-transform ${mobileProductDropdownOpen ? 'rotate-180' : ''}`} />
-                                                    </div>
-                                                </>
-                                            );
-                                        })()}
-                                    </div>
+                                {/* Mobile: Product Dropdown Selector */}
+                                <div className="lg:hidden relative">
+                                    {/* Trigger — styled as a labelled selector, not a product card */}
+                                    {(() => {
+                                        const triggerItem = formState.lineItems[activeItemIndex];
+                                        const triggerColor = PRODUCT_COLORS[activeItemIndex % PRODUCT_COLORS.length];
+                                        const triggerCatOption = CATEGORY_OPTIONS.find(c => c.id === triggerItem.category);
+                                        const triggerImage = triggerCatOption ? triggerCatOption.image : null;
+                                        const triggerIcon = getCategoryIcon(triggerItem.category);
+                                        const triggerCompletion = calculateProductCompletion(triggerItem);
+                                        return (
+                                            <div
+                                                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 cursor-pointer transition-colors ${mobileProductDropOpen ? 'border-[#c20c0b] bg-red-50 dark:bg-red-900/10' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'}`}
+                                                onClick={() => setMobileProductDropOpen(o => !o)}
+                                            >
+                                                {/* Thumbnail */}
+                                                <div className="h-8 w-8 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex-shrink-0 flex items-center justify-center border border-gray-200 dark:border-gray-600">
+                                                    {triggerImage
+                                                        ? <img src={triggerImage} alt={triggerItem.category} className="w-full h-full object-cover" />
+                                                        : <span className="text-sm">{triggerIcon}</span>
+                                                    }
+                                                </div>
+                                                {/* Active product info */}
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-bold text-sm text-gray-900 dark:text-white truncate leading-tight">{triggerItem.category || 'New Item'}</p>
+                                                    <p className="text-[11px] text-gray-400 leading-tight">{activeItemIndex + 1} of {formState.lineItems.length} · {triggerItem.qty > 0 ? `${triggerItem.qty.toLocaleString()} units` : 'Qty pending'}</p>
+                                                </div>
+                                                {/* Completion badge */}
+                                                {triggerCompletion.percentage === 100
+                                                    ? <span className="shrink-0 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 text-[10px] font-bold px-2 py-0.5 rounded-full">Done</span>
+                                                    : <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${triggerColor.light} ${triggerColor.text}`}>{triggerCompletion.percentage}%</span>
+                                                }
+                                                {/* Add + chevron */}
+                                                <button
+                                                    type="button"
+                                                    onClick={e => { e.stopPropagation(); handleAddItem(); }}
+                                                    disabled={currentStep < 3}
+                                                    className={`shrink-0 p-1.5 rounded-lg border ${currentStep < 3 ? 'border-gray-200 dark:border-gray-700 text-gray-300 cursor-not-allowed' : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-[#c20c0b] hover:text-[#c20c0b]'}`}
+                                                    title={currentStep < 3 ? 'Complete previous steps first' : 'Add Product'}
+                                                ><Plus size={14} /></button>
+                                                <ChevronDown size={16} className={`shrink-0 text-gray-400 transition-transform duration-200 ${mobileProductDropOpen ? 'rotate-180 text-[#c20c0b]' : ''}`} />
+                                            </div>
+                                        );
+                                    })()}
 
-                                    {/* Dropdown list */}
-                                    {mobileProductDropdownOpen && (
-                                        <div className="mt-1 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg overflow-hidden">
+                                    {/* Dropdown panel — visually distinct from trigger */}
+                                    {mobileProductDropOpen && (
+                                        <div className="absolute top-full left-0 right-0 mt-1 z-30 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 shadow-xl overflow-hidden">
+                                            <div className="px-3 pt-2.5 pb-1.5 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/60">
+                                                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500">Switch Product</p>
+                                            </div>
                                             {formState.lineItems.map((item, index) => {
-                                                const completion = calculateProductCompletion(item);
                                                 const isActive = activeItemIndex === index;
+                                                const completion = calculateProductCompletion(item);
                                                 const color = PRODUCT_COLORS[index % PRODUCT_COLORS.length];
-                                                const catOption = CATEGORY_OPTIONS.find(c => c.id === item.category);
-                                                const image = catOption ? catOption.image : null;
-                                                const icon = getCategoryIcon(item.category);
                                                 return (
                                                     <div
                                                         key={item.id}
-                                                        onClick={() => { setActiveItemIndex(index); setMobileProductDropdownOpen(false); }}
-                                                        className={`flex items-center gap-3 px-3 py-3 cursor-pointer transition-colors border-b border-gray-100 dark:border-gray-700 last:border-0 ${isActive ? 'bg-gray-50 dark:bg-gray-700/60' : 'hover:bg-gray-50 dark:hover:bg-gray-700/40'}`}
+                                                        onClick={() => { setActiveItemIndex(index); setMobileProductDropOpen(false); }}
+                                                        className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer border-b border-gray-100 dark:border-gray-800 last:border-0 transition-colors ${isActive ? 'bg-red-50 dark:bg-red-900/10' : 'hover:bg-gray-50 dark:hover:bg-gray-800/40'}`}
                                                     >
-                                                        <div className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold shrink-0 ${isActive ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}>
-                                                            {index + 1}
-                                                        </div>
-                                                        <div className="h-10 w-10 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex-shrink-0 flex items-center justify-center">
-                                                            {image ? <img src={image} alt={item.category} className="w-full h-full object-cover" /> : <span className="text-lg">{icon}</span>}
-                                                        </div>
+                                                        {/* Active indicator stripe */}
+                                                        <div className={`w-1 h-8 rounded-full shrink-0 ${isActive ? 'bg-[#c20c0b]' : 'bg-gray-100 dark:bg-gray-700'}`} />
+                                                        {/* Number */}
+                                                        <span className={`text-xs font-bold w-5 text-center shrink-0 ${isActive ? 'text-[#c20c0b]' : 'text-gray-400 dark:text-gray-500'}`}>#{index + 1}</span>
+                                                        {/* Name + qty */}
                                                         <div className="flex-1 min-w-0">
-                                                            <p className={`font-bold text-sm truncate ${isActive ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-300'}`}>{item.category || 'New Item'}</p>
-                                                            <p className="text-xs text-gray-400">{item.qty > 0 ? `${item.qty.toLocaleString()} units` : 'Qty pending'}</p>
+                                                            <p className={`text-sm font-semibold truncate ${isActive ? 'text-[#c20c0b]' : 'text-gray-700 dark:text-gray-300'}`}>{item.category || 'New Item'}</p>
+                                                            <p className="text-[11px] text-gray-400 truncate">{item.qty > 0 ? `${item.qty.toLocaleString()} units` : 'Qty pending'}</p>
                                                         </div>
-                                                        <div className="flex items-center gap-2 shrink-0">
-                                                            {completion.percentage === 100
-                                                                ? <span className="text-green-500"><Check size={14} /></span>
-                                                                : <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${color.light} ${color.text}`}>{completion.percentage}%</span>
-                                                            }
-                                                            <button
-                                                                type="button"
-                                                                onClick={e => { e.stopPropagation(); handleDuplicateItem(index); }}
-                                                                disabled={currentStep < 3}
-                                                                className={`p-1 ${currentStep < 3 ? 'text-gray-300 cursor-not-allowed' : 'text-blue-500 hover:text-blue-700'}`}
-                                                                title="Duplicate"
-                                                            ><Copy size={13} /></button>
-                                                            {formState.lineItems.length > 1 && (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={e => { e.stopPropagation(); handleRemoveItem(index); }}
-                                                                    className="p-1 text-red-500 hover:text-red-700"
-                                                                    title="Remove"
-                                                                ><Trash2 size={13} /></button>
-                                                            )}
-                                                        </div>
+                                                        {/* Completion */}
+                                                        {completion.percentage === 100
+                                                            ? <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400">Done</span>
+                                                            : <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${color.light} ${color.text}`}>{completion.percentage}%</span>
+                                                        }
+                                                        {/* Actions */}
+                                                        <button type="button" onClick={e => { e.stopPropagation(); handleDuplicateItem(index); setMobileProductDropOpen(false); }} disabled={currentStep < 3} className={`shrink-0 p-1 rounded ${currentStep < 3 ? 'text-gray-300 cursor-not-allowed' : 'text-gray-400 hover:text-blue-500'}`} title="Duplicate"><Copy size={13} /></button>
+                                                        {formState.lineItems.length > 1 && (
+                                                            <button type="button" onClick={e => { e.stopPropagation(); handleRemoveItem(index); setMobileProductDropOpen(false); }} className="shrink-0 p-1 rounded text-gray-400 hover:text-red-500" title="Remove"><Trash2 size={13} /></button>
+                                                        )}
                                                     </div>
                                                 );
                                             })}
@@ -2405,22 +2392,38 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         {/* Destination Country */}
                                         <FormField label="Destination Country" icon={<Globe className="h-5 w-5 text-gray-400" />} required error={errors.shippingCountry}>
-                                            <input id="shippingCountry" type="text" name="shippingCountry" value={formState.shippingCountry} onChange={handleFormChange} list="countries" placeholder="Select Country" className={getInputClass(errors.shippingCountry)} disabled={orderType === 'existing'} />
-                                            <datalist id="countries">
-                                                {COUNTRIES.map(c => <option key={c} value={c} />)}
-                                            </datalist>
+                                            <select
+                                                id="shippingCountry"
+                                                name="shippingCountry"
+                                                value={formState.shippingCountry}
+                                                onChange={handleFormChange}
+                                                disabled={orderType === 'existing'}
+                                                className={`${getInputClass(errors.shippingCountry)} appearance-none`}
+                                            >
+                                                <option value="">Select Country</option>
+                                                {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                                            </select>
                                         </FormField>
                                         {/* Destination Port */}
                                         <FormField label="Destination Port" icon={<Anchor className="h-5 w-5 text-gray-400" />} required error={errors.shippingPort}>
-                                            <input id="shippingPort" type="text" name="shippingPort" value={formState.shippingPort} onChange={handleFormChange} list="ports" placeholder={isLoadingPorts ? "Loading ports..." : "Select Port"} className={getInputClass(errors.shippingPort)} disabled={orderType === 'existing'} />
-                                            {isLoadingPorts && (
-                                                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#c20c0b]"></div>
+                                            {isLoadingPorts ? (
+                                                <div className={`${getInputClass(errors.shippingPort)} flex items-center gap-2 text-gray-400`}>
+                                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#c20c0b] shrink-0"></div>
+                                                    <span className="text-sm">Loading ports…</span>
                                                 </div>
+                                            ) : (
+                                                <select
+                                                    id="shippingPort"
+                                                    name="shippingPort"
+                                                    value={formState.shippingPort}
+                                                    onChange={handleFormChange}
+                                                    disabled={orderType === 'existing' || !formState.shippingCountry || availablePorts.length === 0}
+                                                    className={`${getInputClass(errors.shippingPort)} appearance-none disabled:opacity-60`}
+                                                >
+                                                    <option value="">{!formState.shippingCountry ? 'Select a country first' : availablePorts.length === 0 ? 'No ports available' : 'Select Port'}</option>
+                                                    {availablePorts.map(p => <option key={p} value={p}>{p}</option>)}
+                                                </select>
                                             )}
-                                            <datalist id="ports">
-                                                {availablePorts.map(p => <option key={p} value={p} />)}
-                                            </datalist>
                                         </FormField>
                                     </div>
                                 </div>
