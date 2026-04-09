@@ -168,6 +168,7 @@ export interface QuoteRequest {
     };
     modification_count?: number;
     modified_at?: string;
+    sampleStatus?: 'Requested' | 'In Transit' | 'Received' | null;
 }
 
 
