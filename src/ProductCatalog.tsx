@@ -49,6 +49,8 @@ export const migrateCatalog = (catalog: FactoryCatalog): FactoryCatalog => {
 // --- Image Carousel ---
 const ImageCarousel: FC<{ images: string[]; name: string; compact?: boolean }> = ({ images, name, compact }) => {
     const [idx, setIdx] = useState(0);
+    const [loadedImages, setLoadedImages] = useState<Record<number, boolean>>({});
+
     const validImages = images.filter(Boolean);
     if (validImages.length === 0) return (
         <div className={`${compact ? 'h-36' : 'h-56'} bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 flex items-center justify-center`}>
@@ -56,8 +58,9 @@ const ImageCarousel: FC<{ images: string[]; name: string; compact?: boolean }> =
         </div>
     );
     return (
-        <div className={`relative ${compact ? 'h-36' : 'h-56'} overflow-hidden group/carousel`}>
-            <img src={validImages[idx]} alt={name} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-700 group-hover/carousel:scale-105" />
+        <div className={`relative ${compact ? 'h-36' : 'h-56'} overflow-hidden group/carousel bg-gray-100 dark:bg-gray-800`}>
+            {!loadedImages[idx] && <div className="absolute inset-0 animate-pulse bg-gray-200 dark:bg-gray-700" />}
+            <img src={validImages[idx]} alt={name} loading="lazy" decoding="async" onLoad={() => setLoadedImages(p => ({...p, [idx]: true}))} className={`w-full h-full object-cover transition-all duration-700 group-hover/carousel:scale-105 ${loadedImages[idx] ? 'opacity-100' : 'opacity-0'}`} />
             {validImages.length > 1 && (
                 <>
                     <button onClick={(e) => { e.stopPropagation(); setIdx(i => (i - 1 + validImages.length) % validImages.length); }}
@@ -221,38 +224,45 @@ const ProductRow: FC<{ product: CatalogProduct; onView: (p: CatalogProduct) => v
 );
 
 // --- Fabric Swatch Card ---
-const FabricCard: FC<{ fabric: FabricOption }> = ({ fabric }) => (
-    <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700/50 overflow-hidden shadow-sm hover:shadow-md transition-all group">
-        {fabric.swatchImageUrl ? (
-            <div className="h-24 overflow-hidden">
-                <img src={fabric.swatchImageUrl} alt={fabric.name} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
-            </div>
-        ) : (
-            <div className="h-24 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 flex items-center justify-center">
-                <Scroll size={24} className="text-gray-300 dark:text-gray-600" />
-            </div>
-        )}
-        <div className="p-3">
-            <h4 className="font-bold text-sm text-gray-900 dark:text-white">{fabric.name}</h4>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{fabric.composition}</p>
-            <div className="flex items-center gap-2 mt-2 flex-wrap">
-                {fabric.weightGSM && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 font-medium">{fabric.weightGSM} GSM</span>
-                )}
-                {fabric.useCases && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium border border-blue-200 dark:border-blue-800">{fabric.useCases}</span>
-                )}
-            </div>
-            {fabric.pricePerMeter && (
-                <p className="text-xs font-bold text-[#c20c0b] mt-2">{fabric.pricePerMeter}/m</p>
+const FabricCard: FC<{ fabric: FabricOption }> = ({ fabric }) => {
+    const [isLoaded, setIsLoaded] = useState(false);
+    return (
+        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700/50 overflow-hidden shadow-sm hover:shadow-md transition-all group">
+            {fabric.swatchImageUrl ? (
+                <div className="relative h-24 overflow-hidden bg-gray-100 dark:bg-gray-800">
+                    {!isLoaded && <div className="absolute inset-0 animate-pulse bg-gray-200 dark:bg-gray-700" />}
+                    <img src={fabric.swatchImageUrl} alt={fabric.name} loading="lazy" decoding="async" onLoad={() => setIsLoaded(true)} className={`w-full h-full object-cover transition-all duration-500 group-hover:scale-110 ${isLoaded ? 'opacity-100' : 'opacity-0'}`} />
+                </div>
+            ) : (
+                <div className="h-24 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 flex items-center justify-center">
+                    <Scroll size={24} className="text-gray-300 dark:text-gray-600" />
+                </div>
             )}
+            <div className="p-3">
+                <h4 className="font-bold text-sm text-gray-900 dark:text-white">{fabric.name}</h4>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{fabric.composition}</p>
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    {fabric.weightGSM && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 font-medium">{fabric.weightGSM} GSM</span>
+                    )}
+                    {fabric.useCases && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium border border-blue-200 dark:border-blue-800">{fabric.useCases}</span>
+                    )}
+                </div>
+                {fabric.pricePerMeter && (
+                    <p className="text-xs font-bold text-[#c20c0b] mt-2">{fabric.pricePerMeter}/m</p>
+                )}
+            </div>
         </div>
-    </div>
-);
+    );
+};
 
 // --- Product Detail Modal ---
 const ProductDetailModal: FC<{ product: CatalogProduct; onClose: () => void }> = ({ product, onClose }) => {
     const [imgIdx, setImgIdx] = useState(0);
+    const [loadedMain, setLoadedMain] = useState<Record<number, boolean>>({});
+    const [loadedThumbs, setLoadedThumbs] = useState<Record<number, boolean>>({});
+
     const validImages = product.images.filter(Boolean);
     return ReactDOM.createPortal(
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" onClick={onClose}>
@@ -265,9 +275,12 @@ const ProductDetailModal: FC<{ product: CatalogProduct; onClose: () => void }> =
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
                     {/* Image Gallery */}
                     <div className="bg-gray-50 dark:bg-gray-800/50 p-6">
-                        <div className="aspect-square rounded-xl overflow-hidden mb-3 border border-gray-200 dark:border-gray-700">
+                        <div className="relative aspect-square rounded-xl overflow-hidden mb-3 border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
                             {validImages.length > 0 ? (
-                                <img src={validImages[imgIdx]} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                                <>
+                                    {!loadedMain[imgIdx] && <div className="absolute inset-0 animate-pulse bg-gray-200 dark:bg-gray-700" />}
+                                    <img src={validImages[imgIdx]} alt={product.name} loading="lazy" decoding="async" onLoad={() => setLoadedMain(p => ({...p, [imgIdx]: true}))} className={`w-full h-full object-cover transition-opacity duration-300 ${loadedMain[imgIdx] ? 'opacity-100' : 'opacity-0'}`} />
+                                </>
                             ) : (
                                 <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-800">
                                     <Package size={48} className="text-gray-300 dark:text-gray-600" />
@@ -278,8 +291,9 @@ const ProductDetailModal: FC<{ product: CatalogProduct; onClose: () => void }> =
                             <div className="flex gap-2 overflow-x-auto">
                                 {validImages.map((img, i) => (
                                     <button key={i} onClick={() => setImgIdx(i)}
-                                        className={`w-14 h-14 rounded-lg overflow-hidden border-2 flex-shrink-0 transition-all ${i === imgIdx ? 'border-[#c20c0b] shadow-md' : 'border-gray-200 dark:border-gray-700 opacity-60 hover:opacity-100'}`}>
-                                        <img src={img} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                                        className={`relative w-14 h-14 rounded-lg overflow-hidden border-2 flex-shrink-0 transition-all bg-gray-100 dark:bg-gray-800 ${i === imgIdx ? 'border-[#c20c0b] shadow-md' : 'border-gray-200 dark:border-gray-700 opacity-60 hover:opacity-100'}`}>
+                                        {!loadedThumbs[i] && <div className="absolute inset-0 animate-pulse bg-gray-200 dark:bg-gray-700" />}
+                                        <img src={img} alt="" loading="lazy" decoding="async" onLoad={() => setLoadedThumbs(p => ({...p, [i]: true}))} className={`w-full h-full object-cover transition-opacity duration-300 ${loadedThumbs[i] ? 'opacity-100' : 'opacity-0'}`} />
                                     </button>
                                 ))}
                             </div>
