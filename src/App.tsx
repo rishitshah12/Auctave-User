@@ -48,7 +48,7 @@ const FactoryDetailPage = lazy(() => import('./FactoryDetailPage').then(m => ({ 
 import { theme } from './theme';
 import { ToastProvider, useToast } from './ToastContext';
 import { NotificationProvider, useNotifications } from './NotificationContext';
-import { getCache, setCache, getCacheStale, TTL_FACTORIES } from './sessionCache';
+import { getCache, setCache, getCacheStale, TTL_FACTORIES, TTL_FACTORY_DETAIL } from './sessionCache';
 
 // ─── Image resize helper ──────────────────────────────────────────────────────
 function resizeImage(file: File, maxPx = 240): Promise<string> {
@@ -673,10 +673,10 @@ const AppContent: FC = () => {
         };
     }, [user, isAdmin, currentPage, fetchUserQuotes, quoteRequests.length]);
 
-    // Prefetch factory data during onboarding so SourcingPage renders instantly on first sign-up.
-    // Fires once when a new-user signup is detected; writes to the same sessionStorage cache key
-    // that SourcingPage reads on mount. By the time the user finishes the 3-step form the data
-    // is already cached, giving the same zero-wait experience as returning users.
+    // Prefetch all factory data during onboarding so both SourcingPage and FactoryDetailPage
+    // render instantly on first sign-up. Fetches slim + heavy fields in one query, writes the
+    // slim list to the SourcingPage cache and heavy fields (gallery/catalog/machine_slots) to
+    // per-factory cache keys — giving new users the same zero-wait experience as returning users.
     const FACTORY_CACHE_KEY = 'garment_erp_factories_v2';
     useEffect(() => {
         if (!isNewUserSignup) return;
@@ -689,7 +689,7 @@ const AppContent: FC = () => {
         (async () => {
             try {
                 const { data, error } = await supabase.from('factories').select(
-                    'id,name,location,description,rating,turnaround,minimum_order_quantity,offer,cover_image_url,tags,certifications,specialties,trust_tier,completed_orders_count,on_time_delivery_rate,quality_rejection_rate'
+                    'id,name,location,description,rating,turnaround,minimum_order_quantity,offer,cover_image_url,tags,certifications,specialties,trust_tier,completed_orders_count,on_time_delivery_rate,quality_rejection_rate,gallery,catalog,machine_slots'
                 );
                 if (cancelled || error || !data) return;
                 const factories: Factory[] = data.map((f: any) => ({
@@ -704,9 +704,19 @@ const AppContent: FC = () => {
                     onTimeDeliveryRate: f.on_time_delivery_rate ?? undefined,
                     qualityRejectionRate: f.quality_rejection_rate ?? undefined,
                 }));
+                // Cache the slim list for SourcingPage
                 setCache(FACTORY_CACHE_KEY, factories);
+                // Cache heavy fields per-factory for FactoryDetailPage
+                for (const f of data) {
+                    if (cancelled) break;
+                    setCache(`garment_erp_factory_detail_${f.id}`, {
+                        gallery: f.gallery,
+                        catalog: f.catalog,
+                        machine_slots: f.machine_slots,
+                    });
+                }
             } catch {
-                // Prefetch failure is non-critical — SourcingPage will fetch on mount as fallback
+                // Prefetch failure is non-critical — pages will fetch on mount as fallback
             }
         })();
         return () => { cancelled = true; };
