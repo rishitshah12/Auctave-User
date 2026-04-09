@@ -760,6 +760,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
     }, [formState]);
 
     const [activeItemIndex, setActiveItemIndex] = useState(0);
+    const [mobileProductDropdownOpen, setMobileProductDropdownOpen] = useState(false);
 
     // Computed current step based on active product
     const currentStep = productSteps[activeItemIndex] || 1;
@@ -1717,9 +1718,109 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                         
                         {/* Product Cards - Vertical Grid Layout */}
                         {currentStep <= 3 ? (
-                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                                {/* Left Sidebar: Product List */}
-                                <div className="lg:col-span-3 lg:border-r lg:border-gray-200 lg:dark:border-gray-700 lg:pr-6">
+                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
+                                {/* Mobile: Compact Product Dropdown Selector */}
+                                <div className="lg:hidden">
+                                    <div
+                                        className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm cursor-pointer"
+                                        onClick={() => setMobileProductDropdownOpen(o => !o)}
+                                    >
+                                        {(() => {
+                                            const item = formState.lineItems[activeItemIndex];
+                                            const completion = calculateProductCompletion(item);
+                                            const color = PRODUCT_COLORS[activeItemIndex % PRODUCT_COLORS.length];
+                                            const catOption = CATEGORY_OPTIONS.find(c => c.id === item.category);
+                                            const image = catOption ? catOption.image : null;
+                                            const icon = getCategoryIcon(item.category);
+                                            return (
+                                                <>
+                                                    <div className="flex items-center gap-3 min-w-0">
+                                                        <div className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold shrink-0 bg-gray-900 text-white dark:bg-white dark:text-gray-900`}>
+                                                            {activeItemIndex + 1}
+                                                        </div>
+                                                        <div className="h-9 w-9 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex-shrink-0 flex items-center justify-center">
+                                                            {image ? <img src={image} alt={item.category} className="w-full h-full object-cover" /> : <span className="text-base">{icon}</span>}
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <p className="font-bold text-sm text-gray-900 dark:text-white truncate">{item.category || 'New Item'}</p>
+                                                            <p className="text-xs text-gray-400">{item.qty > 0 ? `${item.qty.toLocaleString()} units` : 'Qty pending'} · {activeItemIndex + 1}/{formState.lineItems.length}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 shrink-0">
+                                                        {completion.percentage === 100
+                                                            ? <span className="text-green-500"><Check size={15} /></span>
+                                                            : <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${color.light} ${color.text}`}>{completion.percentage}%</span>
+                                                        }
+                                                        <button
+                                                            type="button"
+                                                            onClick={e => { e.stopPropagation(); handleAddItem(); }}
+                                                            disabled={currentStep < 3}
+                                                            className={`p-1.5 rounded-lg ${currentStep < 3 ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-white'}`}
+                                                            title={currentStep < 3 ? 'Complete previous steps first' : 'Add Product'}
+                                                        ><Plus size={15} /></button>
+                                                        <ChevronDown size={16} className={`text-gray-400 transition-transform ${mobileProductDropdownOpen ? 'rotate-180' : ''}`} />
+                                                    </div>
+                                                </>
+                                            );
+                                        })()}
+                                    </div>
+
+                                    {/* Dropdown list */}
+                                    {mobileProductDropdownOpen && (
+                                        <div className="mt-1 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg overflow-hidden">
+                                            {formState.lineItems.map((item, index) => {
+                                                const completion = calculateProductCompletion(item);
+                                                const isActive = activeItemIndex === index;
+                                                const color = PRODUCT_COLORS[index % PRODUCT_COLORS.length];
+                                                const catOption = CATEGORY_OPTIONS.find(c => c.id === item.category);
+                                                const image = catOption ? catOption.image : null;
+                                                const icon = getCategoryIcon(item.category);
+                                                return (
+                                                    <div
+                                                        key={item.id}
+                                                        onClick={() => { setActiveItemIndex(index); setMobileProductDropdownOpen(false); }}
+                                                        className={`flex items-center gap-3 px-3 py-3 cursor-pointer transition-colors border-b border-gray-100 dark:border-gray-700 last:border-0 ${isActive ? 'bg-gray-50 dark:bg-gray-700/60' : 'hover:bg-gray-50 dark:hover:bg-gray-700/40'}`}
+                                                    >
+                                                        <div className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold shrink-0 ${isActive ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}>
+                                                            {index + 1}
+                                                        </div>
+                                                        <div className="h-10 w-10 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex-shrink-0 flex items-center justify-center">
+                                                            {image ? <img src={image} alt={item.category} className="w-full h-full object-cover" /> : <span className="text-lg">{icon}</span>}
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className={`font-bold text-sm truncate ${isActive ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-300'}`}>{item.category || 'New Item'}</p>
+                                                            <p className="text-xs text-gray-400">{item.qty > 0 ? `${item.qty.toLocaleString()} units` : 'Qty pending'}</p>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 shrink-0">
+                                                            {completion.percentage === 100
+                                                                ? <span className="text-green-500"><Check size={14} /></span>
+                                                                : <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${color.light} ${color.text}`}>{completion.percentage}%</span>
+                                                            }
+                                                            <button
+                                                                type="button"
+                                                                onClick={e => { e.stopPropagation(); handleDuplicateItem(index); }}
+                                                                disabled={currentStep < 3}
+                                                                className={`p-1 ${currentStep < 3 ? 'text-gray-300 cursor-not-allowed' : 'text-blue-500 hover:text-blue-700'}`}
+                                                                title="Duplicate"
+                                                            ><Copy size={13} /></button>
+                                                            {formState.lineItems.length > 1 && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={e => { e.stopPropagation(); handleRemoveItem(index); }}
+                                                                    className="p-1 text-red-500 hover:text-red-700"
+                                                                    title="Remove"
+                                                                ><Trash2 size={13} /></button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Desktop: Left Sidebar Product List */}
+                                <div className="hidden lg:block lg:col-span-3 lg:border-r lg:border-gray-200 lg:dark:border-gray-700 lg:pr-6">
                                     <div className="flex items-center justify-between mb-4">
                                         <h3 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
                                             <Package className="text-[#c20c0b]" size={20} /> Products
@@ -1734,7 +1835,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                             <Plus size={18} />
                                         </button>
                                     </div>
-                                    
+
                                     <div className="flex flex-col gap-3 max-h-[600px] overflow-y-auto pr-1 custom-scrollbar">
                                         {formState.lineItems.map((item, index) => {
                                             const completion = calculateProductCompletion(item);
@@ -1764,7 +1865,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                                         <p className={`font-bold text-sm truncate ${isActive ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-300'}`}>{item.category || 'New Item'}</p>
                                                         <p className="text-xs text-gray-400 truncate">{item.qty > 0 ? `${item.qty.toLocaleString()} units` : 'Qty pending'}</p>
                                                     </div>
-                                                    
+
                                                     {/* Completion Indicator */}
                                                     <div className="flex flex-col items-end gap-1">
                                                         {completion.percentage === 100 ? (
@@ -1774,9 +1875,9 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                                         )}
                                                         {isActive && (
                                                             <div className="flex gap-1">
-                                                                <button 
-                                                                    type="button" 
-                                                                    onClick={(e) => { e.stopPropagation(); handleDuplicateItem(index); }} 
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => { e.stopPropagation(); handleDuplicateItem(index); }}
                                                                     disabled={currentStep < 3}
                                                                     className={`${currentStep < 3 ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'text-blue-500 hover:text-blue-700'}`}
                                                                     title={currentStep < 3 ? "Complete previous steps first" : "Duplicate Item"}
@@ -2524,56 +2625,98 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                         )}
                         
                         {/* Navigation Buttons */}
-                        <div className="flex justify-between items-center pt-6 border-t border-gray-100 dark:border-gray-800">
-                            <div className="flex gap-2">
-                                {currentStep > 1 && (
-                                    <button type="button" onClick={handleBack} className="px-4 py-2 text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl font-bold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2 shadow-sm">
-                                        <ChevronLeft size={16}/> Back
+                        <div className="pt-6 border-t border-gray-100 dark:border-gray-800">
+                            {/* Mobile layout */}
+                            <div className="flex flex-col gap-3 sm:hidden">
+                                {currentStep < 5 ? (
+                                    currentStep === 3 ? (
+                                        <button
+                                            type="button"
+                                            onClick={handleNext}
+                                            className="w-full text-sm font-semibold text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 rounded-xl py-3 flex items-center justify-center gap-1 bg-white dark:bg-gray-800"
+                                        >
+                                            Skip to next step <ArrowRight size={14} />
+                                        </button>
+                                    ) : (
+                                        <button type="button" onClick={handleNext} className="w-full py-3.5 bg-gradient-to-r from-[#c20c0b] to-orange-600 text-white rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 text-base">
+                                            Continue <ArrowRight size={18}/>
+                                        </button>
+                                    )
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={onSubmitButtonClick}
+                                        disabled={isSubmitting}
+                                        className={`w-full py-3.5 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 text-base ${
+                                            isSubmitting ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white'
+                                        }`}
+                                    >
+                                        {isSubmitting ? <><Zap className="animate-spin" size={18}/> Submitting...</> : <><Check size={18}/> Submit Request</>}
                                     </button>
                                 )}
-                                <button type="button" onClick={handleSaveDraft} className="px-4 py-2 text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl font-bold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2 shadow-sm">
-                                    <Save size={16}/> Save Draft
-                                </button>
-                                <button type="button" onClick={handleResetForm} className="px-4 py-2 text-red-600 bg-red-50 dark:bg-red-900/20 rounded-xl font-bold hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors">
-                                    <Trash2 size={16}/>
-                                </button>
-                            </div>
-                            {currentStep < 5 ? (
-                                currentStep === 3 ? (
-                                    <button 
-                                        type="button"
-                                        onClick={handleNext}
-                                        className="text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white transition-colors flex items-center gap-1 px-4 py-3"
-                                    >
-                                        Skip to next step <ArrowRight size={14} />
-                                    </button>
-                                ) : (
-                                    <button type="button" onClick={handleNext} className="px-6 py-3 bg-gradient-to-r from-[#c20c0b] to-orange-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl hover:scale-105 transition-all flex items-center gap-2">
-                                        Continue <ArrowRight size={18}/>
-                                    </button>
-                                )
-                            ) : (
-                                <button
-                                    type="button"
-                                    onClick={onSubmitButtonClick}
-                                    disabled={isSubmitting}
-                                    className={`px-8 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center gap-2 ${
-                                        isSubmitting
-                                            ? 'bg-gray-400 cursor-not-allowed text-white'
-                                            : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:scale-105'
-                                    }`}
-                                >
-                                    {isSubmitting ? (
-                                        <>
-                                            <Zap className="animate-spin" size={18}/> Submitting...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Check size={18}/> Submit Request
-                                        </>
+                                <div className="flex gap-2">
+                                    {currentStep > 1 && (
+                                        <button type="button" onClick={handleBack} className="flex-1 py-3 text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl font-bold flex items-center justify-center gap-1 shadow-sm text-sm">
+                                            <ChevronLeft size={16}/> Back
+                                        </button>
                                     )}
-                                </button>
-                            )}
+                                    <button type="button" onClick={handleSaveDraft} className="flex-1 py-3 text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl font-bold flex items-center justify-center gap-1 shadow-sm text-sm">
+                                        <Save size={15}/> Draft
+                                    </button>
+                                    <button type="button" onClick={handleResetForm} className="px-4 py-3 text-red-600 bg-red-50 dark:bg-red-900/20 rounded-xl font-bold">
+                                        <Trash2 size={16}/>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Desktop layout */}
+                            <div className="hidden sm:flex justify-between items-center">
+                                <div className="flex gap-2">
+                                    {currentStep > 1 && (
+                                        <button type="button" onClick={handleBack} className="px-4 py-2 text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl font-bold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2 shadow-sm">
+                                            <ChevronLeft size={16}/> Back
+                                        </button>
+                                    )}
+                                    <button type="button" onClick={handleSaveDraft} className="px-4 py-2 text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl font-bold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2 shadow-sm">
+                                        <Save size={16}/> Save Draft
+                                    </button>
+                                    <button type="button" onClick={handleResetForm} className="px-4 py-2 text-red-600 bg-red-50 dark:bg-red-900/20 rounded-xl font-bold hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors">
+                                        <Trash2 size={16}/>
+                                    </button>
+                                </div>
+                                {currentStep < 5 ? (
+                                    currentStep === 3 ? (
+                                        <button
+                                            type="button"
+                                            onClick={handleNext}
+                                            className="text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white transition-colors flex items-center gap-1 px-4 py-3"
+                                        >
+                                            Skip to next step <ArrowRight size={14} />
+                                        </button>
+                                    ) : (
+                                        <button type="button" onClick={handleNext} className="px-6 py-3 bg-gradient-to-r from-[#c20c0b] to-orange-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl hover:scale-105 transition-all flex items-center gap-2">
+                                            Continue <ArrowRight size={18}/>
+                                        </button>
+                                    )
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={onSubmitButtonClick}
+                                        disabled={isSubmitting}
+                                        className={`px-8 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center gap-2 ${
+                                            isSubmitting
+                                                ? 'bg-gray-400 cursor-not-allowed text-white'
+                                                : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:scale-105'
+                                        }`}
+                                    >
+                                        {isSubmitting ? (
+                                            <><Zap className="animate-spin" size={18}/> Submitting...</>
+                                        ) : (
+                                            <><Check size={18}/> Submit Request</>
+                                        )}
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </form>
                     </div>
