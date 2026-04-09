@@ -525,7 +525,10 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
             try {
                 if (signal.aborted) return;
                 const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 15000));
-                const { data, error } = await Promise.race([factoryService.getAll(), timeoutPromise]) as any;
+                const { data, error } = await Promise.race([
+                    factoryService.getAll('id,name,location,description,rating,turnaround,minimum_order_quantity,offer,cover_image_url,tags,certifications,specialties,trust_tier,completed_orders_count,on_time_delivery_rate,quality_rejection_rate'),
+                    timeoutPromise
+                ]) as any;
                 if (error) throw error;
                 if (!signal.aborted) {
                     setFactories(data || []);
@@ -784,10 +787,13 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
     const PRODUCT_TAG_PRESETS = ['bestseller', 'new', 'eco-friendly', 'premium', 'budget'];
     const CATEGORY_PRESETS = ['T-Shirts', 'Polo Shirts', 'Hoodies', 'Sweatshirts', 'Joggers', 'Shorts', 'Jackets', 'Denim', 'Dresses', 'Activewear', 'Kids Wear', 'Loungewear'];
 
-    const openModal = (factory?: Factory) => {
+    const openModal = async (factory?: Factory) => {
         if (factory) {
-            setEditingFactory(factory);
-            setOriginalFactory(JSON.stringify(factory));
+            // Fetch heavy fields (gallery, catalog, machine_slots) not included in the slim list query
+            const { data: fullFactory } = await factoryService.getById(factory.id);
+            const merged = fullFactory ? { ...factory, ...fullFactory } : factory;
+            setEditingFactory(merged);
+            setOriginalFactory(JSON.stringify(merged));
         } else {
             setEditingFactory({
                 name: '', location: '', description: '', minimumOrderQuantity: 0, rating: 0, imageUrl: '',

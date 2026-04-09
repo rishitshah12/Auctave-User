@@ -419,24 +419,31 @@ export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user
 
                 if (user && user.id && !signal.aborted) {
                     // Fetch factories directly to bypass service permission checks (client-side access)
-                    const factoriesPromise = supabase.from('factories').select('*').abortSignal(signal).then(({ data, error }) => {
+                    // Only select fields used in CRMPage's OrderDetailsView: id, name, location, rating, imageUrl, specialties
+                    const factoriesPromise = supabase.from('factories')
+                        .select('id,name,location,rating,cover_image_url,specialties')
+                        .abortSignal(signal)
+                        .then(({ data, error }) => {
                         if (error) return { data: null, error };
                         const transformed = data?.map((f: any) => ({
                             id: f.id,
                             name: f.name,
                             location: f.location,
-                            description: f.description,
                             rating: f.rating,
-                            turnaround: f.turnaround,
-                            minimumOrderQuantity: f.minimum_order_quantity,
-                            offer: f.offer,
                             imageUrl: f.cover_image_url,
-                            gallery: f.gallery || [],
-                            tags: f.tags || [],
-                            certifications: f.certifications || [],
                             specialties: f.specialties || [],
-                            productionLines: f.machine_slots || [],
-                            catalog: f.catalog || { products: [], fabricOptions: [] }
+                            // defaults for unused fields required by Factory type
+                            description: '',
+                            turnaround: '',
+                            minimumOrderQuantity: 0,
+                            offer: null,
+                            gallery: [],
+                            tags: [],
+                            certifications: [],
+                            productionLines: [],
+                            catalog: { products: [], fabricOptions: [] },
+                            trustTier: 'unverified' as const,
+                            completedOrdersCount: 0,
                         })) || [];
                         return { data: transformed, error: null };
                     });

@@ -7,6 +7,14 @@ import { masterController } from './masterController';
 // Import helper functions to format errors nicely
 import { mapSupabaseError, AppError } from './error-handler';
 
+// In-memory cache: maps "userId:permission" → granted boolean.
+// Cleared on sign-out (supabase auth state change). Safe because permissions
+// don't change during a session and the cache is process-scoped (not shared).
+const permissionCache = new Map<string, boolean>();
+supabase.auth.onAuthStateChange((event) => {
+    if (event === 'SIGNED_OUT') permissionCache.clear();
+});
+
 // Define settings for a service (like which table to use)
 export interface ServiceConfig {
     tableName: string; // The name of the database table
@@ -34,7 +42,7 @@ export class BaseService<T> {
     protected async checkPermission(permission?: string): Promise<void> {
         // If no specific permission is required, allow access
         if (!permission) return;
-        
+
         // Get the current user's session
         const { data: { session } } = await supabase.auth.getSession();
         let user = session?.user ?? null;
@@ -43,7 +51,7 @@ export class BaseService<T> {
         if (!user) {
             const { data, error } = await supabase.auth.getUser();
             user = data.user;
-            
+
             // Double Fallback: If getUser fails, try to refresh the session explicitly
             if (!user || error) {
                 console.warn(`BaseService: getUser failed for ${this.config.tableName}`, error?.message);
@@ -57,6 +65,13 @@ export class BaseService<T> {
             throw new Error('Unauthorized: No active session');
         }
 
+        // Return early if this permission was already resolved for this user in this session
+        const cacheKey = `${user.id}:${permission}`;
+        if (permissionCache.has(cacheKey)) {
+            if (!permissionCache.get(cacheKey)) throw new Error(`Forbidden: Missing permission ${permission}`);
+            return;
+        }
+
         // Ask the MasterController if this user has the required permission
         let hasPermission = await masterController.checkPermission(user.id, permission);
 
@@ -64,6 +79,8 @@ export class BaseService<T> {
         if (!hasPermission && user.email?.endsWith('@auctaveexports.com')) {
             hasPermission = true;
         }
+
+        permissionCache.set(cacheKey, hasPermission);
 
         // If not allowed, stop and throw an error
         if (!hasPermission) {
