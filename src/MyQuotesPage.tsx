@@ -290,11 +290,22 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
         return false;
     };
 
+    // Only tracks meaningful updates FROM admin — not noisy DB `modified_at` bumps
+    const getMeaningfulUpdateTimestamp = (quote: QuoteRequest): string => {
+        const history = quote.negotiation_details?.history;
+        if (history && Array.isArray(history) && history.length > 0) {
+            const last = history[history.length - 1];
+            if (last.sender !== 'client') return last.timestamp;
+        }
+        if (quote.status === 'Accepted' && quote.acceptedAt) return quote.acceptedAt;
+        if (quote.response_details?.respondedAt) return quote.response_details.respondedAt;
+        return quote.submittedAt;
+    };
+
     const isUnread = (quote: QuoteRequest) => {
-        const timestamp = getQuoteTimestamp(quote);
         const lastRead = localStorage.getItem(`quote_read_${quote.id}`);
         if (!lastRead) return true;
-        return new Date(timestamp).toISOString() > new Date(lastRead).toISOString();
+        return new Date(getMeaningfulUpdateTimestamp(quote)).getTime() > new Date(lastRead).getTime();
     };
 
     // Thread unread: unread if any quote for the same userId is unread
@@ -310,7 +321,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
     const scheduleMarkAsRead = (quote: QuoteRequest) => {
         if (pendingReadTimers.current[quote.id]) clearTimeout(pendingReadTimers.current[quote.id]);
         pendingReadTimers.current[quote.id] = setTimeout(() => {
-            localStorage.setItem(`quote_read_${quote.id}`, getQuoteTimestamp(quote));
+            localStorage.setItem(`quote_read_${quote.id}`, new Date().toISOString());
             setReadTick(t => t + 1);
             delete pendingReadTimers.current[quote.id];
         }, 1000);
@@ -318,7 +329,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
 
     const manualMarkAsRead = (e: React.MouseEvent, quote: QuoteRequest) => {
         e.stopPropagation();
-        localStorage.setItem(`quote_read_${quote.id}`, getQuoteTimestamp(quote));
+        localStorage.setItem(`quote_read_${quote.id}`, new Date().toISOString());
         setReadTick(t => t + 1);
         if (undoTimer.current) clearTimeout(undoTimer.current);
         setUndoState({ quoteId: quote.id, label: quote.factory?.name || `#${quote.id.slice(0, 8)}` });
@@ -339,7 +350,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
     const bulkMarkAsRead = () => {
         selectedIds.forEach(id => {
             const q = quoteRequests.find(q => q.id === id);
-            if (q) localStorage.setItem(`quote_read_${id}`, getQuoteTimestamp(q));
+            if (q) localStorage.setItem(`quote_read_${id}`, new Date().toISOString());
         });
         setReadTick(t => t + 1);
         setSelectedIds([]);
@@ -428,7 +439,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
     const markAllAsRead = () => {
         filteredQuotes.forEach(q => {
             if (q.status !== 'Draft') {
-                localStorage.setItem(`quote_read_${q.id}`, getQuoteTimestamp(q));
+                localStorage.setItem(`quote_read_${q.id}`, new Date().toISOString());
             }
         });
         setReadTick(t => t + 1);
@@ -518,11 +529,6 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                                     <span className="font-mono text-sm font-bold text-gray-700 dark:text-gray-200 tracking-tight">
                                         #{quote.id.slice(0, 8).toUpperCase()}
                                     </span>
-                                    {(quote.modification_count || 0) > 0 && (
-                                        <span className="text-[9px] font-semibold text-amber-600 dark:text-amber-500 flex items-center gap-0.5">
-                                            <Pencil size={8} /> Rev.{quote.modification_count}
-                                        </span>
-                                    )}
                                 </div>
                                 <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 flex items-center gap-1">
                                     <Clock size={9} />
@@ -536,6 +542,11 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                                 {(quote.status === 'Admin Accepted' || quote.status === 'Client Accepted') && <Check size={11} />}
                                 {displayStatus}
                             </span>
+                            {(quote.modification_count || 0) > 0 && (
+                                <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide rounded-md border border-amber-300 dark:border-amber-600/60 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                                    <Pencil size={10} /> Modified ×{quote.modification_count}
+                                </span>
+                            )}
                         </div>
                     </div>
 
@@ -738,8 +749,8 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                                     <Check size={12} /> You Accepted
                                 </span>
                             ) : quote.status === 'Admin Accepted' ? (
-                                <span className="text-teal-600 dark:text-teal-400 flex items-center gap-1.5">
-                                    <Check size={12} /> Action Required
+                                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#c20c0b] text-white text-[11px] font-bold uppercase tracking-wide shadow-sm animate-pulse">
+                                    <AlertCircle size={13} /> Action Required
                                 </span>
                             ) : (
                                 <span className="text-gray-400 dark:text-gray-500">View Details</span>

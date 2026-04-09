@@ -5,7 +5,7 @@ import { MainLayout } from './MainLayout';
 import { quoteService } from './quote.service';
 import { crmService } from './crm.service';
 import { QuoteRequest, NegotiationHistoryItem } from './types';
-import { MapPin, Shirt, Package, Clock, ChevronRight, ChevronLeft, FileQuestion, MessageSquare, CheckCircle, XCircle, X, Download, RefreshCw, User, Building, Calendar, FileText, Eye, EyeOff, CheckSquare, ArrowUp, ArrowDown, ChevronDown, ChevronUp, History, DollarSign, Search, Mail, MailOpen, Phone, Check, CheckCheck, Trash2, RotateCcw, Image as ImageIcon, Scale, Paperclip, Send, Circle, Layers, Scissors, Factory, ShieldCheck, Truck, LifeBuoy, ClipboardList, Plus, Edit, GripVertical, Info, Sparkles, Globe, Box, Link as LinkIcon, Filter, Activity, ExternalLink, ArrowRight } from 'lucide-react';
+import { MapPin, Shirt, Package, Clock, ChevronRight, ChevronLeft, FileQuestion, MessageSquare, CheckCircle, XCircle, X, Download, RefreshCw, User, Building, Calendar, FileText, Eye, EyeOff, CheckSquare, ArrowUp, ArrowDown, ChevronDown, ChevronUp, History, DollarSign, Search, Mail, MailOpen, Phone, Check, CheckCheck, Trash2, RotateCcw, Image as ImageIcon, Scale, Paperclip, Send, Circle, Layers, Scissors, Factory, ShieldCheck, Truck, LifeBuoy, ClipboardList, Plus, Edit, GripVertical, Info, Sparkles, Globe, Box, Link as LinkIcon, Filter, Activity, ExternalLink, ArrowRight, Pencil, FlaskConical, AlertCircle } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import confetti from 'canvas-confetti';
@@ -285,6 +285,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
     });
     const [isSelectionMode, setIsSelectionMode] = useState(() => selectedQuoteIds.length > 0);
     const [hoveredQuoteId, setHoveredQuoteId] = useState<string | null>(null);
+    const [expandedProductCardId, setExpandedProductCardId] = useState<string | null>(null);
     // Mail-like read/unread tracking: stores { quoteId: lastReadAt ISO timestamp }
     const [adminReadState, setAdminReadState] = useState<Record<string, string>>(() => {
         const saved = localStorage.getItem('admin_quote_read_state');
@@ -739,10 +740,21 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
         return { label, date: formatFriendlyDate(date) };
     };
 
+    // Only tracks CLIENT-initiated activity — admin's own responses must not re-trigger unread
+    const getClientUpdateTimestamp = (quote: QuoteRequest): string => {
+        const history = quote.negotiation_details?.history;
+        if (history && Array.isArray(history) && history.length > 0) {
+            const last = history[history.length - 1];
+            if (last.sender === 'client') return last.timestamp;
+        }
+        if ((quote.modification_count || 0) > 0 && quote.modified_at) return quote.modified_at;
+        return quote.submittedAt;
+    };
+
     const isQuoteUnread = (quote: QuoteRequest) => {
         const lastReadAt = adminReadState[quote.id];
-        if (!lastReadAt) return true; // never opened
-        return new Date(getQuoteTimestamp(quote)).getTime() > new Date(lastReadAt).getTime();
+        if (!lastReadAt) return true;
+        return new Date(getClientUpdateTimestamp(quote)).getTime() > new Date(lastReadAt).getTime();
     };
 
     const markAsRead = (quoteId: string) => {
@@ -3905,6 +3917,27 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
         const isUnread = isQuoteUnread(quote);
         const isNewQuote = isUnread && !adminReadState[quote.id];
         const isUpdated = isUnread && !!adminReadState[quote.id];
+        const lineItems = quote.order?.lineItems || [];
+        const respondedStatuses = ['Responded', 'In Negotiation', 'Admin Accepted', 'Client Accepted', 'Accepted'];
+        const hasResponse = respondedStatuses.includes(quote.status);
+        const isAcc = quote.status === 'Accepted';
+        const displayStatus = quote.status === 'Admin Accepted' ? 'Admin Acc.' : quote.status === 'Client Accepted' ? 'Client Acc.' : quote.status;
+        const leadTime = quote.response_details?.leadTime;
+        const isExpanded = expandedProductCardId === quote.id;
+
+        let quotedPriceDisplay: string | null = null;
+        if (hasResponse) {
+            if (quote.response_details?.price) {
+                quotedPriceDisplay = `$${quote.response_details.price}`;
+            } else if (lineItems.length === 1) {
+                const r = (quote.response_details?.lineItemResponses || []).find((r: any) => r.lineItemId === lineItems[0].id);
+                if (r?.price) quotedPriceDisplay = `$${r.price}`;
+            }
+        }
+
+        const displayedItems = isExpanded ? lineItems : lineItems.slice(0, 2);
+        const hiddenCount = lineItems.length - 2;
+
         return (
         <div
             key={quote.id}
@@ -3915,12 +3948,12 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
             }}
             onMouseEnter={() => setHoveredQuoteId(quote.id)}
             onMouseLeave={() => setHoveredQuoteId(null)}
-            className={`${theme.cardBg} backdrop-blur-sm rounded-2xl border transition-all duration-300 cursor-pointer group relative overflow-hidden flex flex-col hover:-translate-y-1.5 ${theme.border}`}
+            className={`${theme.cardBg} backdrop-blur-sm rounded-2xl border transition-all duration-300 cursor-pointer group relative overflow-hidden flex flex-col hover:-translate-y-1 ${theme.border}`}
             style={{
                 boxShadow: isHovered
                     ? isUnread
-                        ? `0 20px 40px -8px ${theme.glowHover}, 0 8px 16px -4px ${theme.glow}, 0 1px 4px rgba(0,0,0,0.08), inset 3px 0 0 #f59e0b`
-                        : `0 20px 40px -8px ${theme.glowHover}, 0 8px 16px -4px ${theme.glow}, 0 1px 4px rgba(0,0,0,0.08)`
+                        ? `0 20px 40px -8px ${theme.glowHover}, 0 8px 16px -4px ${theme.glow}, 0 2px 6px rgba(0,0,0,0.08), inset 3px 0 0 #f59e0b`
+                        : `0 20px 40px -8px ${theme.glowHover}, 0 8px 16px -4px ${theme.glow}, 0 2px 6px rgba(0,0,0,0.08)`
                     : isUnread
                         ? `0 4px 20px -4px ${theme.glow}, 0 1px 3px rgba(0,0,0,0.06), inset 3px 0 0 #f59e0b`
                         : `0 4px 20px -4px ${theme.glow}, 0 1px 3px rgba(0,0,0,0.06)`,
@@ -3928,135 +3961,177 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                 animationDelay: `${index * 50}ms`,
             }}
         >
-            {/* Status gradient top bar */}
             <div className={`h-[3px] w-full bg-gradient-to-r ${getStatusGradientBorder(quote.status)} flex-shrink-0`} />
+            <div className="absolute inset-0 pointer-events-none opacity-60" style={{ background: theme.meshGradient, top: '3px' }} />
 
-            {/* Mesh gradient ambient overlay */}
-            <div
-                className="absolute inset-0 pointer-events-none"
-                style={{ background: theme.meshGradient, top: '3px' }}
-            />
+            <div className="flex flex-col flex-grow relative">
 
-            <div className="p-3 sm:p-5 flex flex-col flex-grow relative">
-                {/* Card Header */}
-                <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
+                {/* ── SECTION 1: Document header ─────────────────── */}
+                <div className="px-4 pt-4 pb-3 flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-2 min-w-0">
                         {isSelectionMode && (
                             <input
                                 type="checkbox"
                                 checked={selectedQuoteIds.includes(quote.id)}
                                 onChange={() => toggleSelectQuote(quote.id)}
                                 onClick={(e) => e.stopPropagation()}
-                                className="rounded text-[#c20c0b] focus:ring-[#c20c0b] h-4 w-4 cursor-pointer"
+                                className="rounded text-[#c20c0b] focus:ring-[#c20c0b] h-4 w-4 cursor-pointer flex-shrink-0 mt-1"
                             />
                         )}
-                        <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-white/80 dark:bg-gray-800/80 text-gray-500 dark:text-gray-400 border border-gray-200/70 dark:border-gray-700/70 backdrop-blur-sm font-mono tracking-tight">
-                            #{quote.id.slice(0, 8)}
+                        <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                                <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500">Request for Quote</span>
+                                {isUnread && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse flex-shrink-0" />}
+                            </div>
+                            <span className="font-mono text-sm font-bold text-gray-700 dark:text-gray-200 tracking-tight">
+                                #{quote.id.slice(0, 8).toUpperCase()}
+                            </span>
+                            <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 flex items-center gap-1">
+                                <Clock size={9} />
+                                {getDisplayDateInfo(quote).label} · {getDisplayDateInfo(quote).date}
+                            </p>
+                        </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                        <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                            {isNewQuote && (
+                                <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide rounded-full border border-amber-300/70 dark:border-amber-600/50 bg-amber-50/90 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                                    <Circle size={6} className="fill-amber-500 text-amber-500" /> New
+                                </span>
+                            )}
+                            {isUpdated && (
+                                <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide rounded-full border border-indigo-300/70 dark:border-indigo-600/50 bg-indigo-50/90 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
+                                    <Activity size={9} /> Updated
+                                </span>
+                            )}
+                        </div>
+                        <span className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide rounded-md border ${getStatusColor(quote.status)} flex items-center gap-1`}>
+                            {quote.status === 'Accepted' && <CheckCheck size={11} />}
+                            {(quote.status === 'Admin Accepted' || quote.status === 'Client Accepted') && <Check size={11} />}
+                            {displayStatus}
                         </span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                        {isNewQuote && (
-                            <span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full border border-amber-300/70 dark:border-amber-600/50 bg-amber-50/90 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 flex items-center gap-1 backdrop-blur-sm">
-                                <Circle size={6} className="fill-amber-500 text-amber-500" /> New
+                        {(quote.modification_count || 0) > 0 && (
+                            <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide rounded-md border border-amber-300 dark:border-amber-600/60 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                                <Pencil size={10} /> Modified ×{quote.modification_count}
                             </span>
                         )}
-                        {isUpdated && (
-                            <span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full border border-indigo-300/70 dark:border-indigo-600/50 bg-indigo-50/90 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center gap-1 backdrop-blur-sm">
-                                <Activity size={9} /> Updated
+                    </div>
+                </div>
+
+                {/* ── SECTION 2: FROM — Client ────────────────────── */}
+                <div className="px-4 pb-3">
+                    <div className="flex items-center gap-2.5 bg-white/50 dark:bg-gray-800/30 rounded-xl px-3 py-2.5 border border-white/80 dark:border-gray-700/40">
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 flex-shrink-0">From</span>
+                        <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 flex-shrink-0" />
+                        <div
+                            className="h-8 w-8 rounded-lg flex items-center justify-center font-bold text-white text-xs shadow-sm flex-shrink-0 relative"
+                            style={{ backgroundColor: theme.progressColor }}
+                        >
+                            {initials}
+                            {isUnread && (
+                                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-500 rounded-full border-2 border-white dark:border-gray-900" />
+                            )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <p className="text-sm font-bold text-gray-900 dark:text-white truncate group-hover:text-[#c20c0b] transition-colors leading-tight">
+                                {quote.clientName || 'Unknown Client'}
+                            </p>
+                            <p className="text-[10px] text-gray-400 dark:text-gray-500 flex items-center gap-1 mt-0.5">
+                                <Building size={8} /> {quote.companyName || 'Unknown Company'}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* ── SECTION 3: Items Requested ─────────────────── */}
+                <div className="px-4 pb-3">
+                    <div className="border-t border-dashed border-gray-200 dark:border-gray-700/50 mb-3" />
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500">Items Requested</span>
+                        {hiddenCount > 0 && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setExpandedProductCardId(prev => prev === quote.id ? null : quote.id); }}
+                                className="flex items-center gap-0.5 text-[9px] font-semibold text-[#c20c0b] hover:underline"
+                            >
+                                {isExpanded ? 'Show less' : `+${hiddenCount} more`}
+                                <ChevronDown size={10} className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                            </button>
+                        )}
+                    </div>
+                    <div className="space-y-1.5">
+                        {displayedItems.map((item: any, i: number) => (
+                            <div key={i} className="flex items-center gap-2 bg-white/60 dark:bg-gray-800/40 rounded-lg px-3 py-2 border border-gray-100/80 dark:border-gray-700/40">
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-xs font-semibold text-gray-800 dark:text-gray-100 truncate">{item.category || 'Product'}</p>
+                                    {item.fabricQuality && (
+                                        <p className="text-[9px] text-gray-400 dark:text-gray-500 truncate">{item.fabricQuality}</p>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                    <span className="text-[10px] text-gray-400 dark:text-gray-500">
+                                        {item.quantityType === 'container' ? item.containerType : `${item.qty || '—'} units`}
+                                    </span>
+                                    {item.targetPrice && (
+                                        <span className="text-[10px] font-bold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700/60 px-1.5 py-0.5 rounded-md tabular-nums">
+                                            ${item.targetPrice}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* ── Sample status tags ──────────────────────────── */}
+                {(quote.sampleStatus === 'Requested' || quote.sampleStatus === 'In Transit') && (
+                    <div className="px-4 pb-3 flex items-center gap-1.5">
+                        {quote.sampleStatus === 'Requested' && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide rounded-full bg-purple-50 dark:bg-purple-900/25 border border-purple-200/70 dark:border-purple-700/50 text-purple-700 dark:text-purple-400">
+                                <FlaskConical size={9} /> Sample Requested
                             </span>
                         )}
-                        {!isUnread && (quote.modification_count || 0) > 0 && (
-                            <span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full border border-amber-300/70 dark:border-amber-600/50 bg-amber-50/90 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center gap-1 backdrop-blur-sm">
-                                <Edit size={10} /> Mod
+                        {quote.sampleStatus === 'In Transit' && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide rounded-full bg-sky-50 dark:bg-sky-900/25 border border-sky-200/70 dark:border-sky-700/50 text-sky-700 dark:text-sky-400">
+                                <Truck size={9} /> In Transit
                             </span>
                         )}
-                        <span className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full border ${getStatusColor(quote.status)} flex items-center gap-1 backdrop-blur-sm`}>
-                            {quote.status === 'Accepted' && <CheckCheck size={12} />}
-                            {(quote.status === 'Admin Accepted' || quote.status === 'Client Accepted') && <Check size={12} />}
-                            {quote.status === 'Admin Accepted' ? 'Admin Acc.' : quote.status === 'Client Accepted' ? 'Client Acc.' : quote.status}
-                        </span>
                     </div>
-                </div>
+                )}
 
-                {/* Client info */}
-                <div className="flex items-center gap-3 mb-4">
-                    <div
-                        className="h-10 w-10 rounded-xl flex items-center justify-center font-bold text-white text-sm shadow-md flex-shrink-0 relative"
-                        style={{ backgroundColor: theme.progressColor, boxShadow: `0 4px 12px -2px ${theme.glow}` }}
-                    >
-                        {initials}
-                        {isUnread && (
-                            <span className="absolute -top-1 -right-1 w-3 h-3 bg-amber-500 rounded-full border-2 border-white dark:border-gray-900 shadow-sm" />
-                        )}
-                    </div>
-                    <div className="min-w-0">
-                        <p className={`text-sm leading-tight group-hover:text-[#c20c0b] transition-colors truncate ${isUnread ? 'font-extrabold text-gray-900 dark:text-white' : 'font-bold text-gray-900 dark:text-white'}`}>
-                            {quote.clientName || 'Unknown Client'}
+                {/* ── SECTION 4: Quote Sent ───────────────────────── */}
+                {hasResponse && (quotedPriceDisplay || leadTime) && (
+                    <div className="px-4 pb-3">
+                        <div className="border-t border-dashed border-gray-200 dark:border-gray-700/50 mb-3" />
+                        <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-2">
+                            {isAcc ? 'Agreed Terms' : 'Quote Sent'}
                         </p>
-                        <p className={`text-[10px] flex items-center gap-1 mt-0.5 ${isUnread ? 'text-gray-600 dark:text-gray-300 font-medium' : 'text-gray-400 dark:text-gray-500'}`}>
-                            <Building size={9} />{quote.companyName || 'Unknown Company'}
-                        </p>
+                        <div className="flex items-stretch gap-2">
+                            {quotedPriceDisplay && (
+                                <div className={`flex-1 rounded-lg px-3 py-2 border ${isAcc ? 'bg-emerald-50/80 dark:bg-emerald-900/20 border-emerald-200/60 dark:border-emerald-700/40' : 'bg-blue-50/80 dark:bg-blue-900/20 border-blue-200/60 dark:border-blue-700/40'}`}>
+                                    <p className="text-[9px] uppercase tracking-wider font-bold text-gray-400 mb-0.5 flex items-center gap-1">
+                                        <DollarSign size={8} /> Price / unit
+                                    </p>
+                                    <p className={`text-sm font-extrabold tabular-nums ${isAcc ? 'text-emerald-600 dark:text-emerald-400' : 'text-blue-600 dark:text-blue-400'}`}>
+                                        {quotedPriceDisplay}
+                                    </p>
+                                </div>
+                            )}
+                            {leadTime && (
+                                <div className="flex-1 rounded-lg px-3 py-2 border bg-white/70 dark:bg-gray-800/40 border-gray-200/60 dark:border-gray-700/40">
+                                    <p className="text-[9px] uppercase tracking-wider font-bold text-gray-400 mb-0.5 flex items-center gap-1">
+                                        <Clock size={8} /> Lead Time
+                                    </p>
+                                    <p className="text-sm font-bold text-gray-700 dark:text-gray-200">{leadTime}</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
-                </div>
+                )}
 
-                {/* Product name + date */}
-                <div className="mb-4">
-                    <h3 className={`text-base mb-1 leading-snug group-hover:text-[#c20c0b] transition-colors ${isUnread ? 'font-extrabold text-gray-900 dark:text-white' : 'font-bold text-gray-900 dark:text-white'}`}>
-                        {quote.order?.lineItems?.length > 1
-                            ? `${quote.order.lineItems.length} Product Types`
-                            : (quote.order?.lineItems?.[0]?.category || 'Unknown Product')}
-                    </h3>
-                    <p className="text-xs flex items-center gap-1.5 text-gray-400 dark:text-gray-500">
-                        <Clock size={11} />
-                        {getDisplayDateInfo(quote).label} · {getDisplayDateInfo(quote).date}
-                    </p>
-                </div>
-
-                {/* Stats chips */}
-                <div className="grid grid-cols-2 gap-2.5 mb-4">
-                    <div className="bg-white/70 dark:bg-gray-800/50 rounded-xl p-3 border border-white/90 dark:border-gray-700/50 backdrop-blur-sm">
-                        <p className="text-[9px] uppercase tracking-wider font-bold text-gray-400 dark:text-gray-500 mb-1.5 flex items-center gap-1">
-                            <Package size={9} /> Quantity
-                        </p>
-                        <p className="text-sm font-bold text-gray-800 dark:text-gray-100 truncate">
-                            {(() => {
-                                const items = quote.order?.lineItems || [];
-                                if (items.length === 0) return '0 units';
-                                if (items.length === 1) {
-                                    const item = items[0];
-                                    return item.quantityType === 'container' ? item.containerType : `${item.qty} units`;
-                                }
-                                const allUnits = items.every((i: any) => !i.quantityType || i.quantityType === 'units');
-                                if (allUnits) return `${items.reduce((a: number, i: any) => a + (i.qty || 0), 0)} units`;
-                                return 'Various';
-                            })()}
-                        </p>
-                    </div>
-                    <div className={`rounded-xl p-3 border backdrop-blur-sm ${
-                        quote.status === 'Accepted'
-                            ? 'bg-emerald-50/80 dark:bg-emerald-900/25 border-emerald-200/70 dark:border-emerald-700/40'
-                            : 'bg-white/70 dark:bg-gray-800/50 border-white/90 dark:border-gray-700/50'
-                    }`}>
-                        <p className="text-[9px] uppercase tracking-wider font-bold text-gray-400 dark:text-gray-500 mb-1.5 flex items-center gap-1">
-                            <DollarSign size={9} /> {quote.status === 'Accepted' ? 'Agreed' : 'Target'}
-                        </p>
-                        <p className={`text-sm font-bold truncate ${quote.status === 'Accepted' ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-800 dark:text-gray-100'}`}>
-                            {(() => {
-                                const isAcc = quote.status === 'Accepted';
-                                if (isAcc) {
-                                    if (quote.response_details?.price) return `$${quote.response_details.price}`;
-                                    return 'See Details';
-                                }
-                                if (quote.order?.lineItems?.length === 1) return `$${quote.order.lineItems[0].targetPrice}`;
-                                return 'See Details';
-                            })()}
-                        </p>
-                    </div>
-                </div>
-
-                {/* Progress tracker */}
+                {/* ── SECTION 5: Progress timeline ────────────────── */}
                 {quote.status !== 'Trashed' && (
-                    <div className="mb-4 bg-white/50 dark:bg-gray-800/30 rounded-xl px-3 py-2.5 border border-white/70 dark:border-gray-700/30 backdrop-blur-sm">
+                    <div className="px-4 pb-3">
+                        <div className="border-t border-dashed border-gray-200 dark:border-gray-700/50 mb-3" />
                         <div className="flex items-center">
                             {QUOTE_PROGRESS_STEPS.map((step, i) => {
                                 const isCompleted = progressStep > i;
@@ -4073,21 +4148,12 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                                     boxShadow: isCurrent ? `0 0 0 2.5px white, 0 0 0 4px ${theme.progressColor}` : 'none',
                                                 }}
                                             />
-                                            <span
-                                                className="text-[8px] font-semibold leading-none"
-                                                style={{ color: (isCompleted || isCurrent) ? theme.progressColor : '#9ca3af', opacity: (isCompleted || isCurrent) ? 1 : 0.6 }}
-                                            >
+                                            <span className="text-[8px] font-semibold leading-none" style={{ color: (isCompleted || isCurrent) ? theme.progressColor : '#9ca3af', opacity: (isCompleted || isCurrent) ? 1 : 0.6 }}>
                                                 {step.short}
                                             </span>
                                         </div>
                                         {i < QUOTE_PROGRESS_STEPS.length - 1 && (
-                                            <div
-                                                className="flex-1 h-[2px] mx-1 rounded-full transition-all duration-500"
-                                                style={{
-                                                    backgroundColor: progressStep > i ? theme.progressColor : '#e5e7eb',
-                                                    opacity: progressStep > i ? 0.6 : 1,
-                                                }}
-                                            />
+                                            <div className="flex-1 h-[2px] mx-1 rounded-full transition-all duration-500" style={{ backgroundColor: progressStep > i ? theme.progressColor : '#e5e7eb', opacity: progressStep > i ? 0.7 : 1 }} />
                                         )}
                                     </React.Fragment>
                                 );
@@ -4096,48 +4162,32 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                     </div>
                 )}
 
-                {/* Card Footer */}
-                <div className="mt-auto pt-3.5 border-t border-white/60 dark:border-white/5 flex items-center justify-between">
+                {/* ── SECTION 6: Footer ───────────────────────────── */}
+                <div className="mt-auto px-4 py-3 border-t border-white/60 dark:border-white/5 flex items-center justify-between gap-2">
                     {viewMode === 'active' ? (
-                        <div className="flex gap-1">
-                            {isUnread ? (
-                                <button
-                                    onClick={(e) => manualMarkAsRead(e, quote)}
-                                    className="p-1.5 text-blue-400 hover:text-blue-600 hover:bg-blue-50/80 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                                    title="Mark as read"
-                                >
-                                    <Mail size={15} />
-                                </button>
+                        <div className="flex items-center gap-1 min-w-0">
+                            {quote.status === 'Client Accepted' ? (
+                                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#c20c0b] text-white text-[11px] font-bold uppercase tracking-wide shadow-sm animate-pulse">
+                                    <AlertCircle size={13} /> Action Required
+                                </span>
+                            ) : quote.status === 'Pending' ? (
+                                <span className="text-xs font-semibold text-amber-600 dark:text-amber-500 flex items-center gap-1.5">
+                                    <Clock size={12} /> Needs Response
+                                </span>
+                            ) : isUnread && quote.status === 'In Negotiation' ? (
+                                <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+                                    <MessageSquare size={12} /> New Reply
+                                </span>
                             ) : (
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); markAsUnread(quote.id); }}
-                                    className="p-1.5 text-gray-400 hover:text-indigo-500 hover:bg-indigo-50/80 dark:hover:bg-indigo-900/20 rounded-lg transition-colors"
-                                    title="Mark as unread"
-                                >
-                                    <MailOpen size={15} />
-                                </button>
+                                <span className="text-xs text-gray-400 dark:text-gray-500">View Details</span>
                             )}
-                            <button
-                                onClick={(e) => toggleHideQuote(quote.id, e)}
-                                className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-white/80 dark:hover:bg-gray-700/60 rounded-lg transition-colors"
-                                title={showHidden ? 'Unhide Quote' : 'Hide Quote'}
-                            >
-                                {showHidden ? <Eye size={15} /> : <EyeOff size={15} />}
-                            </button>
-                            <button
-                                onClick={(e) => handleSoftDelete(quote.id, e)}
-                                className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50/80 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                title="Move to Trash"
-                            >
-                                <Trash2 size={15} />
-                            </button>
                         </div>
                     ) : (
                         <div className="flex gap-2">
-                            <button onClick={(e) => handleRestore(quote, e)} className="text-green-600 dark:text-green-400 hover:text-green-800 p-1.5 flex items-center gap-1 text-xs font-semibold hover:bg-green-50/80 dark:hover:bg-green-900/20 rounded-lg transition-colors" title="Restore Quote">
+                            <button onClick={(e) => handleRestore(quote, e)} className="text-green-600 dark:text-green-400 hover:text-green-800 p-1.5 flex items-center gap-1 text-xs font-semibold hover:bg-green-50/80 dark:hover:bg-green-900/20 rounded-lg transition-colors">
                                 <RotateCcw size={13} /> Restore
                             </button>
-                            <button onClick={(e) => handlePermanentDelete(quote.id, e)} className="text-red-500 hover:text-red-700 p-1.5 flex items-center gap-1 text-xs font-semibold hover:bg-red-50/80 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Delete Permanently">
+                            <button onClick={(e) => handlePermanentDelete(quote.id, e)} className="text-red-500 hover:text-red-700 p-1.5 flex items-center gap-1 text-xs font-semibold hover:bg-red-50/80 dark:hover:bg-red-900/20 rounded-lg transition-colors">
                                 <Trash2 size={13} /> Delete
                             </button>
                         </div>
@@ -4153,12 +4203,24 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                             } catch { return 0; }
                         })();
                         return (
-                            <div className="flex items-center gap-1.5 ml-auto">
+                            <div className="flex items-center gap-1 ml-auto flex-shrink-0">
+                                {isUnread ? (
+                                    <button onClick={(e) => manualMarkAsRead(e, quote)} className="p-1.5 text-blue-400 hover:text-blue-600 hover:bg-blue-50/80 dark:hover:bg-blue-900/20 rounded-lg transition-colors" title="Mark as read">
+                                        <Mail size={15} />
+                                    </button>
+                                ) : (
+                                    <button onClick={(e) => { e.stopPropagation(); markAsUnread(quote.id); }} className="p-1.5 text-gray-400 hover:text-indigo-500 hover:bg-indigo-50/80 dark:hover:bg-indigo-900/20 rounded-lg transition-colors" title="Mark as unread">
+                                        <MailOpen size={15} />
+                                    </button>
+                                )}
+                                <button onClick={(e) => toggleHideQuote(quote.id, e)} className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-white/80 dark:hover:bg-gray-700/60 rounded-lg transition-colors" title={showHidden ? 'Unhide Quote' : 'Hide Quote'}>
+                                    {showHidden ? <Eye size={15} /> : <EyeOff size={15} />}
+                                </button>
+                                <button onClick={(e) => handleSoftDelete(quote.id, e)} className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50/80 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Move to Trash">
+                                    <Trash2 size={15} />
+                                </button>
                                 <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        window.dispatchEvent(new CustomEvent('openAdminChatForRfq', { detail: { rfqId: quote.id } }));
-                                    }}
+                                    onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('openAdminChatForRfq', { detail: { rfqId: quote.id } })); }}
                                     className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors relative ${chatUnread > 0 ? 'bg-red-50 dark:bg-red-900/20 text-[#c20c0b] dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40' : 'bg-gray-100 dark:bg-gray-700/60 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
                                     title="Open Chat"
                                 >
@@ -4170,13 +4232,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                         </span>
                                     )}
                                 </button>
-                                <div
-                                    className="h-7 w-7 rounded-lg flex items-center justify-center transition-all duration-300 shadow-sm flex-shrink-0"
-                                    style={{
-                                        backgroundColor: isHovered ? theme.progressColor : '#f3f4f6',
-                                        color: isHovered ? 'white' : '#9ca3af',
-                                    }}
-                                >
+                                <div className="h-7 w-7 rounded-lg flex items-center justify-center transition-all duration-300 shadow-sm flex-shrink-0" style={{ backgroundColor: isHovered ? theme.progressColor : '#f3f4f6', color: isHovered ? 'white' : '#9ca3af' }}>
                                     <ChevronRight size={14} />
                                 </div>
                             </div>
