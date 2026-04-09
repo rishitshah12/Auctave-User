@@ -348,20 +348,35 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                             )}
 
                             {/* Production lines */}
-                            {(factory.productionLines?.length ?? 0) > 0 && (
-                                <div>
-                                    <h3 className="text-sm font-black text-gray-900 dark:text-white mb-2 flex items-center gap-1.5">
-                                        <Activity size={13} className="text-[#c20c0b]" /> Production Lines
-                                    </h3>
-                                    <ProductionFloorLayout lines={factory.productionLines || []} />
+                            {isFetchingDetails && (!factory.productionLines || factory.productionLines.length === 0) ? (
+                                <div className="animate-pulse space-y-3">
+                                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/3 mb-2"></div>
+                                    <div className="h-32 bg-gray-100 dark:bg-white/5 rounded-xl w-full border border-gray-100 dark:border-white/10"></div>
                                 </div>
+                            ) : (
+                                (factory.productionLines?.length ?? 0) > 0 && (
+                                    <div>
+                                        <h3 className="text-sm font-black text-gray-900 dark:text-white mb-2 flex items-center gap-1.5">
+                                            <Activity size={13} className="text-[#c20c0b]" /> Production Lines
+                                        </h3>
+                                        <ProductionFloorLayout lines={factory.productionLines || []} />
+                                    </div>
+                                )
                             )}
                         </div>
                     ) : (
                         isFetchingDetails && (!factory.catalog?.products?.length && !factory.catalog?.fabricOptions?.length) ? (
-                            <div className="grid grid-cols-2 gap-3 animate-pulse pt-2">
+                            <div className="grid grid-cols-2 gap-3 pt-2">
                                 {[1, 2, 3, 4].map((i) => (
-                                    <div key={i} className="bg-gray-100 dark:bg-white/5 rounded-2xl h-48 w-full"></div>
+                                    <div key={i} className="animate-pulse bg-gray-50 dark:bg-gray-900/60 rounded-2xl border border-gray-100 dark:border-white/5 overflow-hidden shadow-sm">
+                                        <div className="h-32 bg-gray-200 dark:bg-gray-800 w-full"></div>
+                                        <div className="p-3 space-y-2.5">
+                                            <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+                                            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
+                                            <div className="border-t border-gray-200 dark:border-gray-700 my-1.5"></div>
+                                            <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/3"></div>
+                                        </div>
+                                    </div>
                                 ))}
                             </div>
                         ) : (
@@ -499,10 +514,18 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                                                 </div>
                                             </div>
                                         )}
-                                        <div>
-                                            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2"><Activity size={20} className="text-[#c20c0b]" /> Production Lines</h3>
-                                            <ProductionFloorLayout lines={factory.productionLines || []} />
-                                        </div>
+                                        {/* Production Floor Layout */}
+                                        {isFetchingDetails && (!factory.productionLines || factory.productionLines.length === 0) ? (
+                                            <div className="animate-pulse space-y-4">
+                                                <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded w-1/4 mb-3"></div>
+                                                <div className="h-48 bg-gray-100 dark:bg-gray-800/50 rounded-xl w-full border border-gray-200 dark:border-white/10"></div>
+                                            </div>
+                                        ) : (
+                                            <div>
+                                                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2"><Activity size={20} className="text-[#c20c0b]" /> Production Lines</h3>
+                                                <ProductionFloorLayout lines={factory.productionLines || []} />
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="space-y-6">
                                         <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-5 border border-gray-200 dark:border-white/10">
@@ -540,9 +563,17 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                             </>
                         ) : (
                             isFetchingDetails && (!factory.catalog?.products?.length && !factory.catalog?.fabricOptions?.length) ? (
-                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 animate-pulse mt-4">
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 mt-4">
                                     {[1, 2, 3, 4, 5, 6].map((i) => (
-                                        <div key={i} className="bg-gray-100 dark:bg-gray-800 rounded-2xl h-64 w-full"></div>
+                                        <div key={i} className="animate-pulse bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 overflow-hidden shadow-sm">
+                                            <div className="h-48 bg-gray-200 dark:bg-gray-800 w-full"></div>
+                                            <div className="p-4 space-y-3">
+                                                <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/3"></div>
+                                                <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
+                                                <div className="border-t border-gray-100 dark:border-gray-800 my-2"></div>
+                                                <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+                                            </div>
+                                        </div>
                                     ))}
                                 </div>
                             ) : (

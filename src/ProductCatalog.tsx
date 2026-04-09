@@ -57,7 +57,7 @@ const ImageCarousel: FC<{ images: string[]; name: string; compact?: boolean }> =
     );
     return (
         <div className={`relative ${compact ? 'h-36' : 'h-56'} overflow-hidden group/carousel`}>
-            <img src={validImages[idx]} alt={name} className="w-full h-full object-cover transition-transform duration-700 group-hover/carousel:scale-105" />
+            <img src={validImages[idx]} alt={name} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-700 group-hover/carousel:scale-105" />
             {validImages.length > 1 && (
                 <>
                     <button onClick={(e) => { e.stopPropagation(); setIdx(i => (i - 1 + validImages.length) % validImages.length); }}
@@ -225,7 +225,7 @@ const FabricCard: FC<{ fabric: FabricOption }> = ({ fabric }) => (
     <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700/50 overflow-hidden shadow-sm hover:shadow-md transition-all group">
         {fabric.swatchImageUrl ? (
             <div className="h-24 overflow-hidden">
-                <img src={fabric.swatchImageUrl} alt={fabric.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                <img src={fabric.swatchImageUrl} alt={fabric.name} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
             </div>
         ) : (
             <div className="h-24 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 flex items-center justify-center">
@@ -267,7 +267,7 @@ const ProductDetailModal: FC<{ product: CatalogProduct; onClose: () => void }> =
                     <div className="bg-gray-50 dark:bg-gray-800/50 p-6">
                         <div className="aspect-square rounded-xl overflow-hidden mb-3 border border-gray-200 dark:border-gray-700">
                             {validImages.length > 0 ? (
-                                <img src={validImages[imgIdx]} alt={product.name} className="w-full h-full object-cover" />
+                                <img src={validImages[imgIdx]} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                             ) : (
                                 <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-800">
                                     <Package size={48} className="text-gray-300 dark:text-gray-600" />
@@ -279,7 +279,7 @@ const ProductDetailModal: FC<{ product: CatalogProduct; onClose: () => void }> =
                                 {validImages.map((img, i) => (
                                     <button key={i} onClick={() => setImgIdx(i)}
                                         className={`w-14 h-14 rounded-lg overflow-hidden border-2 flex-shrink-0 transition-all ${i === imgIdx ? 'border-[#c20c0b] shadow-md' : 'border-gray-200 dark:border-gray-700 opacity-60 hover:opacity-100'}`}>
-                                        <img src={img} alt="" className="w-full h-full object-cover" />
+                                        <img src={img} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                                     </button>
                                 ))}
                             </div>
