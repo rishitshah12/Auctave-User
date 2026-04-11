@@ -1,4 +1,4 @@
-import React, { FC, useState, useMemo } from 'react';
+import React, { FC, useState, useMemo, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import {
     Search, LayoutGrid, List, Filter, FileDown, Star, ChevronLeft, ChevronRight,
@@ -441,6 +441,18 @@ const ProductCatalog: FC<ProductCatalogProps> = ({ catalog, compact, externalSea
         return [...result].sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0));
     }, [products, activeCategory, search]);
 
+    // Ref on the first product card — used to scroll it into view when search changes
+    const firstResultRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!search.trim() || filteredProducts.length === 0) return;
+        // Small delay lets React finish rendering the filtered list before we scroll
+        const id = setTimeout(() => {
+            firstResultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 80);
+        return () => clearTimeout(id);
+    }, [search]);
+
     if (products.length === 0 && fabrics.length === 0) {
         return (
             <div className="text-center py-16">
@@ -583,7 +595,7 @@ const ProductCatalog: FC<ProductCatalogProps> = ({ catalog, compact, externalSea
                         </div>
                     )}
 
-                    {/* Products */}
+                    {/* Products — firstResultRef anchors scroll-to-result */}
                     {products.length > 0 && (
                         <>
                             {filteredProducts.length === 0 ? (
@@ -592,11 +604,11 @@ const ProductCatalog: FC<ProductCatalogProps> = ({ catalog, compact, externalSea
                                     <p className="text-sm text-gray-500 dark:text-gray-400">No products match your search.</p>
                                 </div>
                             ) : viewMode === 'grid' || compact ? (
-                                <div className={`grid gap-4 ${compact ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3'}`}>
+                                <div ref={firstResultRef} className={`grid gap-4 ${compact ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3'}`}>
                                     {filteredProducts.map(p => <ProductCard key={p.id} product={p} onView={setSelectedProduct} />)}
                                 </div>
                             ) : (
-                                <div className="space-y-3">
+                                <div ref={firstResultRef} className="space-y-3">
                                     {filteredProducts.map(p => <ProductRow key={p.id} product={p} onView={setSelectedProduct} />)}
                                 </div>
                             )}

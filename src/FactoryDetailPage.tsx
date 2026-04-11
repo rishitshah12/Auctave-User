@@ -153,58 +153,62 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
         <MainLayout {...props}>
 
             {/* ══════════════════════════════════════
-                STICKY HEADER — mobile + desktop
-                Fixed at top of viewport, above content.
-                On md+ screens offset by the 76px sidebar.
+                STICKY HEADER — portal into document.body
+                Using a portal bypasses any ancestor CSS
+                transform (from animate-fade-in) that would
+                otherwise re-parent position:fixed elements.
             ══════════════════════════════════════ */}
-            <div className="fixed top-0 left-0 md:left-[76px] right-0 z-[45] h-14
-                bg-white/85 dark:bg-[#18171c]/90 backdrop-blur-xl
-                border-b border-gray-200/70 dark:border-white/8
-                flex items-center gap-3 px-4">
+            {ReactDOM.createPortal(
+                <div className="fixed top-0 left-0 md:left-[76px] right-0 z-[45] h-14
+                    bg-white/85 dark:bg-[#18171c]/90 backdrop-blur-xl
+                    border-b border-gray-200/70 dark:border-white/8
+                    flex items-center gap-3 px-4">
 
-                {/* Back button */}
-                <button
-                    onClick={() => handleSetCurrentPage(backDest)}
-                    className="flex-shrink-0 w-9 h-9 rounded-full bg-gray-100 dark:bg-white/10
-                        flex items-center justify-center
-                        hover:bg-gray-200 dark:hover:bg-white/18 active:scale-90
-                        transition-all duration-150"
-                    aria-label="Go back"
-                >
-                    <ChevronLeft size={20} className="text-gray-700 dark:text-white" />
-                </button>
+                    {/* Back button */}
+                    <button
+                        onClick={() => handleSetCurrentPage(backDest)}
+                        className="flex-shrink-0 w-9 h-9 rounded-full bg-gray-100 dark:bg-white/10
+                            flex items-center justify-center
+                            hover:bg-gray-200 dark:hover:bg-white/18 active:scale-90
+                            transition-all duration-150"
+                        aria-label="Go back"
+                    >
+                        <ChevronLeft size={20} className="text-gray-700 dark:text-white" />
+                    </button>
 
-                {/* Factory name */}
-                <span className="flex-1 min-w-0 font-bold text-sm text-gray-900 dark:text-white truncate">
-                    {factory.name}
-                </span>
+                    {/* Factory name */}
+                    <span className="flex-1 min-w-0 font-bold text-sm text-gray-900 dark:text-white truncate">
+                        {factory.name}
+                    </span>
 
-                {/* Pill-shaped catalog search */}
-                <div className="relative flex-shrink-0">
-                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                    <input
-                        type="text"
-                        value={catalogSearch}
-                        onChange={e => handleCatalogSearch(e.target.value)}
-                        placeholder="Search catalog…"
-                        className="w-36 sm:w-52 pl-8 pr-7 py-[7px] text-[13px] rounded-full
-                            bg-gray-100 dark:bg-white/10
-                            border border-gray-200 dark:border-white/12
-                            text-gray-900 dark:text-white
-                            placeholder-gray-400 dark:placeholder-gray-500
-                            focus:outline-none focus:ring-2 focus:ring-[#c20c0b]/35 focus:border-[#c20c0b]/50
-                            transition-all"
-                    />
-                    {catalogSearch && (
-                        <button
-                            onClick={() => setCatalogSearch('')}
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                        >
-                            <X size={12} />
-                        </button>
-                    )}
-                </div>
-            </div>
+                    {/* Pill-shaped catalog search */}
+                    <div className="relative flex-shrink-0">
+                        <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                        <input
+                            type="text"
+                            value={catalogSearch}
+                            onChange={e => handleCatalogSearch(e.target.value)}
+                            placeholder="Search catalog…"
+                            className="w-36 sm:w-52 pl-8 pr-7 py-[7px] text-[13px] rounded-full
+                                bg-gray-100 dark:bg-white/10
+                                border border-gray-200 dark:border-white/12
+                                text-gray-900 dark:text-white
+                                placeholder-gray-400 dark:placeholder-gray-500
+                                focus:outline-none focus:ring-2 focus:ring-[#c20c0b]/35 focus:border-[#c20c0b]/50
+                                transition-all"
+                        />
+                        {catalogSearch && (
+                            <button
+                                onClick={() => setCatalogSearch('')}
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                            >
+                                <X size={12} />
+                            </button>
+                        )}
+                    </div>
+                </div>,
+                document.body
+            )}
 
             {/* ══════════════════════════════════════
                 MOBILE LAYOUT
