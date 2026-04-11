@@ -34,6 +34,8 @@ interface OrderFormPageProps {
     handleSubmitOrderForm: (formData: OrderFormData, filesPerProduct: File[][]) => Promise<boolean>;
     handleAddToQuoteRequest: (quoteId: string, formData: OrderFormData, filesPerProduct: File[][]) => Promise<boolean>;
     quoteRequests: QuoteRequest[];
+    initialLineItems?: LineItem[];
+    preSelectedFactory?: { id: string; name: string; imageUrl: string; location: string } | null;
 }
 
 const generateId = () => Date.now() + Math.random();
@@ -706,7 +708,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
     const [orderType, setOrderType] = useState<'new' | 'existing'>('new');
     const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
     const [originalLineItems, setOriginalLineItems] = useState<LineItem[]>([]);
-    const [showLandingPage, setShowLandingPage] = useState(true);
+    const [showLandingPage, setShowLandingPage] = useState(!props.initialLineItems?.length);
     const [errors, setErrors] = useState<Record<string, string>>({});
     // Track step per product - each product maintains its own step position
     const [productSteps, setProductSteps] = useState<Record<number, number>>({ 0: 1 });
@@ -717,6 +719,14 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
     // --- State Management ---
     // Initialize the form state with default values so the fields aren't empty when the user arrives.
     const [formState, setFormState] = useState<OrderFormData>(() => {
+        // When navigating from a factory catalog, skip draft and use pre-selected products
+        if (props.initialLineItems?.length) {
+            return {
+                lineItems: props.initialLineItems,
+                shippingCountry: '',
+                shippingPort: ''
+            };
+        }
         const savedDraft = localStorage.getItem(DRAFT_KEY);
         if (savedDraft) {
             try {
@@ -1644,14 +1654,40 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                 <p className="text-gray-500 dark:text-gray-400 font-medium text-sm sm:text-base">
                                         {orderType === 'existing'
                                             ? 'Edit existing products, add new items, or remove items from your quote.'
-                                            : 'Tell us what you need, we\'ll find the factory.'}
+                                            : props.preSelectedFactory
+                                                ? `Requesting from ${props.preSelectedFactory.name}`
+                                                : 'Tell us what you need, we\'ll find the factory.'}
                                 </p>
                             </div>
-                            <button onClick={() => setShowLandingPage(true)} className="group flex items-center px-4 py-2 text-sm font-bold text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 rounded-full shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md hover:text-[#c20c0b] dark:hover:text-[#c20c0b] transition-all">
+                            <button
+                                onClick={() => props.preSelectedFactory
+                                    ? handleSetCurrentPage('factoryDetail', props.preSelectedFactory)
+                                    : setShowLandingPage(true)
+                                }
+                                className="group flex items-center px-4 py-2 text-sm font-bold text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 rounded-full shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md hover:text-[#c20c0b] dark:hover:text-[#c20c0b] transition-all"
+                            >
                                 <ChevronLeft className="h-4 w-4 mr-1 group-hover:-translate-x-1 transition-transform" />
                                 Back
                             </button>
                         </div>
+
+                        {/* Factory context banner — shown when quoting a specific factory */}
+                        {props.preSelectedFactory && (
+                            <div className="flex items-center gap-3 p-3.5 mb-6 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10">
+                                {props.preSelectedFactory.imageUrl && (
+                                    <img
+                                        src={props.preSelectedFactory.imageUrl}
+                                        alt={props.preSelectedFactory.name}
+                                        className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
+                                    />
+                                )}
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Requesting quote from</p>
+                                    <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{props.preSelectedFactory.name}</p>
+                                    <p className="text-[11px] text-gray-400 dark:text-gray-500">{props.preSelectedFactory.location}</p>
+                                </div>
+                            </div>
+                        )}
 
                 <div className="space-y-8">
                     <div className="flex gap-4 p-1 bg-white dark:bg-gray-800 rounded-xl w-fit border border-gray-200 dark:border-gray-700">

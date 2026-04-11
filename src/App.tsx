@@ -16,7 +16,7 @@ import {
     Camera, Edit3, ArrowLeft, Search, RefreshCw, ExternalLink, GripVertical, Paperclip, Eye, Check, CheckCheck, LogOut
 } from 'lucide-react';
 // Import TypeScript interfaces/types for data structures used in the app
-import { UserProfile, OrderFormData, Factory, QuoteRequest, CrmOrder, CrmProduct, CrmTask, ToastState, NegotiationHistoryItem } from './types';
+import { UserProfile, OrderFormData, Factory, QuoteRequest, CrmOrder, CrmProduct, CrmTask, ToastState, NegotiationHistoryItem, LineItem } from './types';
 // Import custom components for specific pages and UI elements
 import { MainLayout } from '../src/MainLayout';
 import { LoginPage } from '../src/LoginPage';
@@ -275,6 +275,9 @@ const AppContent: FC = () => {
     });
     // State to store the currently selected quote for viewing details
     const [selectedQuote, setSelectedQuote] = useState<QuoteRequest | null>(null);
+    // State for pre-populating OrderFormPage when navigating from a factory catalog
+    const [orderFormInitialLineItems, setOrderFormInitialLineItems] = useState<LineItem[] | undefined>(undefined);
+    const [orderFormPreFactory, setOrderFormPreFactory] = useState<{ id: string; name: string; imageUrl: string; location: string } | null>(null);
     // State to manage loading of quotes
     const [isQuotesLoading, setIsQuotesLoading] = useState<boolean>(() => !sessionStorage.getItem(QUOTES_CACHE_KEY));
 
@@ -355,6 +358,26 @@ const AppContent: FC = () => {
                 setMyQuotesFilter(data);
             } else {
                 setMyQuotesFilter('All');
+            }
+        }
+
+        if (page === 'orderForm') {
+            if (data?.lineItems !== undefined) {
+                setOrderFormInitialLineItems(data.lineItems.length > 0 ? data.lineItems : undefined);
+                if (data.factory) {
+                    setSelectedFactory(data.factory as Factory);
+                    setOrderFormPreFactory({
+                        id: data.factory.id,
+                        name: data.factory.name,
+                        imageUrl: data.factory.imageUrl,
+                        location: data.factory.location,
+                    });
+                } else {
+                    setOrderFormPreFactory(null);
+                }
+            } else {
+                setOrderFormInitialLineItems(undefined);
+                setOrderFormPreFactory(null);
             }
         }
 
@@ -1512,6 +1535,12 @@ const AppContent: FC = () => {
         setUploadedFiles(filesPerProduct.flat());
 
         return await submitQuoteRequest({
+            factory: selectedFactory ? {
+                id: selectedFactory.id,
+                name: selectedFactory.name,
+                location: selectedFactory.location,
+                imageUrl: selectedFactory.imageUrl,
+            } : undefined,
             order: submittedData,
             filesPerProduct
         });
@@ -3101,6 +3130,8 @@ User message: "${userMsg}"`;
                 handleSubmitOrderForm={handleSubmitOrderForm}
                 handleAddToQuoteRequest={addToQuoteRequest}
                 quoteRequests={quoteRequests}
+                initialLineItems={orderFormInitialLineItems}
+                preSelectedFactory={orderFormPreFactory}
             />;
             case 'crm': return (
                 <MainLayout {...layoutProps}>

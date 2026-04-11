@@ -1,7 +1,7 @@
 import React, { FC, useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import {
-    Star, MapPin, ChevronLeft, ChevronRight, BookOpen, Activity, ShieldCheck, X, ZoomIn, TrendingUp, AlertCircle, CheckCircle2, Search
+    Star, MapPin, ChevronLeft, ChevronRight, BookOpen, Activity, ShieldCheck, X, ZoomIn, TrendingUp, AlertCircle, CheckCircle2, Search, Check, Package
 } from 'lucide-react';
 import { MainLayout } from '../src/MainLayout';
 import { Factory } from '../src/types';
@@ -55,6 +55,8 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
         if (value && activeTab !== 'catalog') setActiveTab('catalog');
     };
     const [isFetchingDetails, setIsFetchingDetails] = useState(false);
+    const [showProductSelector, setShowProductSelector] = useState(false);
+    const [selectedCatalogIds, setSelectedCatalogIds] = useState<Set<string>>(new Set());
 
     // Fetch the heavy fields (gallery, catalog, machine_slots) that are not included
     // in the slim SourcingPage list query, then merge them into local state.
@@ -136,6 +138,36 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
         handleSetCurrentPage('sourcing');
         return null;
     }
+
+    const handleContinueToOrderForm = () => {
+        const catalogProducts = factory.catalog?.products || [];
+        const selected = catalogProducts.filter(p => selectedCatalogIds.has(p.id));
+        const lineItems = selected.map((product, i) => ({
+            id: Date.now() + i,
+            category: product.category || 'T-shirt',
+            fabricQuality: product.fabricComposition || '',
+            weightGSM: '',
+            styleOption: '',
+            qty: product.moq || 0,
+            containerType: '',
+            targetPrice: product.priceRange || '',
+            packagingReqs: '',
+            labelingReqs: '',
+            sizeRange: [] as string[],
+            customSize: '',
+            sizeRatio: {} as Record<string, number>,
+            sleeveOption: '',
+            printOption: '',
+            trimsAndAccessories: '',
+            specialInstructions: product.description || '',
+            quantityType: 'units' as const,
+            fitType: '',
+            washType: '',
+        }));
+        setShowProductSelector(false);
+        setSelectedCatalogIds(new Set());
+        handleSetCurrentPage('orderForm', { factory, lineItems });
+    };
 
     const gallery = factory.gallery?.length ? factory.gallery : (factory.imageUrl ? [factory.imageUrl] : []);
 
@@ -448,21 +480,13 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                     className="fixed left-0 right-0 z-30 px-4 pb-2"
                     style={{ bottom: 'calc(env(safe-area-inset-bottom) + 82px)' }}
                 >
-                    <div className="flex gap-3">
-                        <button
-                            onClick={() => handleSetCurrentPage('factoryTools', factory)}
-                            className="flex-1 py-3.5 rounded-2xl border border-gray-200 dark:border-white/15 bg-white dark:bg-white/8 font-bold text-sm text-gray-700 dark:text-white shadow-lg active:scale-95 transition-transform"
-                        >
-                            AI Tools
-                        </button>
-                        <button
-                            onClick={() => handleSetCurrentPage('quoteRequest', factory)}
-                            className="flex-1 py-3.5 rounded-2xl bg-[#c20c0b] font-bold text-sm text-white flex items-center justify-center gap-1.5 active:scale-95 transition-transform"
-                            style={{ boxShadow: '0 4px 20px rgba(194,12,11,0.4)' }}
-                        >
-                            Request Quote <ChevronRight size={16} />
-                        </button>
-                    </div>
+                    <button
+                        onClick={() => setShowProductSelector(true)}
+                        className="w-full py-3.5 rounded-2xl bg-[#c20c0b] font-bold text-sm text-white flex items-center justify-center gap-1.5 active:scale-95 transition-transform"
+                        style={{ boxShadow: '0 4px 20px rgba(194,12,11,0.4)' }}
+                    >
+                        Request Quote <ChevronRight size={16} />
+                    </button>
                 </div>
             </div>
 
@@ -639,16 +663,146 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                             <div>
                                 <h4 className="font-bold text-gray-900 dark:text-white">Interested in this factory?</h4>
-                                <p className="text-sm text-gray-500 dark:text-gray-200">Start a conversation or get an AI-assisted brief.</p>
+                                <p className="text-sm text-gray-500 dark:text-gray-200">Select products from the catalog and request a quote.</p>
                             </div>
-                            <div className="flex gap-3">
-                                <button onClick={() => handleSetCurrentPage('factoryTools', factory)} className="px-6 py-3 bg-white dark:bg-gray-800 text-gray-700 dark:text-white font-bold rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm">AI Tools</button>
-                                <button onClick={() => handleSetCurrentPage('quoteRequest', factory)} className="px-6 py-3 bg-[#c20c0b] text-white font-bold rounded-xl hover:bg-[#a50a09] transition-colors shadow-md flex items-center justify-center gap-2">Request Quote <ChevronRight size={18} /></button>
-                            </div>
+                            <button onClick={() => setShowProductSelector(true)} className="px-6 py-3 bg-[#c20c0b] text-white font-bold rounded-xl hover:bg-[#a50a09] transition-colors shadow-md flex items-center justify-center gap-2">Request Quote <ChevronRight size={18} /></button>
                         </div>
                     </div>
                 </div>
             </div>
+
+            {/* ── Product Selector Modal ── */}
+            {showProductSelector && ReactDOM.createPortal(
+                <div className="fixed inset-0 z-[90] flex flex-col bg-white dark:bg-[#18171c]">
+                    {/* Header */}
+                    <div className="flex items-center gap-3 px-4 py-3.5 border-b border-gray-200 dark:border-white/10 flex-shrink-0">
+                        <button
+                            onClick={() => { setShowProductSelector(false); setSelectedCatalogIds(new Set()); }}
+                            className="w-9 h-9 rounded-full bg-gray-100 dark:bg-white/10 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-white/18 transition-all flex-shrink-0"
+                        >
+                            <X size={18} className="text-gray-700 dark:text-white" />
+                        </button>
+                        <div className="flex-1 min-w-0">
+                            <h2 className="font-bold text-gray-900 dark:text-white text-sm">Select Products</h2>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{factory.name}</p>
+                        </div>
+                        {selectedCatalogIds.size > 0 && (
+                            <span className="text-sm font-bold text-[#c20c0b] flex-shrink-0">
+                                {selectedCatalogIds.size} selected
+                            </span>
+                        )}
+                    </div>
+
+                    {/* Product Grid */}
+                    <div className="flex-1 overflow-y-auto p-4">
+                        {isFetchingDetails && (!factory.catalog?.products?.length) ? (
+                            <div className="grid grid-cols-2 gap-3">
+                                {[1, 2, 3, 4].map(i => (
+                                    <div key={i} className="animate-pulse rounded-2xl border-2 border-gray-100 dark:border-white/8 overflow-hidden">
+                                        <div className="h-32 bg-gray-200 dark:bg-gray-800" />
+                                        <div className="p-3 space-y-2">
+                                            <div className="h-2.5 bg-gray-200 dark:bg-gray-700 rounded w-1/2" />
+                                            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4" />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : !factory.catalog?.products?.length ? (
+                            <div className="text-center py-16">
+                                <Package size={40} className="text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+                                <p className="text-gray-500 dark:text-gray-400 text-sm font-medium mb-1">No products in catalog</p>
+                                <p className="text-gray-400 dark:text-gray-500 text-xs mb-6">You can still submit a custom quote request.</p>
+                                <button
+                                    onClick={() => {
+                                        setShowProductSelector(false);
+                                        handleSetCurrentPage('orderForm', { factory, lineItems: [] });
+                                    }}
+                                    className="px-6 py-3 bg-[#c20c0b] text-white font-bold rounded-2xl text-sm active:scale-95 transition-transform"
+                                    style={{ boxShadow: '0 4px 20px rgba(194,12,11,0.3)' }}
+                                >
+                                    Continue to Quote Form
+                                </button>
+                            </div>
+                        ) : (
+                            <>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                                    Choose products to include in your quote request
+                                </p>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {factory.catalog.products.map(product => {
+                                        const isSelected = selectedCatalogIds.has(product.id);
+                                        return (
+                                            <button
+                                                key={product.id}
+                                                onClick={() => {
+                                                    setSelectedCatalogIds(prev => {
+                                                        const next = new Set(prev);
+                                                        if (next.has(product.id)) next.delete(product.id);
+                                                        else next.add(product.id);
+                                                        return next;
+                                                    });
+                                                }}
+                                                className={`relative rounded-2xl border-2 overflow-hidden text-left transition-all active:scale-95 ${
+                                                    isSelected
+                                                        ? 'border-[#c20c0b] ring-2 ring-[#c20c0b]/20'
+                                                        : 'border-gray-200 dark:border-white/10'
+                                                }`}
+                                            >
+                                                <div className="h-32 bg-gray-100 dark:bg-gray-800 relative">
+                                                    {product.images?.[0] ? (
+                                                        <img
+                                                            src={product.images[0]}
+                                                            alt={product.name}
+                                                            loading="lazy"
+                                                            className="w-full h-full object-cover"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center">
+                                                            <Package size={28} className="text-gray-300 dark:text-gray-600" />
+                                                        </div>
+                                                    )}
+                                                    {isSelected && (
+                                                        <div className="absolute top-2 right-2 w-6 h-6 bg-[#c20c0b] rounded-full flex items-center justify-center shadow-md">
+                                                            <Check size={13} className="text-white" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="p-3">
+                                                    <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wide">{product.category}</p>
+                                                    <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight mt-0.5">{product.name}</p>
+                                                    {product.moq && (
+                                                        <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">MOQ: {product.moq.toLocaleString()}</p>
+                                                    )}
+                                                    {product.priceRange && (
+                                                        <p className="text-[11px] font-semibold text-[#c20c0b] mt-0.5">{product.priceRange}</p>
+                                                    )}
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </>
+                        )}
+                    </div>
+
+                    {/* Continue button */}
+                    {(factory.catalog?.products?.length ?? 0) > 0 && (
+                        <div className="flex-shrink-0 p-4 border-t border-gray-200 dark:border-white/10 bg-white dark:bg-[#18171c]">
+                            <button
+                                onClick={handleContinueToOrderForm}
+                                disabled={selectedCatalogIds.size === 0}
+                                className="w-full py-3.5 rounded-2xl bg-[#c20c0b] text-white font-bold text-sm disabled:opacity-40 active:scale-95 transition-all"
+                                style={selectedCatalogIds.size > 0 ? { boxShadow: '0 4px 20px rgba(194,12,11,0.4)' } : {}}
+                            >
+                                {selectedCatalogIds.size === 0
+                                    ? 'Select at least one product'
+                                    : `Continue with ${selectedCatalogIds.size} Product${selectedCatalogIds.size !== 1 ? 's' : ''}`}
+                            </button>
+                        </div>
+                    )}
+                </div>,
+                document.body
+            )}
 
             {/* ── Lightbox (shared mobile + desktop) ── */}
             {isLightboxOpen && ReactDOM.createPortal(
