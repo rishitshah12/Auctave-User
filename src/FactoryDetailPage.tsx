@@ -1,7 +1,7 @@
 import React, { FC, useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import {
-    Star, MapPin, ChevronLeft, ChevronRight, BookOpen, Activity, ShieldCheck, X, ZoomIn, TrendingUp, AlertCircle, CheckCircle2
+    Star, MapPin, ChevronLeft, ChevronRight, BookOpen, Activity, ShieldCheck, X, ZoomIn, TrendingUp, AlertCircle, CheckCircle2, Search
 } from 'lucide-react';
 import { MainLayout } from '../src/MainLayout';
 import { Factory } from '../src/types';
@@ -47,6 +47,13 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [activeTab, setActiveTab] = useState<'overview' | 'catalog'>(initialTab);
     const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+    const [catalogSearch, setCatalogSearch] = useState('');
+
+    // When user types in the header search bar, auto-switch to catalog tab
+    const handleCatalogSearch = (value: string) => {
+        setCatalogSearch(value);
+        if (value && activeTab !== 'catalog') setActiveTab('catalog');
+    };
     const [isFetchingDetails, setIsFetchingDetails] = useState(false);
 
     // Fetch the heavy fields (gallery, catalog, machine_slots) that are not included
@@ -146,9 +153,64 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
         <MainLayout {...props}>
 
             {/* ══════════════════════════════════════
+                STICKY HEADER — mobile + desktop
+                Fixed at top of viewport, above content.
+                On md+ screens offset by the 76px sidebar.
+            ══════════════════════════════════════ */}
+            <div className="fixed top-0 left-0 md:left-[76px] right-0 z-[45] h-14
+                bg-white/85 dark:bg-[#18171c]/90 backdrop-blur-xl
+                border-b border-gray-200/70 dark:border-white/8
+                flex items-center gap-3 px-4">
+
+                {/* Back button */}
+                <button
+                    onClick={() => handleSetCurrentPage(backDest)}
+                    className="flex-shrink-0 w-9 h-9 rounded-full bg-gray-100 dark:bg-white/10
+                        flex items-center justify-center
+                        hover:bg-gray-200 dark:hover:bg-white/18 active:scale-90
+                        transition-all duration-150"
+                    aria-label="Go back"
+                >
+                    <ChevronLeft size={20} className="text-gray-700 dark:text-white" />
+                </button>
+
+                {/* Factory name */}
+                <span className="flex-1 min-w-0 font-bold text-sm text-gray-900 dark:text-white truncate">
+                    {factory.name}
+                </span>
+
+                {/* Pill-shaped catalog search */}
+                <div className="relative flex-shrink-0">
+                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                    <input
+                        type="text"
+                        value={catalogSearch}
+                        onChange={e => handleCatalogSearch(e.target.value)}
+                        placeholder="Search catalog…"
+                        className="w-36 sm:w-52 pl-8 pr-7 py-[7px] text-[13px] rounded-full
+                            bg-gray-100 dark:bg-white/10
+                            border border-gray-200 dark:border-white/12
+                            text-gray-900 dark:text-white
+                            placeholder-gray-400 dark:placeholder-gray-500
+                            focus:outline-none focus:ring-2 focus:ring-[#c20c0b]/35 focus:border-[#c20c0b]/50
+                            transition-all"
+                    />
+                    {catalogSearch && (
+                        <button
+                            onClick={() => setCatalogSearch('')}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                        >
+                            <X size={12} />
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {/* ══════════════════════════════════════
                 MOBILE LAYOUT
             ══════════════════════════════════════ */}
-            <div className="sm:hidden -mx-3 -mt-3">
+            {/* pt-14 = 56px — clears the fixed header */}
+            <div className="sm:hidden -mx-3 -mt-3 pt-14">
 
                 {/* ── Hero image — full-bleed, tall ── */}
                 <div
@@ -163,15 +225,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                         className="w-full h-full object-cover"
                     />
                     {/* Gradient overlays */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/35 pointer-events-none" />
-
-                    {/* Back button */}
-                    <button
-                        onClick={(e) => { e.stopPropagation(); handleSetCurrentPage(backDest); }}
-                        className="absolute top-5 left-4 w-10 h-10 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center text-white active:scale-90 transition-transform z-10"
-                    >
-                        <ChevronLeft size={22} />
-                    </button>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
 
                     {/* Gallery prev/next */}
                     {gallery.length > 1 && (
@@ -380,7 +434,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                                 ))}
                             </div>
                         ) : (
-                            <ProductCatalog catalog={factory.catalog} />
+                            <ProductCatalog catalog={factory.catalog} externalSearch={catalogSearch} />
                         )
                     )}
                 </div>
@@ -409,15 +463,10 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
             </div>
 
             {/* ══════════════════════════════════════
-                DESKTOP LAYOUT (unchanged)
+                DESKTOP LAYOUT
             ══════════════════════════════════════ */}
-            <div className="hidden sm:block max-w-6xl mx-auto space-y-6">
-                <button onClick={() => handleSetCurrentPage(backDest)} className="group flex items-center text-gray-500 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white transition-colors mb-2">
-                    <div className="p-2 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 group-hover:border-gray-300 dark:group-hover:border-gray-600 mr-3 shadow-sm transition-all">
-                        <ChevronLeft size={18} />
-                    </div>
-                    <span className="font-medium">Back to Factories</span>
-                </button>
+            {/* pt-20 = 80px — clears the 56px fixed header with breathing room */}
+            <div className="hidden sm:block max-w-6xl mx-auto space-y-6 pt-20">
 
                 <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-sm border border-gray-200 dark:border-white/10 overflow-hidden">
                     {/* Hero Image */}
@@ -577,7 +626,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                                     ))}
                                 </div>
                             ) : (
-                                <ProductCatalog catalog={factory.catalog} />
+                                <ProductCatalog catalog={factory.catalog} externalSearch={catalogSearch} />
                             )
                         )}
                     </div>

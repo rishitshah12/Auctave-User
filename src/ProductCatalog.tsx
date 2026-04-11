@@ -383,14 +383,17 @@ const ProductDetailModal: FC<{ product: CatalogProduct; onClose: () => void }> =
 interface ProductCatalogProps {
     catalog: FactoryCatalog;
     compact?: boolean; // For admin preview
+    externalSearch?: string; // Controlled search from parent — hides the internal search bar
 }
 
-const ProductCatalog: FC<ProductCatalogProps> = ({ catalog, compact }) => {
+const ProductCatalog: FC<ProductCatalogProps> = ({ catalog, compact, externalSearch }) => {
     const data = useMemo(() => migrateCatalog(catalog), [catalog]);
     const products = data.products || [];
     const fabrics = data.fabricOptions || [];
 
-    const [search, setSearch] = useState('');
+    const [internalSearch, setInternalSearch] = useState('');
+    // When parent provides externalSearch, use it; otherwise fall back to local state
+    const search = externalSearch !== undefined ? externalSearch : internalSearch;
     const [activeCategory, setActiveCategory] = useState('All');
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [selectedProduct, setSelectedProduct] = useState<CatalogProduct | null>(null);
@@ -543,17 +546,19 @@ const ProductCatalog: FC<ProductCatalogProps> = ({ catalog, compact }) => {
                                 </div>
                             </div>
                             <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
-                                {/* Search */}
-                                <div className="relative flex-grow sm:flex-grow-0">
-                                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                    <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products..."
-                                        className="w-full sm:w-48 pl-8 pr-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#c20c0b] focus:border-transparent outline-none" />
-                                    {search && (
-                                        <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                                            <X size={12} />
-                                        </button>
-                                    )}
-                                </div>
+                                {/* Search — hidden when parent controls search via externalSearch prop */}
+                                {externalSearch === undefined && (
+                                    <div className="relative flex-grow sm:flex-grow-0">
+                                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                        <input type="text" value={internalSearch} onChange={e => setInternalSearch(e.target.value)} placeholder="Search products..."
+                                            className="w-full sm:w-48 pl-8 pr-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#c20c0b] focus:border-transparent outline-none" />
+                                        {internalSearch && (
+                                            <button onClick={() => setInternalSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                                                <X size={12} />
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
                                 {/* View Toggle */}
                                 {!compact && (
                                     <div className="flex border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
