@@ -6,7 +6,7 @@ import {
 import { MainLayout } from '../src/MainLayout';
 import { Factory } from '../src/types';
 import { TrustTierBadge } from '../src/FactoryCard';
-import ProductCatalog from '../src/ProductCatalog';
+import ProductCatalog, { migrateCatalog } from '../src/ProductCatalog';
 import ProductionFloorLayout from '../src/ProductionFloorLayout';
 import { factoryService } from '../src/factory.service';
 import { supabase } from '../src/supabaseClient';
@@ -57,6 +57,12 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
     const [isFetchingDetails, setIsFetchingDetails] = useState(false);
     const [showProductSelector, setShowProductSelector] = useState(false);
     const [selectedCatalogIds, setSelectedCatalogIds] = useState<Set<string>>(new Set());
+
+    // Migrate old productCategories format so the selector always has a products array
+    const catalogProducts = React.useMemo(() => {
+        if (!factory.catalog) return [];
+        return migrateCatalog(factory.catalog).products || [];
+    }, [factory.catalog]);
 
     // Fetch the heavy fields (gallery, catalog, machine_slots) that are not included
     // in the slim SourcingPage list query, then merge them into local state.
@@ -140,7 +146,6 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
     }
 
     const handleContinueToOrderForm = () => {
-        const catalogProducts = factory.catalog?.products || [];
         const selected = catalogProducts.filter(p => selectedCatalogIds.has(p.id));
         const lineItems = selected.map((product, i) => ({
             id: Date.now() + i,
@@ -673,133 +678,156 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
 
             {/* ── Product Selector Modal ── */}
             {showProductSelector && ReactDOM.createPortal(
-                <div className="fixed inset-0 z-[90] flex flex-col bg-white dark:bg-[#18171c]">
-                    {/* Header */}
-                    <div className="flex items-center gap-3 px-4 py-3.5 border-b border-gray-200 dark:border-white/10 flex-shrink-0">
-                        <button
-                            onClick={() => { setShowProductSelector(false); setSelectedCatalogIds(new Set()); }}
-                            className="w-9 h-9 rounded-full bg-gray-100 dark:bg-white/10 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-white/18 transition-all flex-shrink-0"
-                        >
-                            <X size={18} className="text-gray-700 dark:text-white" />
-                        </button>
-                        <div className="flex-1 min-w-0">
-                            <h2 className="font-bold text-gray-900 dark:text-white text-sm">Select Products</h2>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{factory.name}</p>
-                        </div>
-                        {selectedCatalogIds.size > 0 && (
-                            <span className="text-sm font-bold text-[#c20c0b] flex-shrink-0">
-                                {selectedCatalogIds.size} selected
-                            </span>
-                        )}
-                    </div>
+                /* Backdrop */
+                <div
+                    className="fixed inset-0 z-[90] flex flex-col items-end sm:items-center justify-end sm:justify-center bg-black/40 backdrop-blur-sm"
+                    onClick={(e) => { if (e.target === e.currentTarget) { setShowProductSelector(false); setSelectedCatalogIds(new Set()); } }}
+                >
+                    {/* Panel — bottom sheet on mobile, centered card on desktop */}
+                    <div className="flex flex-col w-full sm:w-[560px] max-h-[90vh] sm:max-h-[80vh] rounded-t-3xl sm:rounded-2xl bg-white dark:bg-[#1e1d24] shadow-2xl overflow-hidden">
 
-                    {/* Product Grid */}
-                    <div className="flex-1 overflow-y-auto p-4">
-                        {isFetchingDetails && (!factory.catalog?.products?.length) ? (
-                            <div className="grid grid-cols-2 gap-3">
-                                {[1, 2, 3, 4].map(i => (
-                                    <div key={i} className="animate-pulse rounded-2xl border-2 border-gray-100 dark:border-white/8 overflow-hidden">
-                                        <div className="h-32 bg-gray-200 dark:bg-gray-800" />
-                                        <div className="p-3 space-y-2">
-                                            <div className="h-2.5 bg-gray-200 dark:bg-gray-700 rounded w-1/2" />
-                                            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4" />
-                                        </div>
-                                    </div>
-                                ))}
+                        {/* Pull handle (mobile only) */}
+                        <div className="sm:hidden flex justify-center pt-3 pb-1 flex-shrink-0">
+                            <div className="w-10 h-1 rounded-full bg-gray-300 dark:bg-gray-600" />
+                        </div>
+
+                        {/* Header */}
+                        <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-white/10 flex-shrink-0">
+                            <button
+                                onClick={() => { setShowProductSelector(false); setSelectedCatalogIds(new Set()); }}
+                                className="w-11 h-11 rounded-full bg-gray-100 dark:bg-white/10 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-white/18 transition-all flex-shrink-0 active:scale-90"
+                            >
+                                <X size={18} className="text-gray-700 dark:text-white" />
+                            </button>
+                            <div className="flex-1 min-w-0">
+                                <h2 className="font-bold text-gray-900 dark:text-white text-sm">Select Products</h2>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{factory.name}</p>
                             </div>
-                        ) : !factory.catalog?.products?.length ? (
-                            <div className="text-center py-16">
-                                <Package size={40} className="text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-                                <p className="text-gray-500 dark:text-gray-400 text-sm font-medium mb-1">No products in catalog</p>
-                                <p className="text-gray-400 dark:text-gray-500 text-xs mb-6">You can still submit a custom quote request.</p>
-                                <button
-                                    onClick={() => {
-                                        setShowProductSelector(false);
-                                        handleSetCurrentPage('orderForm', { factory, lineItems: [] });
-                                    }}
-                                    className="px-6 py-3 bg-[#c20c0b] text-white font-bold rounded-2xl text-sm active:scale-95 transition-transform"
-                                    style={{ boxShadow: '0 4px 20px rgba(194,12,11,0.3)' }}
-                                >
-                                    Continue to Quote Form
-                                </button>
-                            </div>
-                        ) : (
-                            <>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                                    Choose products to include in your quote request
-                                </p>
+                            {selectedCatalogIds.size > 0 && (
+                                <span className="text-sm font-bold text-[#c20c0b] flex-shrink-0">
+                                    {selectedCatalogIds.size} selected
+                                </span>
+                            )}
+                        </div>
+
+                        {/* Product Grid */}
+                        <div className="flex-1 overflow-y-auto p-4 pb-2">
+                            {isFetchingDetails && catalogProducts.length === 0 ? (
                                 <div className="grid grid-cols-2 gap-3">
-                                    {factory.catalog.products.map(product => {
-                                        const isSelected = selectedCatalogIds.has(product.id);
-                                        return (
-                                            <button
-                                                key={product.id}
-                                                onClick={() => {
-                                                    setSelectedCatalogIds(prev => {
+                                    {[1, 2, 3, 4].map(i => (
+                                        <div key={i} className="animate-pulse rounded-xl border border-gray-100 dark:border-white/8 overflow-hidden">
+                                            <div className="h-28 bg-gray-200 dark:bg-gray-800" />
+                                            <div className="p-3 space-y-2">
+                                                <div className="h-2.5 bg-gray-200 dark:bg-gray-700 rounded w-1/2" />
+                                                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4" />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : catalogProducts.length === 0 ? (
+                                <div className="text-center py-16">
+                                    <Package size={36} className="text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+                                    <p className="text-gray-500 dark:text-gray-400 text-sm font-medium mb-1">No products in catalog</p>
+                                    <p className="text-gray-400 dark:text-gray-500 text-xs mb-6">You can still submit a custom quote request.</p>
+                                    <button
+                                        onClick={() => {
+                                            setShowProductSelector(false);
+                                            handleSetCurrentPage('orderForm', { factory, lineItems: [] });
+                                        }}
+                                        className="px-6 py-3 bg-[#c20c0b] text-white font-bold rounded-2xl text-sm active:scale-95 transition-transform"
+                                        style={{ boxShadow: '0 4px 16px rgba(194,12,11,0.3)' }}
+                                    >
+                                        Continue to Quote Form
+                                    </button>
+                                </div>
+                            ) : (
+                                <>
+                                    <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
+                                        Tap products to include them in your quote
+                                    </p>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {catalogProducts.map(product => {
+                                            const isSelected = selectedCatalogIds.has(product.id);
+                                            return (
+                                                <button
+                                                    key={product.id}
+                                                    onClick={() => setSelectedCatalogIds(prev => {
                                                         const next = new Set(prev);
                                                         if (next.has(product.id)) next.delete(product.id);
                                                         else next.add(product.id);
                                                         return next;
-                                                    });
-                                                }}
-                                                className={`relative rounded-2xl border-2 overflow-hidden text-left transition-all active:scale-95 ${
-                                                    isSelected
-                                                        ? 'border-[#c20c0b] ring-2 ring-[#c20c0b]/20'
-                                                        : 'border-gray-200 dark:border-white/10'
-                                                }`}
-                                            >
-                                                <div className="h-32 bg-gray-100 dark:bg-gray-800 relative">
-                                                    {product.images?.[0] ? (
-                                                        <img
-                                                            src={product.images[0]}
-                                                            alt={product.name}
-                                                            loading="lazy"
-                                                            className="w-full h-full object-cover"
-                                                        />
-                                                    ) : (
-                                                        <div className="w-full h-full flex items-center justify-center">
-                                                            <Package size={28} className="text-gray-300 dark:text-gray-600" />
+                                                    })}
+                                                    className={`relative rounded-xl text-left transition-all active:scale-95 ${
+                                                        isSelected
+                                                            ? 'ring-2 ring-[#c20c0b] shadow-md'
+                                                            : 'ring-1 ring-gray-200 dark:ring-white/10 hover:ring-gray-300 dark:hover:ring-white/20'
+                                                    }`}
+                                                >
+                                                    {/* Image */}
+                                                    <div className="relative h-28 rounded-t-xl overflow-hidden bg-gray-100 dark:bg-gray-800">
+                                                        {product.images?.[0] ? (
+                                                            <img
+                                                                src={product.images[0]}
+                                                                alt={product.name}
+                                                                loading="lazy"
+                                                                className="w-full h-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center">
+                                                                <Package size={26} className="text-gray-300 dark:text-gray-600" />
+                                                            </div>
+                                                        )}
+                                                        {/* Selection overlay */}
+                                                        {isSelected && (
+                                                            <div className="absolute inset-0 bg-[#c20c0b]/10" />
+                                                        )}
+                                                        {/* Checkmark badge */}
+                                                        <div className={`absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center transition-all duration-150 ${
+                                                            isSelected
+                                                                ? 'bg-[#c20c0b] shadow-md scale-100'
+                                                                : 'bg-white/70 dark:bg-black/40 scale-90 opacity-60'
+                                                        }`}>
+                                                            <Check size={13} className={isSelected ? 'text-white' : 'text-gray-400'} />
                                                         </div>
-                                                    )}
-                                                    {isSelected && (
-                                                        <div className="absolute top-2 right-2 w-6 h-6 bg-[#c20c0b] rounded-full flex items-center justify-center shadow-md">
-                                                            <Check size={13} className="text-white" />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <div className="p-3">
-                                                    <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wide">{product.category}</p>
-                                                    <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight mt-0.5">{product.name}</p>
-                                                    {product.moq && (
-                                                        <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">MOQ: {product.moq.toLocaleString()}</p>
-                                                    )}
-                                                    {product.priceRange && (
-                                                        <p className="text-[11px] font-semibold text-[#c20c0b] mt-0.5">{product.priceRange}</p>
-                                                    )}
-                                                </div>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </>
+                                                    </div>
+                                                    {/* Info */}
+                                                    <div className={`p-2.5 rounded-b-xl ${isSelected ? 'bg-red-50 dark:bg-[#c20c0b]/10' : 'bg-white dark:bg-[#2a2930]'}`}>
+                                                        <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wide leading-none">{product.category}</p>
+                                                        <p className="text-[13px] font-bold text-gray-900 dark:text-white leading-tight mt-0.5 line-clamp-2">{product.name}</p>
+                                                        {product.moq && (
+                                                            <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">MOQ {product.moq.toLocaleString()}</p>
+                                                        )}
+                                                        {product.priceRange && (
+                                                            <p className="text-[11px] font-semibold text-[#c20c0b] mt-0.5">{product.priceRange}</p>
+                                                        )}
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        {/* Continue button */}
+                        {catalogProducts.length > 0 && (
+                            <div
+                                className="flex-shrink-0 px-4 pt-3 border-t border-gray-200 dark:border-white/10"
+                                style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}
+                            >
+                                <button
+                                    onClick={handleContinueToOrderForm}
+                                    disabled={selectedCatalogIds.size === 0}
+                                    className="w-full py-4 rounded-2xl bg-[#c20c0b] text-white font-bold text-[15px] disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.97] transition-all"
+                                    style={selectedCatalogIds.size > 0 ? { boxShadow: '0 4px 20px rgba(194,12,11,0.4)' } : {}}
+                                >
+                                    {selectedCatalogIds.size === 0
+                                        ? 'Select at least one product'
+                                        : `Continue with ${selectedCatalogIds.size} Product${selectedCatalogIds.size !== 1 ? 's' : ''}`}
+                                </button>
+                            </div>
                         )}
                     </div>
-
-                    {/* Continue button */}
-                    {(factory.catalog?.products?.length ?? 0) > 0 && (
-                        <div className="flex-shrink-0 p-4 border-t border-gray-200 dark:border-white/10 bg-white dark:bg-[#18171c]">
-                            <button
-                                onClick={handleContinueToOrderForm}
-                                disabled={selectedCatalogIds.size === 0}
-                                className="w-full py-3.5 rounded-2xl bg-[#c20c0b] text-white font-bold text-sm disabled:opacity-40 active:scale-95 transition-all"
-                                style={selectedCatalogIds.size > 0 ? { boxShadow: '0 4px 20px rgba(194,12,11,0.4)' } : {}}
-                            >
-                                {selectedCatalogIds.size === 0
-                                    ? 'Select at least one product'
-                                    : `Continue with ${selectedCatalogIds.size} Product${selectedCatalogIds.size !== 1 ? 's' : ''}`}
-                            </button>
-                        </div>
-                    )}
                 </div>,
                 document.body
             )}
