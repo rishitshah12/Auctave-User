@@ -2455,13 +2455,23 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                             >
                                                 {/* Product Info */}
                                                 <div className="md:col-span-4 flex items-center gap-3">
-                                                    <div className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 font-bold text-xs w-7 h-7 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 shrink-0">
-                                                        {idx + 1}
-                                                    </div>
-                                                    <div>
-                                                        <h4 className="font-bold text-gray-900 dark:text-white text-sm">{item.category}</h4>
+                                                    {item.productImageUrl ? (
+                                                        <img
+                                                            src={item.productImageUrl}
+                                                            alt={item.productName || item.category}
+                                                            className="w-9 h-9 rounded-xl object-cover border border-gray-200 dark:border-gray-700 shrink-0 shadow-sm"
+                                                        />
+                                                    ) : (
+                                                        <div className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 font-bold text-xs w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-700 shrink-0">
+                                                            {idx + 1}
+                                                        </div>
+                                                    )}
+                                                    <div className="min-w-0">
+                                                        <h4 className="font-bold text-gray-900 dark:text-white text-sm truncate">{item.productName || item.category}</h4>
                                                         <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1">
-                                                            {item.fabricQuality} • {item.weightGSM} GSM
+                                                            {item.productName ? item.category : (item.fabricQuality || '')}
+                                                            {item.fabricQuality && item.productName ? ` • ${item.fabricQuality}` : ''}
+                                                            {item.weightGSM ? ` • ${item.weightGSM} GSM` : ''}
                                                         </p>
                                                     </div>
                                                 </div>

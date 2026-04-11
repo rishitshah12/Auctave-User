@@ -615,9 +615,9 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                                             className="flex items-center gap-2 bg-white/60 dark:bg-gray-800/40 rounded-lg px-3 py-2 border border-gray-100/80 dark:border-gray-700/40"
                                         >
                                             <div className="min-w-0 flex-1">
-                                                <p className="text-xs font-semibold text-gray-800 dark:text-gray-100 truncate">{item.category || 'Product'}</p>
-                                                {item.fabricQuality && (
-                                                    <p className="text-[9px] text-gray-400 dark:text-gray-500 truncate">{item.fabricQuality}</p>
+                                                <p className="text-xs font-semibold text-gray-800 dark:text-gray-100 truncate">{item.productName || item.category || 'Product'}</p>
+                                                {(item.productName ? item.category : item.fabricQuality) && (
+                                                    <p className="text-[9px] text-gray-400 dark:text-gray-500 truncate">{item.productName ? item.category : item.fabricQuality}</p>
                                                 )}
                                             </div>
                                             <div className="flex items-center gap-2 flex-shrink-0">

@@ -28,6 +28,8 @@ export interface LineItem {
     trimsAndAccessories: string;
     specialInstructions: string;
     quantityType?: 'units' | 'container';
+    productImageUrl?: string;
+    productName?: string;
 }
 
 export interface OrderFormData {

@@ -1,10 +1,10 @@
 import React, { FC, useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import {
-    Star, MapPin, ChevronLeft, ChevronRight, BookOpen, Activity, ShieldCheck, X, ZoomIn, TrendingUp, AlertCircle, CheckCircle2, Search, Check, Package
+    Star, MapPin, ChevronLeft, ChevronRight, BookOpen, Activity, ShieldCheck, X, ZoomIn, TrendingUp, AlertCircle, CheckCircle2, Search, Check, Package, Send, DollarSign, MessageSquare, ChevronDown, Loader
 } from 'lucide-react';
 import { MainLayout } from '../src/MainLayout';
-import { Factory } from '../src/types';
+import { Factory, LineItem, OrderFormData } from '../src/types';
 import { TrustTierBadge } from '../src/FactoryCard';
 import ProductCatalog, { migrateCatalog } from '../src/ProductCatalog';
 import ProductionFloorLayout from '../src/ProductionFloorLayout';
@@ -27,6 +27,7 @@ interface FactoryDetailPageProps {
     selectedFactory: Factory;
     suggestedFactories: Factory[];
     initialTab?: 'overview' | 'catalog';
+    onSubmitRFQ?: (quoteData: { factory?: { id: string; name: string; location: string; imageUrl: string }, order: OrderFormData, filesPerProduct?: File[][] }) => Promise<boolean>;
 }
 
 const CertificationBadge: FC<{ cert: string }> = ({ cert }) => {
@@ -42,7 +43,7 @@ const CertificationBadge: FC<{ cert: string }> = ({ cert }) => {
 
 
 export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
-    const { selectedFactory: propFactory, handleSetCurrentPage, suggestedFactories, initialTab = 'overview' } = props;
+    const { selectedFactory: propFactory, handleSetCurrentPage, suggestedFactories, initialTab = 'overview', onSubmitRFQ } = props;
     const [factory, setFactory] = useState<Factory>(propFactory);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [activeTab, setActiveTab] = useState<'overview' | 'catalog'>(initialTab);
@@ -57,6 +58,11 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
     const [isFetchingDetails, setIsFetchingDetails] = useState(false);
     const [showProductSelector, setShowProductSelector] = useState(false);
     const [selectedCatalogIds, setSelectedCatalogIds] = useState<Set<string>>(new Set());
+
+    // RFQ form state — step 2 inputs per product
+    const [rfqStep, setRfqStep] = useState<1 | 2>(1);
+    const [rfqInputs, setRfqInputs] = useState<Record<string, { qty: string; targetPrice: string; comments: string }>>({});
+    const [isSubmittingRFQ, setIsSubmittingRFQ] = useState(false);
 
     // Migrate old productCategories format so the selector always has a products array
     const catalogProducts = React.useMemo(() => {
@@ -145,33 +151,71 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
         return null;
     }
 
-    const handleContinueToOrderForm = () => {
-        const selected = catalogProducts.filter(p => selectedCatalogIds.has(p.id));
-        const lineItems = selected.map((product, i) => ({
-            id: Date.now() + i,
-            category: product.category || 'T-shirt',
-            fabricQuality: product.fabricComposition || '',
-            weightGSM: '',
-            styleOption: '',
-            qty: product.moq || 0,
-            containerType: '',
-            targetPrice: product.priceRange || '',
-            packagingReqs: '',
-            labelingReqs: '',
-            sizeRange: [] as string[],
-            customSize: '',
-            sizeRatio: {} as Record<string, number>,
-            sleeveOption: '',
-            printOption: '',
-            trimsAndAccessories: '',
-            specialInstructions: product.description || '',
-            quantityType: 'units' as const,
-            fitType: '',
-            washType: '',
-        }));
+    const closeRFQModal = () => {
         setShowProductSelector(false);
         setSelectedCatalogIds(new Set());
-        handleSetCurrentPage('orderForm', { factory, lineItems });
+        setRfqInputs({});
+        setRfqStep(1);
+    };
+
+    const handleGoToStep2 = () => {
+        const inputs: Record<string, { qty: string; targetPrice: string; comments: string }> = {};
+        catalogProducts.filter(p => selectedCatalogIds.has(p.id)).forEach(product => {
+            inputs[product.id] = rfqInputs[product.id] || {
+                qty: product.moq ? String(product.moq) : '',
+                targetPrice: product.priceRange ? product.priceRange.replace(/[^0-9.]/g, '') : '',
+                comments: '',
+            };
+        });
+        setRfqInputs(inputs);
+        setRfqStep(2);
+    };
+
+    const isStep2Valid = () => catalogProducts
+        .filter(p => selectedCatalogIds.has(p.id))
+        .every(p => {
+            const input = rfqInputs[p.id];
+            return input && parseInt(input.qty) > 0;
+        });
+
+    const handleSubmitRFQ = async () => {
+        if (!onSubmitRFQ) return;
+        const selected = catalogProducts.filter(p => selectedCatalogIds.has(p.id));
+        const lineItems: LineItem[] = selected.map((product, i) => {
+            const input = rfqInputs[product.id] || { qty: '', targetPrice: '', comments: '' };
+            return {
+                id: Date.now() + i,
+                category: product.category || 'T-shirt',
+                fabricQuality: product.fabricComposition || '',
+                weightGSM: '',
+                styleOption: '',
+                qty: parseInt(input.qty) || 0,
+                containerType: '',
+                targetPrice: input.targetPrice || '',
+                packagingReqs: '',
+                labelingReqs: '',
+                sizeRange: [],
+                customSize: '',
+                sizeRatio: {},
+                sleeveOption: '',
+                printOption: '',
+                trimsAndAccessories: '',
+                specialInstructions: input.comments || '',
+                quantityType: 'units' as const,
+                productImageUrl: product.images?.[0] || '',
+                productName: product.name,
+            };
+        });
+        setIsSubmittingRFQ(true);
+        const success = await onSubmitRFQ({
+            factory: { id: factory.id, name: factory.name, location: factory.location, imageUrl: factory.imageUrl },
+            order: { lineItems, shippingCountry: '', shippingPort: '' },
+        });
+        setIsSubmittingRFQ(false);
+        if (success) {
+            closeRFQModal();
+            handleSetCurrentPage('myQuotes');
+        }
     };
 
     const gallery = factory.gallery?.length ? factory.gallery : (factory.imageUrl ? [factory.imageUrl] : []);
@@ -676,156 +720,314 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                 </div>
             </div>
 
-            {/* ── Product Selector Modal ── */}
+            {/* ── RFQ Modal (2-step) ── */}
             {showProductSelector && ReactDOM.createPortal(
-                /* Backdrop */
                 <div
-                    className="fixed inset-0 z-[90] flex flex-col items-end sm:items-center justify-end sm:justify-center bg-black/40 backdrop-blur-sm"
-                    onClick={(e) => { if (e.target === e.currentTarget) { setShowProductSelector(false); setSelectedCatalogIds(new Set()); } }}
+                    className="fixed inset-0 z-[90] flex flex-col items-end sm:items-center justify-end sm:justify-center"
+                    style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }}
+                    onClick={(e) => { if (e.target === e.currentTarget) closeRFQModal(); }}
                 >
-                    {/* Panel — bottom sheet on mobile, centered card on desktop */}
-                    <div className="flex flex-col w-full sm:w-[560px] max-h-[90vh] sm:max-h-[80vh] rounded-t-3xl sm:rounded-2xl bg-white dark:bg-[#1e1d24] shadow-2xl overflow-hidden">
+                    {/* Panel */}
+                    <div className="flex flex-col w-full sm:w-[600px] max-h-[92vh] sm:max-h-[86vh] rounded-t-3xl sm:rounded-2xl bg-white dark:bg-[#1c1b22] shadow-2xl overflow-hidden">
 
                         {/* Pull handle (mobile only) */}
                         <div className="sm:hidden flex justify-center pt-3 pb-1 flex-shrink-0">
-                            <div className="w-10 h-1 rounded-full bg-gray-300 dark:bg-gray-600" />
+                            <div className="w-10 h-1.5 rounded-full bg-gray-200 dark:bg-gray-700" />
                         </div>
 
-                        {/* Header */}
-                        <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-white/10 flex-shrink-0">
-                            <button
-                                onClick={() => { setShowProductSelector(false); setSelectedCatalogIds(new Set()); }}
-                                className="w-11 h-11 rounded-full bg-gray-100 dark:bg-white/10 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-white/18 transition-all flex-shrink-0 active:scale-90"
-                            >
-                                <X size={18} className="text-gray-700 dark:text-white" />
-                            </button>
-                            <div className="flex-1 min-w-0">
-                                <h2 className="font-bold text-gray-900 dark:text-white text-sm">Select Products</h2>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{factory.name}</p>
+                        {/* ─── STEP INDICATOR ─── */}
+                        <div className="flex-shrink-0 px-5 pt-4 pb-3">
+                            <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2">
+                                    {rfqStep === 2 && (
+                                        <button
+                                            onClick={() => setRfqStep(1)}
+                                            className="w-8 h-8 rounded-full bg-gray-100 dark:bg-white/10 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-white/18 transition-all active:scale-90"
+                                        >
+                                            <ChevronLeft size={16} className="text-gray-700 dark:text-white" />
+                                        </button>
+                                    )}
+                                    <div>
+                                        <h2 className="font-bold text-gray-900 dark:text-white text-[15px] leading-tight">
+                                            {rfqStep === 1 ? 'Select Products' : 'Quote Details'}
+                                        </h2>
+                                        <p className="text-xs text-gray-400 dark:text-gray-500 truncate mt-0.5">{factory.name}</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={closeRFQModal}
+                                    className="w-9 h-9 rounded-full bg-gray-100 dark:bg-white/10 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-white/18 transition-all active:scale-90 flex-shrink-0"
+                                >
+                                    <X size={16} className="text-gray-700 dark:text-white" />
+                                </button>
                             </div>
-                            {selectedCatalogIds.size > 0 && (
-                                <span className="text-sm font-bold text-[#c20c0b] flex-shrink-0">
-                                    {selectedCatalogIds.size} selected
-                                </span>
-                            )}
+                            {/* Step pills */}
+                            <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1.5 flex-1">
+                                    <div className={`flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold transition-all ${rfqStep >= 1 ? 'bg-[#c20c0b] text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-500'}`}>
+                                        {rfqStep > 1 ? <Check size={10} /> : '1'}
+                                    </div>
+                                    <span className={`text-xs font-semibold transition-colors ${rfqStep === 1 ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500'}`}>Select Products</span>
+                                </div>
+                                <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700 mx-1" />
+                                <div className="flex items-center gap-1.5 flex-1 justify-end">
+                                    <span className={`text-xs font-semibold transition-colors ${rfqStep === 2 ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500'}`}>Quote Details</span>
+                                    <div className={`flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold transition-all ${rfqStep >= 2 ? 'bg-[#c20c0b] text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-500'}`}>2</div>
+                                </div>
+                            </div>
                         </div>
 
-                        {/* Product Grid */}
-                        <div className="flex-1 overflow-y-auto p-4 pb-2">
-                            {isFetchingDetails && catalogProducts.length === 0 ? (
-                                <div className="grid grid-cols-2 gap-3">
-                                    {[1, 2, 3, 4].map(i => (
-                                        <div key={i} className="animate-pulse rounded-xl border border-gray-100 dark:border-white/8 overflow-hidden">
-                                            <div className="h-28 bg-gray-200 dark:bg-gray-800" />
-                                            <div className="p-3 space-y-2">
-                                                <div className="h-2.5 bg-gray-200 dark:bg-gray-700 rounded w-1/2" />
-                                                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4" />
-                                            </div>
+                        <div className="h-px bg-gray-100 dark:bg-white/8 flex-shrink-0" />
+
+                        {/* ─── STEP 1: Product Grid ─── */}
+                        {rfqStep === 1 && (
+                            <>
+                                <div className="flex-1 overflow-y-auto p-4 pb-2">
+                                    {isFetchingDetails && catalogProducts.length === 0 ? (
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                            {[1, 2, 3, 4, 5, 6].map(i => (
+                                                <div key={i} className="animate-pulse rounded-2xl border border-gray-100 dark:border-white/8 overflow-hidden">
+                                                    <div className="h-32 bg-gray-200 dark:bg-gray-800" />
+                                                    <div className="p-3 space-y-2">
+                                                        <div className="h-2.5 bg-gray-200 dark:bg-gray-700 rounded w-1/2" />
+                                                        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4" />
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
-                                    ))}
-                                </div>
-                            ) : catalogProducts.length === 0 ? (
-                                <div className="text-center py-16">
-                                    <Package size={36} className="text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-                                    <p className="text-gray-500 dark:text-gray-400 text-sm font-medium mb-1">No products in catalog</p>
-                                    <p className="text-gray-400 dark:text-gray-500 text-xs mb-6">You can still submit a custom quote request.</p>
-                                    <button
-                                        onClick={() => {
-                                            setShowProductSelector(false);
-                                            handleSetCurrentPage('orderForm', { factory, lineItems: [] });
-                                        }}
-                                        className="px-6 py-3 bg-[#c20c0b] text-white font-bold rounded-2xl text-sm active:scale-95 transition-transform"
-                                        style={{ boxShadow: '0 4px 16px rgba(194,12,11,0.3)' }}
-                                    >
-                                        Continue to Quote Form
-                                    </button>
-                                </div>
-                            ) : (
-                                <>
-                                    <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
-                                        Tap products to include them in your quote
-                                    </p>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        {catalogProducts.map(product => {
-                                            const isSelected = selectedCatalogIds.has(product.id);
-                                            return (
-                                                <button
-                                                    key={product.id}
-                                                    onClick={() => setSelectedCatalogIds(prev => {
-                                                        const next = new Set(prev);
-                                                        if (next.has(product.id)) next.delete(product.id);
-                                                        else next.add(product.id);
-                                                        return next;
-                                                    })}
-                                                    className={`relative rounded-xl text-left transition-all active:scale-95 ${
-                                                        isSelected
-                                                            ? 'ring-2 ring-[#c20c0b] shadow-md'
-                                                            : 'ring-1 ring-gray-200 dark:ring-white/10 hover:ring-gray-300 dark:hover:ring-white/20'
-                                                    }`}
-                                                >
-                                                    {/* Image */}
-                                                    <div className="relative h-28 rounded-t-xl overflow-hidden bg-gray-100 dark:bg-gray-800">
-                                                        {product.images?.[0] ? (
-                                                            <img
-                                                                src={product.images[0]}
-                                                                alt={product.name}
-                                                                loading="lazy"
-                                                                className="w-full h-full object-cover"
-                                                            />
-                                                        ) : (
-                                                            <div className="w-full h-full flex items-center justify-center">
-                                                                <Package size={26} className="text-gray-300 dark:text-gray-600" />
+                                    ) : catalogProducts.length === 0 ? (
+                                        <div className="text-center py-16">
+                                            <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mx-auto mb-4">
+                                                <Package size={28} className="text-gray-400 dark:text-gray-500" />
+                                            </div>
+                                            <p className="text-gray-700 dark:text-gray-300 font-semibold mb-1">No products in catalog</p>
+                                            <p className="text-gray-400 dark:text-gray-500 text-sm mb-6">You can still submit a custom quote request.</p>
+                                            <button
+                                                onClick={() => { closeRFQModal(); handleSetCurrentPage('orderForm', { factory, lineItems: [] }); }}
+                                                className="px-6 py-3 bg-[#c20c0b] text-white font-bold rounded-2xl text-sm active:scale-95 transition-transform"
+                                                style={{ boxShadow: '0 4px 16px rgba(194,12,11,0.3)' }}
+                                            >
+                                                Continue to Quote Form
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <p className="text-xs text-gray-400 dark:text-gray-500 mb-3 font-medium">
+                                                Tap products to include them in your quote
+                                            </p>
+                                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                                {catalogProducts.map(product => {
+                                                    const isSelected = selectedCatalogIds.has(product.id);
+                                                    return (
+                                                        <button
+                                                            key={product.id}
+                                                            onClick={() => setSelectedCatalogIds(prev => {
+                                                                const next = new Set(prev);
+                                                                if (next.has(product.id)) next.delete(product.id);
+                                                                else next.add(product.id);
+                                                                return next;
+                                                            })}
+                                                            className={`relative rounded-2xl text-left transition-all duration-200 active:scale-[0.97] ${
+                                                                isSelected
+                                                                    ? 'ring-2 ring-[#c20c0b] shadow-lg shadow-red-100 dark:shadow-red-900/20'
+                                                                    : 'ring-1 ring-gray-200 dark:ring-white/10 hover:ring-gray-300 dark:hover:ring-white/20 hover:shadow-md'
+                                                            }`}
+                                                        >
+                                                            {/* Image */}
+                                                            <div className="relative h-32 rounded-t-2xl overflow-hidden bg-gray-100 dark:bg-gray-800">
+                                                                {product.images?.[0] ? (
+                                                                    <img src={product.images[0]} alt={product.name} loading="lazy" className="w-full h-full object-cover" />
+                                                                ) : (
+                                                                    <div className="w-full h-full flex items-center justify-center">
+                                                                        <Package size={28} className="text-gray-300 dark:text-gray-600" />
+                                                                    </div>
+                                                                )}
+                                                                {isSelected && <div className="absolute inset-0 bg-[#c20c0b]/12" />}
+                                                                <div className={`absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center transition-all duration-200 ${
+                                                                    isSelected ? 'bg-[#c20c0b] shadow-md scale-100' : 'bg-white/80 dark:bg-black/50 scale-90 opacity-70'
+                                                                }`}>
+                                                                    <Check size={12} className={isSelected ? 'text-white' : 'text-gray-400'} />
+                                                                </div>
                                                             </div>
-                                                        )}
-                                                        {/* Selection overlay */}
-                                                        {isSelected && (
-                                                            <div className="absolute inset-0 bg-[#c20c0b]/10" />
-                                                        )}
-                                                        {/* Checkmark badge */}
-                                                        <div className={`absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center transition-all duration-150 ${
-                                                            isSelected
-                                                                ? 'bg-[#c20c0b] shadow-md scale-100'
-                                                                : 'bg-white/70 dark:bg-black/40 scale-90 opacity-60'
-                                                        }`}>
-                                                            <Check size={13} className={isSelected ? 'text-white' : 'text-gray-400'} />
+                                                            {/* Info */}
+                                                            <div className={`p-3 rounded-b-2xl transition-colors ${isSelected ? 'bg-red-50 dark:bg-[#c20c0b]/10' : 'bg-white dark:bg-[#26252d]'}`}>
+                                                                <p className="text-[10px] text-gray-400 dark:text-gray-500 font-bold uppercase tracking-wider leading-none">{product.category}</p>
+                                                                <p className="text-[13px] font-bold text-gray-900 dark:text-white leading-tight mt-1 line-clamp-2">{product.name}</p>
+                                                                <div className="flex items-center justify-between mt-1.5 gap-1">
+                                                                    {product.moq && (
+                                                                        <p className="text-[11px] text-gray-400 dark:text-gray-500">MOQ {product.moq.toLocaleString()}</p>
+                                                                    )}
+                                                                    {product.priceRange && (
+                                                                        <p className="text-[11px] font-bold text-[#c20c0b] ml-auto">{product.priceRange}</p>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+
+                                {catalogProducts.length > 0 && (
+                                    <div
+                                        className="flex-shrink-0 px-4 pt-3 pb-safe border-t border-gray-100 dark:border-white/8"
+                                        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}
+                                    >
+                                        {selectedCatalogIds.size > 0 && (
+                                            <p className="text-center text-xs text-gray-500 dark:text-gray-400 mb-2 font-medium">
+                                                {selectedCatalogIds.size} product{selectedCatalogIds.size !== 1 ? 's' : ''} selected
+                                            </p>
+                                        )}
+                                        <button
+                                            onClick={handleGoToStep2}
+                                            disabled={selectedCatalogIds.size === 0}
+                                            className="w-full py-4 rounded-2xl bg-[#c20c0b] text-white font-bold text-[15px] disabled:opacity-35 disabled:cursor-not-allowed active:scale-[0.97] transition-all flex items-center justify-center gap-2"
+                                            style={selectedCatalogIds.size > 0 ? { boxShadow: '0 4px 20px rgba(194,12,11,0.4)' } : {}}
+                                        >
+                                            {selectedCatalogIds.size === 0
+                                                ? 'Select at least one product'
+                                                : <>Continue <ChevronRight size={18} /></>}
+                                        </button>
+                                    </div>
+                                )}
+                            </>
+                        )}
+
+                        {/* ─── STEP 2: Quote Details Form ─── */}
+                        {rfqStep === 2 && (
+                            <>
+                                <div className="flex-1 overflow-y-auto">
+                                    <div className="p-4 space-y-4">
+                                        <p className="text-xs text-gray-400 dark:text-gray-500 font-medium">
+                                            Fill in the details for each product. Quantity is required.
+                                        </p>
+
+                                        {catalogProducts.filter(p => selectedCatalogIds.has(p.id)).map((product, idx) => {
+                                            const input = rfqInputs[product.id] || { qty: '', targetPrice: '', comments: '' };
+                                            const update = (field: string, value: string) =>
+                                                setRfqInputs(prev => ({ ...prev, [product.id]: { ...prev[product.id], [field]: value } }));
+                                            const hasQty = parseInt(input.qty) > 0;
+
+                                            return (
+                                                <div
+                                                    key={product.id}
+                                                    className="rounded-2xl border border-gray-200 dark:border-white/10 overflow-hidden bg-white dark:bg-[#26252d] shadow-sm"
+                                                >
+                                                    {/* Product header */}
+                                                    <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-white/[0.04] border-b border-gray-100 dark:border-white/8">
+                                                        <div className="w-10 h-10 rounded-xl overflow-hidden bg-gray-200 dark:bg-gray-700 flex-shrink-0">
+                                                            {product.images?.[0] ? (
+                                                                <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <div className="w-full h-full flex items-center justify-center">
+                                                                    <Package size={16} className="text-gray-400" />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-[10px] text-gray-400 dark:text-gray-500 font-bold uppercase tracking-wider">{product.category}</p>
+                                                            <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{product.name}</p>
+                                                        </div>
+                                                        <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold ${hasQty ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400' : 'bg-gray-100 dark:bg-gray-800 text-gray-400'}`}>
+                                                            {hasQty ? <Check size={10} /> : idx + 1}
                                                         </div>
                                                     </div>
-                                                    {/* Info */}
-                                                    <div className={`p-2.5 rounded-b-xl ${isSelected ? 'bg-red-50 dark:bg-[#c20c0b]/10' : 'bg-white dark:bg-[#2a2930]'}`}>
-                                                        <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wide leading-none">{product.category}</p>
-                                                        <p className="text-[13px] font-bold text-gray-900 dark:text-white leading-tight mt-0.5 line-clamp-2">{product.name}</p>
-                                                        {product.moq && (
-                                                            <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">MOQ {product.moq.toLocaleString()}</p>
-                                                        )}
-                                                        {product.priceRange && (
-                                                            <p className="text-[11px] font-semibold text-[#c20c0b] mt-0.5">{product.priceRange}</p>
-                                                        )}
+
+                                                    {/* Inputs */}
+                                                    <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                        {/* Quantity — required */}
+                                                        <div className="sm:col-span-2 md:col-span-1">
+                                                            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center gap-1">
+                                                                <Package size={11} className="text-gray-400" />
+                                                                Quantity
+                                                                <span className="text-[#c20c0b] ml-0.5">*</span>
+                                                            </label>
+                                                            <div className="relative">
+                                                                <input
+                                                                    type="number"
+                                                                    min={1}
+                                                                    placeholder={product.moq ? `Min. ${product.moq.toLocaleString()} units` : 'Enter quantity'}
+                                                                    value={input.qty}
+                                                                    onChange={e => update('qty', e.target.value)}
+                                                                    className={`w-full px-3 py-2.5 text-sm rounded-xl border bg-white dark:bg-[#1c1b22] text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:ring-2 transition-all ${
+                                                                        hasQty
+                                                                            ? 'border-green-300 dark:border-green-700 focus:ring-green-500/20'
+                                                                            : 'border-gray-200 dark:border-white/12 focus:ring-[#c20c0b]/25 focus:border-[#c20c0b]/50'
+                                                                    }`}
+                                                                />
+                                                                {input.qty && (
+                                                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 dark:text-gray-500 pointer-events-none">units</span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Target Price — optional */}
+                                                        <div>
+                                                            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center gap-1">
+                                                                <DollarSign size={11} className="text-gray-400" />
+                                                                Target Price
+                                                                <span className="text-gray-400 dark:text-gray-500 font-normal text-[10px] ml-1">(optional)</span>
+                                                            </label>
+                                                            <div className="relative">
+                                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 text-sm font-medium pointer-events-none">$</span>
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder={product.priceRange ? product.priceRange.replace(/[^0-9.-]/g, '') : '0.00'}
+                                                                    value={input.targetPrice}
+                                                                    onChange={e => update('targetPrice', e.target.value)}
+                                                                    className="w-full pl-7 pr-3 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-white/12 bg-white dark:bg-[#1c1b22] text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-[#c20c0b]/25 focus:border-[#c20c0b]/50 transition-all"
+                                                                />
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Comments — optional, full width */}
+                                                        <div className="sm:col-span-2">
+                                                            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center gap-1">
+                                                                <MessageSquare size={11} className="text-gray-400" />
+                                                                Comments
+                                                                <span className="text-gray-400 dark:text-gray-500 font-normal text-[10px] ml-1">(optional)</span>
+                                                            </label>
+                                                            <textarea
+                                                                rows={2}
+                                                                placeholder="Any special requirements, fabric preferences, or notes for this product…"
+                                                                value={input.comments}
+                                                                onChange={e => update('comments', e.target.value)}
+                                                                className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-white/12 bg-white dark:bg-[#1c1b22] text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-[#c20c0b]/25 focus:border-[#c20c0b]/50 transition-all resize-none"
+                                                            />
+                                                        </div>
                                                     </div>
-                                                </button>
+                                                </div>
                                             );
                                         })}
                                     </div>
-                                </>
-                            )}
-                        </div>
+                                </div>
 
-                        {/* Continue button */}
-                        {catalogProducts.length > 0 && (
-                            <div
-                                className="flex-shrink-0 px-4 pt-3 border-t border-gray-200 dark:border-white/10"
-                                style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}
-                            >
-                                <button
-                                    onClick={handleContinueToOrderForm}
-                                    disabled={selectedCatalogIds.size === 0}
-                                    className="w-full py-4 rounded-2xl bg-[#c20c0b] text-white font-bold text-[15px] disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.97] transition-all"
-                                    style={selectedCatalogIds.size > 0 ? { boxShadow: '0 4px 20px rgba(194,12,11,0.4)' } : {}}
+                                {/* Submit button */}
+                                <div
+                                    className="flex-shrink-0 px-4 pt-3 border-t border-gray-100 dark:border-white/8 bg-gray-50/50 dark:bg-white/[0.02]"
+                                    style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}
                                 >
-                                    {selectedCatalogIds.size === 0
-                                        ? 'Select at least one product'
-                                        : `Continue with ${selectedCatalogIds.size} Product${selectedCatalogIds.size !== 1 ? 's' : ''}`}
-                                </button>
-                            </div>
+                                    {!isStep2Valid() && (
+                                        <p className="text-center text-xs text-amber-600 dark:text-amber-400 font-medium mb-2">
+                                            Please enter a quantity for each product
+                                        </p>
+                                    )}
+                                    <button
+                                        onClick={handleSubmitRFQ}
+                                        disabled={!isStep2Valid() || isSubmittingRFQ || !onSubmitRFQ}
+                                        className="w-full py-4 rounded-2xl bg-[#c20c0b] text-white font-bold text-[15px] disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.97] transition-all flex items-center justify-center gap-2"
+                                        style={isStep2Valid() && !isSubmittingRFQ ? { boxShadow: '0 4px 20px rgba(194,12,11,0.4)' } : {}}
+                                    >
+                                        {isSubmittingRFQ ? (
+                                            <><Loader size={18} className="animate-spin" /> Submitting…</>
+                                        ) : (
+                                            <><Send size={16} /> Submit Quote Request</>
+                                        )}
+                                    </button>
+                                </div>
+                            </>
                         )}
                     </div>
                 </div>,

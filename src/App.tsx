@@ -3139,8 +3139,8 @@ User message: "${userMsg}"`;
                 </MainLayout>
             );
             case 'factorySuggestions': return <FactorySuggestionsPage />;
-            case 'factoryDetail': return <FactoryDetailPage {...layoutProps} selectedFactory={selectedFactory!} suggestedFactories={suggestedFactories} initialTab="overview" />;
-            case 'factoryCatalog': return <FactoryDetailPage {...layoutProps} selectedFactory={selectedFactory!} suggestedFactories={suggestedFactories} initialTab="catalog" />;
+            case 'factoryDetail': return <FactoryDetailPage {...layoutProps} selectedFactory={selectedFactory!} suggestedFactories={suggestedFactories} initialTab="overview" onSubmitRFQ={submitQuoteRequest} />;
+            case 'factoryCatalog': return <FactoryDetailPage {...layoutProps} selectedFactory={selectedFactory!} suggestedFactories={suggestedFactories} initialTab="catalog" onSubmitRFQ={submitQuoteRequest} />;
             case 'factoryTools': return <FactoryToolsPage />;
             case 'settings': return <SettingsPage />;
             case 'tracking': return <OrderTrackingPage />;
