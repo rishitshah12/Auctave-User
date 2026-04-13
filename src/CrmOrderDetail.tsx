@@ -588,54 +588,52 @@ const OrderDetailsView: FC<{
                                     <div
                                         key={product.id ?? idx}
                                         onClick={() => onSelectProduct?.(product.id)}
-                                        className="relative flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-100 dark:border-gray-700/60 hover:border-gray-200 dark:hover:border-gray-600 hover:shadow-md transition-all duration-200 cursor-pointer group bg-white dark:bg-gray-800/30"
+                                        className="relative px-4 py-3 rounded-xl border border-gray-100 dark:border-gray-700/60 hover:border-gray-200 dark:hover:border-gray-600 hover:shadow-md transition-all duration-200 cursor-pointer group bg-white dark:bg-gray-800/30"
                                     >
                                         {/* Left accent bar */}
                                         <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-xl bg-gradient-to-b ${colorGradient}`} />
 
-                                        {/* Product index badge */}
-                                        <div className={`ml-1 w-7 h-7 rounded-lg bg-gradient-to-br ${colorGradient} flex items-center justify-center flex-shrink-0 shadow-sm`}>
-                                            <span className="text-[11px] font-bold text-white">{idx + 1}</span>
-                                        </div>
-
-                                        {/* Main info */}
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 mb-1.5">
-                                                <span className="font-semibold text-sm text-gray-900 dark:text-white truncate group-hover:text-[#c20c0b] dark:group-hover:text-red-400 transition-colors">
-                                                    {product.name}
-                                                </span>
-                                                {product.status && (
-                                                    <span className={`flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold ${getOrderStatusColor(product.status)}`}>
-                                                        {product.status}
-                                                    </span>
-                                                )}
-                                                {overdueCount > 0 && (
-                                                    <span className="flex-shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400">
-                                                        <AlertCircle size={9} />{overdueCount} late
-                                                    </span>
-                                                )}
+                                        {/* Top row: badge + name + badges + arrow */}
+                                        <div className="flex items-start gap-2.5">
+                                            <div className={`mt-0.5 ml-1 w-7 h-7 rounded-lg bg-gradient-to-br ${colorGradient} flex items-center justify-center flex-shrink-0 shadow-sm`}>
+                                                <span className="text-[11px] font-bold text-white">{idx + 1}</span>
                                             </div>
-                                            <div className="flex items-center gap-2">
-                                                <div className="flex-1 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
-                                                    <div className={`h-full rounded-full bg-gradient-to-r ${colorGradient} transition-all duration-700 ease-out`} style={{ width: `${progress}%` }} />
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-start gap-1.5 flex-wrap mb-1.5">
+                                                    <span className="font-semibold text-sm text-gray-900 dark:text-white group-hover:text-[#c20c0b] dark:group-hover:text-red-400 transition-colors leading-snug">
+                                                        {product.name}
+                                                    </span>
+                                                    {product.status && (
+                                                        <span className={`flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold ${getOrderStatusColor(product.status)}`}>
+                                                            {product.status}
+                                                        </span>
+                                                    )}
+                                                    {overdueCount > 0 && (
+                                                        <span className="flex-shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400">
+                                                            <AlertCircle size={9} />{overdueCount} late
+                                                        </span>
+                                                    )}
                                                 </div>
-                                                <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 flex-shrink-0 w-7 text-right">{progress}%</span>
+                                                {/* Progress bar */}
+                                                <div className="flex items-center gap-2">
+                                                    <div className="flex-1 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                        <div className={`h-full rounded-full bg-gradient-to-r ${colorGradient} transition-all duration-700 ease-out`} style={{ width: `${progress}%` }} />
+                                                    </div>
+                                                    <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 flex-shrink-0 w-7 text-right">{progress}%</span>
+                                                </div>
+                                                {/* Stats row */}
+                                                <div className="flex items-center gap-2.5 mt-1.5 flex-wrap">
+                                                    <span className="text-[10px] text-gray-400 dark:text-gray-500">{completedCount}/{totalCount} tasks done</span>
+                                                    {inProgressCount > 0 && (
+                                                        <span className="text-[10px] text-blue-500 dark:text-blue-400">{inProgressCount} active</span>
+                                                    )}
+                                                    {product.quantity != null && (
+                                                        <span className="text-[10px] font-medium text-gray-400 dark:text-gray-500">{product.quantity.toLocaleString()} units</span>
+                                                    )}
+                                                </div>
                                             </div>
+                                            <ArrowRight size={14} className="mt-1 text-gray-300 dark:text-gray-600 group-hover:text-[#c20c0b] transition-colors flex-shrink-0" />
                                         </div>
-
-                                        {/* Right stats */}
-                                        <div className="flex flex-col items-end gap-0.5 flex-shrink-0 text-right">
-                                            {product.quantity != null && (
-                                                <span className="text-[10px] font-medium text-gray-400 dark:text-gray-500">{product.quantity.toLocaleString()} units</span>
-                                            )}
-                                            <span className="text-[10px] text-gray-400 dark:text-gray-500">{completedCount}/{totalCount} done</span>
-                                            {inProgressCount > 0 && (
-                                                <span className="text-[10px] text-blue-500 dark:text-blue-400">{inProgressCount} active</span>
-                                            )}
-                                        </div>
-
-                                        {/* Arrow */}
-                                        <ArrowRight size={14} className="text-gray-300 dark:text-gray-600 group-hover:text-[#c20c0b] transition-colors flex-shrink-0" />
                                     </div>
                                 );
                             })}
@@ -1240,17 +1238,6 @@ Keep it professional and brief. Use bullet points, not paragraphs (except Execut
                     <span className="flex-1 min-w-0 font-bold text-sm text-gray-900 dark:text-white truncate">
                         {selectedProduct ? selectedProduct.name : localOrder.product}
                     </span>
-                    {/* AI Summary button */}
-                    <button
-                        onClick={generateOrderSummary}
-                        className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-red-50 dark:bg-red-900/20
-                            text-[#c20c0b] text-[11px] font-bold
-                            hover:bg-red-100 dark:hover:bg-red-900/30 active:scale-95 transition-all"
-                        aria-label="AI Summary"
-                    >
-                        <Bot size={14} />
-                        <span>AI Report</span>
-                    </button>
                     {/* Search bar */}
                     <div className="relative flex-shrink-0">
                         <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
@@ -1338,21 +1325,32 @@ Keep it professional and brief. Use bullet points, not paragraphs (except Execut
             {/* View tabs */}
             <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
                 <div className="border-b border-gray-200 dark:border-white/10 px-2 sm:px-6 pt-3 sm:pt-4 pb-0">
-                    <div className="flex items-center gap-0.5 sm:gap-1 overflow-x-auto scrollbar-hide -mb-px">
-                        {currentViews.map(view => (
-                            <button
-                                key={view.name}
-                                onClick={() => setActiveView(view.name)}
-                                className={`flex items-center gap-1.5 py-2.5 px-3 sm:px-4 text-xs sm:text-sm font-semibold rounded-t-lg transition-all border-b-2 whitespace-nowrap ${
-                                    activeView === view.name
-                                        ? 'border-[#c20c0b] text-[#c20c0b] dark:text-red-400 bg-red-50/50 dark:bg-red-900/10'
-                                        : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
-                                }`}
-                            >
-                                {view.icon}
-                                <span>{view.name}</span>
-                            </button>
-                        ))}
+                    <div className="flex items-center gap-0.5 sm:gap-1 -mb-px">
+                        <div className="flex items-center gap-0.5 sm:gap-1 overflow-x-auto scrollbar-hide flex-1">
+                            {currentViews.map(view => (
+                                <button
+                                    key={view.name}
+                                    onClick={() => setActiveView(view.name)}
+                                    className={`flex items-center gap-1.5 py-2.5 px-3 sm:px-4 text-xs sm:text-sm font-semibold rounded-t-lg transition-all border-b-2 whitespace-nowrap ${
+                                        activeView === view.name
+                                            ? 'border-[#c20c0b] text-[#c20c0b] dark:text-red-400 bg-red-50/50 dark:bg-red-900/10'
+                                            : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
+                                    }`}
+                                >
+                                    {view.icon}
+                                    <span>{view.name}</span>
+                                </button>
+                            ))}
+                        </div>
+                        {/* AI Report button - tab area (mobile) / hidden on desktop since it's in the header */}
+                        <button
+                            onClick={generateOrderSummary}
+                            className="sm:hidden flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 mb-1 rounded-lg bg-[#c20c0b]/10 dark:bg-red-900/20 text-[#c20c0b] dark:text-red-400 text-[11px] font-bold hover:bg-[#c20c0b]/20 active:scale-95 transition-all border-b-2 border-transparent"
+                            aria-label="AI Report"
+                        >
+                            <Bot size={13} />
+                            <span>AI</span>
+                        </button>
                     </div>
                 </div>
 
@@ -1389,13 +1387,13 @@ Keep it professional and brief. Use bullet points, not paragraphs (except Execut
                 const mInProgress = mTasks.filter(t => t.status === 'IN PROGRESS').length;
                 const mOverdue = mTasks.filter(t => t.plannedEndDate && new Date(t.plannedEndDate) < new Date() && t.status !== 'COMPLETE').length;
                 const mPct = mTotal > 0 ? Math.round((mCompleted / mTotal) * 100) : 0;
-                return (
+                return ReactDOM.createPortal(
                 <div
-                    className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[60] p-4 animate-fade-in overflow-hidden"
+                    className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-end sm:items-center justify-center z-[100] sm:p-4 animate-fade-in"
                     onClick={() => setIsSummaryModalOpen(false)}
                 >
                     <div
-                        className="bg-white dark:bg-gray-950 rounded-3xl shadow-2xl shadow-red-500/5 w-full max-w-3xl max-h-[90vh] flex flex-col relative border border-gray-200 dark:border-white/5 animate-scale-in overflow-hidden"
+                        className="bg-white dark:bg-gray-950 rounded-t-3xl sm:rounded-3xl shadow-2xl shadow-red-500/5 w-full sm:max-w-3xl sm:max-h-[90vh] max-h-[92vh] flex flex-col relative border border-gray-200 dark:border-white/5 animate-scale-in overflow-hidden"
                         onClick={e => e.stopPropagation()}
                     >
                         {/* Solid Dark Red Header */}
@@ -1471,31 +1469,35 @@ Keep it professional and brief. Use bullet points, not paragraphs (except Execut
                             )}
                         </div>
                         {/* Footer */}
-                        <div className="flex-shrink-0 px-6 py-3 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between bg-white dark:bg-gray-950">
-                            <p className="text-[10px] text-gray-400 flex items-center gap-1.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Powered by Gemini AI
-                            </p>
-                            <div className="flex items-center gap-2">
-                                {!isSummaryLoading && orderSummary && (
+                        <div className="flex-shrink-0 px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-950">
+                            {/* Mobile: stacked layout */}
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                <p className="text-[10px] text-gray-400 flex items-center gap-1.5">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Powered by Gemini AI
+                                </p>
+                                <div className="flex items-center gap-2">
+                                    {!isSummaryLoading && orderSummary && (
+                                        <button
+                                            onClick={downloadSummaryPdf}
+                                            disabled={isDownloadingPdf}
+                                            className="flex-1 sm:flex-none text-xs font-semibold text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white flex items-center justify-center gap-1.5 disabled:opacity-50 transition-colors px-3 py-2 sm:py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-700"
+                                        >
+                                            <Download size={12} className={isDownloadingPdf ? 'animate-bounce' : ''} /> {isDownloadingPdf ? 'Exporting...' : 'Download PDF'}
+                                        </button>
+                                    )}
                                     <button
-                                        onClick={downloadSummaryPdf}
-                                        disabled={isDownloadingPdf}
-                                        className="text-xs font-semibold text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white flex items-center gap-1.5 disabled:opacity-50 transition-colors px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-700"
+                                        onClick={generateOrderSummary}
+                                        disabled={isSummaryLoading}
+                                        className="flex-1 sm:flex-none text-xs font-semibold text-[#c20c0b] hover:text-red-700 dark:hover:text-red-300 flex items-center justify-center gap-1.5 disabled:opacity-50 transition-colors px-3 py-2 sm:py-1.5 rounded-lg bg-red-50 dark:bg-red-900/10 hover:bg-red-100 dark:hover:bg-red-900/20 border border-red-200/50 dark:border-red-800/30"
                                     >
-                                        <Download size={11} className={isDownloadingPdf ? 'animate-bounce' : ''} /> {isDownloadingPdf ? 'Exporting...' : 'Download PDF'}
+                                        <RefreshCw size={12} className={isSummaryLoading ? 'animate-spin' : ''} /> Regenerate
                                     </button>
-                                )}
-                                <button
-                                    onClick={generateOrderSummary}
-                                    disabled={isSummaryLoading}
-                                    className="text-xs font-semibold text-[#c20c0b] hover:text-red-700 dark:hover:text-red-300 flex items-center gap-1.5 disabled:opacity-50 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
-                            >
-                                <RefreshCw size={11} className={isSummaryLoading ? 'animate-spin' : ''} /> Regenerate
-                            </button>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
                 );
             })()}
         </div>

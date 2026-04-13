@@ -349,6 +349,7 @@ function _ProductBreakdown({ tasks, products, inView }: { tasks: any[]; products
 // Task-level calendar for individual order DashboardView
 function _TaskCalendar({ tasks }: { tasks: any[] }) {
     const [currentDate, setCurrentDate] = useState(() => { const d = new Date(); d.setDate(1); return d; });
+    const [selectedDay, setSelectedDay] = useState<number | null>(null);
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     const firstDay = new Date(year, month, 1).getDay();
@@ -359,9 +360,14 @@ function _TaskCalendar({ tasks }: { tasks: any[] }) {
         'IN PROGRESS': '#3b82f6',
         'TO DO': '#9ca3af',
     };
+    const STATUS_LABELS: Record<string, string> = {
+        'COMPLETE': 'Done',
+        'IN PROGRESS': 'Active',
+        'TO DO': 'To Do',
+    };
 
     const dayTasks = useMemo(() => {
-        const map: Record<number, { label: string; color: string }[]> = {};
+        const map: Record<number, { label: string; color: string; status: string; priority?: string }[]> = {};
         tasks.forEach(task => {
             if (!task.plannedEndDate) return;
             const start = task.plannedStartDate ? new Date(task.plannedStartDate) : new Date(task.plannedEndDate);
@@ -371,7 +377,7 @@ function _TaskCalendar({ tasks }: { tasks: any[] }) {
                 const day = new Date(year, month, d);
                 if (day >= start && day <= end) {
                     if (!map[d]) map[d] = [];
-                    if (map[d].length < 3) map[d].push({ label: task.name, color });
+                    map[d].push({ label: task.name, color, status: task.status, priority: task.priority });
                 }
             }
         });
@@ -380,54 +386,100 @@ function _TaskCalendar({ tasks }: { tasks: any[] }) {
 
     const today = new Date();
     const isToday = (d: number) => today.getFullYear() === year && today.getMonth() === month && today.getDate() === d;
-    const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+    const DAYS_FULL = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const selectedTasks = selectedDay ? (dayTasks[selectedDay] || []) : [];
 
     return (
         <div>
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-3">
                 <span className="text-sm font-bold text-gray-700 dark:text-gray-200">
                     {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
                 </span>
                 <div className="flex items-center gap-1">
-                    <button onClick={() => setCurrentDate(new Date(year, month - 1, 1))} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors">
+                    <button onClick={() => { setCurrentDate(new Date(year, month - 1, 1)); setSelectedDay(null); }} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors">
                         <ChevronLeft size={16} />
                     </button>
-                    <button onClick={() => setCurrentDate(new Date(year, month + 1, 1))} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors">
+                    <button onClick={() => setCurrentDate(new Date())} className="px-2 py-1 text-[10px] font-bold text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors">Today</button>
+                    <button onClick={() => { setCurrentDate(new Date(year, month + 1, 1)); setSelectedDay(null); }} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors">
                         <ChevronRight size={16} />
                     </button>
                 </div>
             </div>
+            {/* Day headers - abbreviated on mobile */}
             <div className="grid grid-cols-7 mb-1">
-                {DAYS.map(d => <div key={d} className="text-center text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase py-1">{d}</div>)}
+                {DAYS_FULL.map((d, i) => (
+                    <div key={d} className="text-center py-1">
+                        <span className="hidden sm:inline text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase">{d}</span>
+                        <span className="sm:hidden text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase">{DAYS[i]}</span>
+                    </div>
+                ))}
             </div>
-            <div className="grid grid-cols-7 gap-px">
-                {Array.from({ length: firstDay }).map((_, i) => <div key={`e-${i}`} className="h-14 rounded-lg" />)}
+            <div className="grid grid-cols-7 gap-0.5">
+                {Array.from({ length: firstDay }).map((_, i) => <div key={`e-${i}`} className="h-14 sm:h-16 rounded-lg" />)}
                 {Array.from({ length: daysInMonth }).map((_, i) => {
                     const day = i + 1;
                     const items = dayTasks[day] || [];
                     const past = new Date(year, month, day) < new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                    const isSelected = selectedDay === day;
                     return (
-                        <div key={day} className={`h-14 rounded-lg p-1 overflow-hidden transition-colors ${
-                            isToday(day) ? 'bg-[#c20c0b]/10 dark:bg-[#c20c0b]/20 ring-1 ring-[#c20c0b]/40'
-                            : items.length > 0 ? 'bg-blue-50/60 dark:bg-blue-900/10'
-                            : 'bg-gray-50/60 dark:bg-gray-800/20'
-                        }`}>
+                        <button
+                            key={day}
+                            onClick={() => setSelectedDay(isSelected ? null : (items.length > 0 ? day : null))}
+                            className={`h-14 sm:h-16 rounded-lg p-1 overflow-hidden transition-all text-left w-full ${
+                                isSelected ? 'ring-2 ring-[#c20c0b] bg-red-50/80 dark:bg-[#c20c0b]/20'
+                                : isToday(day) ? 'bg-[#c20c0b]/10 dark:bg-[#c20c0b]/20 ring-1 ring-[#c20c0b]/40'
+                                : items.length > 0 ? 'bg-blue-50/60 dark:bg-blue-900/10 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer'
+                                : 'bg-gray-50/60 dark:bg-gray-800/20'
+                            }`}
+                        >
                             <span className={`text-[11px] font-bold leading-none ${isToday(day) ? 'text-[#c20c0b]' : past ? 'text-gray-400 dark:text-gray-600' : 'text-gray-600 dark:text-gray-300'}`}>{day}</span>
                             <div className="mt-0.5 space-y-px">
-                                {items.slice(0, 2).map((o, oi) => <div key={oi} className="h-1.5 rounded-full w-full opacity-80" style={{ backgroundColor: o.color }} title={o.label} />)}
-                                {items.length > 2 && <div className="text-[9px] text-gray-400 font-semibold">+{items.length - 2}</div>}
+                                {items.slice(0, 2).map((o, oi) => (
+                                    <div key={oi} className="flex items-center gap-0.5 overflow-hidden">
+                                        <div className="w-1 h-1 rounded-full flex-shrink-0" style={{ backgroundColor: o.color }} />
+                                        <span className="hidden sm:block text-[8px] leading-tight truncate" style={{ color: o.color }}>{o.label}</span>
+                                    </div>
+                                ))}
+                                {items.length > 2 && (
+                                    <div className="text-[9px] text-gray-400 dark:text-gray-500 font-bold">+{items.length - 2}</div>
+                                )}
                             </div>
-                        </div>
+                        </button>
                     );
                 })}
             </div>
-            <div className="mt-4 pt-3 border-t border-gray-100 dark:border-white/5 flex items-center gap-4 flex-wrap">
+            {/* Selected day detail panel */}
+            {selectedDay && selectedTasks.length > 0 && (
+                <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800/40 rounded-xl border border-gray-100 dark:border-gray-700/40 animate-fade-in">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-gray-700 dark:text-gray-200">
+                            {new Date(year, month, selectedDay).toLocaleDateString('default', { weekday: 'short', month: 'short', day: 'numeric' })} — {selectedTasks.length} task{selectedTasks.length > 1 ? 's' : ''}
+                        </span>
+                        <button onClick={() => setSelectedDay(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-0.5">
+                            <X size={13} />
+                        </button>
+                    </div>
+                    <div className="space-y-1.5">
+                        {selectedTasks.map((t, ti) => (
+                            <div key={ti} className="flex items-center gap-2 p-2 bg-white dark:bg-gray-800/60 rounded-lg border border-gray-100 dark:border-gray-700/40">
+                                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: t.color }} />
+                                <span className="flex-1 text-xs text-gray-700 dark:text-gray-200 font-medium truncate">{t.label}</span>
+                                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md" style={{ color: t.color, backgroundColor: t.color + '20' }}>{STATUS_LABELS[t.status] || t.status}</span>
+                                {t.priority && <span className="text-[10px] text-gray-400 dark:text-gray-500 hidden sm:block">{t.priority}</span>}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+            <div className="mt-3 pt-3 border-t border-gray-100 dark:border-white/5 flex items-center gap-4 flex-wrap">
                 {Object.entries(STATUS_COLORS).map(([label, color]) => (
                     <div key={label} className="flex items-center gap-1.5">
-                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
-                        <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">{label.charAt(0) + label.slice(1).toLowerCase()}</span>
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+                        <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">{STATUS_LABELS[label]}</span>
                     </div>
                 ))}
+                <span className="text-[10px] text-gray-400 dark:text-gray-500 ml-auto">Tap a day to see tasks</span>
             </div>
         </div>
     );
@@ -470,17 +522,24 @@ export const DashboardView: FC<{ tasks: any[]; orderKey: string; orderDetails: a
 
         const priorityData = useMemo(() => {
             const counts: Record<string, number> = { Urgent: 0, High: 0, Medium: 0, Low: 0 };
-            tasks.forEach(t => { const p = t.priority; if (p && p in counts) counts[p]++; });
+            tasks.forEach(t => {
+                const raw = t.priority;
+                if (!raw) return;
+                // Try exact match first, then normalize casing
+                if (raw in counts) { counts[raw]++; return; }
+                const normalized = raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
+                if (normalized in counts) counts[normalized]++;
+            });
             return Object.entries(counts).filter(([, v]) => v > 0).map(([name, value]) => ({ name, value }));
         }, [tasks]);
 
         const upcomingTasks = useMemo(() => {
             const now = new Date(); now.setHours(0, 0, 0, 0);
-            const in30 = new Date(now); in30.setDate(in30.getDate() + 30);
+            // Include overdue tasks AND all upcoming — sorted by date, capped at 8
             return tasks
-                .filter(t => t.status !== 'COMPLETE' && t.plannedEndDate && new Date(t.plannedEndDate) >= now && new Date(t.plannedEndDate) <= in30)
+                .filter(t => t.status !== 'COMPLETE' && t.plannedEndDate)
                 .sort((a, b) => new Date(a.plannedEndDate).getTime() - new Date(b.plannedEndDate).getTime())
-                .slice(0, 5);
+                .slice(0, 8);
         }, [tasks]);
 
         const COLORS = darkMode ? ['#4B5563', '#F59E0B', '#10B981'] : ['#D1D5DB', '#FBBF24', '#34D399'];
@@ -714,33 +773,42 @@ export const DashboardView: FC<{ tasks: any[]; orderKey: string; orderDetails: a
                             <div className="p-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg text-amber-600">
                                 <AlertTriangle size={18} />
                             </div>
-                            Upcoming Deadlines
-                            <span className="ml-auto text-xs font-medium text-gray-400 dark:text-gray-500">Next 30 days</span>
+                            Deadlines
+                            <span className="ml-auto text-xs font-medium text-gray-400 dark:text-gray-500">{upcomingTasks.length} pending</span>
                         </h3>
                         {upcomingTasks.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-8 text-center">
                                 <CheckCircle size={28} className="text-emerald-400 mb-2" />
-                                <p className="text-sm text-gray-500 dark:text-gray-400">No task deadlines in the next 30 days.</p>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">No pending deadlines.</p>
                             </div>
                         ) : (
-                            <div className="space-y-2.5">
+                            <div className="space-y-2">
                                 {upcomingTasks.map((task: any) => {
                                     const due = new Date(task.plannedEndDate);
-                                    const daysLeft = Math.ceil((due.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-                                    const urgent = daysLeft <= 7;
+                                    due.setHours(0, 0, 0, 0);
+                                    const todayMidnight = new Date(); todayMidnight.setHours(0, 0, 0, 0);
+                                    const daysLeft = Math.ceil((due.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24));
+                                    const overdue = daysLeft < 0;
+                                    const urgent = !overdue && daysLeft <= 7;
+                                    const normalizedPriority = task.priority
+                                        ? (task.priority.charAt(0).toUpperCase() + task.priority.slice(1).toLowerCase())
+                                        : null;
                                     return (
-                                        <div key={task.id} className={`flex items-center gap-3 p-3 rounded-xl border ${urgent ? 'bg-red-50/60 dark:bg-red-900/10 border-red-200/50 dark:border-red-800/30' : 'bg-gray-50/60 dark:bg-gray-800/30 border-gray-100 dark:border-white/5'}`}>
-                                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${urgent ? 'bg-red-100 dark:bg-red-900/30' : 'bg-amber-100 dark:bg-amber-900/20'}`}>
-                                                <Calendar size={13} className={urgent ? 'text-red-500' : 'text-amber-500'} />
+                                        <div key={task.id} className={`flex items-center gap-3 p-3 rounded-xl border ${overdue ? 'bg-red-50/80 dark:bg-red-900/15 border-red-200/60 dark:border-red-700/30' : urgent ? 'bg-amber-50/60 dark:bg-amber-900/10 border-amber-200/50 dark:border-amber-800/30' : 'bg-gray-50/60 dark:bg-gray-800/30 border-gray-100 dark:border-white/5'}`}>
+                                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${overdue ? 'bg-red-100 dark:bg-red-900/40' : urgent ? 'bg-amber-100 dark:bg-amber-900/30' : 'bg-blue-50 dark:bg-blue-900/20'}`}>
+                                                <Calendar size={13} className={overdue ? 'text-red-500' : urgent ? 'text-amber-500' : 'text-blue-500'} />
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 truncate">{task.name}</p>
-                                                {task.priority && (
-                                                    <p className="text-xs font-medium" style={{ color: PRIORITY_COLORS[task.priority] || '#6b7280' }}>{task.priority}</p>
-                                                )}
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                    {normalizedPriority && (
+                                                        <span className="text-[10px] font-medium" style={{ color: PRIORITY_COLORS[normalizedPriority] || '#6b7280' }}>{normalizedPriority}</span>
+                                                    )}
+                                                    <span className="text-[10px] text-gray-400 dark:text-gray-500">{due.toLocaleDateString('default', { month: 'short', day: 'numeric' })}</span>
+                                                </div>
                                             </div>
-                                            <span className={`text-xs font-bold px-2.5 py-1 rounded-lg flex-shrink-0 ${urgent ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' : 'bg-amber-100 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400'}`}>
-                                                {daysLeft === 0 ? 'Today' : daysLeft === 1 ? '1 day' : `${daysLeft} days`}
+                                            <span className={`text-[11px] font-bold px-2 py-1 rounded-lg flex-shrink-0 ${overdue ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' : urgent ? 'bg-amber-100 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400' : 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'}`}>
+                                                {overdue ? `${Math.abs(daysLeft)}d late` : daysLeft === 0 ? 'Today' : daysLeft === 1 ? '1 day' : `${daysLeft}d`}
                                             </span>
                                         </div>
                                     );
