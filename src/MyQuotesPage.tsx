@@ -958,6 +958,25 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                 )}
             </div>
 
+            {/* Color Legend */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mb-4 sm:mb-5 px-0.5">
+                {[
+                    { label: 'Draft',           color: '#9ca3af' },
+                    { label: 'Pending',         color: '#f59e0b' },
+                    { label: 'Responded',       color: '#3b82f6' },
+                    { label: 'In Negotiation',  color: '#8b5cf6' },
+                    { label: 'Client Accepted', color: '#06b6d4' },
+                    { label: 'Admin Accepted',  color: '#14b8a6' },
+                    { label: 'Accepted',        color: '#10b981' },
+                    { label: 'Declined',        color: '#ef4444' },
+                ].map(({ label, color }) => (
+                    <span key={label} className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                        <span className="text-[11px] sm:text-xs text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">{label}</span>
+                    </span>
+                ))}
+            </div>
+
             {/* Bulk Action Bar */}
             {isSelectMode && filteredQuotes.length > 0 && (
                 <div className="sticky top-14 md:top-0 z-20 flex justify-between items-center mb-4 bg-white/80 backdrop-blur-md dark:bg-gray-900/40 p-3 rounded-xl border border-gray-200 dark:border-white/10 animate-fade-in shadow-sm">
