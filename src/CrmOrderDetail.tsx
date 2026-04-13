@@ -574,7 +574,7 @@ const OrderDetailsView: FC<{
                             </div>
                             Products ({products.length})
                         </h3>
-                        <div className="space-y-4">
+                        <div className="space-y-2">
                             {products.map((product, idx) => {
                                 const productTasks = tasks.filter(t => t.productId === product.id);
                                 const completedCount = productTasks.filter(t => t.status === 'COMPLETE').length;
@@ -582,73 +582,60 @@ const OrderDetailsView: FC<{
                                 const totalCount = productTasks.length;
                                 const progress = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
                                 const colorGradient = PRODUCT_COLORS[idx % PRODUCT_COLORS.length];
+                                const overdueCount = productTasks.filter(t => t.status !== 'COMPLETE' && t.plannedEndDate && new Date(t.plannedEndDate) < new Date()).length;
 
                                 return (
                                     <div
                                         key={product.id ?? idx}
                                         onClick={() => onSelectProduct?.(product.id)}
-                                        className="relative p-5 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-500 hover:shadow-lg transition-all duration-300 cursor-pointer group bg-gradient-to-br from-white to-gray-50 dark:from-gray-800/50 dark:to-gray-700/30"
+                                        className="relative flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-100 dark:border-gray-700/60 hover:border-gray-200 dark:hover:border-gray-600 hover:shadow-md transition-all duration-200 cursor-pointer group bg-white dark:bg-gray-800/30"
                                     >
-                                        <div className={`absolute top-0 left-0 w-1.5 h-full rounded-l-xl bg-gradient-to-b ${colorGradient}`} />
-                                        <div className="ml-3">
-                                            <div className="flex items-center justify-between mb-3">
-                                                <div className="flex items-center gap-3 flex-wrap">
-                                                    <h4 className="font-bold text-gray-900 dark:text-white text-base group-hover:text-[#c20c0b] dark:group-hover:text-red-400 transition-colors">
-                                                        {product.name}
-                                                    </h4>
-                                                    {product.quantity != null && (
-                                                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
-                                                            {product.quantity.toLocaleString()} units
-                                                        </span>
-                                                    )}
-                                                    {product.status && (
-                                                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${getOrderStatusColor(product.status)}`}>
-                                                            {product.status}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <div className="flex items-center gap-2 text-gray-400 group-hover:text-[#c20c0b] dark:group-hover:text-red-400 transition-colors flex-shrink-0">
-                                                    <span className="text-xs font-semibold hidden sm:inline">View Details</span>
-                                                    <ArrowRight size={14} />
-                                                </div>
+                                        {/* Left accent bar */}
+                                        <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-xl bg-gradient-to-b ${colorGradient}`} />
+
+                                        {/* Product index badge */}
+                                        <div className={`ml-1 w-7 h-7 rounded-lg bg-gradient-to-br ${colorGradient} flex items-center justify-center flex-shrink-0 shadow-sm`}>
+                                            <span className="text-[11px] font-bold text-white">{idx + 1}</span>
+                                        </div>
+
+                                        {/* Main info */}
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 mb-1.5">
+                                                <span className="font-semibold text-sm text-gray-900 dark:text-white truncate group-hover:text-[#c20c0b] dark:group-hover:text-red-400 transition-colors">
+                                                    {product.name}
+                                                </span>
+                                                {product.status && (
+                                                    <span className={`flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold ${getOrderStatusColor(product.status)}`}>
+                                                        {product.status}
+                                                    </span>
+                                                )}
+                                                {overdueCount > 0 && (
+                                                    <span className="flex-shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400">
+                                                        <AlertCircle size={9} />{overdueCount} late
+                                                    </span>
+                                                )}
                                             </div>
-                                            {/* Progress Bar */}
-                                            <div className="mb-2">
-                                                <div className="flex items-center justify-between mb-1.5">
-                                                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                                                        {completedCount} of {totalCount} tasks complete
-                                                    </span>
-                                                    <span className="text-xs font-bold text-gray-700 dark:text-gray-300">{progress}%</span>
+                                            <div className="flex items-center gap-2">
+                                                <div className="flex-1 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                    <div className={`h-full rounded-full bg-gradient-to-r ${colorGradient} transition-all duration-700 ease-out`} style={{ width: `${progress}%` }} />
                                                 </div>
-                                                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
-                                                    <div
-                                                        className={`h-full rounded-full bg-gradient-to-r ${colorGradient} transition-all duration-700 ease-out`}
-                                                        style={{ width: `${progress}%` }}
-                                                    />
-                                                </div>
-                                            </div>
-                                            {/* Task counts */}
-                                            <div className="flex items-center gap-4 text-xs mt-2">
-                                                {inProgressCount > 0 && (
-                                                    <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
-                                                        <Clock size={12} />
-                                                        {inProgressCount} in progress
-                                                    </span>
-                                                )}
-                                                {completedCount > 0 && (
-                                                    <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                                                        <CheckCircle size={12} />
-                                                        {completedCount} done
-                                                    </span>
-                                                )}
-                                                {totalCount - completedCount - inProgressCount > 0 && (
-                                                    <span className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
-                                                        <AlertCircle size={12} />
-                                                        {totalCount - completedCount - inProgressCount} to do
-                                                    </span>
-                                                )}
+                                                <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 flex-shrink-0 w-7 text-right">{progress}%</span>
                                             </div>
                                         </div>
+
+                                        {/* Right stats */}
+                                        <div className="flex flex-col items-end gap-0.5 flex-shrink-0 text-right">
+                                            {product.quantity != null && (
+                                                <span className="text-[10px] font-medium text-gray-400 dark:text-gray-500">{product.quantity.toLocaleString()} units</span>
+                                            )}
+                                            <span className="text-[10px] text-gray-400 dark:text-gray-500">{completedCount}/{totalCount} done</span>
+                                            {inProgressCount > 0 && (
+                                                <span className="text-[10px] text-blue-500 dark:text-blue-400">{inProgressCount} active</span>
+                                            )}
+                                        </div>
+
+                                        {/* Arrow */}
+                                        <ArrowRight size={14} className="text-gray-300 dark:text-gray-600 group-hover:text-[#c20c0b] transition-colors flex-shrink-0" />
                                     </div>
                                 );
                             })}
@@ -1256,12 +1243,13 @@ Keep it professional and brief. Use bullet points, not paragraphs (except Execut
                     {/* AI Summary button */}
                     <button
                         onClick={generateOrderSummary}
-                        className="flex-shrink-0 w-9 h-9 rounded-full bg-red-50 dark:bg-red-900/20
-                            flex items-center justify-center text-[#c20c0b]
-                            hover:bg-red-100 dark:hover:bg-red-900/30 active:scale-90 transition-all"
+                        className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-red-50 dark:bg-red-900/20
+                            text-[#c20c0b] text-[11px] font-bold
+                            hover:bg-red-100 dark:hover:bg-red-900/30 active:scale-95 transition-all"
                         aria-label="AI Summary"
                     >
-                        <Bot size={17} />
+                        <Bot size={14} />
+                        <span>AI Report</span>
                     </button>
                     {/* Search bar */}
                     <div className="relative flex-shrink-0">
@@ -1384,7 +1372,6 @@ Keep it professional and brief. Use bullet points, not paragraphs (except Execut
                         <TNAView
                             tasks={localOrder.tasks}
                             products={localOrder.products}
-                            onSaveTask={supabase ? handleSaveTNATask : undefined}
                         />
                     )}
                     {activeView === 'Dashboard' && <DashboardView tasks={localOrder.tasks} orderKey={orderId} orderDetails={localOrder} darkMode={darkMode} />}
@@ -1404,22 +1391,19 @@ Keep it professional and brief. Use bullet points, not paragraphs (except Execut
                 const mPct = mTotal > 0 ? Math.round((mCompleted / mTotal) * 100) : 0;
                 return (
                 <div
-                    className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-end sm:items-center justify-center z-[60] sm:p-4 animate-fade-in overflow-hidden"
+                    className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[60] p-4 animate-fade-in overflow-hidden"
                     onClick={() => setIsSummaryModalOpen(false)}
                 >
                     <div
-                        className="bg-white dark:bg-gray-950 rounded-t-3xl sm:rounded-3xl shadow-2xl shadow-red-500/5 w-full sm:max-w-3xl h-[92vh] sm:h-auto sm:max-h-[90vh] flex flex-col relative border border-gray-200 dark:border-white/5 animate-scale-in overflow-hidden"
+                        className="bg-white dark:bg-gray-950 rounded-3xl shadow-2xl shadow-red-500/5 w-full max-w-3xl max-h-[90vh] flex flex-col relative border border-gray-200 dark:border-white/5 animate-scale-in overflow-hidden"
                         onClick={e => e.stopPropagation()}
                     >
-                        {/* Gradient Header */}
-                        <div className="relative flex-shrink-0 bg-gradient-to-br from-[#c20c0b] via-rose-600 to-pink-700 px-4 sm:px-6 py-4 sm:py-6 overflow-hidden">
+                        {/* Solid Dark Red Header */}
+                        <div className="relative flex-shrink-0 bg-[#c20c0b] px-4 sm:px-6 py-4 sm:py-5 overflow-hidden">
                             {/* Decorative elements */}
                             <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full filter blur-3xl -translate-y-1/2 translate-x-1/4" />
                             <div className="absolute bottom-0 left-0 w-48 h-48 bg-black/10 rounded-full filter blur-3xl translate-y-1/2 -translate-x-1/4" />
                             <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iMSIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjA4KSIvPjwvc3ZnPg==')] opacity-60" />
-                            {/* Mobile drag handle */}
-                            <div className="sm:hidden mx-auto w-10 h-1 bg-white/30 rounded-full mb-3" />
-
                             <div className="relative z-10">
                                 <div className="flex items-center justify-between mb-4 sm:mb-5">
                                     <div className="flex items-center gap-3">

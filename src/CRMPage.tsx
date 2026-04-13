@@ -601,20 +601,54 @@ export const DashboardView: FC<{ tasks: any[]; orderKey: string; orderDetails: a
                             </div>
                             Task Status Distribution
                         </h3>
-                        <ResponsiveContainer width="100%" height={220}>
-                            <PieChart>
-                                <Pie
-                                    data={statusData} cx="50%" cy="50%"
-                                    labelLine={false} innerRadius={65} outerRadius={105}
-                                    dataKey="value" nameKey="name"
-                                    label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}
-                                >
-                                    {statusData.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} className="focus:outline-none" />)}
-                                </Pie>
-                                <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: tooltipStyle.color }} />
-                                <Legend />
-                            </PieChart>
-                        </ResponsiveContainer>
+                        {/* Desktop: full pie chart */}
+                        <div className="hidden sm:block">
+                            <ResponsiveContainer width="100%" height={220}>
+                                <PieChart>
+                                    <Pie
+                                        data={statusData} cx="50%" cy="50%"
+                                        labelLine={false} innerRadius={65} outerRadius={105}
+                                        dataKey="value" nameKey="name"
+                                        label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}
+                                    >
+                                        {statusData.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} className="focus:outline-none" />)}
+                                    </Pie>
+                                    <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: tooltipStyle.color }} />
+                                    <Legend />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        </div>
+                        {/* Mobile: compact stacked bar + stat cards */}
+                        <div className="sm:hidden space-y-3">
+                            {/* Segmented bar */}
+                            <div className="flex h-4 rounded-full overflow-hidden">
+                                {statusData.map((item, index) => item.value > 0 && (
+                                    <div key={index} className="transition-all duration-700 flex items-center justify-center"
+                                        style={{ width: `${totalTasks > 0 ? (item.value / totalTasks) * 100 : 0}%`, backgroundColor: COLORS[index % COLORS.length] }}>
+                                        {(item.value / totalTasks) > 0.12 && (
+                                            <span className="text-[9px] font-bold text-white drop-shadow">{Math.round((item.value / totalTasks) * 100)}%</span>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                            {/* Status breakdown cards */}
+                            <div className="grid grid-cols-3 gap-2">
+                                {statusData.map((item, index) => (
+                                    <div key={index} className="rounded-xl p-3 text-center border border-gray-100 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-800/30">
+                                        <div className="w-3 h-3 rounded-full mx-auto mb-1.5" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                                        <p className="text-xl font-bold text-gray-900 dark:text-white">{item.value}</p>
+                                        <p className="text-[10px] text-gray-500 dark:text-gray-400 font-medium leading-tight mt-0.5">
+                                            {item.name === 'IN PROGRESS' ? 'Active' : item.name === 'TO DO' ? 'To Do' : 'Done'}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                            {/* Completion rate */}
+                            <div className="flex items-center justify-between px-1">
+                                <span className="text-xs text-gray-500 dark:text-gray-400">Completion rate</span>
+                                <span className="text-sm font-bold text-gray-800 dark:text-white">{taskRate}%</span>
+                            </div>
+                        </div>
                     </div>
                     <div className="lg:col-span-3 bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 transition-all duration-300 hover:shadow-xl">
                         <h3 className="text-base sm:text-lg font-bold text-gray-800 dark:text-white mb-3 sm:mb-4 flex items-center gap-2">
@@ -944,25 +978,31 @@ export const BoardView: FC<{ tasks: any[] }> = ({ tasks }) => {
         return (
             <div className="mt-4 animate-fade-in">
                 {/* ── Mobile column tabs ── */}
-                <div className="flex sm:hidden gap-1 mb-3 bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
+                <div className="flex sm:hidden gap-1.5 mb-4 bg-gray-100 dark:bg-gray-800 rounded-xl p-1.5">
                     {columnKeys.map(status => {
                         const colors = columnColors[status];
                         const isActive = mobileCol === status;
+                        const label = status === 'IN PROGRESS' ? 'Active' : status === 'TO DO' ? 'To Do' : 'Done';
+                        const icon = status === 'COMPLETE' ? <CheckCircle size={14} />
+                            : status === 'IN PROGRESS' ? <TrendingUp size={14} />
+                            : <List size={14} />;
                         return (
                             <button
                                 key={status}
                                 onClick={() => setMobileCol(status)}
-                                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all ${
+                                className={`flex-1 flex flex-col items-center gap-1 py-2.5 px-1 rounded-xl text-xs font-bold transition-all ${
                                     isActive
-                                        ? `bg-white dark:bg-gray-900 shadow-sm ${colors.badge.split(' ').filter(c => c.startsWith('text-')).join(' ')}`
+                                        ? `bg-white dark:bg-gray-900 shadow-md ${colors.badge.split(' ').filter(c => c.startsWith('text-')).join(' ')}`
                                         : 'text-gray-500 dark:text-gray-400'
                                 }`}
                             >
-                                {status === 'COMPLETE' && <CheckCircle size={13} />}
-                                {status === 'IN PROGRESS' && <TrendingUp size={13} />}
-                                {status === 'TO DO' && <List size={13} />}
-                                <span className="hidden xs:inline">{status === 'IN PROGRESS' ? 'Active' : status === 'TO DO' ? 'To Do' : 'Done'}</span>
-                                <span className={`${colors.badge} text-[10px] font-bold px-1.5 py-0.5 rounded-full`}>{columns[status].length}</span>
+                                <div className="flex items-center gap-1">
+                                    {icon}
+                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isActive ? colors.badge : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'}`}>
+                                        {columns[status].length}
+                                    </span>
+                                </div>
+                                <span className="text-[11px] font-semibold">{label}</span>
                             </button>
                         );
                     })}
@@ -1010,7 +1050,7 @@ export const GanttChartView: FC<{ tasks: any[]; products?: CrmProduct[]; onTaskU
         window.addEventListener('resize', handler);
         return () => window.removeEventListener('resize', handler);
     }, []);
-    const CRN_LEFT_W = isMobile ? 130 : 240;
+    const CRN_LEFT_W = isMobile ? 150 : 240;
     const CRN_ROW_H = 44;
     const CRN_ROW_H_EXP = 112;
     const CRN_GROUP_ROW_H = 36;
@@ -1167,7 +1207,7 @@ export const GanttChartView: FC<{ tasks: any[]; products?: CrmProduct[]; onTaskU
                 <div className="flex items-center gap-1">
                     <span className="hidden sm:inline text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Zoom</span>
                     {(isMobile
-                        ? [['S', 20], ['M', 32], ['L', 44]] as [string, number][]
+                        ? [['S', 20], ['M', 28], ['L', 38]] as [string, number][]
                         : [['S', 24], ['M', 40], ['L', 56], ['XL', 76]] as [string, number][]
                     ).map(([lbl, w]) => (
                         <button key={w} onClick={() => setDayWidth(w)}
@@ -1181,7 +1221,7 @@ export const GanttChartView: FC<{ tasks: any[]; products?: CrmProduct[]; onTaskU
 
                 <button onClick={scrollToToday}
                     className="flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-lg bg-red-50 dark:bg-red-900/20 text-[var(--color-primary)] dark:text-red-400 text-[11px] font-bold hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors">
-                    <CalendarDays size={12} /> <span className="hidden sm:inline">Today</span>
+                    <CalendarDays size={12} /> <span>Today</span>
                 </button>
 
                 <button onClick={() => setExpandedRows(new Set(tasks.map((t: any) => t.id)))}
@@ -1206,6 +1246,27 @@ export const GanttChartView: FC<{ tasks: any[]; products?: CrmProduct[]; onTaskU
                 </div>
             </div>
 
+            {/* ── Mobile legend strip ── */}
+            {isMobile && (
+                <div className="flex items-center justify-between px-3 py-1.5 bg-gray-50/80 dark:bg-white/[0.01] border-b border-gray-100 dark:border-white/5 flex-shrink-0">
+                    <div className="flex items-center gap-3">
+                        {Object.entries(STATUS_CFG).map(([, v]) => (
+                            <div key={v.label} className="flex items-center gap-1">
+                                <div className={`w-2 h-2 rounded-sm ${v.bar}`} />
+                                <span className="text-[9px] text-gray-500 dark:text-gray-400 font-semibold">{v.label}</span>
+                            </div>
+                        ))}
+                        {overdueCount > 0 && (
+                            <div className="flex items-center gap-1">
+                                <AlertTriangle size={9} className="text-red-500" />
+                                <span className="text-[9px] text-red-500 font-semibold">{overdueCount} overdue</span>
+                            </div>
+                        )}
+                    </div>
+                    <span className="text-[9px] text-gray-400 italic">← swipe →</span>
+                </div>
+            )}
+
             {/* ── Main area ── */}
             <div className="flex flex-1 min-h-0 overflow-hidden">
 
@@ -1215,15 +1276,15 @@ export const GanttChartView: FC<{ tasks: any[]; products?: CrmProduct[]; onTaskU
                     style={{ width: CRN_LEFT_W }}>
 
                     {/* Header spacer matches 3 header rows */}
-                    <div className="sticky top-0 z-20 bg-white dark:bg-gray-900">
-                        <div className="h-7 border-b border-gray-100 dark:border-white/5 flex items-center px-2 sm:px-3">
-                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Month</span>
+                    <div className="sticky top-0 z-20 bg-white dark:bg-gray-900 shadow-sm">
+                        <div className="h-7 border-b border-gray-100 dark:border-white/5 flex items-center px-2 sm:px-3 bg-gray-50/80 dark:bg-gray-800/40">
+                            <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">Month</span>
                         </div>
-                        <div className="h-5 border-b border-gray-100 dark:border-white/5 flex items-center px-2 sm:px-3">
+                        <div className="h-5 border-b border-gray-100 dark:border-white/5 flex items-center px-2 sm:px-3 bg-gray-50/50 dark:bg-gray-800/20">
                             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Week</span>
                         </div>
-                        <div className="h-8 border-b-2 border-gray-200 dark:border-white/10 flex items-center px-2 sm:px-3">
-                            <span className="text-xs font-bold text-gray-600 dark:text-gray-300">Task</span>
+                        <div className="h-8 border-b-2 border-gray-200 dark:border-white/10 flex items-center px-2 sm:px-3 bg-white dark:bg-gray-900">
+                            <span className="text-xs font-bold text-gray-700 dark:text-gray-200">Task Name</span>
                         </div>
                     </div>
 
@@ -1482,24 +1543,31 @@ export const GanttChartView: FC<{ tasks: any[]; products?: CrmProduct[]; onTaskU
             </div>
 
             {/* ── Footer ── */}
-            <div className="flex-shrink-0 border-t border-gray-100 dark:border-white/10 px-4 py-2 flex items-center gap-3 text-[11px] text-gray-500 dark:text-gray-400 flex-wrap bg-gray-50/50 dark:bg-white/[0.015]">
+            <div className="flex-shrink-0 border-t border-gray-100 dark:border-white/10 px-3 sm:px-4 py-2 flex items-center gap-2 sm:gap-3 text-[11px] text-gray-500 dark:text-gray-400 flex-wrap bg-gray-50/50 dark:bg-white/[0.015]">
                 <span className="font-semibold text-gray-700 dark:text-gray-300">{tasks.length} tasks</span>
-                <span className="text-gray-300 dark:text-gray-600">·</span>
-                <span className="text-emerald-600 dark:text-emerald-400 font-medium">{completedCount} complete</span>
-                <span className="text-gray-300 dark:text-gray-600">·</span>
-                <span className="text-blue-600 dark:text-blue-400 font-medium">{inProgressCount} in progress</span>
-                <span className="text-gray-300 dark:text-gray-600">·</span>
-                <span className="text-slate-500 dark:text-slate-400 font-medium">{tasks.length - completedCount - inProgressCount} to do</span>
+                <span className="text-gray-300 dark:text-gray-600 hidden sm:inline">·</span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-medium hidden sm:inline">{completedCount} complete</span>
+                <span className="text-gray-300 dark:text-gray-600 hidden sm:inline">·</span>
+                <span className="text-blue-600 dark:text-blue-400 font-medium hidden sm:inline">{inProgressCount} in progress</span>
+                <span className="text-gray-300 dark:text-gray-600 hidden sm:inline">·</span>
+                <span className="text-slate-500 dark:text-slate-400 font-medium hidden sm:inline">{tasks.length - completedCount - inProgressCount} to do</span>
+                {/* Mobile compact summary */}
+                <div className="sm:hidden flex items-center gap-2">
+                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{completedCount}✓</span>
+                    <span className="text-blue-600 dark:text-blue-400 font-semibold">{inProgressCount}▶</span>
+                    <span className="text-gray-500 dark:text-gray-400 font-semibold">{tasks.length - completedCount - inProgressCount}◯</span>
+                </div>
                 {overdueCount > 0 && (
                     <>
-                        <span className="text-gray-300 dark:text-gray-600">·</span>
+                        <span className="text-gray-300 dark:text-gray-600 hidden sm:inline">·</span>
                         <span className="text-red-600 dark:text-red-400 font-semibold flex items-center gap-1">
                             <AlertTriangle size={10} /> {overdueCount} overdue
                         </span>
                     </>
                 )}
                 <div className="flex-1" />
-                <span className="text-gray-400 italic text-[10px]">Click a row to expand details</span>
+                <span className="text-gray-400 italic text-[10px] hidden sm:inline">Click a row to expand details</span>
+                <span className="text-gray-400 italic text-[10px] sm:hidden">Tap row for details</span>
             </div>
         </div>
     );
@@ -1508,10 +1576,11 @@ export const GanttChartView: FC<{ tasks: any[]; products?: CrmProduct[]; onTaskU
 export const TNAView: FC<{
         tasks: any[];
         products?: CrmProduct[];
+        orderName?: string;
         onSaveTask?: (updatedTask: CrmTask) => Promise<void>;
         onSaveBulkTasks?: (tasks: CrmTask[]) => Promise<void>;
         onBuyerConfirm?: (task: CrmTask, confirmed: boolean, reason?: string) => Promise<void>;
-    }> = ({ tasks, products, onSaveTask, onSaveBulkTasks, onBuyerConfirm }) => {
+    }> = ({ tasks, products, orderName, onSaveTask, onSaveBulkTasks, onBuyerConfirm }) => {
         const parseDate = (str: string | null) => str ? new Date(str) : null;
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -1522,6 +1591,7 @@ export const TNAView: FC<{
         const [disputingTaskId, setDisputingTaskId] = useState<number | null>(null);
         const [disputeReason, setDisputeReason] = useState('');
         const [confirmingId, setConfirmingId] = useState<number | null>(null);
+        const [isDownloadingTNA, setIsDownloadingTNA] = useState(false);
 
         // Tasks awaiting buyer confirmation
         const pendingConfirmTasks = useMemo(() => tasks.filter((t: CrmTask) =>
@@ -1669,6 +1739,174 @@ export const TNAView: FC<{
                 console.error(e);
             } finally {
                 setIsSaving(false);
+            }
+        };
+
+        // ── TNA PDF Download ──────────────────────────────
+        const downloadTNAPdf = async () => {
+            setIsDownloadingTNA(true);
+            try {
+                const pdf = new jsPDF('l', 'mm', 'a4'); // landscape for wide table
+                const pageWidth = 297;
+                const pageHeight = 210;
+                const margin = 12;
+                const colWidths = [52, 18, 28, 26, 24, 22, 22, 16, 28, 18, 18]; // Task,Priority,Responsible,PlnStart,PlnEnd,ActStart,ActEnd,Prog,Status,QTY,Delay
+                const headers = ['Task Name', 'Priority', 'Responsible', 'Pl. Start', 'Pl. End', 'Act. Start', 'Act. End', 'Prog%', 'Status', 'QTY', 'Delay'];
+                const rowH = 7;
+                let y = 0;
+
+                const checkPage = (needed: number) => {
+                    if (y + needed > pageHeight - 12) { pdf.addPage(); y = margin; }
+                };
+
+                // Header banner
+                pdf.setFillColor(194, 12, 11);
+                pdf.rect(0, 0, pageWidth, 20, 'F');
+                pdf.setTextColor(255, 255, 255);
+                pdf.setFontSize(14);
+                pdf.setFont('helvetica', 'bold');
+                pdf.text('TNA — Time & Action Plan', margin, 13);
+                pdf.setFontSize(9);
+                pdf.setFont('helvetica', 'normal');
+                pdf.text(orderName || '', pageWidth - margin, 10, { align: 'right' });
+                pdf.text(new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }), pageWidth - margin, 16, { align: 'right' });
+
+                // Progress summary bar
+                const total = tasks.length;
+                const done = tasks.filter(t => t.status === 'COMPLETE').length;
+                const active = tasks.filter(t => t.status === 'IN PROGRESS').length;
+                const overdue = tasks.filter(t => t.status !== 'COMPLETE' && t.plannedEndDate && new Date(t.plannedEndDate) < new Date()).length;
+                const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+
+                y = 24;
+                pdf.setFillColor(245, 245, 245);
+                pdf.roundedRect(margin, y, pageWidth - margin * 2, 10, 2, 2, 'F');
+                pdf.setDrawColor(220, 220, 220);
+                pdf.roundedRect(margin, y, pageWidth - margin * 2, 10, 2, 2, 'S');
+                const bw = pageWidth - margin * 2;
+                if (done > 0) { pdf.setFillColor(16, 185, 129); pdf.rect(margin, y, bw * (done / total), 10, 'F'); }
+                if (active > 0) { pdf.setFillColor(245, 158, 11); pdf.rect(margin + bw * (done / total), y, bw * (active / total), 10, 'F'); }
+                if (overdue > 0) { pdf.setFillColor(239, 68, 68); pdf.rect(margin + bw * ((done + active) / total), y, bw * (overdue / total), 10, 'F'); }
+                pdf.setTextColor(80, 80, 80);
+                pdf.setFontSize(7);
+                pdf.setFont('helvetica', 'bold');
+                pdf.text(`${pct}% Complete  ·  ${done} Done  ·  ${active} Active  ·  ${overdue > 0 ? overdue + ' Overdue' : 'No overdue'}`, margin + 3, y + 6.5);
+
+                y = 38;
+
+                // Group tasks by product
+                const renderSection = (sectionLabel: string, sectionTasks: any[], colorRGB: [number, number, number]) => {
+                    if (sectionTasks.length === 0) return;
+                    checkPage(10 + rowH);
+
+                    // Section header
+                    pdf.setFillColor(...colorRGB);
+                    pdf.roundedRect(margin, y, pageWidth - margin * 2, 7, 1.5, 1.5, 'F');
+                    pdf.setTextColor(255, 255, 255);
+                    pdf.setFontSize(8);
+                    pdf.setFont('helvetica', 'bold');
+                    pdf.text(sectionLabel.toUpperCase(), margin + 3, y + 5);
+                    y += 9;
+
+                    // Column headers
+                    pdf.setFillColor(248, 248, 248);
+                    pdf.rect(margin, y, pageWidth - margin * 2, rowH, 'F');
+                    pdf.setDrawColor(200, 200, 200);
+                    pdf.rect(margin, y, pageWidth - margin * 2, rowH, 'S');
+                    pdf.setTextColor(80, 80, 80);
+                    pdf.setFontSize(6.5);
+                    pdf.setFont('helvetica', 'bold');
+                    let x = margin + 1;
+                    headers.forEach((h, i) => {
+                        pdf.text(h, x + 1, y + 4.5);
+                        x += colWidths[i];
+                    });
+                    y += rowH;
+
+                    // Task rows
+                    sectionTasks.forEach((task, ri) => {
+                        checkPage(rowH);
+                        const statusColors: Record<string, [number, number, number]> = {
+                            'COMPLETE':    [220, 252, 231],
+                            'IN PROGRESS': [255, 237, 213],
+                            'TO DO':       [243, 244, 246],
+                        };
+                        const bg = statusColors[task.status] || statusColors['TO DO'];
+                        pdf.setFillColor(...bg);
+                        pdf.rect(margin, y, pageWidth - margin * 2, rowH, 'F');
+                        pdf.setDrawColor(220, 220, 220);
+                        pdf.rect(margin, y, pageWidth - margin * 2, rowH, 'S');
+
+                        const plannedEnd = task.plannedEndDate ? new Date(task.plannedEndDate) : null;
+                        const isOverdue = task.status !== 'COMPLETE' && plannedEnd && plannedEnd < new Date();
+                        const prog = task.status === 'COMPLETE' ? 100 : (task.progress || 0);
+                        let delayStr = '—';
+                        if (task.status === 'COMPLETE' && task.actualEndDate && task.plannedEndDate) {
+                            const d = Math.ceil((new Date(task.actualEndDate).getTime() - new Date(task.plannedEndDate).getTime()) / 86400000);
+                            if (d > 0) delayStr = `+${d}d`;
+                        } else if (isOverdue && plannedEnd) {
+                            const d = Math.ceil((new Date().getTime() - plannedEnd.getTime()) / 86400000);
+                            delayStr = `+${d}d`;
+                        }
+
+                        pdf.setFontSize(7);
+                        pdf.setFont('helvetica', 'normal');
+                        const row = [
+                            task.name || '—', task.priority || '—', task.responsible || '—',
+                            task.plannedStartDate || '—', task.plannedEndDate || '—',
+                            task.actualStartDate || '—', task.actualEndDate || '—',
+                            `${prog}%`, task.status,
+                            task.quantity != null ? String(task.quantity) : '—', delayStr,
+                        ];
+                        x = margin + 1;
+                        row.forEach((val, i) => {
+                            const color: [number, number, number] = i === 8 && task.status === 'COMPLETE' ? [22, 163, 74]
+                                : i === 10 && delayStr !== '—' ? [220, 38, 38]
+                                : [50, 50, 50];
+                            pdf.setTextColor(...color);
+                            if (i === 8 || i === 10) pdf.setFont('helvetica', 'bold'); else pdf.setFont('helvetica', 'normal');
+                            const truncated = pdf.splitTextToSize(String(val), colWidths[i] - 2)[0] || '';
+                            pdf.text(truncated, x + 1, y + 4.5);
+                            x += colWidths[i];
+                        });
+                        y += rowH;
+                    });
+                    y += 4;
+                };
+
+                const productColors: [number, number, number][] = [
+                    [59, 130, 246], [139, 92, 246], [16, 185, 129],
+                    [245, 158, 11], [239, 68, 68], [99, 102, 241],
+                ];
+
+                if (!products || products.length === 0) {
+                    renderSection('All Tasks', tasks, [100, 100, 100]);
+                } else {
+                    products.forEach((p, i) => {
+                        const pt = tasks.filter(t => t.productId === p.id);
+                        renderSection(p.name, pt, productColors[i % productColors.length]);
+                    });
+                    const unassigned = tasks.filter(t => !products.find(p => p.id === t.productId));
+                    if (unassigned.length) renderSection('Unassigned Tasks', unassigned, [107, 114, 128]);
+                }
+
+                // Footer
+                const pages = pdf.getNumberOfPages();
+                for (let i = 1; i <= pages; i++) {
+                    pdf.setPage(i);
+                    pdf.setDrawColor(220, 220, 220);
+                    pdf.line(margin, pageHeight - 8, pageWidth - margin, pageHeight - 8);
+                    pdf.setFontSize(7); pdf.setTextColor(160, 160, 160);
+                    pdf.text('TNA Report — Auctave', margin, pageHeight - 4);
+                    pdf.text(`Page ${i} of ${pages}`, pageWidth - margin, pageHeight - 4, { align: 'right' });
+                }
+
+                const fileName = `TNA-${(orderName || 'Order').replace(/\s+/g, '-')}-${new Date().toISOString().slice(0, 10)}.pdf`;
+                pdf.save(fileName);
+            } catch (err) {
+                console.error('TNA PDF download failed:', err);
+            } finally {
+                setIsDownloadingTNA(false);
             }
         };
 
@@ -1837,51 +2075,94 @@ export const TNAView: FC<{
             };
             const isOverdue = delayInfo.status === 'at-risk' || delayInfo.status === 'delayed';
             return (
-                <div className={`px-4 py-3 flex flex-col gap-2 ${isOverdue ? 'bg-red-50/30 dark:bg-red-900/10' : ''}`}>
-                    <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                            <span className="font-semibold text-sm text-gray-900 dark:text-white truncate">{task.name}</span>
-                            {task.requiresDocument && !task.documentUrl && <Paperclip size={12} className="text-orange-400 flex-shrink-0" />}
+                <div className={`mx-3 mb-2 rounded-xl border ${isOverdue ? 'border-red-200 dark:border-red-800/40 bg-red-50/40 dark:bg-red-900/10' : 'border-gray-100 dark:border-gray-700/60 bg-white dark:bg-gray-800/30'} overflow-hidden shadow-sm`}>
+                    {/* Top row: name + status + edit */}
+                    <div className="flex items-start justify-between gap-2 px-3 pt-3 pb-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                            <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1 ${task.status === 'COMPLETE' ? 'bg-green-500' : task.status === 'IN PROGRESS' ? 'bg-blue-500' : 'bg-gray-400'}`} />
+                            <span className="font-semibold text-sm text-gray-900 dark:text-white leading-snug">{task.name}</span>
+                            {task.requiresDocument && !task.documentUrl && <Paperclip size={11} className="text-orange-400 flex-shrink-0" />}
                             {task.requiresBuyerConfirmation && task.status === 'COMPLETE' && (
-                                task.buyerConfirmedAt ? <ThumbsUp size={12} className="text-green-500 flex-shrink-0" />
-                                : task.buyerDisputed ? <ThumbsDown size={12} className="text-red-500 flex-shrink-0" />
-                                : <AlertCircle size={12} className="text-yellow-400 flex-shrink-0 animate-pulse" />
+                                task.buyerConfirmedAt ? <ThumbsUp size={11} className="text-green-500 flex-shrink-0" />
+                                : task.buyerDisputed ? <ThumbsDown size={11} className="text-red-500 flex-shrink-0" />
+                                : <AlertCircle size={11} className="text-yellow-400 flex-shrink-0 animate-pulse" />
                             )}
                         </div>
                         <div className="flex items-center gap-1.5 flex-shrink-0">
-                            {isOverdue && <AlertTriangle size={13} className="text-red-500" />}
+                            {isOverdue && <AlertTriangle size={12} className="text-red-500" />}
                             <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${statusColors[task.status] || statusColors['TO DO']}`}>{task.status}</span>
                             {onEdit && (
-                                <button onClick={onEdit} className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all">
-                                    <Pencil size={13} />
+                                <button onClick={onEdit} className="p-1 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all">
+                                    <Pencil size={12} />
                                 </button>
                             )}
                         </div>
                     </div>
-                    {/* Progress */}
-                    <div className="flex items-center gap-2">
-                        <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                            <div className={`h-full rounded-full transition-all duration-500 ${progress === 100 ? 'bg-green-500' : progress > 50 ? 'bg-blue-500' : 'bg-amber-500'}`} style={{ width: `${progress}%` }} />
+
+                    {/* Progress bar */}
+                    <div className="px-3 pb-2">
+                        <div className="flex items-center gap-2">
+                            <div className="flex-1 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                                <div className={`h-full rounded-full transition-all duration-500 ${progress === 100 ? 'bg-green-500' : progress > 50 ? 'bg-blue-500' : 'bg-amber-500'}`} style={{ width: `${progress}%` }} />
+                            </div>
+                            <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 w-7 text-right">{progress}%</span>
                         </div>
-                        <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 w-7 text-right">{progress}%</span>
                     </div>
-                    {/* Meta row */}
-                    <div className="flex items-center gap-3 flex-wrap">
+
+                    {/* Field grid */}
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 px-3 pb-3 border-t border-gray-100 dark:border-gray-700/50 pt-2">
                         {task.priority && (
-                            <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold ${priorityColors[task.priority] || priorityColors['Medium']}`}>
-                                <Flag size={9} /> {task.priority}
-                            </span>
-                        )}
-                        {task.plannedEndDate && (
-                            <span className={`text-[10px] flex items-center gap-1 ${isOverdue ? 'text-red-500 font-semibold' : 'text-gray-500 dark:text-gray-400'}`}>
-                                <Calendar size={10} /> {task.plannedEndDate}
-                                {delayInfo.days > 0 && <span className="text-red-500 font-bold">+{delayInfo.days}d</span>}
-                            </span>
+                            <div>
+                                <p className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-0.5">Priority</p>
+                                <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold ${priorityColors[task.priority] || priorityColors['Medium']}`}>
+                                    <Flag size={8} /> {task.priority}
+                                </span>
+                            </div>
                         )}
                         {task.responsible && (
-                            <span className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                                <User size={10} /> {task.responsible}
-                            </span>
+                            <div>
+                                <p className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-0.5">Responsible</p>
+                                <span className="text-[11px] text-gray-700 dark:text-gray-300 flex items-center gap-1">
+                                    <User size={9} className="text-gray-400 flex-shrink-0" /> {task.responsible}
+                                </span>
+                            </div>
+                        )}
+                        {task.plannedStartDate && (
+                            <div>
+                                <p className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-0.5">Pl. Start</p>
+                                <span className="text-[11px] text-gray-600 dark:text-gray-300">{task.plannedStartDate}</span>
+                            </div>
+                        )}
+                        {task.plannedEndDate && (
+                            <div>
+                                <p className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-0.5">Pl. End</p>
+                                <span className={`text-[11px] font-medium ${isOverdue ? 'text-red-500' : 'text-gray-600 dark:text-gray-300'}`}>
+                                    {task.plannedEndDate}
+                                    {delayInfo.days > 0 && <span className="ml-1 text-[10px] text-red-500 font-bold">+{delayInfo.days}d</span>}
+                                </span>
+                            </div>
+                        )}
+                        {(task.actualStartDate || task.actualEndDate) && (
+                            <>
+                                {task.actualStartDate && (
+                                    <div>
+                                        <p className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-0.5">Act. Start</p>
+                                        <span className="text-[11px] text-gray-600 dark:text-gray-300">{task.actualStartDate}</span>
+                                    </div>
+                                )}
+                                {task.actualEndDate && (
+                                    <div>
+                                        <p className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-0.5">Act. End</p>
+                                        <span className="text-[11px] text-gray-600 dark:text-gray-300">{task.actualEndDate}</span>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                        {task.quantity != null && (
+                            <div>
+                                <p className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-0.5">Quantity</p>
+                                <span className="text-[11px] text-gray-600 dark:text-gray-300">{task.quantity.toLocaleString()} units</span>
+                            </div>
                         )}
                     </div>
                 </div>
@@ -1890,6 +2171,20 @@ export const TNAView: FC<{
 
         return (
             <div className="mt-4 sm:mt-6 space-y-3 animate-fade-in">
+                {/* ── Download TNA PDF Button ───────────────────── */}
+                <div className="flex items-center justify-end">
+                    <button
+                        onClick={downloadTNAPdf}
+                        disabled={isDownloadingTNA || tasks.length === 0}
+                        className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 text-sm font-semibold rounded-xl hover:border-[#c20c0b]/40 hover:text-[#c20c0b] dark:hover:text-red-400 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {isDownloadingTNA
+                            ? <RefreshCw size={14} className="animate-spin" />
+                            : <Download size={14} />}
+                        {isDownloadingTNA ? 'Exporting...' : 'Download TNA PDF'}
+                    </button>
+                </div>
+
                 {/* ── Buyer Confirmation Panel ──────────────────── */}
                 {onBuyerConfirm && pendingConfirmTasks.length > 0 && (
                     <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-xl p-4 space-y-3">
@@ -2075,12 +2370,12 @@ export const TNAView: FC<{
                                     <>
                                     {/* ── Mobile: card list (read-only) ── */}
                                     {!isEditMode && (
-                                        <div className="sm:hidden divide-y divide-gray-100 dark:divide-gray-800">
+                                        <div className="sm:hidden py-3 space-y-0">
                                             {(isMultiProduct
                                                 ? categoryProducts.flatMap(product => {
                                                     const productTasks = groupTasks.filter((t: any) => t.productId === product.id);
                                                     return [
-                                                        <div key={`ph-${product.id}`} className="px-4 py-2 bg-gray-50/80 dark:bg-gray-800/60 flex items-center gap-2">
+                                                        <div key={`ph-${product.id}`} className="mx-3 mb-2 px-3 py-2 bg-gray-50 dark:bg-gray-800/60 rounded-lg border border-gray-100 dark:border-gray-700/50 flex items-center gap-2">
                                                             <span className="text-xs font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wide">{product.name}</span>
                                                             {product.quantity ? <span className="text-[10px] text-gray-400">{product.quantity.toLocaleString()} units</span> : null}
                                                         </div>,
