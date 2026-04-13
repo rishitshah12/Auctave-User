@@ -749,6 +749,56 @@ export const ListView: FC<{ tasks: any[] }> = ({ tasks }) => {
         }
         const totals = calculateTotals(completedTasks);
 
+        const priorityColors: Record<string, string> = {
+            'Urgent': 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400',
+            'High': 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400',
+            'Medium': 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400',
+            'Low': 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400',
+        };
+
+        // Mobile card for a single task
+        const MobileTaskCard: FC<{ task: any }> = ({ task }) => {
+            const progress = task.status === 'COMPLETE' ? 100 : (task.progress || 0);
+            const statusColors: Record<string, string> = {
+                'COMPLETE': 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
+                'IN PROGRESS': 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400',
+                'TO DO': 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300',
+            };
+            return (
+                <div className="bg-white dark:bg-gray-900/40 rounded-xl border border-gray-200 dark:border-white/10 p-3.5 shadow-sm">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                            <CheckCircle size={16} className={`flex-shrink-0 ${task.status === 'COMPLETE' ? 'text-green-500' : 'text-gray-300 dark:text-gray-600'}`} />
+                            <span className="font-semibold text-sm text-gray-900 dark:text-white truncate">{task.name}</span>
+                        </div>
+                        <span className={`flex-shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold ${statusColors[task.status] || statusColors['TO DO']}`}>{task.status}</span>
+                    </div>
+                    {/* Progress bar */}
+                    <div className="flex items-center gap-2 mb-2">
+                        <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full transition-all duration-500 ${progress === 100 ? 'bg-green-500' : progress > 50 ? 'bg-blue-500' : 'bg-amber-500'}`} style={{ width: `${progress}%` }} />
+                        </div>
+                        <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 w-7 text-right">{progress}%</span>
+                    </div>
+                    <div className="flex items-center gap-3 flex-wrap">
+                        {task.priority && (
+                            <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold ${priorityColors[task.priority] || priorityColors['Medium']}`}>
+                                <Flag size={9} /> {task.priority}
+                            </span>
+                        )}
+                        {task.plannedEndDate && (
+                            <span className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                                <Clock size={10} /> {task.plannedEndDate}
+                            </span>
+                        )}
+                        {task.quantity != null && (
+                            <span className="text-[10px] text-gray-500 dark:text-gray-400">{task.quantity.toLocaleString()} units</span>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
         const TaskGroup: FC<{ title: string; tasks: any[]; showTotals?: boolean; totalsData?: any }> = ({ title, tasks, showTotals, totalsData }) => {
             const isCompletedGroup = title === 'COMPLETE';
             const groupHeaderColor = isCompletedGroup ? 'text-green-600 dark:text-green-400' : title === 'IN PROGRESS' ? 'text-orange-600 dark:text-orange-400' : 'text-gray-600 dark:text-gray-400';
@@ -760,7 +810,18 @@ export const ListView: FC<{ tasks: any[] }> = ({ tasks }) => {
                         <span className={`mr-2 ${groupHeaderColor}`}>{title}</span>
                         <span className={`${badgeColor} text-xs font-bold px-2.5 py-1 rounded-full shadow-sm`}>{tasks.length}</span>
                     </div>
-                    <div className="overflow-x-auto bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10">
+                    {/* Mobile: card list */}
+                    <div className="sm:hidden space-y-2">
+                        {tasks.map(task => <MobileTaskCard key={task.id} task={task} />)}
+                        {showTotals && totalsData.qty > 0 && (
+                            <div className="flex justify-between items-center px-3 py-2 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-bold">
+                                <span className="text-gray-700 dark:text-gray-200">Total Qty</span>
+                                <span className="text-gray-900 dark:text-white">{totalsData.qty.toLocaleString()}</span>
+                            </div>
+                        )}
+                    </div>
+                    {/* Desktop: table */}
+                    <div className="hidden sm:block overflow-x-auto bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10">
                         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
                             <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50">
                                 <tr>
@@ -771,12 +832,6 @@ export const ListView: FC<{ tasks: any[] }> = ({ tasks }) => {
                             </thead>
                             <tbody className="bg-white dark:bg-gray-900/40 divide-y divide-gray-100 dark:divide-gray-800">
                                 {tasks.map(task => {
-                                    const priorityColors: Record<string, string> = {
-                                        'Urgent': 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400',
-                                        'High': 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400',
-                                        'Medium': 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400',
-                                        'Low': 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400',
-                                    };
                                     const progress = task.status === 'COMPLETE' ? 100 : (task.progress || 0);
                                     return (
                                         <tr key={task.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors duration-200">
@@ -820,7 +875,7 @@ export const ListView: FC<{ tasks: any[] }> = ({ tasks }) => {
         }
 
         return (
-            <div className="mt-6 animate-fade-in">
+            <div className="mt-4 sm:mt-6 animate-fade-in">
                 {todoTasks.length > 0 && <TaskGroup title="TO DO" tasks={todoTasks} />}
                 {inProgressTasks.length > 0 && <TaskGroup title="IN PROGRESS" tasks={inProgressTasks} />}
                 <TaskGroup title="COMPLETE" tasks={completedTasks} showTotals={true} totalsData={totals} />
@@ -882,33 +937,80 @@ export const BoardView: FC<{ tasks: any[] }> = ({ tasks }) => {
             );
         }
 
+        // Mobile: tab-based column switcher
+        const [mobileCol, setMobileCol] = useState<string>('TO DO');
+        const columnKeys = Object.keys(columns);
+
         return (
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-5 animate-fade-in">
-                {Object.entries(columns).map(([status, tasksInColumn]) => {
-                    const colors = columnColors[status];
-                    return (
-                        <div key={status} className={`${colors.bg} p-4 rounded-2xl border ${colors.border} shadow-lg`}>
-                            <h3 className="flex items-center justify-between text-sm font-bold mb-4 px-1 text-gray-800 dark:text-white">
-                                <span className="flex items-center gap-2">
-                                    {status === 'COMPLETE' && <CheckCircle size={16} className="text-green-600 dark:text-green-400" />}
-                                    {status === 'IN PROGRESS' && <TrendingUp size={16} className="text-orange-600 dark:text-orange-400" />}
-                                    {status === 'TO DO' && <List size={16} className="text-gray-600 dark:text-gray-400" />}
-                                    {status}
-                                </span>
-                                <span className={`${colors.badge} text-xs font-bold px-2.5 py-1 rounded-full shadow-sm`}>{tasksInColumn.length}</span>
-                            </h3>
-                            <div className="space-y-3">
-                                {tasksInColumn.map(task => <TaskCard key={task.id} task={task} />)}
+            <div className="mt-4 animate-fade-in">
+                {/* ── Mobile column tabs ── */}
+                <div className="flex sm:hidden gap-1 mb-3 bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
+                    {columnKeys.map(status => {
+                        const colors = columnColors[status];
+                        const isActive = mobileCol === status;
+                        return (
+                            <button
+                                key={status}
+                                onClick={() => setMobileCol(status)}
+                                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all ${
+                                    isActive
+                                        ? `bg-white dark:bg-gray-900 shadow-sm ${colors.badge.split(' ').filter(c => c.startsWith('text-')).join(' ')}`
+                                        : 'text-gray-500 dark:text-gray-400'
+                                }`}
+                            >
+                                {status === 'COMPLETE' && <CheckCircle size={13} />}
+                                {status === 'IN PROGRESS' && <TrendingUp size={13} />}
+                                {status === 'TO DO' && <List size={13} />}
+                                <span className="hidden xs:inline">{status === 'IN PROGRESS' ? 'Active' : status === 'TO DO' ? 'To Do' : 'Done'}</span>
+                                <span className={`${colors.badge} text-[10px] font-bold px-1.5 py-0.5 rounded-full`}>{columns[status].length}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+
+                {/* ── Mobile: single column ── */}
+                <div className="sm:hidden space-y-3">
+                    {columns[mobileCol].length === 0 ? (
+                        <p className="text-center text-sm text-gray-400 dark:text-gray-500 py-8">No tasks here</p>
+                    ) : (
+                        columns[mobileCol].map(task => <TaskCard key={task.id} task={task} />)
+                    )}
+                </div>
+
+                {/* ── Desktop: 3-column grid ── */}
+                <div className="hidden sm:grid grid-cols-3 gap-5">
+                    {Object.entries(columns).map(([status, tasksInColumn]) => {
+                        const colors = columnColors[status];
+                        return (
+                            <div key={status} className={`${colors.bg} p-4 rounded-2xl border ${colors.border} shadow-lg`}>
+                                <h3 className="flex items-center justify-between text-sm font-bold mb-4 px-1 text-gray-800 dark:text-white">
+                                    <span className="flex items-center gap-2">
+                                        {status === 'COMPLETE' && <CheckCircle size={16} className="text-green-600 dark:text-green-400" />}
+                                        {status === 'IN PROGRESS' && <TrendingUp size={16} className="text-orange-600 dark:text-orange-400" />}
+                                        {status === 'TO DO' && <List size={16} className="text-gray-600 dark:text-gray-400" />}
+                                        {status}
+                                    </span>
+                                    <span className={`${colors.badge} text-xs font-bold px-2.5 py-1 rounded-full shadow-sm`}>{tasksInColumn.length}</span>
+                                </h3>
+                                <div className="space-y-3">
+                                    {tasksInColumn.map(task => <TaskCard key={task.id} task={task} />)}
+                                </div>
                             </div>
-                        </div>
-                    );
-                })}
+                        );
+                    })}
+                </div>
             </div>
         )
     }
 
 export const GanttChartView: FC<{ tasks: any[]; products?: CrmProduct[]; onTaskUpdate?: (taskId: number, newStart: string, newEnd: string) => void }> = ({ tasks, products }) => {
-    const CRN_LEFT_W = 240;
+    const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 640);
+    useEffect(() => {
+        const handler = () => setIsMobile(window.innerWidth < 640);
+        window.addEventListener('resize', handler);
+        return () => window.removeEventListener('resize', handler);
+    }, []);
+    const CRN_LEFT_W = isMobile ? 130 : 240;
     const CRN_ROW_H = 44;
     const CRN_ROW_H_EXP = 112;
     const CRN_GROUP_ROW_H = 36;
@@ -1042,18 +1144,18 @@ export const GanttChartView: FC<{ tasks: any[]; products?: CrmProduct[]; onTaskU
     }
 
     return (
-        <div className="mt-6 animate-fade-in flex flex-col bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden" style={{ height: 'calc(100vh - 300px)', minHeight: 380 }}>
+        <div className="mt-4 sm:mt-6 animate-fade-in flex flex-col bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden" style={{ height: isMobile ? 'calc(100vh - 220px)' : 'calc(100vh - 300px)', minHeight: 320 }}>
 
             {/* ── Toolbar ── */}
-            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-gray-100 dark:border-white/10 flex-shrink-0 flex-wrap bg-gray-50/60 dark:bg-white/[0.02]">
-                <GanttChartSquare size={15} className="text-[var(--color-primary)]" />
-                <span className="text-sm font-bold text-gray-700 dark:text-gray-200">Timeline</span>
+            <div className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 border-b border-gray-100 dark:border-white/10 flex-shrink-0 flex-wrap bg-gray-50/60 dark:bg-white/[0.02]">
+                <GanttChartSquare size={14} className="text-[var(--color-primary)]" />
+                <span className="text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-200">Timeline</span>
 
                 <div className="h-4 w-px bg-gray-200 dark:bg-white/10" />
 
                 {/* Progress pill */}
-                <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 shadow-sm">
-                    <div className="w-16 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div className="flex items-center gap-2 px-2 sm:px-3 py-1 rounded-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 shadow-sm">
+                    <div className="w-12 sm:w-16 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                         <div className="h-full bg-gradient-to-r from-[var(--color-primary)] to-red-500 rounded-full transition-all" style={{ width: `${overallPct}%` }} />
                     </div>
                     <span className="text-[11px] font-bold text-gray-600 dark:text-gray-300">{overallPct}%</span>
@@ -1063,8 +1165,11 @@ export const GanttChartView: FC<{ tasks: any[]; products?: CrmProduct[]; onTaskU
 
                 {/* Zoom */}
                 <div className="flex items-center gap-1">
-                    <span className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Zoom</span>
-                    {([['S', 24], ['M', 40], ['L', 56], ['XL', 76]] as [string, number][]).map(([lbl, w]) => (
+                    <span className="hidden sm:inline text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Zoom</span>
+                    {(isMobile
+                        ? [['S', 20], ['M', 32], ['L', 44]] as [string, number][]
+                        : [['S', 24], ['M', 40], ['L', 56], ['XL', 76]] as [string, number][]
+                    ).map(([lbl, w]) => (
                         <button key={w} onClick={() => setDayWidth(w)}
                             className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-colors ${dayWidth === w ? 'bg-[var(--color-primary)] text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>
                             {lbl}
@@ -1075,16 +1180,16 @@ export const GanttChartView: FC<{ tasks: any[]; products?: CrmProduct[]; onTaskU
                 <div className="h-4 w-px bg-gray-200 dark:bg-white/10" />
 
                 <button onClick={scrollToToday}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-50 dark:bg-red-900/20 text-[var(--color-primary)] dark:text-red-400 text-[11px] font-bold hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors">
-                    <CalendarDays size={12} /> Today
+                    className="flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-lg bg-red-50 dark:bg-red-900/20 text-[var(--color-primary)] dark:text-red-400 text-[11px] font-bold hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors">
+                    <CalendarDays size={12} /> <span className="hidden sm:inline">Today</span>
                 </button>
 
                 <button onClick={() => setExpandedRows(new Set(tasks.map((t: any) => t.id)))}
-                    className="text-[11px] text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors font-medium">
+                    className="hidden sm:block text-[11px] text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors font-medium">
                     Expand All
                 </button>
                 <button onClick={() => setExpandedRows(new Set())}
-                    className="text-[11px] text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors font-medium">
+                    className="hidden sm:block text-[11px] text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors font-medium">
                     Collapse
                 </button>
 
@@ -1111,13 +1216,13 @@ export const GanttChartView: FC<{ tasks: any[]; products?: CrmProduct[]; onTaskU
 
                     {/* Header spacer matches 3 header rows */}
                     <div className="sticky top-0 z-20 bg-white dark:bg-gray-900">
-                        <div className="h-7 border-b border-gray-100 dark:border-white/5 flex items-center px-3">
+                        <div className="h-7 border-b border-gray-100 dark:border-white/5 flex items-center px-2 sm:px-3">
                             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Month</span>
                         </div>
-                        <div className="h-5 border-b border-gray-100 dark:border-white/5 flex items-center px-3">
+                        <div className="h-5 border-b border-gray-100 dark:border-white/5 flex items-center px-2 sm:px-3">
                             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Week</span>
                         </div>
-                        <div className="h-8 border-b-2 border-gray-200 dark:border-white/10 flex items-center px-3">
+                        <div className="h-8 border-b-2 border-gray-200 dark:border-white/10 flex items-center px-2 sm:px-3">
                             <span className="text-xs font-bold text-gray-600 dark:text-gray-300">Task</span>
                         </div>
                     </div>
@@ -1127,11 +1232,11 @@ export const GanttChartView: FC<{ tasks: any[]; products?: CrmProduct[]; onTaskU
                         if (row.type === 'group') {
                             return (
                                 <div key={`g-${row.key}`}
-                                    className="flex items-center gap-2 px-3 bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-white/10 select-none"
+                                    className="flex items-center gap-1.5 px-2 bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-white/10 select-none"
                                     style={{ height: CRN_GROUP_ROW_H }}>
-                                    <Package size={12} className="text-[var(--color-primary)] flex-shrink-0" />
-                                    <span className="text-xs font-bold text-gray-700 dark:text-gray-200 truncate flex-1">{row.label}</span>
-                                    <span className="text-[10px] text-gray-400 bg-gray-200 dark:bg-gray-700 rounded-full px-1.5 py-0.5 font-semibold">{row.count}</span>
+                                    <Package size={11} className="text-[var(--color-primary)] flex-shrink-0" />
+                                    <span className="text-[11px] font-bold text-gray-700 dark:text-gray-200 truncate flex-1">{row.label}</span>
+                                    <span className="text-[10px] text-gray-400 bg-gray-200 dark:bg-gray-700 rounded-full px-1 py-0.5 font-semibold">{row.count}</span>
                                 </div>
                             );
                         }
@@ -1146,13 +1251,13 @@ export const GanttChartView: FC<{ tasks: any[]; products?: CrmProduct[]; onTaskU
                                 style={{ height: expanded ? CRN_ROW_H_EXP : CRN_ROW_H }}>
 
                                 {/* Main row */}
-                                <div className="flex items-center gap-2 px-3 cursor-pointer hover:bg-gray-50/80 dark:hover:bg-white/[0.03] transition-colors select-none flex-shrink-0"
+                                <div className="flex items-center gap-1.5 px-2 cursor-pointer hover:bg-gray-50/80 dark:hover:bg-white/[0.03] transition-colors select-none flex-shrink-0"
                                     style={{ height: CRN_ROW_H }}
                                     onClick={() => setExpandedRows(prev => {
                                         const n = new Set(prev); n.has(task.id) ? n.delete(task.id) : n.add(task.id); return n;
                                     })}>
                                     <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${cfg.dot}`} />
-                                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-200 truncate flex-1 leading-tight">{task.name}</span>
+                                    <span className="text-[11px] font-semibold text-gray-700 dark:text-gray-200 truncate flex-1 leading-tight">{task.name}</span>
                                     {overdue && <AlertTriangle size={10} className="text-red-500 flex-shrink-0" />}
                                     {task.status === 'COMPLETE' && <CheckCircle size={10} className="text-emerald-500 flex-shrink-0" />}
                                     {expanded ? <ChevronUp size={10} className="text-gray-400 flex-shrink-0" /> : <ChevronDown size={10} className="text-gray-300 dark:text-gray-600 flex-shrink-0" />}
@@ -1721,8 +1826,70 @@ export const TNAView: FC<{
             );
         });
 
+        // ── Mobile TNA task card ─────────────────────────────
+        const MobileTNATaskCard: FC<{ task: any; onEdit?: () => void }> = ({ task, onEdit }) => {
+            const delayInfo = calculateDelay(task);
+            const progress = task.status === 'COMPLETE' ? 100 : (task.progress || 0);
+            const statusColors: Record<string, string> = {
+                'COMPLETE': 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
+                'IN PROGRESS': 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
+                'TO DO': 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300',
+            };
+            const isOverdue = delayInfo.status === 'at-risk' || delayInfo.status === 'delayed';
+            return (
+                <div className={`px-4 py-3 flex flex-col gap-2 ${isOverdue ? 'bg-red-50/30 dark:bg-red-900/10' : ''}`}>
+                    <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                            <span className="font-semibold text-sm text-gray-900 dark:text-white truncate">{task.name}</span>
+                            {task.requiresDocument && !task.documentUrl && <Paperclip size={12} className="text-orange-400 flex-shrink-0" />}
+                            {task.requiresBuyerConfirmation && task.status === 'COMPLETE' && (
+                                task.buyerConfirmedAt ? <ThumbsUp size={12} className="text-green-500 flex-shrink-0" />
+                                : task.buyerDisputed ? <ThumbsDown size={12} className="text-red-500 flex-shrink-0" />
+                                : <AlertCircle size={12} className="text-yellow-400 flex-shrink-0 animate-pulse" />
+                            )}
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                            {isOverdue && <AlertTriangle size={13} className="text-red-500" />}
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${statusColors[task.status] || statusColors['TO DO']}`}>{task.status}</span>
+                            {onEdit && (
+                                <button onClick={onEdit} className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all">
+                                    <Pencil size={13} />
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                    {/* Progress */}
+                    <div className="flex items-center gap-2">
+                        <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full transition-all duration-500 ${progress === 100 ? 'bg-green-500' : progress > 50 ? 'bg-blue-500' : 'bg-amber-500'}`} style={{ width: `${progress}%` }} />
+                        </div>
+                        <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 w-7 text-right">{progress}%</span>
+                    </div>
+                    {/* Meta row */}
+                    <div className="flex items-center gap-3 flex-wrap">
+                        {task.priority && (
+                            <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold ${priorityColors[task.priority] || priorityColors['Medium']}`}>
+                                <Flag size={9} /> {task.priority}
+                            </span>
+                        )}
+                        {task.plannedEndDate && (
+                            <span className={`text-[10px] flex items-center gap-1 ${isOverdue ? 'text-red-500 font-semibold' : 'text-gray-500 dark:text-gray-400'}`}>
+                                <Calendar size={10} /> {task.plannedEndDate}
+                                {delayInfo.days > 0 && <span className="text-red-500 font-bold">+{delayInfo.days}d</span>}
+                            </span>
+                        )}
+                        {task.responsible && (
+                            <span className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                                <User size={10} /> {task.responsible}
+                            </span>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
         return (
-            <div className="mt-6 space-y-3 animate-fade-in">
+            <div className="mt-4 sm:mt-6 space-y-3 animate-fade-in">
                 {/* ── Buyer Confirmation Panel ──────────────────── */}
                 {onBuyerConfirm && pendingConfirmTasks.length > 0 && (
                     <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-xl p-4 space-y-3">
@@ -1905,7 +2072,31 @@ export const TNAView: FC<{
                             {/* Task Table */}
                             {!isCollapsed && (
                                 groupTasks.length > 0 || isEditMode ? (
-                                    <div className="overflow-x-auto">
+                                    <>
+                                    {/* ── Mobile: card list (read-only) ── */}
+                                    {!isEditMode && (
+                                        <div className="sm:hidden divide-y divide-gray-100 dark:divide-gray-800">
+                                            {(isMultiProduct
+                                                ? categoryProducts.flatMap(product => {
+                                                    const productTasks = groupTasks.filter((t: any) => t.productId === product.id);
+                                                    return [
+                                                        <div key={`ph-${product.id}`} className="px-4 py-2 bg-gray-50/80 dark:bg-gray-800/60 flex items-center gap-2">
+                                                            <span className="text-xs font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wide">{product.name}</span>
+                                                            {product.quantity ? <span className="text-[10px] text-gray-400">{product.quantity.toLocaleString()} units</span> : null}
+                                                        </div>,
+                                                        ...productTasks.map((task: any) => (
+                                                            <MobileTNATaskCard key={task.id} task={task} onEdit={onSaveTask ? () => setEditingTask({ ...task }) : undefined} />
+                                                        )),
+                                                    ];
+                                                  })
+                                                : groupTasks.map((task: any) => (
+                                                    <MobileTNATaskCard key={task.id} task={task} onEdit={onSaveTask ? () => setEditingTask({ ...task }) : undefined} />
+                                                ))
+                                            )}
+                                        </div>
+                                    )}
+                                    {/* ── Desktop: full table (also shown in edit mode on all screens) ── */}
+                                    <div className={isEditMode ? 'overflow-x-auto' : 'hidden sm:block overflow-x-auto'}>
                                         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                                             <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50">
                                                 <tr>
@@ -1980,6 +2171,7 @@ export const TNAView: FC<{
                                             )}
                                         </table>
                                     </div>
+                                    </>
                                 ) : (
                                     <div className="px-6 py-8 text-center text-sm text-gray-400 dark:text-gray-500">
                                         No tasks assigned to this product yet.
@@ -1992,8 +2184,8 @@ export const TNAView: FC<{
 
                 {/* ── Single-Task Edit Modal ─────────────────────── */}
                 {editingTask && onSaveTask && !isEditMode && (
-                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => setEditingTask(null)}>
-                        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-200 dark:border-white/10 animate-scale-in" onClick={e => e.stopPropagation()}>
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-[70] sm:p-4 animate-fade-in" onClick={() => setEditingTask(null)}>
+                        <div className="bg-white dark:bg-gray-900 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/10 animate-scale-in" onClick={e => e.stopPropagation()}>
                             <div className="px-6 py-4 border-b border-gray-100 dark:border-white/10 flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                     <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg shadow-md">
@@ -2860,21 +3052,23 @@ Keep it professional and brief. Use bullet points, not paragraphs (except Execut
         const sections = orderSummary ? parseSections(orderSummary) : [];
 
         return (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[60] p-4 animate-fade-in overflow-hidden" onClick={() => setIsSummaryModalOpen(false)}>
-            <div className="bg-white dark:bg-gray-950 rounded-3xl shadow-2xl shadow-red-500/5 w-full max-w-3xl max-h-[90vh] flex flex-col relative border border-gray-200 dark:border-white/5 animate-scale-in overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-end sm:items-center justify-center z-[60] sm:p-4 animate-fade-in overflow-hidden" onClick={() => setIsSummaryModalOpen(false)}>
+            <div className="bg-white dark:bg-gray-950 rounded-t-3xl sm:rounded-3xl shadow-2xl shadow-red-500/5 w-full sm:max-w-3xl h-[92vh] sm:h-auto sm:max-h-[90vh] flex flex-col relative border border-gray-200 dark:border-white/5 animate-scale-in overflow-hidden" onClick={e => e.stopPropagation()}>
                 {/* Gradient Header */}
-                <div className="relative flex-shrink-0 bg-gradient-to-br from-[#c20c0b] via-rose-600 to-pink-700 px-6 py-6 overflow-hidden">
+                <div className="relative flex-shrink-0 bg-gradient-to-br from-[#c20c0b] via-rose-600 to-pink-700 px-4 sm:px-6 py-4 sm:py-6 overflow-hidden">
                     <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full filter blur-3xl -translate-y-1/2 translate-x-1/4" />
                     <div className="absolute bottom-0 left-0 w-48 h-48 bg-black/10 rounded-full filter blur-3xl translate-y-1/2 -translate-x-1/4" />
                     <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iMSIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjA4KSIvPjwvc3ZnPg==')] opacity-60" />
+                    {/* Mobile drag handle */}
+                    <div className="sm:hidden mx-auto w-10 h-1 bg-white/30 rounded-full mb-3" />
                     <div className="relative z-10">
-                        <div className="flex items-center justify-between mb-5">
+                        <div className="flex items-center justify-between mb-4 sm:mb-5">
                             <div className="flex items-center gap-3">
                                 <div className="p-2.5 bg-white/20 backdrop-blur-sm rounded-xl">
                                     <Bot className="w-5 h-5 text-white" />
                                 </div>
                                 <div>
-                                    <h2 className="text-lg font-bold text-white tracking-tight">AI Project Report</h2>
+                                    <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">AI Project Report</h2>
                                     <p className="text-xs text-white/60 mt-0.5">{activeOrder?.product} • {activeOrder?.customer}</p>
                                 </div>
                             </div>
@@ -2883,7 +3077,7 @@ Keep it professional and brief. Use bullet points, not paragraphs (except Execut
                             </button>
                         </div>
                         {!isSummaryLoading && (
-                            <div className="grid grid-cols-4 gap-2">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                 <div className="bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2.5 text-center border border-white/10">
                                     <div className="relative mx-auto w-10 h-10 mb-1">
                                         <CircularProgressLocal percent={progressPct} size={40} strokeWidth={3} color="white" />

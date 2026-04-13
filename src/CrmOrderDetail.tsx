@@ -1,4 +1,5 @@
 import React, { useState, useMemo, FC, useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import { CrmOrder, CrmProduct, CrmTask, Factory } from './types';
 import { getOrderStatusColor } from './utils';
 import { useToast } from './ToastContext';
@@ -7,7 +8,8 @@ import {
     PieChart as PieChartIcon, GanttChartSquare, Bot, X,
     FileText, Download, Plus, RefreshCw,
     Package, Clock, CheckCircle, AlertCircle, MapPin, Anchor,
-    Eye, Trash2, Upload, AlertTriangle, ShieldAlert, ShieldCheck, ShieldX
+    Eye, Trash2, Upload, AlertTriangle, ShieldAlert, ShieldCheck, ShieldX,
+    Search, ChevronLeft
 } from 'lucide-react';
 import { updateOrderRiskScore, calculateOrderRiskScore, updateFactoryMetricsOnCompletion } from './risk.service';
 import jsPDF from 'jspdf';
@@ -900,6 +902,7 @@ export default function CrmOrderDetail({
     const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
     const summaryContentRef = useRef<HTMLDivElement>(null);
     const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+    const [taskSearch, setTaskSearch] = useState('');
     const [riskScore, setRiskScore] = useState<'green' | 'amber' | 'red'>(
         calculateOrderRiskScore(order.tasks)
     );
@@ -912,9 +915,19 @@ export default function CrmOrderDetail({
     const status = localOrder.status || 'In Production';
 
     const filteredTasks = useMemo(() => {
-        if (!selectedProductId) return localOrder.tasks;
-        return localOrder.tasks.filter(t => t.productId === selectedProductId);
-    }, [localOrder.tasks, selectedProductId]);
+        let tasks = selectedProductId
+            ? localOrder.tasks.filter(t => t.productId === selectedProductId)
+            : localOrder.tasks;
+        if (taskSearch.trim()) {
+            const q = taskSearch.toLowerCase();
+            tasks = tasks.filter(t =>
+                t.name?.toLowerCase().includes(q) ||
+                t.responsible?.toLowerCase().includes(q) ||
+                t.status?.toLowerCase().includes(q)
+            );
+        }
+        return tasks;
+    }, [localOrder.tasks, selectedProductId, taskSearch]);
 
     const selectedProduct = useMemo(() => {
         if (!selectedProductId || !localOrder.products) return null;
@@ -1219,15 +1232,78 @@ Keep it professional and brief. Use bullet points, not paragraphs (except Execut
 
     return (
         <div className="space-y-4 animate-fade-in">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            {/* ── Sticky mobile header (portal) ── */}
+            {ReactDOM.createPortal(
+                <div className="fixed top-0 left-0 md:left-[76px] right-0 z-[45] h-14
+                    bg-white/85 dark:bg-[#18171c]/90 backdrop-blur-xl
+                    border-b border-gray-200/70 dark:border-white/8
+                    flex items-center gap-3 px-3 sm:hidden">
+                    {/* Back button */}
+                    <button
+                        onClick={selectedProductId ? handleBackToOverview : onBack}
+                        className="flex-shrink-0 w-9 h-9 rounded-full bg-gray-100 dark:bg-white/10
+                            flex items-center justify-center
+                            hover:bg-gray-200 dark:hover:bg-white/18 active:scale-90
+                            transition-all duration-150"
+                        aria-label="Go back"
+                    >
+                        <ChevronLeft size={20} className="text-gray-700 dark:text-white" />
+                    </button>
+                    {/* Order / product name */}
+                    <span className="flex-1 min-w-0 font-bold text-sm text-gray-900 dark:text-white truncate">
+                        {selectedProduct ? selectedProduct.name : localOrder.product}
+                    </span>
+                    {/* AI Summary button */}
+                    <button
+                        onClick={generateOrderSummary}
+                        className="flex-shrink-0 w-9 h-9 rounded-full bg-red-50 dark:bg-red-900/20
+                            flex items-center justify-center text-[#c20c0b]
+                            hover:bg-red-100 dark:hover:bg-red-900/30 active:scale-90 transition-all"
+                        aria-label="AI Summary"
+                    >
+                        <Bot size={17} />
+                    </button>
+                    {/* Search bar */}
+                    <div className="relative flex-shrink-0">
+                        <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                        <input
+                            type="text"
+                            value={taskSearch}
+                            onChange={e => setTaskSearch(e.target.value)}
+                            placeholder="Search tasks…"
+                            className="w-32 pl-7 pr-6 py-[7px] text-[13px] rounded-full
+                                bg-gray-100 dark:bg-white/10
+                                border border-gray-200 dark:border-white/12
+                                text-gray-900 dark:text-white
+                                placeholder-gray-400 dark:placeholder-gray-500
+                                focus:outline-none focus:ring-2 focus:ring-[#c20c0b]/35 focus:border-[#c20c0b]/50
+                                transition-all"
+                        />
+                        {taskSearch && (
+                            <button
+                                onClick={() => setTaskSearch('')}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                            >
+                                <X size={11} />
+                            </button>
+                        )}
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* Mobile spacer for sticky header */}
+            <div className="h-14 -mt-4 sm:hidden" />
+
+            {/* Desktop header (hidden on mobile) */}
+            <div className="hidden sm:flex flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-3 min-w-0">
                     <button
                         onClick={selectedProductId ? handleBackToOverview : onBack}
                         className="flex items-center gap-2 text-sm font-semibold text-gray-500 dark:text-gray-400 hover:text-[#c20c0b] dark:hover:text-[#c20c0b] transition-colors flex-shrink-0"
                     >
                         <ArrowLeft size={18} />
-                        <span className="hidden sm:inline">{selectedProductId ? 'Overview' : 'Back'}</span>
+                        <span>{selectedProductId ? 'Overview' : 'Back'}</span>
                     </button>
                     <div className="h-6 w-px bg-gray-200 dark:bg-gray-700 flex-shrink-0" />
                     <h2 className="text-xl font-bold text-gray-800 dark:text-white truncate">
@@ -1238,38 +1314,62 @@ Keep it professional and brief. Use bullet points, not paragraphs (except Execut
                     </span>
                     {!selectedProductId && <RiskBadge score={riskScore} />}
                 </div>
-                <button
-                    onClick={generateOrderSummary}
-                    className="flex items-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-900/20 text-[#c20c0b] rounded-xl hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors text-sm font-semibold flex-shrink-0"
-                >
-                    <Bot size={16} />
-                    <span>AI Summary</span>
-                </button>
+                <div className="flex items-center gap-2">
+                    {/* Desktop search */}
+                    <div className="relative">
+                        <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                        <input
+                            type="text"
+                            value={taskSearch}
+                            onChange={e => setTaskSearch(e.target.value)}
+                            placeholder="Search tasks…"
+                            className="w-44 pl-8 pr-7 py-[7px] text-[13px] rounded-full
+                                bg-gray-100 dark:bg-white/10
+                                border border-gray-200 dark:border-white/12
+                                text-gray-900 dark:text-white
+                                placeholder-gray-400 dark:placeholder-gray-500
+                                focus:outline-none focus:ring-2 focus:ring-[#c20c0b]/35
+                                transition-all"
+                        />
+                        {taskSearch && (
+                            <button onClick={() => setTaskSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                                <X size={12} />
+                            </button>
+                        )}
+                    </div>
+                    <button
+                        onClick={generateOrderSummary}
+                        className="flex items-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-900/20 text-[#c20c0b] rounded-xl hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors text-sm font-semibold flex-shrink-0"
+                    >
+                        <Bot size={16} />
+                        <span>AI Summary</span>
+                    </button>
+                </div>
             </div>
 
             {/* View tabs */}
             <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
-                <div className="border-b border-gray-200 dark:border-white/10 px-4 sm:px-6 pt-4 pb-0">
-                    <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide -mb-px">
+                <div className="border-b border-gray-200 dark:border-white/10 px-2 sm:px-6 pt-3 sm:pt-4 pb-0">
+                    <div className="flex items-center gap-0.5 sm:gap-1 overflow-x-auto scrollbar-hide -mb-px">
                         {currentViews.map(view => (
                             <button
                                 key={view.name}
                                 onClick={() => setActiveView(view.name)}
-                                className={`flex items-center gap-2 py-2.5 px-4 text-sm font-semibold rounded-t-lg transition-all border-b-2 whitespace-nowrap ${
+                                className={`flex items-center gap-1.5 py-2.5 px-3 sm:px-4 text-xs sm:text-sm font-semibold rounded-t-lg transition-all border-b-2 whitespace-nowrap ${
                                     activeView === view.name
                                         ? 'border-[#c20c0b] text-[#c20c0b] dark:text-red-400 bg-red-50/50 dark:bg-red-900/10'
                                         : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
                                 }`}
                             >
                                 {view.icon}
-                                <span className="hidden sm:inline">{view.name}</span>
+                                <span>{view.name}</span>
                             </button>
                         ))}
                     </div>
                 </div>
 
                 {/* View content */}
-                <div className="p-4 sm:p-6">
+                <div className="p-3 sm:p-6">
                     {activeView === 'Overview' && (
                         <OrderDetailsView
                             order={localOrder}
@@ -1304,29 +1404,31 @@ Keep it professional and brief. Use bullet points, not paragraphs (except Execut
                 const mPct = mTotal > 0 ? Math.round((mCompleted / mTotal) * 100) : 0;
                 return (
                 <div
-                    className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[60] p-4 animate-fade-in overflow-hidden"
+                    className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-end sm:items-center justify-center z-[60] sm:p-4 animate-fade-in overflow-hidden"
                     onClick={() => setIsSummaryModalOpen(false)}
                 >
                     <div
-                        className="bg-white dark:bg-gray-950 rounded-3xl shadow-2xl shadow-red-500/5 w-full max-w-3xl max-h-[90vh] flex flex-col relative border border-gray-200 dark:border-white/5 animate-scale-in overflow-hidden"
+                        className="bg-white dark:bg-gray-950 rounded-t-3xl sm:rounded-3xl shadow-2xl shadow-red-500/5 w-full sm:max-w-3xl h-[92vh] sm:h-auto sm:max-h-[90vh] flex flex-col relative border border-gray-200 dark:border-white/5 animate-scale-in overflow-hidden"
                         onClick={e => e.stopPropagation()}
                     >
                         {/* Gradient Header */}
-                        <div className="relative flex-shrink-0 bg-gradient-to-br from-[#c20c0b] via-rose-600 to-pink-700 px-6 py-6 overflow-hidden">
+                        <div className="relative flex-shrink-0 bg-gradient-to-br from-[#c20c0b] via-rose-600 to-pink-700 px-4 sm:px-6 py-4 sm:py-6 overflow-hidden">
                             {/* Decorative elements */}
                             <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full filter blur-3xl -translate-y-1/2 translate-x-1/4" />
                             <div className="absolute bottom-0 left-0 w-48 h-48 bg-black/10 rounded-full filter blur-3xl translate-y-1/2 -translate-x-1/4" />
                             <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iMSIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjA4KSIvPjwvc3ZnPg==')] opacity-60" />
+                            {/* Mobile drag handle */}
+                            <div className="sm:hidden mx-auto w-10 h-1 bg-white/30 rounded-full mb-3" />
 
                             <div className="relative z-10">
-                                <div className="flex items-center justify-between mb-5">
+                                <div className="flex items-center justify-between mb-4 sm:mb-5">
                                     <div className="flex items-center gap-3">
                                         <div className="p-2.5 bg-white/20 backdrop-blur-sm rounded-xl">
                                             <Bot className="w-5 h-5 text-white" />
                                         </div>
                                         <div>
-                                            <h2 className="text-lg font-bold text-white tracking-tight">AI Project Report</h2>
-                                            <p className="text-xs text-white/60 mt-0.5">{localOrder.product} • {localOrder.customer}</p>
+                                            <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">AI Project Report</h2>
+                                            <p className="text-xs text-white/60 mt-0.5 truncate max-w-[180px] sm:max-w-none">{localOrder.product} • {localOrder.customer}</p>
                                         </div>
                                     </div>
                                     <button
@@ -1338,7 +1440,7 @@ Keep it professional and brief. Use bullet points, not paragraphs (except Execut
                                 </div>
                                 {/* Quick Stats Bar */}
                                 {!isSummaryLoading && (
-                                    <div className="grid grid-cols-4 gap-2">
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                         <div className="bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2.5 text-center border border-white/10">
                                             <div className="relative mx-auto w-10 h-10 mb-1">
                                                 <CircularProgress percent={mPct} size={40} strokeWidth={3} color="white" />
