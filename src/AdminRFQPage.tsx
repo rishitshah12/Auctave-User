@@ -4265,143 +4265,175 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                 </div>
             )}
 
-            <div className="flex justify-between items-center mb-4 sm:mb-6">
-                <div className="flex items-center gap-3">
-                    <div>
-                        <h1 className="text-xl sm:text-3xl font-bold text-gray-800 dark:text-white">RFQ Management</h1>
-                        <p className="text-gray-500 dark:text-white mt-1 hidden sm:block">Manage and respond to client quote requests.</p>
+            {/* ── Header ─────────────────────────────────────────────── */}
+            <div className="mb-4 sm:mb-6">
+                {/* Row 1: Title + action buttons */}
+                <div className="flex items-center justify-between gap-2 mb-2">
+                    <div className="min-w-0">
+                        <h1 className="text-xl sm:text-3xl font-bold text-gray-800 dark:text-white truncate">RFQ Management</h1>
+                        <p className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm mt-0.5 hidden sm:block">Manage and respond to client quote requests.</p>
                     </div>
-                    {viewMode === 'active' && (
-                        <button onClick={() => setShowHidden(!showHidden)} className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${showHidden ? 'text-[#c20c0b] bg-red-50 dark:bg-red-900/20' : 'text-gray-500 dark:text-gray-400'}`} title={showHidden ? "View Active Quotes" : "View Hidden Quotes"}>
-                            {showHidden ? <Eye size={20} /> : <EyeOff size={20} />}
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {viewMode === 'active' && (
+                            <button onClick={() => setShowHidden(!showHidden)} className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${showHidden ? 'text-[#c20c0b] bg-red-50 dark:bg-red-900/20' : 'text-gray-500 dark:text-gray-400'}`} title={showHidden ? "View Active Quotes" : "View Hidden Quotes"}>
+                                {showHidden ? <Eye size={18} /> : <EyeOff size={18} />}
+                            </button>
+                        )}
+                        <button onClick={toggleSelectionMode} className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${isSelectionMode ? 'text-[#c20c0b] bg-red-50 dark:bg-red-900/20' : 'text-gray-500 dark:text-gray-400'}`} title={isSelectionMode ? "Exit Selection Mode" : "Select Quotes"}>
+                            <CheckSquare size={18} />
                         </button>
-                    )}
-                    <button onClick={toggleSelectionMode} className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${isSelectionMode ? 'text-[#c20c0b] bg-red-50 dark:bg-red-900/20' : 'text-gray-500 dark:text-gray-400'}`} title={isSelectionMode ? "Exit Selection Mode" : "Select Quotes"}>
-                        <CheckSquare size={20} />
-                    </button>
-                    <button onClick={fetchQuotes} className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors ${isLoading ? 'animate-spin' : ''}`} title="Refresh Quotes"><RefreshCw size={20}/></button>
-                    {unreadCount > 0 && viewMode === 'active' && (
-                        <button
-                            onClick={markAllAsRead}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-800/40 border border-blue-200/70 dark:border-blue-700/50 transition-colors"
-                            title="Mark all as read"
-                        >
-                            <CheckCheck size={14} />
-                            Mark all read
-                            <span className="bg-blue-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center leading-none">{unreadCount}</span>
+                        <button onClick={fetchQuotes} className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors ${isLoading ? 'animate-spin' : ''}`} title="Refresh"><RefreshCw size={18}/></button>
+                        {unreadCount > 0 && viewMode === 'active' && (
+                            <button
+                                onClick={markAllAsRead}
+                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-semibold bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-800/40 border border-blue-200/70 dark:border-blue-700/50 transition-colors flex-shrink-0"
+                                title="Mark all as read"
+                            >
+                                <CheckCheck size={13} />
+                                <span className="hidden sm:inline">Mark all read</span>
+                                <span className="bg-blue-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center leading-none">{unreadCount}</span>
+                            </button>
+                        )}
+                        <button onClick={() => setViewMode(viewMode === 'active' ? 'trash' : 'active')} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-semibold transition-colors flex-shrink-0 ${viewMode === 'trash' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-700'}`}>
+                            <Trash2 size={13} />
+                            <span className="hidden sm:inline">{viewMode === 'active' ? 'Trash' : 'Active'}</span>
                         </button>
-                    )}
+                    </div>
                 </div>
             </div>
 
-            <div className="mb-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-200 dark:border-gray-700 pb-2">
-                    <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
-                        {filterOptions.map(status => (
-                            <button key={status} onClick={() => setFilterStatus(status)} className={`flex-shrink-0 py-2 px-4 font-semibold text-sm rounded-md transition-colors ${filterStatus === status ? 'bg-red-100 dark:bg-red-900/30 text-[#c20c0b] dark:text-red-400' : 'text-gray-500 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
-                                {status}
-                            </button>
-                        ))}
-                    </div>
-                    <div className="flex items-center gap-2 px-2">
-                        <div className="relative mr-2">
-                             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
-                             <input 
-                                 type="text" 
-                                 placeholder="Search..." 
-                                 value={searchTerm}
-                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                 className="pl-8 pr-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white w-32 sm:w-40 focus:w-56 transition-all"
-                             />
-                        </div>
-                        
-                        {/* Client Filter Dropdown */}
-                        <div className="relative mr-2" ref={clientDropdownRef}>
-                            <button 
-                                onClick={() => setIsClientDropdownOpen(!isClientDropdownOpen)}
-                                className={`flex items-center gap-2 px-3 py-1.5 border rounded-md text-sm transition-colors ${selectedClientId ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-[#c20c0b] dark:text-red-400' : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-white'}`}
-                            >
-                                <User size={14} />
-                                <span className="max-w-[100px] truncate">
-                                    {selectedClientId ? uniqueClients.find(c => c.id === selectedClientId)?.name : 'All Clients'}
-                                </span>
-                                <ChevronDown size={14} />
-                            </button>
-                            
-                            {isClientDropdownOpen && (
-                                <div className="absolute top-full left-0 mt-1 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50 p-2 animate-fade-in">
-                                    <div className="relative mb-2">
-                                        <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
-                                        <input 
-                                            type="text" 
-                                            placeholder="Search user..." 
-                                            value={clientSearchTerm}
-                                            onChange={(e) => setClientSearchTerm(e.target.value)}
-                                            className="w-full pl-8 pr-2 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#c20c0b]"
-                                            autoFocus
-                                        />
-                                    </div>
-                                    <div className="max-h-48 overflow-y-auto space-y-1 custom-scrollbar">
-                                        <button onClick={() => { setSelectedClientId(null); setIsClientDropdownOpen(false); }} className={`w-full text-left px-2 py-1.5 text-sm rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 ${!selectedClientId ? 'bg-red-50 dark:bg-red-900/20 text-[#c20c0b] dark:text-red-400 font-medium' : 'text-gray-700 dark:text-gray-200'}`}>All Clients</button>
-                                        {uniqueClients.filter(c => c.name.toLowerCase().includes(clientSearchTerm.toLowerCase())).map(client => (
-                                            <button key={client.id} onClick={() => { setSelectedClientId(client.id); setIsClientDropdownOpen(false); }} className={`w-full text-left px-2 py-1.5 text-sm rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 ${selectedClientId === client.id ? 'bg-red-50 dark:bg-red-900/20 text-[#c20c0b] dark:text-red-400 font-medium' : 'text-gray-700 dark:text-gray-200'}`}>{client.name}</button>
-                                        ))}
-                                        {uniqueClients.filter(c => c.name.toLowerCase().includes(clientSearchTerm.toLowerCase())).length === 0 && <div className="px-2 py-2 text-xs text-gray-500 text-center">No users found</div>}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        <Calendar size={16} className="text-gray-500 dark:text-gray-400" />
-                        <select 
-                            value={dateFilter} 
-                            onChange={(e) => setDateFilter(e.target.value)}
-                            className="text-sm border-none bg-transparent font-medium text-gray-600 dark:text-gray-300 focus:ring-0 cursor-pointer outline-none dark:bg-black"
-                        >
-                            <option>All Time</option>
-                            <option>Today</option>
-                            <option>Yesterday</option>
-                            <option>Last 7 Days</option>
-                            <option>Last 30 Days</option>
-                            <option>Custom Range</option>
-                        </select>
-                        {dateFilter === 'Custom Range' && (
-                            <div className="flex items-center gap-2 ml-2 animate-fade-in">
-                                <input 
-                                    type="date" 
-                                    value={customStartDate} 
-                                    onChange={(e) => setCustomStartDate(e.target.value)}
-                                    max={todayString}
-                                    className="text-xs border border-gray-300 dark:border-gray-600 rounded-md p-1 focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
-                                />
-                                <span className="text-gray-400">-</span>
-                                <input 
-                                    type="date" 
-                                    value={customEndDate} 
-                                    onChange={(e) => setCustomEndDate(e.target.value)}
-                                    max={todayString}
-                                    className="text-xs border border-gray-300 dark:border-gray-600 rounded-md p-1 focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
-                                />
-                            </div>
-                        )}
-                        
-                        {(filterStatus !== 'All' || dateFilter !== 'All Time' || searchTerm || selectedClientId) && (
-                            <button 
-                                onClick={handleClearFilters}
-                                className="ml-2 flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-colors"
-                            >
-                                <X size={14} /> Clear
-                            </button>
-                        )}
-
-                        <div className="ml-4 border-l border-gray-200 dark:border-gray-700 pl-4">
-                            <button onClick={() => setViewMode(viewMode === 'active' ? 'trash' : 'active')} className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'trash' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
-                                <Trash2 size={16} />
-                                {viewMode === 'active' ? 'Trash' : 'Active Quotes'}
-                            </button>
-                        </div>
+            {/* ── Filter Bar — horizontally scrollable on mobile ──── */}
+            <div className="flex items-center gap-2 mb-4 sm:mb-6 overflow-x-auto pb-1 scrollbar-hide -mx-3 px-3 sm:mx-0 sm:px-0">
+                {/* Search */}
+                <div className="relative flex-shrink-0">
+                    <div className="flex items-center gap-2 bg-white dark:bg-gray-900/40 border border-gray-200 dark:border-white/10 rounded-xl px-3 py-2 shadow-sm hover:border-gray-300 dark:hover:border-white/20 transition-colors">
+                        <Search size={14} className="text-gray-500 dark:text-gray-400 flex-shrink-0" />
+                        <input
+                            type="text"
+                            placeholder="Search..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="bg-transparent border-none text-sm font-semibold text-gray-800 dark:text-white focus:ring-0 outline-none w-28 sm:w-40 placeholder-gray-400"
+                        />
                     </div>
                 </div>
+
+                {/* Status Filter */}
+                <div className="relative flex-shrink-0">
+                    <div className="flex items-center gap-1.5 bg-white dark:bg-gray-900/40 border border-gray-200 dark:border-white/10 rounded-xl px-3 py-2 shadow-sm hover:border-gray-300 dark:hover:border-white/20 transition-colors">
+                        <Filter size={14} className="text-gray-500 dark:text-gray-400 flex-shrink-0" />
+                        <select
+                            value={filterStatus}
+                            onChange={(e) => setFilterStatus(e.target.value)}
+                            className="appearance-none bg-transparent border-none text-sm font-semibold text-gray-800 dark:text-white focus:ring-0 cursor-pointer pr-4 outline-none max-w-[110px] sm:max-w-none dark:bg-transparent"
+                            style={{ backgroundImage: 'none' }}
+                        >
+                            {filterOptions.map(s => (
+                                <option key={s} value={s} className="text-gray-800 dark:text-gray-200 bg-white dark:bg-gray-900">{s}</option>
+                            ))}
+                        </select>
+                        <ChevronDown size={12} className="text-gray-400 pointer-events-none flex-shrink-0" />
+                    </div>
+                </div>
+
+                {/* Client Filter */}
+                <div className="relative flex-shrink-0" ref={clientDropdownRef}>
+                    <button
+                        onClick={() => setIsClientDropdownOpen(!isClientDropdownOpen)}
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold border shadow-sm transition-colors ${selectedClientId ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-[#c20c0b] dark:text-red-400' : 'bg-white dark:bg-gray-900/40 border-gray-200 dark:border-white/10 text-gray-700 dark:text-white hover:border-gray-300 dark:hover:border-white/20'}`}
+                    >
+                        <User size={14} />
+                        <span className="max-w-[90px] truncate">
+                            {selectedClientId ? uniqueClients.find(c => c.id === selectedClientId)?.name : 'All Clients'}
+                        </span>
+                        <ChevronDown size={12} className="text-gray-400 pointer-events-none flex-shrink-0" />
+                    </button>
+                    {isClientDropdownOpen && (
+                        <div className="absolute top-full left-0 mt-1 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-50 p-2 animate-fade-in">
+                            <div className="relative mb-2">
+                                <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Search user..."
+                                    value={clientSearchTerm}
+                                    onChange={(e) => setClientSearchTerm(e.target.value)}
+                                    className="w-full pl-8 pr-2 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#c20c0b]"
+                                    autoFocus
+                                />
+                            </div>
+                            <div className="max-h-48 overflow-y-auto space-y-1 custom-scrollbar">
+                                <button onClick={() => { setSelectedClientId(null); setIsClientDropdownOpen(false); }} className={`w-full text-left px-2 py-1.5 text-sm rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 ${!selectedClientId ? 'bg-red-50 dark:bg-red-900/20 text-[#c20c0b] dark:text-red-400 font-medium' : 'text-gray-700 dark:text-gray-200'}`}>All Clients</button>
+                                {uniqueClients.filter(c => c.name.toLowerCase().includes(clientSearchTerm.toLowerCase())).map(client => (
+                                    <button key={client.id} onClick={() => { setSelectedClientId(client.id); setIsClientDropdownOpen(false); }} className={`w-full text-left px-2 py-1.5 text-sm rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 ${selectedClientId === client.id ? 'bg-red-50 dark:bg-red-900/20 text-[#c20c0b] dark:text-red-400 font-medium' : 'text-gray-700 dark:text-gray-200'}`}>{client.name}</button>
+                                ))}
+                                {uniqueClients.filter(c => c.name.toLowerCase().includes(clientSearchTerm.toLowerCase())).length === 0 && <div className="px-2 py-2 text-xs text-gray-500 text-center">No users found</div>}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Date Filter */}
+                <div className="relative flex-shrink-0">
+                    <div className="flex items-center gap-1.5 bg-white dark:bg-gray-900/40 border border-gray-200 dark:border-white/10 rounded-xl px-3 py-2 shadow-sm hover:border-gray-300 dark:hover:border-white/20 transition-colors">
+                        <Calendar size={14} className="text-gray-500 dark:text-gray-400 flex-shrink-0" />
+                        <select
+                            value={dateFilter}
+                            onChange={(e) => setDateFilter(e.target.value)}
+                            className="appearance-none bg-transparent border-none text-sm font-semibold text-gray-800 dark:text-white focus:ring-0 cursor-pointer pr-4 outline-none max-w-[90px] sm:max-w-none dark:bg-transparent"
+                            style={{ backgroundImage: 'none' }}
+                        >
+                            <option className="text-gray-800 dark:text-gray-200 bg-white dark:bg-gray-900">All Time</option>
+                            <option className="text-gray-800 dark:text-gray-200 bg-white dark:bg-gray-900">Today</option>
+                            <option className="text-gray-800 dark:text-gray-200 bg-white dark:bg-gray-900">Yesterday</option>
+                            <option className="text-gray-800 dark:text-gray-200 bg-white dark:bg-gray-900">Last 7 Days</option>
+                            <option className="text-gray-800 dark:text-gray-200 bg-white dark:bg-gray-900">Last 30 Days</option>
+                            <option className="text-gray-800 dark:text-gray-200 bg-white dark:bg-gray-900">Custom Range</option>
+                        </select>
+                        <ChevronDown size={12} className="text-gray-400 pointer-events-none flex-shrink-0" />
+                    </div>
+                </div>
+
+                {dateFilter === 'Custom Range' && (
+                    <div className="flex items-center gap-2 flex-shrink-0 animate-fade-in">
+                        <input
+                            type="date"
+                            value={customStartDate}
+                            onChange={(e) => setCustomStartDate(e.target.value)}
+                            max={todayString}
+                            className="text-xs border border-gray-300 dark:border-gray-600 rounded-xl p-2 focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                        />
+                        <span className="text-gray-400 text-xs">–</span>
+                        <input
+                            type="date"
+                            value={customEndDate}
+                            onChange={(e) => setCustomEndDate(e.target.value)}
+                            max={todayString}
+                            className="text-xs border border-gray-300 dark:border-gray-600 rounded-xl p-2 focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                        />
+                    </div>
+                )}
+
+                {(filterStatus !== 'All' || dateFilter !== 'All Time' || searchTerm || selectedClientId) && (
+                    <button
+                        onClick={handleClearFilters}
+                        className="flex-shrink-0 flex items-center gap-1 text-xs font-semibold text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-colors px-2 py-2 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20"
+                    >
+                        <X size={14} /> Clear
+                    </button>
+                )}
+            </div>
+
+            {/* ── Status filter pill tabs — scrollable on mobile ────── */}
+            <div className="flex items-center gap-2 mb-4 sm:mb-6 overflow-x-auto pb-1 scrollbar-hide -mx-3 px-3 sm:mx-0 sm:px-0">
+                {filterOptions.map(status => (
+                    <button
+                        key={status}
+                        onClick={() => setFilterStatus(status)}
+                        className={`flex-shrink-0 py-1.5 px-3.5 font-semibold text-sm rounded-full transition-colors ${filterStatus === status ? 'bg-[#c20c0b] text-white shadow-sm' : 'bg-white dark:bg-gray-900/40 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20'}`}
+                    >
+                        {status}
+                    </button>
+                ))}
             </div>
 
             {/* Bulk Actions Toolbar */}

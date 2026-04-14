@@ -812,12 +812,12 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
     return (
         <MainLayout {...props}>
             {/* Header */}
-            <div className="flex justify-between items-center mb-6">
-                <div>
-                    <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Factory CMS</h1>
-                    <p className="text-gray-500 dark:text-gray-400">Manage factory profiles, media, and capabilities.</p>
+            <div className="flex justify-between items-center mb-4 sm:mb-6 gap-2">
+                <div className="min-w-0">
+                    <h1 className="text-xl sm:text-3xl font-bold text-gray-800 dark:text-white truncate">Factory CMS</h1>
+                    <p className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm mt-0.5 hidden sm:block">Manage factory profiles, media, and capabilities.</p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 flex-shrink-0">
                     <button
                         onClick={async () => {
                             if (!confirm('This will insert 10 sample factories into the database. Continue?')) return;
@@ -830,12 +830,14 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
                             }
                             if (result.failed > 0) showToast(`${result.failed} failed: ${result.errors[0]}`, 'error');
                         }}
-                        className="border border-[#c20c0b] text-[#c20c0b] px-4 py-2.5 rounded-xl flex items-center gap-2 hover:bg-[#c20c0b]/5 transition-colors font-semibold text-sm"
+                        className="hidden sm:flex border border-[#c20c0b] text-[#c20c0b] px-4 py-2.5 rounded-xl items-center gap-2 hover:bg-[#c20c0b]/5 transition-colors font-semibold text-sm"
                     >
                         <Plus size={16} /> Seed 10 Factories
                     </button>
-                    <button onClick={() => openModal()} className="bg-[#c20c0b] text-white px-5 py-2.5 rounded-xl flex items-center gap-2 hover:bg-[#a50a09] transition-colors font-semibold shadow-lg shadow-red-200 dark:shadow-red-900/20">
-                        <Plus size={18} /> Add Factory
+                    <button onClick={() => openModal()} className="bg-[#c20c0b] text-white px-3 sm:px-5 py-2.5 rounded-xl flex items-center gap-1.5 hover:bg-[#a50a09] transition-colors font-semibold shadow-lg shadow-red-200 dark:shadow-red-900/20 text-sm">
+                        <Plus size={18} />
+                        <span className="hidden sm:inline">Add Factory</span>
+                        <span className="sm:hidden">Add</span>
                     </button>
                 </div>
             </div>

@@ -2532,7 +2532,19 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
     return (
         <MainLayout {...props}>
             {/* ── Header ── */}
-            <header className="mb-8 relative">
+            {/* Mobile: compact title row */}
+            <div className="sm:hidden mb-4 flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                    <h1 className="text-xl font-bold text-gray-800 dark:text-white truncate">Admin CRM</h1>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Search clients &amp; manage orders</p>
+                </div>
+                <div className="flex items-center gap-1.5 flex-shrink-0 text-xs text-gray-400 bg-white dark:bg-gray-900/40 border border-gray-200 dark:border-white/10 rounded-xl px-2.5 py-1.5">
+                    <Users size={13} className="text-gray-500" />
+                    <span className="font-bold text-gray-700 dark:text-white">{clients.length}</span>
+                </div>
+            </div>
+            {/* Desktop: hero banner */}
+            <header className="hidden sm:block mb-8 relative">
                 <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 p-6 sm:p-8 shadow-2xl border border-white/5">
                     <div className="absolute top-0 left-0 w-72 h-72 bg-red-500/30 rounded-full filter blur-3xl animate-blob pointer-events-none" />
                     <div className="absolute top-10 right-10 w-64 h-64 bg-blue-500/20 rounded-full filter blur-3xl animate-blob-delay-2 pointer-events-none" />

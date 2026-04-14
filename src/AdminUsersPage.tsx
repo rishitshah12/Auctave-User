@@ -132,8 +132,8 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
         <MainLayout {...props}>
             <div className="space-y-8">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-800 dark:text-white">User Management</h1>
-                    <p className="text-gray-500 mt-1">Manage client accounts and permissions.</p>
+                    <h1 className="text-xl sm:text-3xl font-bold text-gray-800 dark:text-white">User Management</h1>
+                    <p className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm mt-0.5">Manage client accounts and permissions.</p>
                 </div>
 
                 <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-lg overflow-hidden border border-gray-100 dark:border-white/10">
