@@ -606,17 +606,6 @@ export const MainLayout: FC<MainLayoutProps> = (props) => {
                 </div>
             )}
 
-            {/* Mobile sticky header */}
-            {showNav && (
-                <MobileHeader
-                    currentPage={props.currentPage}
-                    isAdmin={props.isAdmin}
-                    onOpenNotif={() => setIsNotifOpen(true)}
-                    unreadCount={totalUnread}
-                    handleSetCurrentPage={props.handleSetCurrentPage}
-                />
-            )}
-
             {/* Body row: sidebar + content */}
             <div className="flex flex-1 relative z-10">
                 {showNav && (

@@ -237,6 +237,16 @@ export const AdminUniversalChat: React.FC<AdminUniversalChatProps> = ({ onNaviga
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { size, onMouseDown } = useResize();
 
+    // Detect mobile to override inline size styles
+    const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+    useEffect(() => {
+        const mq = window.matchMedia('(max-width: 767px)');
+        const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+        mq.addEventListener('change', handler);
+        setIsMobile(mq.matches);
+        return () => mq.removeEventListener('change', handler);
+    }, []);
+
     // ── Fetch ─────────────────────────────────────────────────────────────────
     const fetchQuotes = useCallback(async () => {
         setLoading(true);
@@ -489,7 +499,11 @@ export const AdminUniversalChat: React.FC<AdminUniversalChatProps> = ({ onNaviga
     if (!isOpen) return (
         <button
             onClick={() => setIsOpen(true)}
-            className="fixed bottom-6 right-6 z-[60] w-14 h-14 bg-[#c20c0b] text-white rounded-full shadow-2xl flex items-center justify-center hover:bg-[#a50a09] transition-all hover:scale-105 active:scale-95"
+            className="fixed z-[60] w-14 h-14 bg-[#c20c0b] text-white rounded-full shadow-2xl flex items-center justify-center hover:bg-[#a50a09] transition-all hover:scale-105 active:scale-95"
+            style={isMobile
+                ? { right: 16, bottom: 'calc(env(safe-area-inset-bottom) + 90px)' }
+                : { right: 24, bottom: 24 }
+            }
             title="Open RFQ Messages"
         >
             <MessageSquare size={22} />
@@ -504,18 +518,27 @@ export const AdminUniversalChat: React.FC<AdminUniversalChatProps> = ({ onNaviga
     // ── Panel ─────────────────────────────────────────────────────────────────
     return createPortal(
         <div
-            className="fixed bottom-6 right-6 z-[60] flex flex-col bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-white/10 overflow-hidden select-none"
-            style={{ width: size.w, height: size.h }}
+            className="fixed z-[60] flex flex-col bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-white/10 overflow-hidden select-none"
+            style={isMobile ? {
+                left: 12,
+                right: 12,
+                bottom: 'calc(env(safe-area-inset-bottom) + 90px)',
+                height: 'min(calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 110px), 520px)',
+            } : {
+                right: 24,
+                bottom: 24,
+                width: size.w,
+                height: size.h,
+            }}
         >
-            {/* Resize handle */}
+            {/* Desktop-only resize handle */}
             <div
                 onMouseDown={onMouseDown}
-                className="absolute top-0 left-0 w-6 h-6 cursor-nw-resize z-10 flex items-center justify-center opacity-40 hover:opacity-100 transition-opacity"
+                className="hidden md:flex absolute top-0 left-0 w-6 h-6 cursor-nw-resize z-10 items-center justify-center opacity-40 hover:opacity-100 transition-opacity"
                 title="Drag to resize"
             >
                 <GripVertical size={13} className="text-white rotate-45" />
             </div>
-
             {/* ── Header ── */}
             <div className="flex items-center gap-2.5 px-3 py-3 bg-[#c20c0b] text-white flex-shrink-0">
                 {view !== 'users' ? (
