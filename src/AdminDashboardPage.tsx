@@ -71,63 +71,66 @@ const ProductionGantt = ({ timelineData, darkMode }: { timelineData: any[]; dark
     }
 
     return (
-        <div className="space-y-2">
-            {/* Header */}
-            <div className="flex items-end gap-2">
-                <div className="w-44 flex-shrink-0 text-[10px] text-gray-400 dark:text-gray-500 font-semibold uppercase tracking-wide">Order · Client</div>
-                <div className="flex-1 relative h-5">
-                    {months.map((m, i) => (
-                        <span key={i} className="absolute text-[9px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide -translate-x-1/2" style={{ left: `${m.pct}%` }}>{m.label}</span>
-                    ))}
-                </div>
-                <div className="w-20 flex-shrink-0 text-right text-[10px] text-gray-400 dark:text-gray-500 font-semibold uppercase tracking-wide">Due</div>
-            </div>
-
-            {/* Rows */}
-            {timelineData.map((item, idx) => {
-                const color = ORDER_COLORS_PALETTE[idx % ORDER_COLORS_PALETTE.length];
-                const startPct = toPct(item.start);
-                const endPct = toPct(item.end);
-                const widthPct = Math.max(endPct - startPct, 1.5);
-                const daysLeft = Math.ceil((item.end.getTime() - today.getTime()) / 86400000);
-                const isOverdue = daysLeft < 0;
-                const isUrgent = !isOverdue && daysLeft <= 7;
-                return (
-                    <div key={item.id} className="flex items-center gap-2 group">
-                        <div className="w-44 flex-shrink-0">
-                            <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 truncate">{item.product}</p>
-                            <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate">{item.customer}</p>
-                        </div>
-                        <div className="flex-1 relative h-8 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
-                            {months.map((m, i) => (
-                                <div key={i} className="absolute top-0 bottom-0 w-px bg-gray-200 dark:bg-gray-700 opacity-50" style={{ left: `${m.pct}%` }} />
-                            ))}
-                            {/* Today marker */}
-                            <div className="absolute top-0 bottom-0 w-0.5 bg-red-400 z-10" style={{ left: `${todayPct}%` }}>
-                                <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-red-400 rounded-full" />
-                            </div>
-                            {/* Bar */}
-                            <div
-                                className={`absolute top-1.5 bottom-1.5 rounded-full flex items-center px-2 overflow-hidden ${isOverdue ? 'opacity-50' : 'opacity-90 group-hover:opacity-100'} transition-opacity`}
-                                style={{ left: `${startPct}%`, width: `${widthPct}%`, backgroundColor: color }}
-                                title={`${item.product} | ${item.start.toLocaleDateString()} → ${item.end.toLocaleDateString()} | ${item.status}`}
-                            >
-                                {widthPct > 10 && <span className="text-[9px] text-white font-semibold truncate">{item.status}</span>}
-                            </div>
-                        </div>
-                        <div className="w-20 flex-shrink-0 text-right">
-                            <p className={`text-[10px] font-bold ${isOverdue ? 'text-red-500' : isUrgent ? 'text-amber-500' : 'text-gray-500 dark:text-gray-400'}`}>
-                                {isOverdue ? `${Math.abs(daysLeft)}d late` : daysLeft === 0 ? 'Today' : `${daysLeft}d left`}
-                            </p>
-                            <p className="text-[9px] text-gray-400 dark:text-gray-500">{item.end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
-                        </div>
+        /* Horizontal scroll on small screens */
+        <div className="overflow-x-auto -mx-1 px-1">
+            <div className="min-w-[520px] space-y-2">
+                {/* Header */}
+                <div className="flex items-end gap-2">
+                    <div className="w-32 sm:w-44 flex-shrink-0 text-[10px] text-gray-400 dark:text-gray-500 font-semibold uppercase tracking-wide">Order · Client</div>
+                    <div className="flex-1 relative h-5">
+                        {months.map((m, i) => (
+                            <span key={i} className="absolute text-[9px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide -translate-x-1/2" style={{ left: `${m.pct}%` }}>{m.label}</span>
+                        ))}
                     </div>
-                );
-            })}
+                    <div className="w-16 sm:w-20 flex-shrink-0 text-right text-[10px] text-gray-400 dark:text-gray-500 font-semibold uppercase tracking-wide">Due</div>
+                </div>
 
-            <div className="flex items-center gap-4 pt-2 border-t border-gray-100 dark:border-white/5">
-                <div className="flex items-center gap-1.5"><div className="w-4 h-0.5 bg-red-400" /><span className="text-[10px] text-gray-400">Today</span></div>
-                <div className="flex items-center gap-1.5"><div className="w-4 h-2.5 rounded-sm bg-gray-300 dark:bg-gray-600 opacity-50" /><span className="text-[10px] text-gray-400">Overdue (faded)</span></div>
+                {/* Rows */}
+                {timelineData.map((item, idx) => {
+                    const color = ORDER_COLORS_PALETTE[idx % ORDER_COLORS_PALETTE.length];
+                    const startPct = toPct(item.start);
+                    const endPct = toPct(item.end);
+                    const widthPct = Math.max(endPct - startPct, 1.5);
+                    const daysLeft = Math.ceil((item.end.getTime() - today.getTime()) / 86400000);
+                    const isOverdue = daysLeft < 0;
+                    const isUrgent = !isOverdue && daysLeft <= 7;
+                    return (
+                        <div key={item.id} className="flex items-center gap-2 group">
+                            <div className="w-32 sm:w-44 flex-shrink-0">
+                                <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 truncate">{item.product}</p>
+                                <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate">{item.customer}</p>
+                            </div>
+                            <div className="flex-1 relative h-8 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
+                                {months.map((m, i) => (
+                                    <div key={i} className="absolute top-0 bottom-0 w-px bg-gray-200 dark:bg-gray-700 opacity-50" style={{ left: `${m.pct}%` }} />
+                                ))}
+                                {/* Today marker */}
+                                <div className="absolute top-0 bottom-0 w-0.5 bg-red-400 z-10" style={{ left: `${todayPct}%` }}>
+                                    <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-red-400 rounded-full" />
+                                </div>
+                                {/* Bar */}
+                                <div
+                                    className={`absolute top-1.5 bottom-1.5 rounded-full flex items-center px-2 overflow-hidden ${isOverdue ? 'opacity-50' : 'opacity-90 group-hover:opacity-100'} transition-opacity`}
+                                    style={{ left: `${startPct}%`, width: `${widthPct}%`, backgroundColor: color }}
+                                    title={`${item.product} | ${item.start.toLocaleDateString()} → ${item.end.toLocaleDateString()} | ${item.status}`}
+                                >
+                                    {widthPct > 10 && <span className="text-[9px] text-white font-semibold truncate">{item.status}</span>}
+                                </div>
+                            </div>
+                            <div className="w-16 sm:w-20 flex-shrink-0 text-right">
+                                <p className={`text-[10px] font-bold ${isOverdue ? 'text-red-500' : isUrgent ? 'text-amber-500' : 'text-gray-500 dark:text-gray-400'}`}>
+                                    {isOverdue ? `${Math.abs(daysLeft)}d late` : daysLeft === 0 ? 'Today' : `${daysLeft}d`}
+                                </p>
+                                <p className="text-[9px] text-gray-400 dark:text-gray-500">{item.end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                            </div>
+                        </div>
+                    );
+                })}
+
+                <div className="flex items-center gap-4 pt-2 border-t border-gray-100 dark:border-white/5">
+                    <div className="flex items-center gap-1.5"><div className="w-4 h-0.5 bg-red-400" /><span className="text-[10px] text-gray-400">Today</span></div>
+                    <div className="flex items-center gap-1.5"><div className="w-4 h-2.5 rounded-sm bg-gray-300 dark:bg-gray-600 opacity-50" /><span className="text-[10px] text-gray-400">Overdue (faded)</span></div>
+                </div>
             </div>
         </div>
     );
@@ -177,7 +180,11 @@ const ProductionCalendar = ({ timelineData, darkMode }: { timelineData: any[]; d
         }).length,
     [timelineData, year, month]);
 
-    const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const [selectedDay, setSelectedDay] = useState<number | null>(null);
+    const DAYS_FULL = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const DAYS_SHORT = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+    const selectedOrders = selectedDay ? (dayOrders[selectedDay] || []) : [];
 
     return (
         <div>
@@ -186,47 +193,89 @@ const ProductionCalendar = ({ timelineData, darkMode }: { timelineData: any[]; d
                     <span className="text-sm font-bold text-gray-700 dark:text-gray-200">
                         {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
                     </span>
-                    <div className="flex gap-3 mt-1">
-                        {activeThisMonth > 0 && <span className="text-[10px] font-semibold text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-full">{activeThisMonth} active this month</span>}
-                        {endingThisMonth > 0 && <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 rounded-full">{endingThisMonth} ending this month</span>}
+                    <div className="flex flex-wrap gap-2 mt-1">
+                        {activeThisMonth > 0 && <span className="text-[10px] font-semibold text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-full">{activeThisMonth} active</span>}
+                        {endingThisMonth > 0 && <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 rounded-full">{endingThisMonth} ending</span>}
                     </div>
                 </div>
                 <div className="flex items-center gap-1">
-                    <button onClick={() => setCurrentDate(new Date(year, month - 1, 1))} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors"><ChevronLeft size={16} /></button>
-                    <button onClick={() => setCurrentDate(new Date(year, month + 1, 1))} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors"><ChevronRight size={16} /></button>
+                    <button onClick={() => { setCurrentDate(new Date(year, month - 1, 1)); setSelectedDay(null); }} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors"><ChevronLeft size={16} /></button>
+                    <button onClick={() => { setCurrentDate(new Date(year, month + 1, 1)); setSelectedDay(null); }} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors"><ChevronRight size={16} /></button>
                 </div>
             </div>
 
+            {/* Day headers — short on mobile, full on sm+ */}
             <div className="grid grid-cols-7 mb-1">
-                {DAYS.map(d => <div key={d} className="text-center text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase py-1">{d}</div>)}
+                {DAYS_FULL.map((d, i) => (
+                    <div key={d} className="text-center py-1">
+                        <span className="hidden sm:inline text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase">{d}</span>
+                        <span className="sm:hidden text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase">{DAYS_SHORT[i]}</span>
+                    </div>
+                ))}
             </div>
 
             <div className="grid grid-cols-7 gap-px">
-                {Array.from({ length: firstDay }).map((_, i) => <div key={`e-${i}`} className="h-16 rounded-lg" />)}
+                {Array.from({ length: firstDay }).map((_, i) => <div key={`e-${i}`} className="h-10 sm:h-16 rounded-lg" />)}
                 {Array.from({ length: daysInMonth }).map((_, i) => {
                     const day = i + 1;
                     const orders = dayOrders[day] || [];
                     const past = new Date(year, month, day) < new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                    const isSelected = selectedDay === day;
                     return (
-                        <div key={day} className={`h-16 rounded-lg p-1 relative overflow-hidden transition-colors ${
-                            isToday(day) ? 'bg-[#c20c0b]/10 dark:bg-[#c20c0b]/20 ring-1 ring-[#c20c0b]/40'
-                            : orders.length > 0 ? 'bg-blue-50/80 dark:bg-blue-900/10 hover:bg-blue-100 dark:hover:bg-blue-900/20 cursor-default'
-                            : 'bg-gray-50/60 dark:bg-gray-800/20'
-                        }`}>
+                        <button
+                            key={day}
+                            onClick={() => setSelectedDay(isSelected ? null : day)}
+                            className={`h-10 sm:h-16 rounded-lg p-1 relative overflow-hidden transition-colors text-left w-full ${
+                                isSelected ? 'ring-2 ring-indigo-400 bg-indigo-50 dark:bg-indigo-900/20'
+                                : isToday(day) ? 'bg-[#c20c0b]/10 dark:bg-[#c20c0b]/20 ring-1 ring-[#c20c0b]/40'
+                                : orders.length > 0 ? 'bg-blue-50/80 dark:bg-blue-900/10 active:bg-blue-100 dark:active:bg-blue-900/20'
+                                : 'bg-gray-50/60 dark:bg-gray-800/20'
+                            }`}
+                        >
                             <span className={`text-[10px] font-bold leading-none ${isToday(day) ? 'text-[#c20c0b]' : past ? 'text-gray-400 dark:text-gray-600' : 'text-gray-600 dark:text-gray-300'}`}>{day}</span>
-                            <div className="mt-0.5 space-y-0.5">
+                            {/* Mobile: colored dots only */}
+                            <div className="sm:hidden flex flex-wrap gap-0.5 mt-0.5">
+                                {orders.slice(0, 3).map((o, oi) => (
+                                    <div key={oi} className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: o.color }} />
+                                ))}
+                                {orders.length > 3 && <div className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0" />}
+                            </div>
+                            {/* Desktop: labeled chips */}
+                            <div className="hidden sm:block mt-0.5 space-y-0.5">
                                 {orders.slice(0, 2).map((o, oi) => (
                                     <div key={oi} className="flex items-center gap-0.5 rounded px-0.5 overflow-hidden" style={{ backgroundColor: o.color + '22' }} title={`${o.label} · ${o.customer} · ${o.status}`}>
                                         <div className="w-1 h-1 rounded-full flex-shrink-0" style={{ backgroundColor: o.color }} />
                                         <span className="text-[8px] font-semibold truncate leading-tight" style={{ color: o.color }}>{o.label}</span>
                                     </div>
                                 ))}
-                                {orders.length > 2 && <div className="text-[9px] text-gray-400 font-semibold pl-0.5">+{orders.length - 2} more</div>}
+                                {orders.length > 2 && <div className="text-[9px] text-gray-400 font-semibold pl-0.5">+{orders.length - 2}</div>}
                             </div>
-                        </div>
+                        </button>
                     );
                 })}
             </div>
+
+            {/* Mobile tap-to-see panel */}
+            {selectedDay !== null && (
+                <div className="mt-3 p-3 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700/30">
+                    <p className="text-xs font-bold text-indigo-700 dark:text-indigo-300 mb-2">
+                        {currentDate.toLocaleString('default', { month: 'long' })} {selectedDay}
+                        {selectedOrders.length === 0 && <span className="font-normal text-gray-400 ml-1">— no active orders</span>}
+                    </p>
+                    {selectedOrders.length > 0 && (
+                        <div className="space-y-1.5">
+                            {selectedOrders.map((o, oi) => (
+                                <div key={oi} className="flex items-center gap-2">
+                                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: o.color }} />
+                                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-200 truncate">{o.label}</span>
+                                    <span className="text-[10px] text-gray-400 dark:text-gray-500 truncate">{o.customer}</span>
+                                    <span className="text-[10px] text-gray-500 dark:text-gray-400 ml-auto flex-shrink-0">{o.status}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
 
             {timelineData.length > 0 && (
                 <div className="mt-4 pt-4 border-t border-gray-100 dark:border-white/5">
@@ -242,7 +291,7 @@ const ProductionCalendar = ({ timelineData, darkMode }: { timelineData: any[]; d
                                     <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
                                     <span className="text-[10px] font-semibold text-gray-700 dark:text-gray-200 truncate flex-1">{item.product}</span>
                                     <span className="text-[9px] text-gray-400 dark:text-gray-500 hidden sm:block truncate max-w-[80px]">{item.customer}</span>
-                                    <span className="text-[9px] text-gray-400 dark:text-gray-500">
+                                    <span className="text-[9px] text-gray-400 dark:text-gray-500 hidden sm:block">
                                         {item.start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} → {item.end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                                     </span>
                                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ${isOverdue ? 'bg-red-100 dark:bg-red-900/20 text-red-600' : isUrgent ? 'bg-amber-100 dark:bg-amber-900/20 text-amber-600' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'}`}>
@@ -412,15 +461,32 @@ export const AdminDashboardPage: FC<AdminDashboardPageProps> = (props) => {
             })
             .sort((a, b) => a.end.getTime() - b.end.getTime());
 
-        // Upcoming deadlines (next 30 days)
-        const now = new Date();
-        const in30 = new Date(); in30.setDate(in30.getDate() + 30);
-        const upcomingDeadlines = timelineData
-            .filter(item => item.end >= now && item.end <= in30)
-            .slice(0, 5)
-            .map(item => ({ ...item, due: item.end }));
+        // Upcoming task deadlines from CRM (next 30 days) — individual task planned end dates
+        const now = new Date(); now.setHours(0, 0, 0, 0);
+        const in30 = new Date(now); in30.setDate(in30.getDate() + 30);
+        const upcomingDeadlines: Array<{ id: string; taskName: string; product: string; customer: string; due: Date; taskStatus: string; daysLeft: number }> = [];
 
-        return { totalOrders, activeOrders, completedOrders, totalUnits, delayedOrders, onTimeRate, statusData, factoryData, monthlyVolumeData, timelineData, upcomingDeadlines };
+        orders.forEach(o => {
+            if (!o.tasks?.length) return;
+            o.tasks.forEach((t: any) => {
+                if (t.status === 'COMPLETE' || !t.plannedEndDate) return;
+                const due = new Date(t.plannedEndDate);
+                if (due < now || due > in30) return;
+                upcomingDeadlines.push({
+                    id: `${o.id}-${t.id ?? t.name}`,
+                    taskName: t.name || 'Task',
+                    product: o.product || o.customer || 'Order',
+                    customer: o.customer || '',
+                    due,
+                    taskStatus: t.status || '',
+                    daysLeft: Math.ceil((due.getTime() - now.getTime()) / 86400000),
+                });
+            });
+        });
+        upcomingDeadlines.sort((a, b) => a.due.getTime() - b.due.getTime());
+        const topDeadlines = upcomingDeadlines.slice(0, 8);
+
+        return { totalOrders, activeOrders, completedOrders, totalUnits, delayedOrders, onTimeRate, statusData, factoryData, monthlyVolumeData, timelineData, upcomingDeadlines: topDeadlines };
     }, [crmOrders, factories]);
 
     // ── Render ───────────────────────────────────────────────────────────────
@@ -584,7 +650,7 @@ export const AdminDashboardPage: FC<AdminDashboardPageProps> = (props) => {
                             </div>
 
                             <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-lg border border-gray-200 dark:border-white/10">
-                                <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-5 flex items-center gap-2">
+                                <h3 className="text-base sm:text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
                                     <div className="p-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg text-amber-600"><AlertTriangle size={18} /></div>
                                     Upcoming Deadlines
                                     <span className="ml-auto text-xs font-medium text-gray-400 dark:text-gray-500">Next 30 days</span>
@@ -592,25 +658,28 @@ export const AdminDashboardPage: FC<AdminDashboardPageProps> = (props) => {
                                 {insights.upcomingDeadlines.length === 0 ? (
                                     <div className="flex flex-col items-center justify-center py-10 text-center">
                                         <CheckCircle2 size={32} className="text-emerald-400 mb-2" />
-                                        <p className="text-sm text-gray-500 dark:text-gray-400">No deadlines in the next 30 days.</p>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400">No task deadlines in the next 30 days.</p>
                                     </div>
                                 ) : (
-                                    <div className="space-y-3">
+                                    <div className="space-y-2">
                                         {insights.upcomingDeadlines.map((item: any) => {
-                                            const daysLeft = Math.ceil((item.due.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-                                            const urgent = daysLeft <= 7;
+                                            const urgent = item.daysLeft <= 3;
+                                            const soon = !urgent && item.daysLeft <= 7;
                                             return (
-                                                <div key={item.id} className={`flex items-center gap-3 p-3 rounded-xl border ${urgent ? 'bg-red-50/60 dark:bg-red-900/10 border-red-200/50 dark:border-red-800/30' : 'bg-gray-50/60 dark:bg-gray-800/30 border-gray-100 dark:border-white/5'}`}>
-                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${urgent ? 'bg-red-100 dark:bg-red-900/30' : 'bg-amber-100 dark:bg-amber-900/20'}`}>
-                                                        <Calendar size={14} className={urgent ? 'text-red-500' : 'text-amber-500'} />
+                                                <div key={item.id} className={`flex items-center gap-3 p-2.5 sm:p-3 rounded-xl border ${urgent ? 'bg-red-50/60 dark:bg-red-900/10 border-red-200/50 dark:border-red-800/30' : soon ? 'bg-amber-50/60 dark:bg-amber-900/10 border-amber-200/50 dark:border-amber-800/30' : 'bg-gray-50/60 dark:bg-gray-800/30 border-gray-100 dark:border-white/5'}`}>
+                                                    <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${urgent ? 'bg-red-100 dark:bg-red-900/30' : soon ? 'bg-amber-100 dark:bg-amber-900/20' : 'bg-gray-100 dark:bg-gray-700'}`}>
+                                                        <Calendar size={13} className={urgent ? 'text-red-500' : soon ? 'text-amber-500' : 'text-gray-400'} />
                                                     </div>
                                                     <div className="flex-1 min-w-0">
-                                                        <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 truncate">{item.product}</p>
-                                                        <p className="text-xs text-gray-400 dark:text-gray-500">{item.customer} · {item.due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                                                        <p className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-200 truncate">{item.taskName}</p>
+                                                        <p className="text-[10px] sm:text-xs text-gray-400 dark:text-gray-500 truncate">{item.product}{item.customer ? ` · ${item.customer}` : ''}</p>
                                                     </div>
-                                                    <span className={`text-xs font-bold px-2.5 py-1 rounded-lg flex-shrink-0 ${urgent ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' : 'bg-amber-100 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400'}`}>
-                                                        {daysLeft === 0 ? 'Today' : daysLeft === 1 ? '1 day' : `${daysLeft} days`}
-                                                    </span>
+                                                    <div className="flex-shrink-0 text-right">
+                                                        <span className={`text-xs font-bold px-2 py-0.5 rounded-lg block ${urgent ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' : soon ? 'bg-amber-100 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'}`}>
+                                                            {item.daysLeft === 0 ? 'Today' : item.daysLeft === 1 ? '1d' : `${item.daysLeft}d`}
+                                                        </span>
+                                                        <p className="text-[9px] text-gray-400 dark:text-gray-500 mt-0.5">{item.due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                                                    </div>
                                                 </div>
                                             );
                                         })}

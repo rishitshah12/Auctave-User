@@ -2030,66 +2030,63 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                         {/* Main Header Card - Compact */}
                         <div ref={quoteDetailsRef} className="bg-white dark:bg-gray-900/60 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
                             <div className={`h-1.5 bg-gradient-to-r ${getStatusGradient(selectedQuote.status)}`}></div>
-                            <div className="p-5">
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                    <div className="flex items-center gap-4">
-                                        <div className="hidden sm:flex w-14 h-14 rounded-xl bg-gradient-to-br from-[#c20c0b] to-pink-600 items-center justify-center text-white shadow-lg">
+                            <div className="p-4 sm:p-5">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <div className="hidden sm:flex w-14 h-14 rounded-xl bg-gradient-to-br from-[#c20c0b] to-pink-600 items-center justify-center text-white shadow-lg flex-shrink-0">
                                             <Package size={24} />
                                         </div>
-                                        <div>
-                                            <div className="flex items-center gap-3 mb-1">
-                                                <h1 className="text-xl font-bold text-gray-900 dark:text-white">Quote #{selectedQuote.id.slice(0, 8)}</h1>
-                                                {(selectedQuote.modification_count || 0) > 0 && (
-                                                    <span className="px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide rounded-full border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                                                        <Edit size={10} />
-                                                        Modified
-                                                    </span>
-                                                )}
-                                                <span className={`px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide rounded-full border ${getStatusColor(selectedQuote.status)} flex items-center gap-1`}>
-                                                    {selectedQuote.status === 'Accepted' && <CheckCheck size={12} />}
-                                                    {(selectedQuote.status === 'Admin Accepted' || selectedQuote.status === 'Client Accepted') && <Check size={12} />}
+                                        <div className="min-w-0">
+                                            <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white truncate">Quote #{selectedQuote.id.slice(0, 8)}</h1>
+                                            <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                                <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide rounded-full border ${getStatusColor(selectedQuote.status)} flex items-center gap-1 flex-shrink-0`}>
+                                                    {selectedQuote.status === 'Accepted' && <CheckCheck size={10} />}
+                                                    {(selectedQuote.status === 'Admin Accepted' || selectedQuote.status === 'Client Accepted') && <Check size={10} />}
                                                     {selectedQuote.status === 'Admin Accepted' ? 'Admin Approved' : selectedQuote.status === 'Client Accepted' ? 'Client Approved' : selectedQuote.status}
                                                 </span>
+                                                {(selectedQuote.modification_count || 0) > 0 && (
+                                                    <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide rounded-full border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center gap-1 flex-shrink-0">
+                                                        <Edit size={9} /> Modified
+                                                    </span>
+                                                )}
                                             </div>
-                                            <p className="text-gray-500 dark:text-gray-400 text-sm flex items-center gap-3">
-                                                <span className="flex items-center"><Calendar size={14} className="mr-1"/> {selectedQuote.modified_at ? formatFriendlyDate(selectedQuote.modified_at) : formatFriendlyDate(selectedQuote.submittedAt)}</span>
-                                                <span className="flex items-center"><Package size={14} className="mr-1"/> {selectedQuote.order?.lineItems?.length || 0} items</span>
+                                            <p className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1">
+                                                <span className="flex items-center"><Calendar size={12} className="mr-1"/> {selectedQuote.modified_at ? formatFriendlyDate(selectedQuote.modified_at) : formatFriendlyDate(selectedQuote.submittedAt)}</span>
+                                                <span className="flex items-center"><Package size={12} className="mr-1"/> {selectedQuote.order?.lineItems?.length || 0} items</span>
                                             </p>
                                         </div>
                                     </div>
 
-                                    {/* Quick Actions - Desktop only */}
-                                    <div className="hidden md:flex items-center gap-2">
-                                        <button onClick={handleDownloadPdf} className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all" title="Download PDF">
-                                            <Download size={20} />
-                                        </button>
-                                    </div>
+                                    {/* Download PDF - visible on all sizes, smaller on mobile */}
+                                    <button onClick={handleDownloadPdf} className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all flex-shrink-0" title="Download PDF">
+                                        <Download size={18} />
+                                    </button>
                                 </div>
 
                                 {/* Factory Response Summary - Compact */}
                                 {(selectedQuote.status === 'Responded' || selectedQuote.status === 'In Negotiation' || selectedQuote.status === 'Accepted' || selectedQuote.status === 'Admin Accepted' || selectedQuote.status === 'Client Accepted') && selectedQuote.response_details && (
-                                    <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800 flex flex-wrap items-center gap-6">
+                                    <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800 grid grid-cols-2 sm:flex sm:flex-wrap sm:items-center gap-3 sm:gap-6">
                                         <div className="flex items-center gap-2">
-                                            <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                                                <DollarSign size={20} className="text-green-600 dark:text-green-400" />
+                                            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
+                                                <DollarSign size={16} className="text-green-600 dark:text-green-400" />
                                             </div>
                                             <div>
-                                                <p className="text-[10px] text-gray-500 dark:text-gray-400 uppercase font-medium">Quoted Price</p>
-                                                <p className="text-lg font-bold text-gray-900 dark:text-white">${selectedQuote.response_details.price}</p>
+                                                <p className="text-[10px] text-gray-500 dark:text-gray-400 uppercase font-medium">Quoted</p>
+                                                <p className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">${selectedQuote.response_details.price}</p>
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                                                <Clock size={20} className="text-blue-600 dark:text-blue-400" />
+                                            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+                                                <Clock size={16} className="text-blue-600 dark:text-blue-400" />
                                             </div>
                                             <div>
                                                 <p className="text-[10px] text-gray-500 dark:text-gray-400 uppercase font-medium">Lead Time</p>
-                                                <p className="text-lg font-bold text-gray-900 dark:text-white">{selectedQuote.response_details.leadTime}</p>
+                                                <p className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">{selectedQuote.response_details.leadTime}</p>
                                             </div>
                                         </div>
                                         {selectedQuote.response_details.notes && (
-                                            <div className="flex-1 min-w-[200px]">
-                                                <p className="text-xs text-gray-500 dark:text-gray-400 italic truncate">"{selectedQuote.response_details.notes}"</p>
+                                            <div className="col-span-2 sm:flex-1 sm:min-w-[200px]">
+                                                <p className="text-xs text-gray-500 dark:text-gray-400 italic line-clamp-2">"{selectedQuote.response_details.notes}"</p>
                                             </div>
                                         )}
                                     </div>
@@ -2098,30 +2095,57 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                         </div>
                     </div>
 
-                    {/* Zomato-style Tabs */}
-                    <div className="sticky top-14 md:top-0 z-30 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 bg-gray-50/95 dark:bg-gray-950/95 backdrop-blur-md py-3 mb-6 border-b border-gray-200 dark:border-gray-800">
-                        <div className="max-w-6xl mx-auto flex items-center gap-1 overflow-x-auto scrollbar-hide">
-                            {quoteTabs.map(tab => (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setActiveQuoteTab(tab.id)}
-                                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
-                                        activeQuoteTab === tab.id
-                                            ? 'bg-[#c20c0b] text-white shadow-md'
-                                            : 'text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800 hover:shadow-sm'
-                                    }`}
-                                >
-                                    {tab.icon}
-                                    <span>{tab.label}</span>
-                                    {tab.badge !== undefined && tab.badge > 0 && (
-                                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                    {/* Tabs */}
+                    <div className="sticky top-14 md:top-0 z-30 -mx-4 px-2 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 bg-gray-50/95 dark:bg-gray-950/95 backdrop-blur-md py-2 sm:py-3 mb-6 border-b border-gray-200 dark:border-gray-800">
+                        <div className="max-w-6xl mx-auto">
+                            {/* Mobile: equal-width icon+label tabs */}
+                            <div className="sm:hidden flex" style={{ gap: '2px' }}>
+                                {quoteTabs.map(tab => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setActiveQuoteTab(tab.id)}
+                                        className={`flex-1 flex flex-col items-center gap-0.5 py-1.5 px-1 rounded-xl transition-all relative ${
                                             activeQuoteTab === tab.id
-                                                ? 'bg-white/20 text-white'
-                                                : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
-                                        }`}>{tab.badge}</span>
-                                    )}
-                                </button>
-                            ))}
+                                                ? 'bg-[#c20c0b] text-white'
+                                                : 'text-gray-500 dark:text-gray-400 active:bg-gray-200 dark:active:bg-gray-700'
+                                        }`}
+                                    >
+                                        <div className="relative">
+                                            {React.cloneElement(tab.icon as React.ReactElement<any>, { size: 16 })}
+                                            {tab.badge !== undefined && tab.badge > 0 && (
+                                                <span className={`absolute -top-1 -right-1.5 min-w-[14px] h-3.5 px-0.5 rounded-full flex items-center justify-center font-bold text-[8px] leading-none ${
+                                                    activeQuoteTab === tab.id ? 'bg-white/30 text-white' : 'bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300'
+                                                }`}>{tab.badge}</span>
+                                            )}
+                                        </div>
+                                        <span className="text-[9px] font-semibold leading-none truncate w-full text-center">{tab.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                            {/* Desktop: horizontal scrolling tabs */}
+                            <div className="hidden sm:flex items-center gap-1 overflow-x-auto scrollbar-hide">
+                                {quoteTabs.map(tab => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setActiveQuoteTab(tab.id)}
+                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
+                                            activeQuoteTab === tab.id
+                                                ? 'bg-[#c20c0b] text-white shadow-md'
+                                                : 'text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800 hover:shadow-sm'
+                                        }`}
+                                    >
+                                        {tab.icon}
+                                        <span>{tab.label}</span>
+                                        {tab.badge !== undefined && tab.badge > 0 && (
+                                            <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                                                activeQuoteTab === tab.id
+                                                    ? 'bg-white/20 text-white'
+                                                    : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                                            }`}>{tab.badge}</span>
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     </div>
 
@@ -2269,9 +2293,9 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                         </div>
                                     </div>
 
-                                    {/* Admin Actions */}
+                                    {/* Admin Actions — desktop inline */}
                                     {selectedQuote.status !== 'Accepted' && selectedQuote.status !== 'Declined' && (
-                                        <div className="flex flex-wrap justify-end gap-3 mt-6 pt-4 border-t border-gray-100 dark:border-white/10">
+                                        <div className="hidden sm:flex flex-wrap justify-end gap-3 mt-6 pt-4 border-t border-gray-100 dark:border-white/10">
                                             <button onClick={() => setIsDeclineModalOpen(true)} className="px-4 py-2 bg-white border border-red-200 text-red-600 font-semibold rounded-lg hover:bg-red-50 transition shadow-sm flex items-center gap-2">
                                                 <XCircle size={18} /> Decline
                                             </button>
@@ -3485,33 +3509,58 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                         )}
                     </div>
 
+                    {/* Mobile sticky action bar */}
+                    {selectedQuote.status !== 'Accepted' && selectedQuote.status !== 'Declined' && selectedQuote.status !== 'Trashed' && (
+                        <div className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-t border-gray-200 dark:border-gray-800 px-3 py-2.5 flex items-center gap-2 shadow-2xl">
+                            <button
+                                onClick={() => setIsDeclineModalOpen(true)}
+                                className="flex-1 py-2.5 bg-white dark:bg-gray-800 border border-red-200 dark:border-red-800/50 text-red-600 dark:text-red-400 font-semibold rounded-xl flex items-center justify-center gap-1.5 text-sm active:scale-95 transition-transform"
+                            >
+                                <XCircle size={16} /> Decline
+                            </button>
+                            <button
+                                onClick={() => setIsResponseModalOpen(true)}
+                                className="flex-1 py-2.5 bg-[#c20c0b] text-white font-semibold rounded-xl flex items-center justify-center gap-1.5 text-sm active:scale-95 transition-transform shadow-md"
+                            >
+                                <MessageSquare size={16} /> Respond
+                            </button>
+                            <button
+                                onClick={() => handleUpdateStatus(selectedQuote.id, selectedQuote.status === 'Client Accepted' ? 'Accepted' : 'Admin Accepted')}
+                                className="flex-1 py-2.5 bg-green-600 text-white font-semibold rounded-xl flex items-center justify-center gap-1.5 text-sm active:scale-95 transition-transform shadow-md"
+                            >
+                                {selectedQuote.status === 'Client Accepted' ? <CheckCheck size={16} /> : <Check size={16} />}
+                                {selectedQuote.status === 'Client Accepted' ? 'Finalize' : 'Accept'}
+                            </button>
+                        </div>
+                    )}
+
                     {isResponseModalOpen && (
-                        createPortal(<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                            <div className="bg-white/90 backdrop-blur-xl dark:bg-gray-900/95 dark:backdrop-blur-xl p-8 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/10">
-                                <div className="flex justify-between items-center mb-6 border-b border-gray-100 dark:border-white/10 pb-4">
-                                    <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Send Quote Response</h2>
-                                    <button onClick={() => setIsResponseModalOpen(false)} className="text-gray-500 hover:text-gray-700"><X size={24} /></button>
+                        createPortal(<div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-50">
+                            <div className="bg-white/90 backdrop-blur-xl dark:bg-gray-900/95 dark:backdrop-blur-xl p-4 sm:p-8 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-2xl max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/10">
+                                <div className="flex justify-between items-center mb-4 border-b border-gray-100 dark:border-white/10 pb-4">
+                                    <h2 className="text-lg sm:text-2xl font-bold text-gray-800 dark:text-white">Send Quote Response</h2>
+                                    <button onClick={() => setIsResponseModalOpen(false)} className="text-gray-500 hover:text-gray-700 p-1"><X size={22} /></button>
                                 </div>
                                 <form onSubmit={handleSubmitResponse} className="space-y-4">
-                                    
+
                                     {/* Line Item Pricing */}
-                                    <div className="space-y-4 mb-6">
-                                        <h3 className="text-lg font-semibold text-gray-700 dark:text-white">Product Pricing</h3>
+                                    <div className="space-y-3 mb-4">
+                                        <h3 className="text-sm font-semibold text-gray-700 dark:text-white uppercase tracking-wide">Product Pricing</h3>
                                         {selectedQuote.order.lineItems.map((item, idx) => (
-                                            <div key={item.id} className="flex items-center gap-4 bg-gray-50 dark:bg-gray-700/30 p-4 rounded-xl border border-gray-200 dark:border-white/10">
-                                                <div className="flex-1">
-                                                    <p className="font-bold text-gray-800 dark:text-white">{item.category}</p>
-                                                    <p className="text-xs text-gray-500 dark:text-white">Qty: {item.quantityType === 'container' ? item.containerType : item.qty} | Target: ${item.targetPrice}</p>
+                                            <div key={item.id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 bg-gray-50 dark:bg-gray-700/30 p-3 rounded-xl border border-gray-200 dark:border-white/10">
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-bold text-gray-800 dark:text-white text-sm truncate">{item.category}</p>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400">Qty: {item.quantityType === 'container' ? item.containerType : item.qty} · Target: ${item.targetPrice}</p>
                                                 </div>
-                                                <div className="w-1/3">
-                                                    <label className="block text-xs font-medium text-gray-500 dark:text-white mb-1">Your Price ($)</label>
-                                                    <input 
-                                                        type="number" 
-                                                        step="0.01" 
-                                                        value={lineItemPrices[item.id] || ''} 
+                                                <div className="sm:w-1/3 flex items-center gap-2">
+                                                    <label className="text-xs font-medium text-gray-500 dark:text-white whitespace-nowrap sm:hidden">Price ($):</label>
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        value={lineItemPrices[item.id] || ''}
                                                         onChange={(e) => setLineItemPrices(prev => ({ ...prev, [item.id]: e.target.value }))}
-                                                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#c20c0b] outline-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white" 
-                                                        placeholder="0.00" 
+                                                        className="flex-1 p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#c20c0b] outline-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                                                        placeholder="0.00"
                                                     />
                                                 </div>
                                             </div>
@@ -3544,8 +3593,8 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
 
                     {/* Decline Modal */}
                     {isDeclineModalOpen && (
-                        createPortal(<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 animate-fade-in">
-                            <div className="bg-white/90 backdrop-blur-xl dark:bg-gray-900/95 dark:backdrop-blur-xl rounded-xl shadow-2xl w-full max-w-md p-6 relative border border-gray-200 dark:border-white/10">
+                        createPortal(<div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-50 sm:p-4 animate-fade-in">
+                            <div className="bg-white/90 backdrop-blur-xl dark:bg-gray-900/95 dark:backdrop-blur-xl rounded-t-2xl sm:rounded-xl shadow-2xl w-full sm:max-w-md p-5 relative border border-gray-200 dark:border-white/10">
                                 <button onClick={() => setIsDeclineModalOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><X size={24} /></button>
                                 <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Decline Offer</h2>
                                 <p className="text-gray-500 dark:text-white text-sm mb-6">Are you sure you want to decline this offer? This will mark the quote as declined. You can send a message to the client explaining why.</p>
