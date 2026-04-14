@@ -669,19 +669,25 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
     // --- Production Lines ---
     const addProductionLine = (name = '') => setEditingFactory(prev => ({ ...prev, productionLines: [...(prev.productionLines || []), { name, machinesCount: 0, capacityPerMonth: 0, status: 'vacant' as const }] }));
     const updateProductionLine = (index: number, field: keyof ProductionLine, value: any) => {
-        const s = [...(editingFactory.productionLines || [])];
-        s[index] = { ...s[index], [field]: value };
-        setEditingFactory(prev => ({ ...prev, productionLines: s }));
+        setEditingFactory(prev => {
+            const s = [...(prev.productionLines || [])];
+            s[index] = { ...s[index], [field]: value };
+            return { ...prev, productionLines: s };
+        });
     };
     const removeProductionLine = (index: number) => {
-        const s = [...(editingFactory.productionLines || [])];
-        s.splice(index, 1);
-        setEditingFactory(prev => ({ ...prev, productionLines: s }));
+        setEditingFactory(prev => {
+            const s = [...(prev.productionLines || [])];
+            s.splice(index, 1);
+            return { ...prev, productionLines: s };
+        });
     };
     const duplicateProductionLine = (index: number) => {
-        const s = [...(editingFactory.productionLines || [])];
-        s.splice(index + 1, 0, { ...s[index] });
-        setEditingFactory(prev => ({ ...prev, productionLines: s }));
+        setEditingFactory(prev => {
+            const s = [...(prev.productionLines || [])];
+            s.splice(index + 1, 0, { ...s[index] });
+            return { ...prev, productionLines: s };
+        });
     };
 
     // --- Catalog ---
@@ -701,30 +707,38 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
         setEditingFactory(prev => ({ ...prev, catalog: { ...cat, products: [...cat.products, newProduct] } }));
     };
     const updateProduct = (index: number, field: keyof CatalogProduct, value: any) => {
-        const cat = ensureCatalog();
-        const p = [...cat.products];
-        p[index] = { ...p[index], [field]: value };
-        setEditingFactory(prev => ({ ...prev, catalog: { ...cat, products: p } }));
+        setEditingFactory(prev => {
+            const cat = migrateCatalog((prev.catalog || { products: [], fabricOptions: [] }) as any);
+            const p = [...cat.products];
+            p[index] = { ...p[index], [field]: value };
+            return { ...prev, catalog: { ...cat, products: p } };
+        });
     };
     const removeProduct = (index: number) => {
-        const cat = ensureCatalog();
-        const p = [...cat.products];
-        p.splice(index, 1);
-        setEditingFactory(prev => ({ ...prev, catalog: { ...cat, products: p } }));
+        setEditingFactory(prev => {
+            const cat = migrateCatalog((prev.catalog || { products: [], fabricOptions: [] }) as any);
+            const p = [...cat.products];
+            p.splice(index, 1);
+            return { ...prev, catalog: { ...cat, products: p } };
+        });
     };
     const addProductImage = (index: number, url: string) => {
-        const cat = ensureCatalog();
-        const p = [...cat.products];
-        p[index] = { ...p[index], images: [...p[index].images, url] };
-        setEditingFactory(prev => ({ ...prev, catalog: { ...cat, products: p } }));
+        setEditingFactory(prev => {
+            const cat = migrateCatalog((prev.catalog || { products: [], fabricOptions: [] }) as any);
+            const p = [...cat.products];
+            p[index] = { ...p[index], images: [...p[index].images, url] };
+            return { ...prev, catalog: { ...cat, products: p } };
+        });
     };
     const removeProductImage = (prodIdx: number, imgIdx: number) => {
-        const cat = ensureCatalog();
-        const p = [...cat.products];
-        const imgs = [...p[prodIdx].images];
-        imgs.splice(imgIdx, 1);
-        p[prodIdx] = { ...p[prodIdx], images: imgs };
-        setEditingFactory(prev => ({ ...prev, catalog: { ...cat, products: p } }));
+        setEditingFactory(prev => {
+            const cat = migrateCatalog((prev.catalog || { products: [], fabricOptions: [] }) as any);
+            const p = [...cat.products];
+            const imgs = [...p[prodIdx].images];
+            imgs.splice(imgIdx, 1);
+            p[prodIdx] = { ...p[prodIdx], images: imgs };
+            return { ...prev, catalog: { ...cat, products: p } };
+        });
     };
 
     const handleProductImageDragStart = (productIndex: number, imageIndex: number) => {
@@ -772,16 +786,20 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
         setEditingFactory(prev => ({ ...prev, catalog: { ...cat, fabricOptions: [...cat.fabricOptions, { name: '', composition: '', useCases: '' }] } }));
     };
     const updateFabricOption = (index: number, field: keyof FabricOption, value: string) => {
-        const cat = ensureCatalog();
-        const o = [...cat.fabricOptions];
-        o[index] = { ...o[index], [field]: value };
-        setEditingFactory(prev => ({ ...prev, catalog: { ...cat, fabricOptions: o } }));
+        setEditingFactory(prev => {
+            const cat = migrateCatalog((prev.catalog || { products: [], fabricOptions: [] }) as any);
+            const o = [...cat.fabricOptions];
+            o[index] = { ...o[index], [field]: value };
+            return { ...prev, catalog: { ...cat, fabricOptions: o } };
+        });
     };
     const removeFabricOption = (index: number) => {
-        const cat = ensureCatalog();
-        const o = [...cat.fabricOptions];
-        o.splice(index, 1);
-        setEditingFactory(prev => ({ ...prev, catalog: { ...cat, fabricOptions: o } }));
+        setEditingFactory(prev => {
+            const cat = migrateCatalog((prev.catalog || { products: [], fabricOptions: [] }) as any);
+            const o = [...cat.fabricOptions];
+            o.splice(index, 1);
+            return { ...prev, catalog: { ...cat, fabricOptions: o } };
+        });
     };
 
     const PRODUCT_TAG_PRESETS = ['bestseller', 'new', 'eco-friendly', 'premium', 'budget'];
@@ -975,7 +993,7 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
                             {isPreviewMode ? (
                                 <FactoryPreview factory={editingFactory as Factory} />
                             ) : (
-                                <form id="factory-form" onSubmit={handleSave} className="max-w-3xl mx-auto">
+                                <form id="factory-form" onSubmit={handleSave} onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'BUTTON') e.preventDefault(); }} className="max-w-3xl mx-auto">
 
                                     {/* === STEP 1: Basic Info === */}
                                     {currentStep === 0 && (
