@@ -577,8 +577,8 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
     const prevStep = () => { if (currentStep > 0) setCurrentStep(s => s - 1); };
 
     // --- Save ---
-    const handleSave = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleSave = async (e?: React.FormEvent | React.MouseEvent) => {
+        e?.preventDefault();
         if (!isDirty) return;
         // Validate required steps (0 = basic, 1 = marketing)
         for (let i = 0; i <= 1; i++) { if (!validateStep(i)) { setCurrentStep(i); return; } }
@@ -993,7 +993,7 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
                             {isPreviewMode ? (
                                 <FactoryPreview factory={editingFactory as Factory} />
                             ) : (
-                                <form id="factory-form" onSubmit={handleSave} onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'BUTTON') e.preventDefault(); }} className="max-w-3xl mx-auto">
+                                <form id="factory-form" onSubmit={(e) => e.preventDefault()} onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'BUTTON') e.preventDefault(); }} className="max-w-3xl mx-auto">
 
                                     {/* === STEP 1: Basic Info === */}
                                     {currentStep === 0 && (
@@ -1008,39 +1008,39 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
 
                                             <div>
                                                 <label className={labelCls}>Factory Name <span className="text-red-500">*</span></label>
-                                                <input type="text" value={editingFactory.name} onChange={e => setEditingFactory({ ...editingFactory, name: e.target.value })} className={inputCls} placeholder="e.g. Acme Garments Ltd." autoFocus />
+                                                <input type="text" value={editingFactory.name} onChange={e => setEditingFactory(prev => ({ ...prev, name: e.target.value }))} className={inputCls} placeholder="e.g. Acme Garments Ltd." autoFocus />
                                             </div>
 
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                 <div>
                                                     <label className={labelCls}>City <span className="text-red-500">*</span></label>
-                                                    <input type="text" value={(editingFactory.location?.split(',') || [])[0]?.trim() || ''} onChange={e => { const country = (editingFactory.location?.split(',') || []).slice(1).join(',').trim() || ''; setEditingFactory({ ...editingFactory, location: `${e.target.value}, ${country}` }); }} className={inputCls} placeholder="e.g. Dhaka" />
+                                                    <input type="text" value={(editingFactory.location?.split(',') || [])[0]?.trim() || ''} onChange={e => { const city = e.target.value; setEditingFactory(prev => { const country = (prev.location?.split(',') || []).slice(1).join(',').trim() || ''; return { ...prev, location: `${city}, ${country}` }; }); }} className={inputCls} placeholder="e.g. Dhaka" />
                                                 </div>
                                                 <div>
                                                     <label className={labelCls}>Country <span className="text-red-500">*</span></label>
-                                                    <input type="text" value={(editingFactory.location?.split(',') || []).slice(1).join(',').trim() || ''} onChange={e => { const city = (editingFactory.location?.split(',') || [])[0]?.trim() || ''; setEditingFactory({ ...editingFactory, location: `${city}, ${e.target.value}` }); }} className={inputCls} placeholder="e.g. Bangladesh" />
+                                                    <input type="text" value={(editingFactory.location?.split(',') || []).slice(1).join(',').trim() || ''} onChange={e => { const country = e.target.value; setEditingFactory(prev => { const city = (prev.location?.split(',') || [])[0]?.trim() || ''; return { ...prev, location: `${city}, ${country}` }; }); }} className={inputCls} placeholder="e.g. Bangladesh" />
                                                 </div>
                                             </div>
 
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                 <div>
                                                     <label className={labelCls}>MOQ <span className="text-red-500">*</span></label>
-                                                    <input type="number" min="0" value={editingFactory.minimumOrderQuantity} onChange={e => setEditingFactory({ ...editingFactory, minimumOrderQuantity: Math.max(0, parseInt(e.target.value) || 0) })} className={inputCls} />
+                                                    <input type="number" min="0" value={editingFactory.minimumOrderQuantity} onChange={e => setEditingFactory(prev => ({ ...prev, minimumOrderQuantity: Math.max(0, parseInt(e.target.value) || 0) }))} className={inputCls} />
                                                 </div>
                                                 <div>
                                                     <label className={labelCls}>Turnaround Time</label>
-                                                    <input type="text" value={editingFactory.turnaround} onChange={e => setEditingFactory({ ...editingFactory, turnaround: e.target.value })} className={inputCls} placeholder="e.g. 4-6 weeks" />
+                                                    <input type="text" value={editingFactory.turnaround} onChange={e => setEditingFactory(prev => ({ ...prev, turnaround: e.target.value }))} className={inputCls} placeholder="e.g. 4-6 weeks" />
                                                 </div>
                                             </div>
 
                                             <div>
                                                 <label className={labelCls}>Promo Offer Banner</label>
-                                                <input type="text" value={editingFactory.offer || ''} onChange={e => setEditingFactory({ ...editingFactory, offer: e.target.value })} className={inputCls} placeholder="e.g. 5% off first order (optional)" />
+                                                <input type="text" value={editingFactory.offer || ''} onChange={e => setEditingFactory(prev => ({ ...prev, offer: e.target.value }))} className={inputCls} placeholder="e.g. 5% off first order (optional)" />
                                             </div>
 
                                             <div>
                                                 <label className={labelCls}>Description <span className="text-red-500">*</span></label>
-                                                <textarea value={editingFactory.description} onChange={e => setEditingFactory({ ...editingFactory, description: e.target.value })} className={`${inputCls} resize-none`} rows={4} placeholder="Describe the factory's history, capabilities, and values..." />
+                                                <textarea value={editingFactory.description} onChange={e => setEditingFactory(prev => ({ ...prev, description: e.target.value }))} className={`${inputCls} resize-none`} rows={4} placeholder="Describe the factory's history, capabilities, and values..." />
                                             </div>
                                         </div>
                                     )}
@@ -1075,11 +1075,11 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                                                 <div>
                                                     <label className={labelCls}>Rating (0-5)</label>
-                                                    <input type="number" step="0.1" max="5" min="0" value={editingFactory.rating} onChange={e => setEditingFactory({ ...editingFactory, rating: parseFloat(e.target.value) || 0 })} className={inputCls} />
+                                                    <input type="number" step="0.1" max="5" min="0" value={editingFactory.rating} onChange={e => setEditingFactory(prev => ({ ...prev, rating: parseFloat(e.target.value) || 0 }))} className={inputCls} />
                                                 </div>
                                                 <div>
                                                     <label className={labelCls}>Trust Tier</label>
-                                                    <select value={editingFactory.trustTier || 'unverified'} onChange={e => setEditingFactory({ ...editingFactory, trustTier: e.target.value as any })} className={`${inputCls} cursor-pointer`}>
+                                                    <select value={editingFactory.trustTier || 'unverified'} onChange={e => setEditingFactory(prev => ({ ...prev, trustTier: e.target.value as any }))} className={`${inputCls} cursor-pointer`}>
                                                         <option value="unverified">Unverified</option>
                                                         <option value="bronze">Bronze</option>
                                                         <option value="silver">Silver</option>
@@ -1088,15 +1088,15 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
                                                 </div>
                                                 <div>
                                                     <label className={labelCls}>Completed Orders</label>
-                                                    <input type="number" min="0" value={editingFactory.completedOrdersCount ?? 0} onChange={e => setEditingFactory({ ...editingFactory, completedOrdersCount: parseInt(e.target.value) || 0 })} className={inputCls} />
+                                                    <input type="number" min="0" value={editingFactory.completedOrdersCount ?? 0} onChange={e => setEditingFactory(prev => ({ ...prev, completedOrdersCount: parseInt(e.target.value) || 0 }))} className={inputCls} />
                                                 </div>
                                                 <div>
                                                     <label className={labelCls}>On-Time Delivery Rate (%)</label>
-                                                    <input type="number" step="0.1" min="0" max="100" value={editingFactory.onTimeDeliveryRate ?? ''} onChange={e => setEditingFactory({ ...editingFactory, onTimeDeliveryRate: e.target.value ? parseFloat(e.target.value) : undefined })} className={inputCls} placeholder="e.g. 94.5" />
+                                                    <input type="number" step="0.1" min="0" max="100" value={editingFactory.onTimeDeliveryRate ?? ''} onChange={e => setEditingFactory(prev => ({ ...prev, onTimeDeliveryRate: e.target.value ? parseFloat(e.target.value) : undefined }))} className={inputCls} placeholder="e.g. 94.5" />
                                                 </div>
                                                 <div>
                                                     <label className={labelCls}>Quality Rejection Rate (%)</label>
-                                                    <input type="number" step="0.1" min="0" max="100" value={editingFactory.qualityRejectionRate ?? ''} onChange={e => setEditingFactory({ ...editingFactory, qualityRejectionRate: e.target.value ? parseFloat(e.target.value) : undefined })} className={inputCls} placeholder="e.g. 1.2" />
+                                                    <input type="number" step="0.1" min="0" max="100" value={editingFactory.qualityRejectionRate ?? ''} onChange={e => setEditingFactory(prev => ({ ...prev, qualityRejectionRate: e.target.value ? parseFloat(e.target.value) : undefined }))} className={inputCls} placeholder="e.g. 1.2" />
                                                 </div>
                                             </div>
                                         </div>
@@ -1546,7 +1546,7 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
                                     <button type="button" onClick={() => setIsPreviewMode(false)} className="flex items-center gap-2 px-4 py-2.5 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl font-semibold transition-colors">
                                         <ChevronLeft size={18} /> Back to Edit
                                     </button>
-                                    <button onClick={(e) => handleSave(e as any)} disabled={!isDirty}
+                                    <button type="button" onClick={() => handleSave()} disabled={!isDirty}
                                         className={`flex items-center gap-2 px-6 py-2.5 text-white rounded-xl font-semibold transition-all shadow-lg ${!isDirty ? 'bg-gray-400 cursor-not-allowed shadow-none' : 'bg-[#c20c0b] hover:bg-[#a50a09] shadow-red-200 dark:shadow-red-900/20'}`}>
                                         <Check size={18} /> Save Factory
                                     </button>
@@ -1567,7 +1567,7 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
 
                                     <div className="flex items-center gap-3">
                                         {isLastStep ? (
-                                            <button type="submit" form="factory-form" disabled={!isDirty}
+                                            <button type="button" onClick={() => handleSave()} disabled={!isDirty}
                                                 className={`flex items-center gap-2 px-6 py-2.5 text-white rounded-xl font-semibold transition-all shadow-lg ${!isDirty ? 'bg-gray-400 cursor-not-allowed shadow-none' : 'bg-[#c20c0b] hover:bg-[#a50a09] shadow-red-200 dark:shadow-red-900/20'}`}>
                                                 <Check size={18} /> Save Factory
                                             </button>
