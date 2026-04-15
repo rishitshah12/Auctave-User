@@ -120,11 +120,48 @@ function ClientProfileBanner({
     onClear: () => void;
 }) {
     return (
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 p-5 sm:p-6 shadow-xl border border-white/5 mb-6">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 p-4 sm:p-6 shadow-xl border border-white/5 mb-4 sm:mb-6">
             <div className="absolute top-0 left-0 w-48 h-48 bg-blue-500/20 rounded-full filter blur-3xl pointer-events-none" />
             <div className="absolute bottom-0 right-10 w-40 h-40 bg-purple-500/20 rounded-full filter blur-3xl pointer-events-none" />
 
-            <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            {/* Mobile layout */}
+            <div className="relative z-10 sm:hidden">
+                <div className="flex items-center gap-3">
+                    <ClientAvatar name={client.name} size="sm" />
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                            <h2 className="text-base font-extrabold text-white truncate">{client.name}</h2>
+                            <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-300 text-[9px] font-bold rounded-full border border-blue-500/30 uppercase tracking-wider">Client</span>
+                        </div>
+                        {client.company_name && (
+                            <p className="text-gray-400 text-xs flex items-center gap-1 mt-0.5 truncate">
+                                <Building2 size={10} /> {client.company_name}
+                            </p>
+                        )}
+                    </div>
+                    <button
+                        onClick={onClear}
+                        className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-all border border-white/10 flex-shrink-0"
+                        title="Change client"
+                    >
+                        <X size={14} />
+                    </button>
+                </div>
+                <div className="flex items-center gap-4 mt-3 pt-3 border-t border-white/10">
+                    <div>
+                        <p className="text-xl font-black text-white leading-none">{orderCount}</p>
+                        <p className="text-[10px] text-gray-400 uppercase tracking-wider mt-0.5">Orders</p>
+                    </div>
+                    <div className="w-px h-8 bg-white/10" />
+                    <div>
+                        <p className="text-xl font-black text-emerald-400 leading-none">{activeOrderCount}</p>
+                        <p className="text-[10px] text-gray-400 uppercase tracking-wider mt-0.5">Active</p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Desktop layout */}
+            <div className="relative z-10 hidden sm:flex flex-row items-center gap-4">
                 <ClientAvatar name={client.name} size="lg" />
 
                 <div className="flex-1 min-w-0">
@@ -2544,19 +2581,19 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
     , [orders]);
 
     const overviewViews = [
-        { name: 'Overview', icon: <Info size={16} /> },
-        { name: 'Tasks', icon: <List size={16} /> },
-        { name: 'Documents', icon: <FileText size={16} /> },
-        { name: 'TNA', icon: <ClipboardCheck size={16} /> },
-        { name: 'Dashboard', icon: <PieChartIcon size={16} /> },
-        { name: 'Gantt', icon: <GanttChartSquare size={16} /> },
+        { name: 'Overview', short: 'Overview', icon: <Info size={15} /> },
+        { name: 'Tasks', short: 'Tasks', icon: <List size={15} /> },
+        { name: 'Documents', short: 'Docs', icon: <FileText size={15} /> },
+        { name: 'TNA', short: 'TNA', icon: <ClipboardCheck size={15} /> },
+        { name: 'Dashboard', short: 'Stats', icon: <PieChartIcon size={15} /> },
+        { name: 'Gantt', short: 'Gantt', icon: <GanttChartSquare size={15} /> },
     ];
     const productViews = [
-        { name: 'Overview', icon: <Info size={16} /> },
-        { name: 'TNA', icon: <ClipboardCheck size={16} /> },
-        { name: 'List', icon: <List size={16} /> },
-        { name: 'Board', icon: <LayoutDashboard size={16} /> },
-        { name: 'Gantt', icon: <GanttChartSquare size={16} /> },
+        { name: 'Overview', short: 'Overview', icon: <Info size={15} /> },
+        { name: 'TNA', short: 'TNA', icon: <ClipboardCheck size={15} /> },
+        { name: 'List', short: 'List', icon: <List size={15} /> },
+        { name: 'Board', short: 'Board', icon: <LayoutDashboard size={15} /> },
+        { name: 'Gantt', short: 'Gantt', icon: <GanttChartSquare size={15} /> },
     ];
     const currentViews = selectedProductId ? productViews : overviewViews;
 
@@ -2849,42 +2886,50 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                     {!isLoading && selectedOrderId && transformedOrder && editingOrder && (
                         <div className="animate-fade-in">
                             {/* Detail header */}
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-                                <div className="flex items-center gap-3 min-w-0">
+                            <div className="mb-4">
+                                {/* Mobile: back + actions row */}
+                                <div className="flex items-center justify-between gap-2 mb-2">
                                     <button
                                         onClick={handleBackToOrders}
-                                        className="flex items-center gap-2 text-sm font-semibold text-gray-500 dark:text-gray-400 hover:text-[#c20c0b] dark:hover:text-red-400 transition-colors flex-shrink-0"
+                                        className="flex items-center gap-1.5 text-sm font-semibold text-gray-500 dark:text-gray-400 hover:text-[#c20c0b] dark:hover:text-red-400 transition-colors"
                                     >
-                                        <ArrowLeft size={18} />
-                                        <span className="hidden sm:inline">All Orders</span>
+                                        <ArrowLeft size={16} />
+                                        <span>Orders</span>
                                     </button>
-                                    <div className="h-5 w-px bg-gray-200 dark:bg-gray-700 flex-shrink-0" />
-                                    <h2 className="text-lg font-bold text-gray-800 dark:text-white truncate">
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => setShowSendConfirm(true)}
+                                            disabled={!hasChanges || isSaving}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 bg-gradient-to-r from-[#c20c0b] to-red-600 text-white text-sm font-bold rounded-xl shadow hover:shadow-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
+                                        >
+                                            <Send size={14} /> <span>Send</span>
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeleteOrder(selectedOrderId)}
+                                            className="p-2 sm:p-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm font-bold rounded-xl hover:bg-red-100 dark:hover:bg-red-900/40 transition-all border border-red-200 dark:border-red-800"
+                                            title="Delete Order"
+                                        >
+                                            <Trash2 size={15} />
+                                        </button>
+                                    </div>
+                                </div>
+                                {/* Order name + risk badge */}
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <h2 className="text-base sm:text-lg font-bold text-gray-800 dark:text-white leading-tight">
                                         {transformedOrder.product}
                                     </h2>
                                     <RiskBadge score={calculateOrderRiskScore(transformedOrder.tasks || [])} />
-                                    {/* Draft status — single static element, only text content changes, no layout shift */}
-                                    <span className="hidden sm:inline-flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 flex-shrink-0 whitespace-nowrap">
+                                    <span className="hidden sm:inline-flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">
                                         <Save size={10} className={draftSavedAt ? 'text-amber-500 dark:text-amber-400' : 'text-gray-300 dark:text-gray-600'} />
                                         {draftSavedAt ? `Draft saved ${draftSavedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}` : lastSavedAt ? `Sent ${lastSavedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}` : hasChanges ? 'Unsaved draft' : 'No changes'}
                                     </span>
-                                </div>
-                                <div className="flex items-center gap-2 flex-shrink-0">
-                                    {/* Send to Client — always in DOM, disabled when nothing to send */}
-                                    <button
-                                        onClick={() => setShowSendConfirm(true)}
-                                        disabled={!hasChanges || isSaving}
-                                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#c20c0b] to-red-600 text-white text-sm font-bold rounded-xl shadow hover:shadow-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
-                                    >
-                                        <Send size={15} /> Send
-                                    </button>
-                                    <button
-                                        onClick={() => handleDeleteOrder(selectedOrderId)}
-                                        className="flex items-center gap-2 px-3 py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm font-bold rounded-xl hover:bg-red-100 dark:hover:bg-red-900/40 transition-all border border-red-200 dark:border-red-800"
-                                        title="Delete Order"
-                                    >
-                                        <Trash2 size={15} />
-                                    </button>
+                                    {/* Mobile draft status */}
+                                    {(draftSavedAt || hasChanges) && (
+                                        <span className="sm:hidden inline-flex items-center gap-1 text-[11px] text-gray-400 dark:text-gray-500">
+                                            <Save size={9} className={draftSavedAt ? 'text-amber-500 dark:text-amber-400' : 'text-gray-300 dark:text-gray-600'} />
+                                            {draftSavedAt ? 'Saved' : 'Unsaved'}
+                                        </span>
+                                    )}
                                 </div>
                             </div>
 
@@ -2892,60 +2937,64 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                             <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
                                 {/* Product selector chips */}
                                 {transformedOrder?.products && transformedOrder.products.length > 0 && (
-                                    <div className="px-4 sm:px-6 pt-4 pb-3 border-b border-gray-100 dark:border-white/5 flex items-center gap-1.5 flex-wrap">
-                                        <span className="text-xs font-medium text-gray-400 dark:text-gray-500">Product:</span>
-                                        <button
-                                            onClick={() => handleSelectProduct(null)}
-                                            className={`py-1.5 px-3 text-xs font-semibold rounded-lg transition-all duration-200 ${
-                                                !selectedProductId
-                                                    ? 'bg-gradient-to-r from-[#c20c0b] to-red-600 text-white shadow-md'
-                                                    : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                                            }`}
-                                        >
-                                            All
-                                        </button>
-                                        {transformedOrder.products.map(p => (
+                                    <div className="px-3 sm:px-6 pt-3 pb-3 border-b border-gray-100 dark:border-white/5">
+                                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2 sm:hidden">Filter by Product</p>
+                                        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+                                            <span className="hidden sm:block text-xs font-medium text-gray-400 dark:text-gray-500 flex-shrink-0 mr-1">Product:</span>
                                             <button
-                                                key={p.id}
-                                                onClick={() => handleSelectProduct(p.id)}
-                                                className={`flex items-center gap-1 py-1.5 px-3 text-xs font-semibold rounded-lg transition-all duration-200 ${
-                                                    selectedProductId === p.id
+                                                onClick={() => handleSelectProduct(null)}
+                                                className={`py-1.5 px-3 text-xs font-semibold rounded-lg transition-all duration-200 flex-shrink-0 ${
+                                                    !selectedProductId
                                                         ? 'bg-gradient-to-r from-[#c20c0b] to-red-600 text-white shadow-md'
                                                         : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                                                 }`}
                                             >
-                                                <Package size={11} />
-                                                {p.name}
+                                                All
                                             </button>
-                                        ))}
+                                            {transformedOrder.products.map(p => (
+                                                <button
+                                                    key={p.id}
+                                                    onClick={() => handleSelectProduct(p.id)}
+                                                    className={`flex items-center gap-1 py-1.5 px-3 text-xs font-semibold rounded-lg transition-all duration-200 flex-shrink-0 ${
+                                                        selectedProductId === p.id
+                                                            ? 'bg-gradient-to-r from-[#c20c0b] to-red-600 text-white shadow-md'
+                                                            : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                                    }`}
+                                                >
+                                                    <Package size={11} />
+                                                    {p.name}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
                                 )}
-                                <div className="border-b border-gray-200 dark:border-white/10 px-4 sm:px-6 pt-4 pb-0">
-                                    <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide -mb-px">
+                                <div className="border-b border-gray-200 dark:border-white/10 px-2 sm:px-6 pt-3 pb-0">
+                                    <div className="flex items-center gap-0.5 sm:gap-1 overflow-x-auto scrollbar-hide -mb-px">
                                         {currentViews.map(view => (
                                             <button
                                                 key={view.name}
                                                 onClick={() => setActiveView(view.name)}
-                                                className={`flex items-center gap-2 py-2.5 px-4 text-sm font-semibold rounded-t-lg transition-all border-b-2 whitespace-nowrap ${
+                                                className={`flex items-center gap-1.5 py-2.5 px-2.5 sm:px-4 text-xs sm:text-sm font-semibold rounded-t-lg transition-all border-b-2 whitespace-nowrap flex-shrink-0 ${
                                                     activeView === view.name
                                                         ? 'border-[#c20c0b] text-[#c20c0b] dark:text-red-400 bg-red-50/50 dark:bg-red-900/10'
                                                         : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
                                                 }`}
                                             >
                                                 {view.icon}
+                                                <span className="sm:hidden">{view.short}</span>
                                                 <span className="hidden sm:inline">{view.name}</span>
                                                 {view.name === 'Tasks' && inlineTasks.length > 0 && (
-                                                    <span className={`text-xs px-1.5 py-0.5 rounded-full ${activeView === 'Tasks' ? 'bg-red-100 dark:bg-red-900/30 text-[#c20c0b] dark:text-red-400' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'}`}>{inlineTasks.length}</span>
+                                                    <span className={`text-[10px] sm:text-xs px-1.5 py-0.5 rounded-full ${activeView === 'Tasks' ? 'bg-red-100 dark:bg-red-900/30 text-[#c20c0b] dark:text-red-400' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'}`}>{inlineTasks.length}</span>
                                                 )}
                                                 {view.name === 'Documents' && inlineDocuments.length > 0 && (
-                                                    <span className={`text-xs px-1.5 py-0.5 rounded-full ${activeView === 'Documents' ? 'bg-red-100 dark:bg-red-900/30 text-[#c20c0b] dark:text-red-400' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'}`}>{inlineDocuments.length}</span>
+                                                    <span className={`text-[10px] sm:text-xs px-1.5 py-0.5 rounded-full ${activeView === 'Documents' ? 'bg-red-100 dark:bg-red-900/30 text-[#c20c0b] dark:text-red-400' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'}`}>{inlineDocuments.length}</span>
                                                 )}
                                             </button>
                                         ))}
                                     </div>
                                 </div>
 
-                                <div className="p-4 sm:p-6">
+                                <div className="p-3 sm:p-6">
                                     {/* ── OVERVIEW TAB ── */}
                                     {activeView === 'Overview' && (
                                         <div className="space-y-6">
@@ -3109,24 +3158,24 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                     {activeView === 'Tasks' && (
                                         <div className="space-y-4">
                                             {/* Toolbar */}
-                                            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center">
+                                            <div className="space-y-2 sm:space-y-0 sm:flex sm:flex-row sm:gap-3 sm:items-center">
+                                                {/* Row 1: Search */}
                                                 <div className="relative flex-1 min-w-0">
                                                     <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                                    <input type="text" value={taskSearch} onChange={(e) => setTaskSearch(e.target.value)} placeholder="Search tasks..." className="w-full pl-8 pr-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-[#c20c0b]/20 focus:border-[#c20c0b] focus:outline-none text-gray-700 dark:text-gray-200" />
+                                                    <input type="text" value={taskSearch} onChange={(e) => setTaskSearch(e.target.value)} placeholder="Search tasks..." className="w-full pl-8 pr-3 py-2.5 sm:py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-[#c20c0b]/20 focus:border-[#c20c0b] focus:outline-none text-gray-700 dark:text-gray-200" />
                                                 </div>
+                                                {/* Row 2 on mobile: filters + actions */}
                                                 <div className="flex items-center gap-2">
-                                                <select value={taskStatusFilter} onChange={(e) => setTaskStatusFilter(e.target.value)} className="flex-1 sm:flex-none px-2.5 sm:px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-700 dark:text-gray-200 cursor-pointer min-w-0">
-                                                    <option value="ALL">All Status</option>
-                                                    <option value="TO DO">To Do</option>
-                                                    <option value="IN PROGRESS">In Progress</option>
-                                                    <option value="COMPLETE">Complete</option>
-                                                </select>
-                                                <select value={taskProductFilter} onChange={(e) => setTaskProductFilter(e.target.value)} className="flex-1 sm:flex-none px-2.5 sm:px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-700 dark:text-gray-200 cursor-pointer min-w-0">
-                                                    <option value="ALL">All Products</option>
-                                                    {inlineProducts.map((p: CrmProduct) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                                </select>
-                                                </div>
-                                                <div className="flex items-center gap-2">
+                                                    <select value={taskStatusFilter} onChange={(e) => setTaskStatusFilter(e.target.value)} className="flex-1 sm:flex-none px-2.5 sm:px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-700 dark:text-gray-200 cursor-pointer min-w-0">
+                                                        <option value="ALL">All Status</option>
+                                                        <option value="TO DO">To Do</option>
+                                                        <option value="IN PROGRESS">In Progress</option>
+                                                        <option value="COMPLETE">Complete</option>
+                                                    </select>
+                                                    <select value={taskProductFilter} onChange={(e) => setTaskProductFilter(e.target.value)} className="flex-1 sm:flex-none px-2.5 sm:px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-700 dark:text-gray-200 cursor-pointer min-w-0">
+                                                        <option value="ALL">All Products</option>
+                                                        {inlineProducts.map((p: CrmProduct) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                                    </select>
                                                     <button
                                                         ref={taskTemplatesBtnRef}
                                                         onClick={() => {
@@ -3138,11 +3187,11 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                                             }
                                                             setShowTemplates(true);
                                                         }}
-                                                        className="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800 rounded-xl text-sm font-semibold hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+                                                        className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800 rounded-xl text-sm font-semibold hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors whitespace-nowrap flex-shrink-0"
                                                     >
                                                         <Zap size={14} /> <span className="hidden sm:inline">Templates</span><span className="sm:hidden">Tmpl</span>
                                                     </button>
-                                                    <button onClick={() => addInlineTask()} className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-gradient-to-r from-[#c20c0b] to-red-600 text-white rounded-xl text-sm font-semibold hover:shadow-lg hover:scale-105 transition-all duration-200">
+                                                    <button onClick={() => addInlineTask()} className="flex items-center gap-1.5 px-3 sm:px-4 py-2 bg-gradient-to-r from-[#c20c0b] to-red-600 text-white rounded-xl text-sm font-semibold hover:shadow-lg hover:scale-105 transition-all duration-200 whitespace-nowrap flex-shrink-0">
                                                         <Plus size={14} /> <span className="hidden sm:inline">Add Task</span><span className="sm:hidden">Add</span>
                                                     </button>
                                                 </div>
@@ -3152,29 +3201,29 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                             <div className="space-y-3">
                                                 {inlineGroupedTasks.map(([groupId, group]) => (
                                                     <div key={groupId} className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-                                                        <div className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                                                        <div className="w-full flex items-center justify-between px-3 sm:px-4 py-3 bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                                                             <button
                                                                 onClick={() => setCollapsedGroups(prev => { const n = new Set(prev); if (n.has(groupId)) n.delete(groupId); else n.add(groupId); return n; })}
-                                                                className="flex items-center gap-3 flex-1 text-left"
+                                                                className="flex items-center gap-2 flex-1 text-left min-w-0"
                                                             >
-                                                                {collapsedGroups.has(groupId) ? <ChevronRight size={15} className="text-gray-400" /> : <ChevronDown size={15} className="text-gray-400" />}
-                                                                <Package size={14} className="text-gray-400" />
-                                                                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{group.product?.name || 'Unassigned'}</span>
-                                                                <span className="text-xs px-2 py-0.5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400">{group.tasks.length}</span>
+                                                                {collapsedGroups.has(groupId) ? <ChevronRight size={14} className="text-gray-400 flex-shrink-0" /> : <ChevronDown size={14} className="text-gray-400 flex-shrink-0" />}
+                                                                <Package size={13} className="text-gray-400 flex-shrink-0" />
+                                                                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 truncate">{group.product?.name || 'Unassigned'}</span>
+                                                                <span className="text-xs px-1.5 py-0.5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 flex-shrink-0">{group.tasks.length}</span>
                                                             </button>
-                                                            <div className="flex items-center gap-2 flex-shrink-0">
+                                                            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
                                                                 {group.product && (
                                                                     <>
-                                                                        <div className="w-14 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                                        <div className="w-10 sm:w-14 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                                                                             <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${getInlineProductProgress(group.product.id)}%` }} />
                                                                         </div>
-                                                                        <span className="text-xs text-gray-400">{getInlineProductProgress(group.product.id)}%</span>
+                                                                        <span className="text-xs text-gray-400 w-7 text-right">{getInlineProductProgress(group.product.id)}%</span>
                                                                     </>
                                                                 )}
                                                                 {group.product && (
                                                                     <button
                                                                         onClick={(e) => { e.stopPropagation(); addInlineTask(undefined, group.product!.id); }}
-                                                                        className="flex items-center gap-1 px-2 py-1 ml-1 text-xs font-semibold text-[#c20c0b] hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors border border-[#c20c0b]/30 hover:border-[#c20c0b]"
+                                                                        className="flex items-center gap-1 px-2 py-1 text-xs font-semibold text-[#c20c0b] hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors border border-[#c20c0b]/30 hover:border-[#c20c0b]"
                                                                         title={`Add task to ${group.product.name}`}
                                                                     >
                                                                         <Plus size={12} /> Add Task
@@ -3194,11 +3243,12 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
 
                                                                     return (
                                                                         <div key={task.id} className={`${overdue ? 'bg-red-50/50 dark:bg-red-900/10' : 'bg-white dark:bg-gray-900'}`}>
-                                                                            <div className="flex items-center gap-2 px-3 sm:px-4 py-3 group">
-                                                                                {/* Reorder — always visible on mobile, hover-visible on desktop */}
-                                                                                <div className="flex flex-col sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex-shrink-0">
-                                                                                    <button onClick={() => moveInlineTask(task.id, 'up')} className="text-gray-300 hover:text-gray-500 dark:hover:text-gray-300 active:text-gray-600 p-0.5 touch-manipulation"><ChevronUp size={12} /></button>
-                                                                                    <button onClick={() => moveInlineTask(task.id, 'down')} className="text-gray-300 hover:text-gray-500 dark:hover:text-gray-300 active:text-gray-600 p-0.5 touch-manipulation"><ChevronDown size={12} /></button>
+                                                                            {/* ── Task row ── */}
+                                                                            <div className="flex items-start gap-2 sm:gap-2 px-3 sm:px-4 py-3 group">
+                                                                                {/* Reorder — hover-visible on desktop, hidden on mobile to save space */}
+                                                                                <div className="hidden sm:flex flex-col opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5">
+                                                                                    <button onClick={() => moveInlineTask(task.id, 'up')} className="text-gray-300 hover:text-gray-500 dark:hover:text-gray-300 p-0.5 touch-manipulation"><ChevronUp size={12} /></button>
+                                                                                    <button onClick={() => moveInlineTask(task.id, 'down')} className="text-gray-300 hover:text-gray-500 dark:hover:text-gray-300 p-0.5 touch-manipulation"><ChevronDown size={12} /></button>
                                                                                 </div>
 
                                                                                 {/* Status toggle */}
@@ -3211,34 +3261,41 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                                                                         if (nextStatus === 'TO DO') { updates.progress = 0; }
                                                                                         updateInlineTask(task.id, updates);
                                                                                     }}
-                                                                                    className="flex-shrink-0 p-1 -m-1 touch-manipulation"
+                                                                                    className="flex-shrink-0 mt-0.5 p-1 -m-1 touch-manipulation"
                                                                                     title={`Click to cycle status (${task.status})`}
                                                                                 >
                                                                                     {task.status === 'COMPLETE' ? <CheckCircle size={18} className="text-green-500" /> : task.status === 'IN PROGRESS' ? <Clock size={18} className="text-blue-500 animate-pulse" /> : <div className="w-[18px] h-[18px] rounded-full border-2 border-gray-300 dark:border-gray-600 hover:border-blue-400 transition-colors" />}
                                                                                 </button>
 
-                                                                                {/* Task name */}
-                                                                                <button
-                                                                                    onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}
-                                                                                    className={`flex-1 text-left text-sm font-medium truncate min-w-0 ${task.status === 'COMPLETE' ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-800 dark:text-white'} hover:text-[#c20c0b] dark:hover:text-red-400 transition-colors`}
-                                                                                >
-                                                                                    {task.name}
-                                                                                </button>
-
-                                                                                {/* Badges — condensed on mobile */}
-                                                                                <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
-                                                                                    {overdue && <span className="flex items-center gap-0.5 sm:gap-1 text-xs font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-1.5 py-0.5 rounded-md"><AlertTriangle size={9} /> <span className="hidden sm:inline">Overdue</span><span className="sm:hidden">!</span></span>}
-                                                                                    {dueSoon && !overdue && <span className="hidden sm:flex items-center gap-1 text-xs font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded-md"><Clock size={9} /> Due Soon</span>}
-                                                                                    {priorityConfig && <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-md hidden sm:inline-flex items-center gap-0.5 ${priorityConfig.bg} ${priorityConfig.text}`}>{priorityConfig.icon} {task.priority || 'Medium'}</span>}
-                                                                                    <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-md whitespace-nowrap ${statusColor.bg} ${statusColor.text}`}>
-                                                                                        <span className="hidden sm:inline">{task.status}</span>
-                                                                                        <span className="sm:hidden">{task.status === 'COMPLETE' ? '✓' : task.status === 'IN PROGRESS' ? '●' : '○'}</span>
-                                                                                    </span>
-                                                                                    {task.plannedEndDate && <span className={`text-xs hidden sm:inline ${overdue ? 'text-red-500 font-semibold' : 'text-gray-400 dark:text-gray-500'}`}>{new Date(task.plannedEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>}
-                                                                                    <button onClick={() => setExpandedTaskId(isExpanded ? null : task.id)} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors touch-manipulation">
-                                                                                        {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                                                                {/* Task name + meta row */}
+                                                                                <div className="flex-1 min-w-0">
+                                                                                    <button
+                                                                                        onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}
+                                                                                        className={`w-full text-left text-sm font-medium leading-snug ${task.status === 'COMPLETE' ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-800 dark:text-white'} hover:text-[#c20c0b] dark:hover:text-red-400 transition-colors`}
+                                                                                    >
+                                                                                        {task.name}
                                                                                     </button>
+                                                                                    {/* Mobile meta row */}
+                                                                                    <div className="flex items-center gap-1.5 mt-1 sm:hidden flex-wrap">
+                                                                                        <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded ${statusColor.bg} ${statusColor.text}`}>{task.status === 'COMPLETE' ? 'Done' : task.status === 'IN PROGRESS' ? 'In Progress' : 'To Do'}</span>
+                                                                                        {priorityConfig && <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded ${priorityConfig.bg} ${priorityConfig.text}`}>{task.priority || 'Medium'}</span>}
+                                                                                        {overdue && <span className="flex items-center gap-0.5 text-[11px] font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-1.5 py-0.5 rounded"><AlertTriangle size={9} /> Overdue</span>}
+                                                                                        {dueSoon && !overdue && <span className="flex items-center gap-0.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded"><Clock size={9} /> Due soon</span>}
+                                                                                        {task.plannedEndDate && !overdue && !dueSoon && <span className="text-[11px] text-gray-400 dark:text-gray-500">{new Date(task.plannedEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>}
+                                                                                    </div>
                                                                                 </div>
+
+                                                                                {/* Desktop badges — hidden on mobile (shown in meta row below) */}
+                                                                                <div className="hidden sm:flex items-center gap-1.5 flex-shrink-0">
+                                                                                    {overdue && <span className="flex items-center gap-1 text-xs font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-1.5 py-0.5 rounded-md"><AlertTriangle size={9} /> Overdue</span>}
+                                                                                    {dueSoon && !overdue && <span className="flex items-center gap-1 text-xs font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded-md"><Clock size={9} /> Due Soon</span>}
+                                                                                    {priorityConfig && <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-md inline-flex items-center gap-0.5 ${priorityConfig.bg} ${priorityConfig.text}`}>{priorityConfig.icon} {task.priority || 'Medium'}</span>}
+                                                                                    <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-md whitespace-nowrap ${statusColor.bg} ${statusColor.text}`}>{task.status}</span>
+                                                                                    {task.plannedEndDate && <span className={`text-xs ${overdue ? 'text-red-500 font-semibold' : 'text-gray-400 dark:text-gray-500'}`}>{new Date(task.plannedEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>}
+                                                                                </div>
+                                                                                <button onClick={() => setExpandedTaskId(isExpanded ? null : task.id)} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors touch-manipulation flex-shrink-0 mt-0.5">
+                                                                                    {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                                                                </button>
                                                                             </div>
 
                                                                             {/* Expanded detail */}
