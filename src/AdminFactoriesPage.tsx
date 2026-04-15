@@ -506,6 +506,7 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
     const [previewProductIdx, setPreviewProductIdx] = useState<number | null>(null);
     const abortControllerRef = useRef<AbortController | null>(null);
     const [originalFactory, setOriginalFactory] = useState<string | null>(null);
+    const [isLoadingModal, setIsLoadingModal] = useState(false);
     const { showToast } = useToast();
 
     const isDirty = useMemo(() => {
@@ -806,12 +807,21 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
     const CATEGORY_PRESETS = ['T-Shirts', 'Polo Shirts', 'Hoodies', 'Sweatshirts', 'Joggers', 'Shorts', 'Jackets', 'Denim', 'Dresses', 'Activewear', 'Kids Wear', 'Loungewear'];
 
     const openModal = async (factory?: Factory) => {
+        setCurrentStep(0);
+        setIsPreviewMode(false);
+        setIsModalOpen(true);
         if (factory) {
-            // Fetch heavy fields (gallery, catalog, machine_slots) not included in the slim list query
-            const { data: fullFactory } = await factoryService.getById(factory.id);
+            setIsLoadingModal(true);
+            // Show the modal immediately with basic data, then load full data (gallery, catalog, machine_slots)
+            setEditingFactory(factory);
+            const { data: fullFactory, error } = await factoryService.getById(factory.id);
+            if (error) {
+                showToast('Failed to load full factory data', 'error');
+            }
             const merged = fullFactory ? { ...factory, ...fullFactory } : factory;
             setEditingFactory(merged);
             setOriginalFactory(JSON.stringify(merged));
+            setIsLoadingModal(false);
         } else {
             setEditingFactory({
                 name: '', location: '', description: '', minimumOrderQuantity: 0, rating: 0, imageUrl: '',
@@ -820,9 +830,6 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
             });
             setOriginalFactory(null);
         }
-        setCurrentStep(0);
-        setIsPreviewMode(false);
-        setIsModalOpen(true);
     };
 
     const isLastStep = currentStep === STEPS.length - 1;
@@ -1110,82 +1117,99 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
                                                     <Cog size={18} className="text-[#c20c0b]" />
                                                     <h3 className="text-lg font-bold text-gray-900 dark:text-white">Production Lines</h3>
                                                 </div>
-                                                <p className="text-sm text-gray-400">Add production lines with machine count and monthly capacity.</p>
+                                                <p className="text-sm text-gray-400">Edit existing production lines or add new ones. All fields are saved automatically on submit.</p>
                                             </div>
 
-                                            {/* Live floor layout preview */}
-                                            {(editingFactory.productionLines?.length || 0) > 0 && (
-                                                <ProductionFloorLayout lines={editingFactory.productionLines || []} compact />
-                                            )}
-
-                                            {/* Production line cards */}
-                                            <div className="space-y-3">
-                                                {editingFactory.productionLines?.map((line, idx) => {
-                                                    const statusColor = line.status === 'in-use' ? 'bg-blue-500' : line.status === 'maintenance' ? 'bg-yellow-500' : 'bg-green-500';
-                                                    const needsDate = line.status === 'in-use' || line.status === 'maintenance';
-                                                    return (
-                                                        <div key={idx} className="bg-white dark:bg-gray-800/80 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow space-y-4">
-                                                            {/* Header */}
-                                                            <div className="flex items-center justify-between">
-                                                                <div className="flex items-center gap-3 flex-grow">
-                                                                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0 ${statusColor}`}>
-                                                                        L{idx + 1}
-                                                                    </div>
-                                                                    <input type="text" value={line.name} onChange={e => updateProductionLine(idx, 'name', e.target.value)}
-                                                                        className="text-sm font-semibold text-gray-900 dark:text-white bg-transparent border-0 border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-[#c20c0b] focus:ring-0 outline-none py-0.5 px-0 w-full transition-colors"
-                                                                        placeholder="Production line name (e.g. Line A, Stitching Line)..." />
-                                                                </div>
-                                                                <div className="flex items-center gap-1 shrink-0 ml-2">
-                                                                    <button type="button" onClick={() => duplicateProductionLine(idx)} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors" title="Duplicate"><Copy size={14} /></button>
-                                                                    <button type="button" onClick={() => removeProductionLine(idx)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Remove"><Trash2 size={14} /></button>
-                                                                </div>
-                                                            </div>
-
-                                                            {/* Row 1: Machines, Capacity / mo, Status */}
-                                                            <div className="grid grid-cols-3 gap-3">
-                                                                <div>
-                                                                    <label className="text-[10px] text-gray-500 dark:text-gray-400 mb-1 block uppercase font-semibold tracking-wider">Machines</label>
-                                                                    <input type="number" min="0" value={line.machinesCount} onChange={e => updateProductionLine(idx, 'machinesCount', Math.max(0, parseInt(e.target.value) || 0))} className={smallInputCls} />
-                                                                </div>
-                                                                <div>
-                                                                    <label className="text-[10px] text-gray-500 dark:text-gray-400 mb-1 block uppercase font-semibold tracking-wider">Capacity / Month</label>
-                                                                    <input type="number" min="0" value={line.capacityPerMonth} onChange={e => updateProductionLine(idx, 'capacityPerMonth', Math.max(0, parseInt(e.target.value) || 0))} className={smallInputCls} placeholder="units" />
-                                                                </div>
-                                                                <div>
-                                                                    <label className="text-[10px] text-gray-500 dark:text-gray-400 mb-1 block uppercase font-semibold tracking-wider">Status</label>
-                                                                    <select value={line.status} onChange={e => updateProductionLine(idx, 'status', e.target.value)} className={smallInputCls}>
-                                                                        <option value="vacant">Vacant</option>
-                                                                        <option value="in-use">In Use</option>
-                                                                        <option value="maintenance">Maintenance</option>
-                                                                    </select>
-                                                                </div>
-                                                            </div>
-
-                                                            {/* Row 2: Next Available Date (only when In Use or Maintenance) */}
-                                                            {needsDate && (
-                                                                <div className="grid grid-cols-2 gap-3">
-                                                                    <div>
-                                                                        <label className="text-[10px] text-gray-500 dark:text-gray-400 mb-1 block uppercase font-semibold tracking-wider">Next Available Date</label>
-                                                                        <input type="date" value={line.nextAvailableDate || ''} onChange={e => updateProductionLine(idx, 'nextAvailableDate', e.target.value)} className={smallInputCls} />
-                                                                    </div>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-
-                                            {/* Add button */}
-                                            <button type="button" onClick={() => addProductionLine('')} className="flex items-center gap-2 text-sm text-[#c20c0b] font-semibold hover:text-[#a50a09] transition-colors px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-[#c20c0b] w-full justify-center">
-                                                <Plus size={16} /> Add Production Line
-                                            </button>
-
-                                            {(editingFactory.productionLines?.length || 0) === 0 && (
-                                                <div className="text-center py-6 text-gray-400 dark:text-gray-500">
-                                                    <Cog size={40} className="mx-auto mb-3 opacity-30" />
-                                                    <p className="text-sm font-medium">No production lines added yet</p>
-                                                    <p className="text-xs mt-1">Click the button above to add a production line</p>
+                                            {/* Loading state */}
+                                            {isLoadingModal ? (
+                                                <div className="flex items-center justify-center py-12 gap-3 text-gray-400">
+                                                    <div className="w-5 h-5 border-2 border-gray-300 border-t-[#c20c0b] rounded-full animate-spin" />
+                                                    <span className="text-sm">Loading production lines...</span>
                                                 </div>
+                                            ) : (
+                                                <>
+                                                    {/* Live floor layout preview */}
+                                                    {(editingFactory.productionLines?.length || 0) > 0 && (
+                                                        <ProductionFloorLayout lines={editingFactory.productionLines || []} compact />
+                                                    )}
+
+                                                    {/* Production line cards */}
+                                                    <div className="space-y-3">
+                                                        {editingFactory.productionLines?.map((line, idx) => {
+                                                            const statusColor = line.status === 'in-use' ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20' : line.status === 'maintenance' ? 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20' : 'border-green-400 bg-green-50 dark:bg-green-900/20';
+                                                            const badgeColor = line.status === 'in-use' ? 'bg-blue-500' : line.status === 'maintenance' ? 'bg-yellow-500' : 'bg-green-500';
+                                                            const needsDate = line.status === 'in-use' || line.status === 'maintenance';
+                                                            return (
+                                                                <div key={idx} className={`p-4 rounded-xl border-2 shadow-sm space-y-3 ${statusColor}`}>
+                                                                    {/* Row 1: Badge + Name + Actions */}
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0 ${badgeColor}`}>
+                                                                            L{idx + 1}
+                                                                        </div>
+                                                                        <div className="flex-grow">
+                                                                            <label className="text-[10px] text-gray-500 dark:text-gray-400 mb-0.5 block uppercase font-semibold tracking-wider">Line Name</label>
+                                                                            <input
+                                                                                type="text"
+                                                                                value={line.name}
+                                                                                onChange={e => updateProductionLine(idx, 'name', e.target.value)}
+                                                                                className={smallInputCls}
+                                                                                placeholder="e.g. Line A, Stitching Line"
+                                                                            />
+                                                                        </div>
+                                                                        <div className="flex items-center gap-1 shrink-0 self-end pb-0.5">
+                                                                            <button type="button" onClick={() => duplicateProductionLine(idx)} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-white/60 dark:hover:bg-blue-900/30 rounded-lg transition-colors" title="Duplicate"><Copy size={14} /></button>
+                                                                            <button type="button" onClick={() => removeProductionLine(idx)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-white/60 dark:hover:bg-red-900/30 rounded-lg transition-colors" title="Remove"><Trash2 size={14} /></button>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Row 2: Machines, Capacity, Status, Date */}
+                                                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                                                        <div>
+                                                                            <label className="text-[10px] text-gray-500 dark:text-gray-400 mb-1 block uppercase font-semibold tracking-wider">Machines</label>
+                                                                            <input type="number" min="0" value={line.machinesCount} onChange={e => updateProductionLine(idx, 'machinesCount', Math.max(0, parseInt(e.target.value) || 0))} className={smallInputCls} placeholder="0" />
+                                                                        </div>
+                                                                        <div>
+                                                                            <label className="text-[10px] text-gray-500 dark:text-gray-400 mb-1 block uppercase font-semibold tracking-wider">Capacity / Month</label>
+                                                                            <input type="number" min="0" value={line.capacityPerMonth} onChange={e => updateProductionLine(idx, 'capacityPerMonth', Math.max(0, parseInt(e.target.value) || 0))} className={smallInputCls} placeholder="units" />
+                                                                        </div>
+                                                                        <div>
+                                                                            <label className="text-[10px] text-gray-500 dark:text-gray-400 mb-1 block uppercase font-semibold tracking-wider">Status</label>
+                                                                            <select value={line.status} onChange={e => updateProductionLine(idx, 'status', e.target.value)} className={smallInputCls}>
+                                                                                <option value="vacant">Vacant</option>
+                                                                                <option value="in-use">In Use</option>
+                                                                                <option value="maintenance">Maintenance</option>
+                                                                            </select>
+                                                                        </div>
+                                                                        <div>
+                                                                            <label className="text-[10px] text-gray-500 dark:text-gray-400 mb-1 block uppercase font-semibold tracking-wider">Next Available</label>
+                                                                            <input
+                                                                                type="date"
+                                                                                value={line.nextAvailableDate || ''}
+                                                                                onChange={e => updateProductionLine(idx, 'nextAvailableDate', e.target.value)}
+                                                                                className={smallInputCls}
+                                                                                disabled={!needsDate}
+                                                                                title={!needsDate ? 'Only relevant when In Use or Maintenance' : ''}
+                                                                            />
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+
+                                                    {/* Add button */}
+                                                    <button type="button" onClick={() => addProductionLine('')} className="flex items-center gap-2 text-sm text-[#c20c0b] font-semibold hover:text-[#a50a09] transition-colors px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-[#c20c0b] w-full justify-center">
+                                                        <Plus size={16} /> Add Production Line
+                                                    </button>
+
+                                                    {(editingFactory.productionLines?.length || 0) === 0 && (
+                                                        <div className="text-center py-6 text-gray-400 dark:text-gray-500">
+                                                            <Cog size={40} className="mx-auto mb-3 opacity-30" />
+                                                            <p className="text-sm font-medium">No production lines added yet</p>
+                                                            <p className="text-xs mt-1">Click the button above to add a production line</p>
+                                                        </div>
+                                                    )}
+                                                </>
                                             )}
                                         </div>
                                     )}
