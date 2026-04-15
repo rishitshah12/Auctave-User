@@ -782,27 +782,27 @@ function AdminListView({
                 {groups.map(({ title, tasks: groupTasks, headerColor, badgeColor }) => (
                     <div key={title}>
                         {/* Group header with Add + Templates */}
-                        <div className="flex items-center justify-between text-sm font-bold mb-3">
-                            <div className="flex items-center">
-                                <ChevronDown size={20} className={`mr-2 ${headerColor}`} />
-                                <span className={`mr-2 ${headerColor}`}>{title}</span>
-                                <span className={`${badgeColor} text-xs font-bold px-2.5 py-1 rounded-full shadow-sm`}>{groupTasks.length}</span>
+                        <div className="flex items-center justify-between text-sm font-bold mb-3 gap-2">
+                            <div className="flex items-center gap-1 min-w-0">
+                                <ChevronDown size={18} className={`flex-shrink-0 ${headerColor}`} />
+                                <span className={`truncate ${headerColor}`}>{title}</span>
+                                <span className={`${badgeColor} text-xs font-bold px-2 py-0.5 rounded-full shadow-sm flex-shrink-0`}>{groupTasks.length}</span>
                             </div>
-                            <div className="flex items-center gap-1.5">
-                                {/* Templates button — dropdown rendered via portal to avoid stacking-context/overflow issues */}
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                                {/* Templates button — dropdown rendered via portal */}
                                 <button
                                     ref={el => { templateBtnRefs.current[title] = el; }}
                                     onClick={() => toggleTemplates(title)}
-                                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                    className="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 active:bg-gray-100 transition-colors"
                                 >
-                                    <Zap size={12} /> Templates <ChevronDown size={10} />
+                                    <Zap size={12} /> <span className="hidden sm:inline">Templates</span><span className="sm:hidden">Tmpl</span> <ChevronDown size={10} />
                                 </button>
                                 {/* Add task button */}
                                 <button
                                     onClick={() => openAddModal(title as CrmTask['status'])}
-                                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-gradient-to-r from-[#c20c0b] to-red-600 text-white shadow-sm hover:shadow-md transition-all"
+                                    className="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-gradient-to-r from-[#c20c0b] to-red-600 text-white shadow-sm hover:shadow-md active:scale-95 transition-all"
                                 >
-                                    <Plus size={13} /> Add task
+                                    <Plus size={13} /> <span className="hidden sm:inline">Add task</span><span className="sm:hidden">Add</span>
                                 </button>
                             </div>
                         </div>
@@ -812,58 +812,111 @@ function AdminListView({
                                 No tasks yet — use <span className="font-semibold">Add task</span> or <span className="font-semibold">Templates</span> to get started.
                             </div>
                         ) : (
-                            <div className="overflow-x-auto bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10">
-                                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-                                    <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50">
-                                        <tr>
-                                            {['Task Name', 'Priority', 'Progress', 'Due Date', 'Responsible', 'QTY', ''].map(h => (
-                                                <th key={h} className="px-5 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">{h}</th>
-                                            ))}
-                                        </tr>
-                                    </thead>
-                                    <tbody className="bg-white dark:bg-gray-900/40 divide-y divide-gray-100 dark:divide-gray-800">
-                                        {groupTasks.map(task => {
-                                            const progress = task.status === 'COMPLETE' ? 100 : (task.progress || 0);
-                                            return (
-                                                <tr key={task.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors group">
-                                                    <td className="px-5 py-3.5 whitespace-nowrap font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                                                        <CheckCircle size={16} className={`flex-shrink-0 ${task.status === 'COMPLETE' ? 'text-green-500' : 'text-gray-300 dark:text-gray-600'}`} />
-                                                        {task.name}
-                                                    </td>
-                                                    <td className="px-5 py-3.5 whitespace-nowrap">
-                                                        {task.priority ? (
-                                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold ${priorityColors[task.priority] || priorityColors['Medium']}`}>
-                                                                <Flag size={10} /> {task.priority}
-                                                            </span>
-                                                        ) : <span className="text-gray-400 text-xs">—</span>}
-                                                    </td>
-                                                    <td className="px-5 py-3.5 whitespace-nowrap">
-                                                        <div className="flex items-center gap-2 min-w-[100px]">
-                                                            <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                                                                <div className={`h-full rounded-full transition-all duration-500 ${progress === 100 ? 'bg-green-500' : progress > 50 ? 'bg-blue-500' : 'bg-amber-500'}`} style={{ width: `${progress}%` }} />
+                            <>
+                                {/* Mobile card view */}
+                                <div className="sm:hidden space-y-2">
+                                    {groupTasks.map(task => {
+                                        const progress = task.status === 'COMPLETE' ? 100 : (task.progress || 0);
+                                        return (
+                                            <div key={task.id} className="bg-white dark:bg-gray-900/40 rounded-xl border border-gray-200 dark:border-white/10 p-3.5 shadow-sm">
+                                                <div className="flex items-start justify-between gap-2 mb-2.5">
+                                                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                        <CheckCircle size={16} className={`flex-shrink-0 mt-0.5 ${task.status === 'COMPLETE' ? 'text-green-500' : 'text-gray-300 dark:text-gray-600'}`} />
+                                                        <span className={`text-sm font-semibold truncate ${task.status === 'COMPLETE' ? 'text-gray-400 line-through' : 'text-gray-900 dark:text-white'}`}>{task.name}</span>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => setEditingTask(task)}
+                                                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 active:bg-blue-100 rounded-lg transition-all flex-shrink-0 border border-blue-200 dark:border-blue-800"
+                                                    >
+                                                        <Edit size={11} /> Edit
+                                                    </button>
+                                                </div>
+                                                <div className="flex items-center gap-2 flex-wrap mb-2.5">
+                                                    {task.priority && (
+                                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold ${priorityColors[task.priority] || priorityColors['Medium']}`}>
+                                                            <Flag size={9} /> {task.priority}
+                                                        </span>
+                                                    )}
+                                                    {task.plannedEndDate && (
+                                                        <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                                                            <CalendarDays size={10} /> {task.plannedEndDate}
+                                                        </span>
+                                                    )}
+                                                    {task.responsible && (
+                                                        <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                                                            <User size={10} /> {task.responsible}
+                                                        </span>
+                                                    )}
+                                                    {task.quantity != null && (
+                                                        <span className="text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-md">{task.quantity.toLocaleString()} units</span>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                        <div className={`h-full rounded-full transition-all duration-500 ${progress === 100 ? 'bg-green-500' : progress > 50 ? 'bg-blue-500' : 'bg-amber-500'}`} style={{ width: `${progress}%` }} />
+                                                    </div>
+                                                    <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 w-8 text-right">{progress}%</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                {/* Desktop table */}
+                                <div className="hidden sm:block overflow-x-auto bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10">
+                                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                                        <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50">
+                                            <tr>
+                                                {['Task Name', 'Priority', 'Progress', 'Due Date', 'Responsible', 'QTY', ''].map(h => (
+                                                    <th key={h} className="px-5 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">{h}</th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody className="bg-white dark:bg-gray-900/40 divide-y divide-gray-100 dark:divide-gray-800">
+                                            {groupTasks.map(task => {
+                                                const progress = task.status === 'COMPLETE' ? 100 : (task.progress || 0);
+                                                return (
+                                                    <tr key={task.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors group">
+                                                        <td className="px-5 py-3.5 whitespace-nowrap font-semibold text-gray-900 dark:text-white">
+                                                            <div className="flex items-center gap-2">
+                                                                <CheckCircle size={16} className={`flex-shrink-0 ${task.status === 'COMPLETE' ? 'text-green-500' : 'text-gray-300 dark:text-gray-600'}`} />
+                                                                {task.name}
                                                             </div>
-                                                            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 w-8 text-right">{progress}%</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-5 py-3.5 whitespace-nowrap text-gray-600 dark:text-gray-300 text-xs">{task.plannedEndDate || '—'}</td>
-                                                    <td className="px-5 py-3.5 whitespace-nowrap text-gray-600 dark:text-gray-300 text-xs">{task.responsible || '—'}</td>
-                                                    <td className="px-5 py-3.5 whitespace-nowrap text-gray-600 dark:text-gray-300 font-medium text-xs">
-                                                        {task.quantity != null ? task.quantity.toLocaleString() : '—'}
-                                                    </td>
-                                                    <td className="px-5 py-3.5 whitespace-nowrap text-right">
-                                                        <button
-                                                            onClick={() => setEditingTask(task)}
-                                                            className="opacity-0 group-hover:opacity-100 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
-                                                        >
-                                                            <Edit size={12} /> Edit
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
+                                                        </td>
+                                                        <td className="px-5 py-3.5 whitespace-nowrap">
+                                                            {task.priority ? (
+                                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold ${priorityColors[task.priority] || priorityColors['Medium']}`}>
+                                                                    <Flag size={10} /> {task.priority}
+                                                                </span>
+                                                            ) : <span className="text-gray-400 text-xs">—</span>}
+                                                        </td>
+                                                        <td className="px-5 py-3.5 whitespace-nowrap">
+                                                            <div className="flex items-center gap-2 min-w-[100px]">
+                                                                <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                                    <div className={`h-full rounded-full transition-all duration-500 ${progress === 100 ? 'bg-green-500' : progress > 50 ? 'bg-blue-500' : 'bg-amber-500'}`} style={{ width: `${progress}%` }} />
+                                                                </div>
+                                                                <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 w-8 text-right">{progress}%</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-5 py-3.5 whitespace-nowrap text-gray-600 dark:text-gray-300 text-xs">{task.plannedEndDate || '—'}</td>
+                                                        <td className="px-5 py-3.5 whitespace-nowrap text-gray-600 dark:text-gray-300 text-xs">{task.responsible || '—'}</td>
+                                                        <td className="px-5 py-3.5 whitespace-nowrap text-gray-600 dark:text-gray-300 font-medium text-xs">
+                                                            {task.quantity != null ? task.quantity.toLocaleString() : '—'}
+                                                        </td>
+                                                        <td className="px-5 py-3.5 whitespace-nowrap text-right">
+                                                            <button
+                                                                onClick={() => setEditingTask(task)}
+                                                                className="opacity-0 group-hover:opacity-100 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
+                                                            >
+                                                                <Edit size={12} /> Edit
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </>
                         )}
                     </div>
                 ))}
@@ -896,10 +949,14 @@ function AdminListView({
 
             {/* ── Add Task Modal ── */}
             {showAddModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setShowAddModal(false)}>
+                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setShowAddModal(false)}>
                     <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
-                    <div className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-white/10 w-full max-w-lg animate-fade-in" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-white/10">
+                    <div className="relative bg-white dark:bg-gray-900 rounded-t-2xl sm:rounded-2xl shadow-2xl border border-gray-200 dark:border-white/10 w-full sm:max-w-lg animate-fade-in" onClick={e => e.stopPropagation()}>
+                        {/* Mobile drag handle */}
+                        <div className="sm:hidden flex justify-center pt-3 pb-1">
+                            <div className="w-10 h-1 bg-gray-300 dark:bg-gray-600 rounded-full" />
+                        </div>
+                        <div className="flex items-center justify-between px-5 sm:px-6 py-3 sm:py-4 border-b border-gray-100 dark:border-white/10">
                             <div className="flex items-center gap-2">
                                 <div className="p-1.5 bg-red-50 dark:bg-red-900/20 rounded-lg"><Plus size={16} className="text-[#c20c0b]" /></div>
                                 <h2 className="text-base font-bold text-gray-800 dark:text-white">Add New Task</h2>
@@ -909,7 +966,7 @@ function AdminListView({
                             </button>
                         </div>
 
-                        <div className="px-6 py-5 space-y-4">
+                        <div className="px-5 sm:px-6 py-4 sm:py-5 space-y-4 overflow-y-auto max-h-[65vh] sm:max-h-none">
                             {/* Name */}
                             <div>
                                 <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">Task Name *</label>
@@ -1032,13 +1089,13 @@ function AdminListView({
                             </div>
                         </div>
 
-                        <div className="px-6 py-4 border-t border-gray-100 dark:border-white/10 flex items-center gap-3">
+                        <div className="px-5 sm:px-6 py-3 sm:py-4 border-t border-gray-100 dark:border-white/10 flex items-center gap-3">
                             <button onClick={() => setShowAddModal(false)}
-                                className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 active:bg-gray-100 transition-colors">
                                 Cancel
                             </button>
                             <button onClick={handleSubmitNewTask} disabled={!newTaskForm.name.trim()}
-                                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#c20c0b] to-red-600 text-white text-sm font-bold hover:shadow-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#c20c0b] to-red-600 text-white text-sm font-bold hover:shadow-lg active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
                                 <Plus size={15} /> Add Task
                             </button>
                         </div>
@@ -1093,8 +1150,11 @@ function AdminGanttChartView({
     // ── Add-task modal ───────────────────────────────────────────────────────
     const [showAddModal, setShowAddModal] = useState(false);
     const [showTemplates, setShowTemplates] = useState(false);
+    const [templatePortalPos, setTemplatePortalPos] = useState<{ top: number; right: number } | null>(null);
     const [newTaskForm, setNewTaskForm] = useState(GANTT_BLANK_TASK);
     const templateBtnRef = useRef<HTMLButtonElement>(null);
+    const mobileTemplBtnRef = useRef<HTMLButtonElement>(null);
+    const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 640);
 
     const openAddModal = (template?: { name: string; responsible: string }) => {
         setNewTaskForm({ ...GANTT_BLANK_TASK(), ...(template ? { name: template.name, responsible: template.responsible } : {}) });
@@ -1207,6 +1267,13 @@ function AdminGanttChartView({
 
     useEffect(() => { setTimeout(scrollToToday, 150); }, [dayWidth]);
 
+    useEffect(() => {
+        const handler = () => setIsMobile(window.innerWidth < 640);
+        window.addEventListener('resize', handler);
+        return () => window.removeEventListener('resize', handler);
+    }, []);
+    const ganttLeftWidth = isMobile ? 140 : 260;
+
     // ── Sync vertical scroll between panels ─────────────────────────────────
     const syncScroll = useCallback((source: 'left' | 'right') => {
         if (source === 'left' && leftRef.current && timelineRef.current) {
@@ -1297,87 +1364,92 @@ function AdminGanttChartView({
     return (
         <div className="flex flex-col bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden" style={{ height: 'calc(100vh - 280px)', minHeight: 400 }}>
             {/* ── Toolbar ── */}
-            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-gray-100 dark:border-white/10 flex-shrink-0 flex-wrap">
-                <GanttChartSquare size={15} className="text-[#c20c0b]" />
-                <span className="text-sm font-bold text-gray-700 dark:text-gray-200 mr-1">Gantt</span>
-                <div className="h-4 w-px bg-gray-200 dark:bg-white/10" />
-
-                {/* Zoom */}
-                <div className="flex items-center gap-1">
-                    <span className="text-[11px] text-gray-400 font-medium">Zoom:</span>
-                    {([['XS','16'],['S','24'],['M','36'],['L','52'],['XL','72']] as [string,string][]).map(([lbl, w]) => (
-                        <button key={w} onClick={() => setDayWidth(+w)}
-                            className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-colors ${dayWidth === +w ? 'bg-[#c20c0b] text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>
-                            {lbl}
-                        </button>
-                    ))}
-                </div>
-                <div className="h-4 w-px bg-gray-200 dark:bg-white/10" />
-
-                {/* Today button */}
-                <button onClick={scrollToToday}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-50 dark:bg-red-900/20 text-[#c20c0b] dark:text-red-400 text-[11px] font-bold hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors">
-                    <CalendarDays size={12} /> Today
-                </button>
-
-                {/* Expand all / Collapse all */}
-                <button onClick={() => setExpandedTasks(new Set(tasks.map(t => t.id)))}
-                    className="text-[11px] text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors font-medium">
-                    Expand All
-                </button>
-                <button onClick={() => setExpandedTasks(new Set())}
-                    className="text-[11px] text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors font-medium">
-                    Collapse All
-                </button>
-
-                <div className="flex-1" />
-
-                {/* Legend */}
-                <div className="hidden lg:flex items-center gap-3">
-                    {Object.entries(STATUS_GANTT).map(([k, v]) => (
-                        <div key={k} className="flex items-center gap-1.5">
-                            <div className={`w-2.5 h-2.5 rounded-sm ${v.bar}`} />
-                            <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">{v.label}</span>
+            <div className="flex-shrink-0 border-b border-gray-100 dark:border-white/10">
+                {/* Row 1: Title + Today + Add Task */}
+                <div className="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5">
+                    <GanttChartSquare size={14} className="text-[#c20c0b] flex-shrink-0" />
+                    <span className="text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-200">Gantt</span>
+                    <div className="h-4 w-px bg-gray-200 dark:bg-white/10 mx-0.5" />
+                    <button onClick={scrollToToday}
+                        className="flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-lg bg-red-50 dark:bg-red-900/20 text-[#c20c0b] dark:text-red-400 text-[11px] font-bold hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors">
+                        <CalendarDays size={11} /> Today
+                    </button>
+                    <div className="flex-1" />
+                    {/* Legend — desktop only */}
+                    <div className="hidden lg:flex items-center gap-3 mr-2">
+                        {Object.entries(STATUS_GANTT).map(([k, v]) => (
+                            <div key={k} className="flex items-center gap-1.5">
+                                <div className={`w-2.5 h-2.5 rounded-sm ${v.bar}`} />
+                                <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">{v.label}</span>
+                            </div>
+                        ))}
+                        <div className="flex items-center gap-1.5">
+                            <div className="w-2.5 h-2.5 rounded-sm bg-red-400/60" />
+                            <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">Today</span>
                         </div>
-                    ))}
-                    <div className="flex items-center gap-1.5">
-                        <div className="w-2.5 h-2.5 rounded-sm bg-red-400/60" />
-                        <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">Today</span>
                     </div>
-                </div>
-
-                {onAddTask && (
-                    <>
-                        <div className="h-4 w-px bg-gray-200 dark:bg-white/10" />
-                        {/* Templates dropdown */}
-                        <div className="relative">
+                    {onAddTask && (
+                        <div className="flex items-center gap-1.5">
+                            {/* Templates — desktop only in this row */}
                             <button
                                 ref={templateBtnRef}
-                                onClick={() => setShowTemplates(p => !p)}
-                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-200 dark:border-white/10 text-[11px] font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                onClick={() => {
+                                    if (showTemplates) { setShowTemplates(false); setTemplatePortalPos(null); return; }
+                                    const btn = templateBtnRef.current;
+                                    if (btn) {
+                                        const r = btn.getBoundingClientRect();
+                                        setTemplatePortalPos({ top: r.bottom + 6, right: window.innerWidth - r.right });
+                                    }
+                                    setShowTemplates(true);
+                                }}
+                                className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-200 dark:border-white/10 text-[11px] font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                             >
                                 <Zap size={12} /> Templates <ChevronDown size={10} />
                             </button>
-                            {showTemplates && (
-                                <div className="absolute right-0 top-full mt-1.5 w-72 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-2xl z-50 max-h-72 overflow-y-auto">
-                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-3 pt-3 pb-1">Garment Templates</p>
-                                    {TASK_TEMPLATES.map((tpl, i) => (
-                                        <button key={i} onClick={() => openAddModal(tpl)}
-                                            className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-left">
-                                            <span className="font-medium">{tpl.name}</span>
-                                            <span className="text-xs text-gray-400 ml-2 flex-shrink-0">{tpl.responsible}</span>
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
+                            <button onClick={() => openAddModal()}
+                                className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-gradient-to-r from-[#c20c0b] to-red-600 text-white text-[11px] font-bold hover:shadow-md hover:scale-105 transition-all duration-200">
+                                <Plus size={13} /> Add Task
+                            </button>
                         </div>
-                        {/* Add Task button */}
-                        <button onClick={() => openAddModal()}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-[#c20c0b] to-red-600 text-white text-[11px] font-bold hover:shadow-md hover:scale-105 transition-all duration-200">
-                            <Plus size={13} /> Add Task
+                    )}
+                </div>
+                {/* Row 2: Zoom + Expand/Collapse + Mobile Templates */}
+                <div className="flex items-center gap-1.5 px-3 sm:px-4 pb-2 flex-wrap">
+                    <span className="text-[11px] text-gray-400 font-medium">Zoom:</span>
+                    {([['XS','16'],['S','24'],['M','36'],['L','52'],['XL','72']] as [string,string][]).map(([lbl, w]) => (
+                        <button key={w} onClick={() => setDayWidth(+w)}
+                            className={`px-1.5 sm:px-2 py-0.5 rounded text-[11px] font-semibold transition-colors ${dayWidth === +w ? 'bg-[#c20c0b] text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>
+                            {lbl}
                         </button>
-                    </>
-                )}
+                    ))}
+                    <div className="h-4 w-px bg-gray-200 dark:bg-white/10 hidden sm:block mx-0.5" />
+                    <button onClick={() => setExpandedTasks(new Set(tasks.map(t => t.id)))}
+                        className="hidden sm:block text-[11px] text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors font-medium">
+                        Expand All
+                    </button>
+                    <button onClick={() => setExpandedTasks(new Set())}
+                        className="hidden sm:block text-[11px] text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors font-medium">
+                        Collapse All
+                    </button>
+                    {/* Mobile Templates button */}
+                    {onAddTask && (
+                        <button
+                            ref={mobileTemplBtnRef}
+                            onClick={() => {
+                                if (showTemplates) { setShowTemplates(false); setTemplatePortalPos(null); return; }
+                                const btn = mobileTemplBtnRef.current;
+                                if (btn) {
+                                    const r = btn.getBoundingClientRect();
+                                    setTemplatePortalPos({ top: r.bottom + 6, right: window.innerWidth - r.right });
+                                }
+                                setShowTemplates(true);
+                            }}
+                            className="sm:hidden flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-200 dark:border-white/10 text-[11px] font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ml-auto"
+                        >
+                            <Zap size={12} /> Templates <ChevronDown size={10} />
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* ── Main area ── */}
@@ -1388,7 +1460,7 @@ function AdminGanttChartView({
                     ref={leftRef}
                     onScroll={() => syncScroll('left')}
                     className="flex-shrink-0 border-r border-gray-200 dark:border-white/10 overflow-y-auto overflow-x-hidden"
-                    style={{ width: GANTT_LEFT_WIDTH }}
+                    style={{ width: ganttLeftWidth }}
                 >
                     {/* Sticky header */}
                     <div className="sticky top-0 z-20 bg-white dark:bg-gray-900 border-b-2 border-gray-200 dark:border-white/10">
@@ -1703,15 +1775,40 @@ function AdminGanttChartView({
                 <span className="text-gray-400 italic">{onTaskUpdate ? 'Drag bars to reschedule · Drag edges to resize' : 'Read-only'}</span>
             </div>
 
+            {/* ── Templates portal ── */}
+            {showTemplates && templatePortalPos && createPortal(
+                <>
+                    <div className="fixed inset-0 z-[9998]" onClick={() => { setShowTemplates(false); setTemplatePortalPos(null); }} />
+                    <div
+                        className="fixed z-[9999] w-72 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-2xl max-h-72 overflow-y-auto"
+                        style={{ top: templatePortalPos.top, right: Math.max(4, templatePortalPos.right) }}
+                    >
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-3 pt-3 pb-1">Garment Templates</p>
+                        {TASK_TEMPLATES.map((tpl, i) => (
+                            <button key={i} onClick={() => { openAddModal(tpl); setTemplatePortalPos(null); }}
+                                className="w-full flex items-center justify-between px-3 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 transition-colors text-left">
+                                <span className="font-medium">{tpl.name}</span>
+                                <span className="text-xs text-gray-400 ml-2 flex-shrink-0">{tpl.responsible}</span>
+                            </button>
+                        ))}
+                    </div>
+                </>,
+                document.body
+            )}
+
             {/* ── Add Task Modal ── */}
             {showAddModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => { setShowAddModal(false); setShowTemplates(false); }}>
+                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => { setShowAddModal(false); setShowTemplates(false); }}>
                     <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
-                    <div className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-white/10 w-full max-w-lg animate-fade-in"
+                    <div className="relative bg-white dark:bg-gray-900 rounded-t-2xl sm:rounded-2xl shadow-2xl border border-gray-200 dark:border-white/10 w-full sm:max-w-lg animate-fade-in"
                         onClick={e => e.stopPropagation()}>
+                        {/* Mobile drag handle */}
+                        <div className="sm:hidden flex justify-center pt-3 pb-1">
+                            <div className="w-10 h-1 bg-gray-300 dark:bg-gray-600 rounded-full" />
+                        </div>
 
                         {/* Header */}
-                        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-white/10">
+                        <div className="flex items-center justify-between px-5 sm:px-6 py-3 sm:py-4 border-b border-gray-100 dark:border-white/10">
                             <div className="flex items-center gap-2">
                                 <div className="p-1.5 bg-red-50 dark:bg-red-900/20 rounded-lg">
                                     <Plus size={16} className="text-[#c20c0b]" />
@@ -1724,7 +1821,7 @@ function AdminGanttChartView({
                         </div>
 
                         {/* Body */}
-                        <div className="px-6 py-5 space-y-4">
+                        <div className="px-5 sm:px-6 py-4 sm:py-5 space-y-4 overflow-y-auto max-h-[60vh] sm:max-h-none">
                             {/* Name */}
                             <div>
                                 <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">Task Name *</label>
@@ -1847,13 +1944,13 @@ function AdminGanttChartView({
                         </div>
 
                         {/* Footer */}
-                        <div className="px-6 py-4 border-t border-gray-100 dark:border-white/10 flex items-center gap-3">
+                        <div className="px-5 sm:px-6 py-3 sm:py-4 border-t border-gray-100 dark:border-white/10 flex items-center gap-3">
                             <button onClick={() => setShowAddModal(false)}
-                                className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 active:bg-gray-100 transition-colors">
                                 Cancel
                             </button>
                             <button onClick={handleSubmitNewTask} disabled={!newTaskForm.name.trim()}
-                                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#c20c0b] to-red-600 text-white text-sm font-bold hover:shadow-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#c20c0b] to-red-600 text-white text-sm font-bold hover:shadow-lg active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
                                 <Plus size={15} /> Add Task
                             </button>
                         </div>
@@ -1916,6 +2013,8 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
     const [showAtRiskOnly, setShowAtRiskOnly] = useState(false);
     const [taskProductFilter, setTaskProductFilter] = useState('ALL');
     const [showTemplates, setShowTemplates] = useState(false);
+    const [templatesPortalPos, setTemplatesPortalPos] = useState<{ top: number; right: number } | null>(null);
+    const taskTemplatesBtnRef = useRef<HTMLButtonElement>(null);
     const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
     const [isUploading, setIsUploading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -3010,42 +3109,41 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                     {activeView === 'Tasks' && (
                                         <div className="space-y-4">
                                             {/* Toolbar */}
-                                            <div className="flex flex-wrap gap-3 items-center">
-                                                <div className="relative flex-1 min-w-[180px]">
-                                                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center">
+                                                <div className="relative flex-1 min-w-0">
+                                                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                                                     <input type="text" value={taskSearch} onChange={(e) => setTaskSearch(e.target.value)} placeholder="Search tasks..." className="w-full pl-8 pr-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-[#c20c0b]/20 focus:border-[#c20c0b] focus:outline-none text-gray-700 dark:text-gray-200" />
                                                 </div>
-                                                <select value={taskStatusFilter} onChange={(e) => setTaskStatusFilter(e.target.value)} className="px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-700 dark:text-gray-200 cursor-pointer">
+                                                <div className="flex items-center gap-2">
+                                                <select value={taskStatusFilter} onChange={(e) => setTaskStatusFilter(e.target.value)} className="flex-1 sm:flex-none px-2.5 sm:px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-700 dark:text-gray-200 cursor-pointer min-w-0">
                                                     <option value="ALL">All Status</option>
                                                     <option value="TO DO">To Do</option>
                                                     <option value="IN PROGRESS">In Progress</option>
                                                     <option value="COMPLETE">Complete</option>
                                                 </select>
-                                                <select value={taskProductFilter} onChange={(e) => setTaskProductFilter(e.target.value)} className="px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-700 dark:text-gray-200 cursor-pointer">
+                                                <select value={taskProductFilter} onChange={(e) => setTaskProductFilter(e.target.value)} className="flex-1 sm:flex-none px-2.5 sm:px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-700 dark:text-gray-200 cursor-pointer min-w-0">
                                                     <option value="ALL">All Products</option>
                                                     {inlineProducts.map((p: CrmProduct) => <option key={p.id} value={p.id}>{p.name}</option>)}
                                                 </select>
+                                                </div>
                                                 <div className="flex items-center gap-2">
-                                                    <div className="relative">
-                                                        <button onClick={() => setShowTemplates(!showTemplates)} className="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800 rounded-xl text-sm font-semibold hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors">
-                                                            <Zap size={14} /> Templates
-                                                        </button>
-                                                        {showTemplates && (
-                                                            <div className="absolute right-0 top-full mt-2 w-72 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-xl z-20 max-h-80 overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-                                                                <div className="p-2">
-                                                                    <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 px-2 py-1 uppercase tracking-wide">Garment Production Templates</p>
-                                                                    {TASK_TEMPLATES.map((tpl, i) => (
-                                                                        <button key={i} onClick={() => addInlineTask(tpl)} className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors">
-                                                                            <span>{tpl.name}</span>
-                                                                            <span className="text-xs text-gray-400">{tpl.responsible}</span>
-                                                                        </button>
-                                                                    ))}
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <button onClick={() => addInlineTask()} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#c20c0b] to-red-600 text-white rounded-xl text-sm font-semibold hover:shadow-lg hover:scale-105 transition-all duration-200">
-                                                        <Plus size={14} /> Add Task
+                                                    <button
+                                                        ref={taskTemplatesBtnRef}
+                                                        onClick={() => {
+                                                            if (showTemplates) { setShowTemplates(false); setTemplatesPortalPos(null); return; }
+                                                            const btn = taskTemplatesBtnRef.current;
+                                                            if (btn) {
+                                                                const r = btn.getBoundingClientRect();
+                                                                setTemplatesPortalPos({ top: r.bottom + 6, right: Math.max(4, window.innerWidth - r.right) });
+                                                            }
+                                                            setShowTemplates(true);
+                                                        }}
+                                                        className="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800 rounded-xl text-sm font-semibold hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+                                                    >
+                                                        <Zap size={14} /> <span className="hidden sm:inline">Templates</span><span className="sm:hidden">Tmpl</span>
+                                                    </button>
+                                                    <button onClick={() => addInlineTask()} className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-gradient-to-r from-[#c20c0b] to-red-600 text-white rounded-xl text-sm font-semibold hover:shadow-lg hover:scale-105 transition-all duration-200">
+                                                        <Plus size={14} /> <span className="hidden sm:inline">Add Task</span><span className="sm:hidden">Add</span>
                                                     </button>
                                                 </div>
                                             </div>
@@ -3096,11 +3194,11 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
 
                                                                     return (
                                                                         <div key={task.id} className={`${overdue ? 'bg-red-50/50 dark:bg-red-900/10' : 'bg-white dark:bg-gray-900'}`}>
-                                                                            <div className="flex items-center gap-2 px-4 py-3 group">
-                                                                                {/* Reorder */}
-                                                                                <div className="flex flex-col opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                                                                                    <button onClick={() => moveInlineTask(task.id, 'up')} className="text-gray-300 hover:text-gray-500 dark:hover:text-gray-300 p-0.5"><ChevronUp size={11} /></button>
-                                                                                    <button onClick={() => moveInlineTask(task.id, 'down')} className="text-gray-300 hover:text-gray-500 dark:hover:text-gray-300 p-0.5"><ChevronDown size={11} /></button>
+                                                                            <div className="flex items-center gap-2 px-3 sm:px-4 py-3 group">
+                                                                                {/* Reorder — always visible on mobile, hover-visible on desktop */}
+                                                                                <div className="flex flex-col sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex-shrink-0">
+                                                                                    <button onClick={() => moveInlineTask(task.id, 'up')} className="text-gray-300 hover:text-gray-500 dark:hover:text-gray-300 active:text-gray-600 p-0.5 touch-manipulation"><ChevronUp size={12} /></button>
+                                                                                    <button onClick={() => moveInlineTask(task.id, 'down')} className="text-gray-300 hover:text-gray-500 dark:hover:text-gray-300 active:text-gray-600 p-0.5 touch-manipulation"><ChevronDown size={12} /></button>
                                                                                 </div>
 
                                                                                 {/* Status toggle */}
@@ -3113,7 +3211,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                                                                         if (nextStatus === 'TO DO') { updates.progress = 0; }
                                                                                         updateInlineTask(task.id, updates);
                                                                                     }}
-                                                                                    className="flex-shrink-0"
+                                                                                    className="flex-shrink-0 p-1 -m-1 touch-manipulation"
                                                                                     title={`Click to cycle status (${task.status})`}
                                                                                 >
                                                                                     {task.status === 'COMPLETE' ? <CheckCircle size={18} className="text-green-500" /> : task.status === 'IN PROGRESS' ? <Clock size={18} className="text-blue-500 animate-pulse" /> : <div className="w-[18px] h-[18px] rounded-full border-2 border-gray-300 dark:border-gray-600 hover:border-blue-400 transition-colors" />}
@@ -3122,20 +3220,23 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                                                                 {/* Task name */}
                                                                                 <button
                                                                                     onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}
-                                                                                    className={`flex-1 text-left text-sm font-medium truncate ${task.status === 'COMPLETE' ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-800 dark:text-white'} hover:text-[#c20c0b] dark:hover:text-red-400 transition-colors`}
+                                                                                    className={`flex-1 text-left text-sm font-medium truncate min-w-0 ${task.status === 'COMPLETE' ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-800 dark:text-white'} hover:text-[#c20c0b] dark:hover:text-red-400 transition-colors`}
                                                                                 >
                                                                                     {task.name}
                                                                                 </button>
 
-                                                                                {/* Badges */}
-                                                                                <div className="flex items-center gap-1.5 flex-shrink-0">
-                                                                                    {overdue && <span className="flex items-center gap-1 text-xs font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-1.5 py-0.5 rounded-md"><AlertTriangle size={10} /> Overdue</span>}
-                                                                                    {dueSoon && !overdue && <span className="flex items-center gap-1 text-xs font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded-md"><Clock size={10} /> Due Soon</span>}
-                                                                                    {priorityConfig && <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-md hidden sm:inline-flex ${priorityConfig.bg} ${priorityConfig.text}`}>{priorityConfig.icon} {task.priority || 'Medium'}</span>}
-                                                                                    <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-md ${statusColor.bg} ${statusColor.text}`}>{task.status}</span>
+                                                                                {/* Badges — condensed on mobile */}
+                                                                                <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
+                                                                                    {overdue && <span className="flex items-center gap-0.5 sm:gap-1 text-xs font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-1.5 py-0.5 rounded-md"><AlertTriangle size={9} /> <span className="hidden sm:inline">Overdue</span><span className="sm:hidden">!</span></span>}
+                                                                                    {dueSoon && !overdue && <span className="hidden sm:flex items-center gap-1 text-xs font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded-md"><Clock size={9} /> Due Soon</span>}
+                                                                                    {priorityConfig && <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-md hidden sm:inline-flex items-center gap-0.5 ${priorityConfig.bg} ${priorityConfig.text}`}>{priorityConfig.icon} {task.priority || 'Medium'}</span>}
+                                                                                    <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-md whitespace-nowrap ${statusColor.bg} ${statusColor.text}`}>
+                                                                                        <span className="hidden sm:inline">{task.status}</span>
+                                                                                        <span className="sm:hidden">{task.status === 'COMPLETE' ? '✓' : task.status === 'IN PROGRESS' ? '●' : '○'}</span>
+                                                                                    </span>
                                                                                     {task.plannedEndDate && <span className={`text-xs hidden sm:inline ${overdue ? 'text-red-500 font-semibold' : 'text-gray-400 dark:text-gray-500'}`}>{new Date(task.plannedEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>}
-                                                                                    <button onClick={() => setExpandedTaskId(isExpanded ? null : task.id)} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
-                                                                                        {isExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                                                                                    <button onClick={() => setExpandedTaskId(isExpanded ? null : task.id)} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors touch-manipulation">
+                                                                                        {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                                                                                     </button>
                                                                                 </div>
                                                                             </div>
@@ -3446,6 +3547,27 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                         </form>
                     </div>
                 </div>
+            )}
+
+            {/* ── Tasks tab templates portal ── */}
+            {showTemplates && templatesPortalPos && createPortal(
+                <>
+                    <div className="fixed inset-0 z-[9998]" onClick={() => { setShowTemplates(false); setTemplatesPortalPos(null); }} />
+                    <div
+                        className="fixed z-[9999] w-72 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-2xl max-h-80 overflow-y-auto"
+                        style={{ top: templatesPortalPos.top, right: templatesPortalPos.right }}
+                    >
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-3 pt-3 pb-1">Garment Production Templates</p>
+                        {TASK_TEMPLATES.map((tpl, i) => (
+                            <button key={i} onClick={() => { addInlineTask(tpl); setShowTemplates(false); setTemplatesPortalPos(null); }}
+                                className="w-full flex items-center justify-between px-3 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 transition-colors text-left">
+                                <span className="font-medium">{tpl.name}</span>
+                                <span className="text-xs text-gray-400 ml-2 flex-shrink-0">{tpl.responsible}</span>
+                            </button>
+                        ))}
+                    </div>
+                </>,
+                document.body
             )}
 
             {/* Send to Client confirmation dialog */}
