@@ -189,6 +189,8 @@ const AppContent: FC = () => {
     const lastAdminRFQAtRef = useRef<string>('');
     // Quote ID to auto-open when navigating to adminRFQ
     const [adminRFQInitialId, setAdminRFQInitialId] = useState<string | null>(null);
+    // Order ID to auto-open when navigating to adminCRM
+    const [adminCRMInitialId, setAdminCRMInitialId] = useState<string | null>(null);
 
     // Hello splash overlay shown after onboarding completes
     const [helloSplash, setHelloSplash] = useState<HelloSplashData | null>(null);
@@ -347,6 +349,11 @@ const AppContent: FC = () => {
             setAdminRFQInitialId(data.quoteId);
         } else if (page === 'adminRFQ' && !data?.quoteId) {
             setAdminRFQInitialId(null);
+        }
+        if (page === 'adminCRM' && data?.orderId) {
+            setAdminCRMInitialId(data.orderId);
+        } else if (page === 'adminCRM' && !data?.orderId) {
+            setAdminCRMInitialId(null);
         }
         // Reset active CRM order if leaving CRM page
         if (page !== 'crm') {
@@ -3224,7 +3231,7 @@ User message: "${userMsg}"`;
             case 'adminDashboard': return <AdminDashboardPage {...layoutProps} />;
             case 'adminUsers': return <AdminUsersPage {...layoutProps} />;
             case 'adminFactories': return <AdminFactoriesPage {...layoutProps} />;
-            case 'adminCRM': return <AdminCRMPage {...layoutProps} />;
+            case 'adminCRM': return <AdminCRMPage {...layoutProps} initialOrderId={adminCRMInitialId} />;
             case 'adminTrending': return <AdminTrendingPage {...layoutProps} />;
             case 'adminRFQ': return <AdminRFQPage {...layoutProps} initialQuoteId={adminRFQInitialId} />;
             case 'adminLoginSettings': return <AdminLoginSettingsPage {...layoutProps} />;

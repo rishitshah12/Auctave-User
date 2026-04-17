@@ -189,11 +189,31 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
     const [drawerLoadingOrders, setDrawerLoadingOrders] = useState(false);
     const abortControllerRef = useRef<AbortController | null>(null);
 
-    // Lock body scroll whenever any modal/drawer is open
+    // Lock body scroll whenever any modal/drawer is open (robust iOS fix)
     useEffect(() => {
         const anyOpen = isEditModalOpen || !!confirmDialog || !!drawerClient;
-        document.body.style.overflow = anyOpen ? 'hidden' : '';
-        return () => { document.body.style.overflow = ''; };
+        if (anyOpen) {
+            const scrollY = window.scrollY;
+            document.body.style.position = 'fixed';
+            document.body.style.top = `-${scrollY}px`;
+            document.body.style.width = '100%';
+            document.body.style.overflow = 'hidden';
+        } else {
+            const scrollY = document.body.style.top;
+            document.body.style.position = '';
+            document.body.style.top = '';
+            document.body.style.width = '';
+            document.body.style.overflow = '';
+            window.scrollTo(0, parseInt(scrollY || '0') * -1);
+        }
+        return () => {
+            const scrollY = document.body.style.top;
+            document.body.style.position = '';
+            document.body.style.top = '';
+            document.body.style.width = '';
+            document.body.style.overflow = '';
+            if (scrollY) window.scrollTo(0, parseInt(scrollY) * -1);
+        };
     }, [isEditModalOpen, confirmDialog, drawerClient]);
 
     const showToast = (message: string, type: 'success' | 'error' = 'success') => {
@@ -1001,7 +1021,7 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
             {/* ── Edit Modal ── */}
             {isEditModalOpen && editingClient && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start justify-center z-50 pt-4 px-4 pb-4">
-                    <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col border border-gray-100 dark:border-white/10" style={{ maxHeight: 'calc(100vh - 2rem)', height: 'fit-content' }}>
+                    <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col border border-gray-100 dark:border-white/10" style={{ maxHeight: 'calc(100dvh - 2rem)', height: 'fit-content' }}>
 
                         {/* Modal header */}
                         <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 dark:border-white/10 sticky top-0 bg-white dark:bg-gray-900 z-10">
@@ -1029,7 +1049,7 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                             </button>
                         </div>
 
-                        <form onSubmit={handleSaveClient} className="p-6 space-y-6 overflow-y-auto flex-1 min-h-0">
+                        <form onSubmit={handleSaveClient} className="p-6 space-y-6 overflow-y-auto overscroll-contain flex-1 min-h-0">
 
                             {/* Section: Identity */}
                             <div>
@@ -1417,7 +1437,7 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                         onClick={closeDrawer}
                     />
                     {/* Panel */}
-                    <div className="fixed top-0 right-0 h-full w-full max-w-2xl z-[56] flex flex-col bg-white dark:bg-gray-900 shadow-2xl border-l border-gray-100 dark:border-white/10">
+                    <div className="fixed top-0 right-0 h-[100dvh] w-full max-w-2xl z-[56] flex flex-col bg-white dark:bg-gray-900 shadow-2xl border-l border-gray-100 dark:border-white/10">
 
                         {/* ── Drawer header ── */}
                         <div className="flex-shrink-0 border-b border-gray-100 dark:border-white/10">
@@ -1482,7 +1502,7 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                         </div>
 
                         {/* ── Drawer body (scrollable) ── */}
-                        <div className="flex-1 overflow-y-auto">
+                        <div className="flex-1 overflow-y-auto overscroll-contain">
 
                             {/* OVERVIEW TAB */}
                             {drawerTab === 'overview' && (
@@ -1595,11 +1615,20 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                                                                     </p>
                                                                 )}
                                                             </div>
-                                                            {q.files?.length > 0 && (
-                                                                <span className="flex items-center gap-1 text-xs text-gray-400 flex-shrink-0">
-                                                                    <FileText size={11} /> {q.files.length}
-                                                                </span>
-                                                            )}
+                                                            <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                                                                {q.files?.length > 0 && (
+                                                                    <span className="flex items-center gap-1 text-xs text-gray-400">
+                                                                        <FileText size={11} /> {q.files.length}
+                                                                    </span>
+                                                                )}
+                                                                <button
+                                                                    onClick={() => { closeDrawer(); props.handleSetCurrentPage('adminRFQ', { quoteId: q.id }); }}
+                                                                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-700/40 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 transition"
+                                                                    title="Open in RFQ manager"
+                                                                >
+                                                                    <ExternalLink size={11} /> Open
+                                                                </button>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 );
@@ -1639,6 +1668,13 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                                                                     <Clock size={9} /> {new Date(order.created_at).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
                                                                 </p>
                                                             </div>
+                                                            <button
+                                                                onClick={() => { closeDrawer(); props.handleSetCurrentPage('adminCRM', { orderId: order.id }); }}
+                                                                className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-700/40 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 transition flex-shrink-0"
+                                                                title="Open in CRM"
+                                                            >
+                                                                <ExternalLink size={11} /> Open
+                                                            </button>
                                                         </div>
                                                         {tasks.length > 0 && (
                                                             <div>
@@ -1686,18 +1722,29 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                                                             {doc.lastUpdated && <> · {new Date(doc.lastUpdated).toLocaleDateString()}</>}
                                                         </p>
                                                     </div>
-                                                    {doc.path && (
-                                                        <a
-                                                            href={doc.path}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            onClick={e => e.stopPropagation()}
-                                                            className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition flex-shrink-0"
-                                                            title="Open document"
-                                                        >
-                                                            <ExternalLink size={13} />
-                                                        </a>
-                                                    )}
+                                                    <div className="flex items-center gap-1 flex-shrink-0">
+                                                        {doc.path && (
+                                                            <a
+                                                                href={doc.path}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                onClick={e => e.stopPropagation()}
+                                                                className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition"
+                                                                title="Download document"
+                                                            >
+                                                                <ExternalLink size={13} />
+                                                            </a>
+                                                        )}
+                                                        {doc.orderId && (
+                                                            <button
+                                                                onClick={() => { closeDrawer(); props.handleSetCurrentPage('adminCRM', { orderId: doc.orderId }); }}
+                                                                className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-700/40 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 transition"
+                                                                title="Open order in CRM"
+                                                            >
+                                                                <Package size={10} /> CRM
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>

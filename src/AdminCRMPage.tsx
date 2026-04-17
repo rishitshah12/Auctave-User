@@ -76,6 +76,7 @@ interface AdminCRMPageProps {
     isAdmin: boolean;
     supabase: any;
     darkMode?: boolean;
+    initialOrderId?: string | null;
 }
 
 // ── Client avatar with gradient initials ──────────────────────────────────────
@@ -2158,6 +2159,17 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
         fetchOrders();
         return () => { if (ordersAbortController.current) ordersAbortController.current.abort(); };
     }, [fetchOrders]);
+
+    // ── auto-select order when navigated with initialOrderId ───────────────────
+    useEffect(() => {
+        if (props.initialOrderId && orders.length > 0) {
+            const order = orders.find(o => o.id === props.initialOrderId);
+            if (order) {
+                setSelectedOrderId(order.id);
+                if (order.client_id) setSelectedClientId(order.client_id);
+            }
+        }
+    }, [props.initialOrderId, orders]);
 
     // ── sync editingOrder whenever selected order changes ──────────────────────
     useEffect(() => {
