@@ -189,30 +189,19 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
     const [drawerLoadingOrders, setDrawerLoadingOrders] = useState(false);
     const abortControllerRef = useRef<AbortController | null>(null);
 
-    // Lock body scroll whenever any modal/drawer is open (robust iOS fix)
+    // Lock body scroll whenever any modal/drawer is open
     useEffect(() => {
         const anyOpen = isEditModalOpen || !!confirmDialog || !!drawerClient;
         if (anyOpen) {
-            const scrollY = window.scrollY;
-            document.body.style.position = 'fixed';
-            document.body.style.top = `-${scrollY}px`;
-            document.body.style.width = '100%';
+            document.documentElement.style.overflow = 'hidden';
             document.body.style.overflow = 'hidden';
         } else {
-            const scrollY = document.body.style.top;
-            document.body.style.position = '';
-            document.body.style.top = '';
-            document.body.style.width = '';
+            document.documentElement.style.overflow = '';
             document.body.style.overflow = '';
-            window.scrollTo(0, parseInt(scrollY || '0') * -1);
         }
         return () => {
-            const scrollY = document.body.style.top;
-            document.body.style.position = '';
-            document.body.style.top = '';
-            document.body.style.width = '';
+            document.documentElement.style.overflow = '';
             document.body.style.overflow = '';
-            if (scrollY) window.scrollTo(0, parseInt(scrollY) * -1);
         };
     }, [isEditModalOpen, confirmDialog, drawerClient]);
 
@@ -870,7 +859,7 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                             return (
                                 <div
                                     key={client.id}
-                                    className="group bg-white dark:bg-gray-900/40 backdrop-blur-sm rounded-2xl border border-gray-100 dark:border-white/10 shadow-sm hover:shadow-md hover:border-purple-200 dark:hover:border-purple-500/30 transition-all duration-200 overflow-hidden cursor-pointer"
+                                    className="group bg-white dark:bg-gray-900/40 backdrop-blur-sm rounded-2xl border border-gray-100 dark:border-white/10 shadow-sm hover:shadow-md hover:border-purple-200 dark:hover:border-purple-500/30 transition-all duration-200 overflow-hidden cursor-pointer flex flex-col"
                                     onClick={() => openDrawer(client)}
                                 >
                                     {/* Card header / avatar strip */}
@@ -950,7 +939,7 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                                     <div className="h-px bg-gray-100 dark:bg-white/5 mx-5" />
 
                                     {/* Details */}
-                                    <div className="px-5 py-4 space-y-2.5">
+                                    <div className="px-5 py-4 space-y-2.5 flex-1">
                                         <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
                                             <Mail size={13} className="text-gray-400 flex-shrink-0" />
                                             <span className="truncate">{client.email || '—'}</span>
@@ -1020,8 +1009,8 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
 
             {/* ── Edit Modal ── */}
             {isEditModalOpen && editingClient && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start justify-center z-50 pt-4 px-4 pb-4">
-                    <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col border border-gray-100 dark:border-white/10" style={{ maxHeight: 'calc(100dvh - 2rem)', height: 'fit-content' }}>
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col border border-gray-100 dark:border-white/10" style={{ maxHeight: 'calc(100dvh - 2rem)' }}>
 
                         {/* Modal header */}
                         <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 dark:border-white/10 sticky top-0 bg-white dark:bg-gray-900 z-10">
@@ -1437,7 +1426,7 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                         onClick={closeDrawer}
                     />
                     {/* Panel */}
-                    <div className="fixed top-0 right-0 h-[100dvh] w-full max-w-2xl z-[56] flex flex-col bg-white dark:bg-gray-900 shadow-2xl border-l border-gray-100 dark:border-white/10">
+                    <div className="fixed inset-y-0 right-0 w-full max-w-2xl z-[56] flex flex-col bg-white dark:bg-gray-900 shadow-2xl border-l border-gray-100 dark:border-white/10">
 
                         {/* ── Drawer header ── */}
                         <div className="flex-shrink-0 border-b border-gray-100 dark:border-white/10">
@@ -1758,7 +1747,7 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
 
             {/* ── Confirmation Dialog ── */}
             {confirmDialog && (
-                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-start justify-center z-[60] pt-16 px-4 pb-4">
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
                     <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md border border-gray-100 dark:border-white/10 overflow-hidden">
 
                         {/* Icon + header */}
