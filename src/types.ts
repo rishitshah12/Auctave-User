@@ -7,6 +7,7 @@ export interface UserProfile {
     jobRole: string;
     categorySpecialization: string;
     yearlyEstRevenue: string;
+    avatarUrl?: string;
 }
 
 export interface LineItem {

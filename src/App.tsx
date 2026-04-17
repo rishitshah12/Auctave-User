@@ -477,7 +477,8 @@ const AppContent: FC = () => {
                                 country: data.country,
                                 jobRole: data.job_role,
                                 categorySpecialization: data.category_specialization,
-                                yearlyEstRevenue: data.yearly_est_revenue
+                                yearlyEstRevenue: data.yearly_est_revenue,
+                                avatarUrl: data.avatar_url || '',
                             };
                             setUserProfile(currentProfile);
                             console.log('Profile loaded successfully');
@@ -1656,9 +1657,23 @@ const AppContent: FC = () => {
             yearlyEstRevenue: userProfile?.yearlyEstRevenue || '',
         });
         const [avatarUrl, setAvatarUrl] = useState<string>(
-            user?.user_metadata?.avatar_url || user?.user_metadata?.picture || ''
+            // DB value is authoritative; fall back to auth metadata if not yet synced
+            userProfile?.avatarUrl || user?.user_metadata?.avatar_url || user?.user_metadata?.picture || ''
         );
         const [avatarUploading, setAvatarUploading] = useState(false);
+
+        // Sync avatar from clients table on mount — user_metadata can lag behind
+        useEffect(() => {
+            if (!user || isAdmin) return;
+            supabase
+                .from('clients')
+                .select('avatar_url')
+                .eq('id', user.id)
+                .single()
+                .then(({ data }) => {
+                    if (data?.avatar_url) setAvatarUrl(data.avatar_url);
+                });
+        }, []);
         const [tags, setTags] = useState<string[]>(
             (userProfile?.categorySpecialization || '')
                 .split(',').map((t: string) => t.trim()).filter(Boolean)
@@ -1697,13 +1712,28 @@ const AppContent: FC = () => {
             try {
                 const resized = await resizeImage(file, 240);
                 setAvatarUrl(resized);
-                await supabase.auth.updateUser({ data: { avatar_url: resized } });
+
+                // 1. Store in auth user metadata
+                const { error: metaError } = await supabase.auth.updateUser({
+                    data: { avatar_url: resized },
+                });
+                if (metaError) console.error('Avatar metadata save failed:', metaError.message);
+
+                // 2. Store in clients table (use update — row always exists at this point)
                 if (user && !isAdmin) {
-                    await supabase.from('clients').upsert({ id: user.id, avatar_url: resized });
+                    const { error: dbError } = await supabase
+                        .from('clients')
+                        .update({ avatar_url: resized })
+                        .eq('id', user.id);
+                    if (dbError) {
+                        console.error('Avatar DB save failed:', dbError.message);
+                        showToast('Picture saved locally but DB sync failed: ' + dbError.message, 'error');
+                        return;
+                    }
                 }
                 showToast('Profile picture updated!');
-            } catch {
-                showToast('Failed to update picture', 'error');
+            } catch (err: any) {
+                showToast('Failed to update picture: ' + (err?.message || 'Unknown error'), 'error');
             } finally {
                 setAvatarUploading(false);
             }

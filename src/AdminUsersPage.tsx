@@ -2,7 +2,9 @@ import React, { useState, useEffect, FC, useRef, useCallback, useMemo } from 're
 import {
     Search, Filter, Users, Globe, TrendingUp, Edit2, Trash2, X, Plus,
     Mail, Phone, MapPin, Briefcase, DollarSign, Tag, ChevronDown,
-    RefreshCw, User, Building2, Hash, Calendar, Check
+    RefreshCw, User, Building2, Hash, Calendar, Check, SlidersHorizontal,
+    CircleCheck, CircleX, ChevronUp, Lock, KeyRound, ShieldCheck, ShieldOff,
+    AlertTriangle, Send, ImageOff, Eye
 } from 'lucide-react';
 import { MainLayout } from './MainLayout';
 import { userService } from './user.service';
@@ -111,9 +113,19 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [countryFilter, setCountryFilter] = useState('');
+    const [selectedTags, setSelectedTags] = useState<string[]>([]);
+    const [jobRoleFilter, setJobRoleFilter] = useState('');
+    const [revenueFilter, setRevenueFilter] = useState('');
+    const [profileFilter, setProfileFilter] = useState<'' | 'complete' | 'incomplete'>('');
+    const [showAdvanced, setShowAdvanced] = useState(false);
     const [tagInput, setTagInput] = useState('');
     const [editTags, setEditTags] = useState<string[]>([]);
     const [savingId, setSavingId] = useState<string | null>(null);
+    // Security / access state
+    const [showChangeEmail, setShowChangeEmail] = useState(false);
+    const [newEmailValue, setNewEmailValue] = useState('');
+    const [isEmailChanging, setIsEmailChanging] = useState(false);
+    const [isPasswordResetting, setIsPasswordResetting] = useState(false);
     const abortControllerRef = useRef<AbortController | null>(null);
 
     const showToast = (message: string, type: 'success' | 'error' = 'success') => {
@@ -179,20 +191,72 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
         return { total: clients.length, countries: countries.size, withProfile };
     }, [clients]);
 
-    const uniqueCountries = useMemo(() => {
-        return Array.from(new Set(clients.map(c => c.country).filter(Boolean))).sort();
+    const uniqueCountries = useMemo(() =>
+        Array.from(new Set(clients.map(c => c.country).filter(Boolean))).sort()
+    , [clients]);
+
+    const uniqueJobRoles = useMemo(() =>
+        Array.from(new Set(clients.map(c => c.job_role).filter(Boolean))).sort()
+    , [clients]);
+
+    const uniqueRevenues = useMemo(() =>
+        Array.from(new Set(clients.map(c => c.yearly_est_revenue).filter(Boolean))).sort()
+    , [clients]);
+
+    // All unique specialization tags across all clients
+    const allTags = useMemo(() => {
+        const tagSet = new Set<string>();
+        clients.forEach(c => {
+            (c.category_specialization || '').split(',')
+                .map((t: string) => t.trim()).filter(Boolean)
+                .forEach((t: string) => tagSet.add(t));
+        });
+        return Array.from(tagSet).sort();
     }, [clients]);
 
-    // ─── Filtered list ────────────────────────────────────────────────────────
+    const hasActiveFilters = countryFilter || selectedTags.length > 0 || jobRoleFilter || revenueFilter || profileFilter;
+
+    // ─── Filtered list ─────────────────────────────────────────────────────────
     const filteredClients = useMemo(() => {
-        const q = searchQuery.toLowerCase();
+        const q = searchQuery.toLowerCase().trim();
         return clients.filter(c => {
-            const matchesSearch = !q || [c.name, c.email, c.company_name, c.customer_id, c.phone]
-                .some(f => (f || '').toLowerCase().includes(q));
-            const matchesCountry = !countryFilter || c.country === countryFilter;
-            return matchesSearch && matchesCountry;
+            // Search: all text fields including tags and customer_id
+            if (q) {
+                const clientTags = (c.category_specialization || '')
+                    .split(',').map((t: string) => t.trim()).join(' ');
+                const haystack = [
+                    c.name, c.email, c.company_name, c.customer_id,
+                    c.phone, c.job_role, c.country, c.yearly_est_revenue, clientTags,
+                ].map(f => (f || '').toLowerCase()).join(' ');
+                if (!haystack.includes(q)) return false;
+            }
+            // Country filter
+            if (countryFilter && c.country !== countryFilter) return false;
+            // Tag filter — client must have ALL selected tags
+            if (selectedTags.length > 0) {
+                const clientTags = (c.category_specialization || '')
+                    .split(',').map((t: string) => t.trim().toLowerCase());
+                if (!selectedTags.every(st => clientTags.includes(st.toLowerCase()))) return false;
+            }
+            // Job role filter
+            if (jobRoleFilter && c.job_role !== jobRoleFilter) return false;
+            // Revenue filter
+            if (revenueFilter && c.yearly_est_revenue !== revenueFilter) return false;
+            // Profile completeness
+            if (profileFilter === 'complete' && !(c.name && c.company_name && c.country)) return false;
+            if (profileFilter === 'incomplete' && (c.name && c.company_name && c.country)) return false;
+            return true;
         });
-    }, [clients, searchQuery, countryFilter]);
+    }, [clients, searchQuery, countryFilter, selectedTags, jobRoleFilter, revenueFilter, profileFilter]);
+
+    const clearAllFilters = () => {
+        setSearchQuery('');
+        setCountryFilter('');
+        setSelectedTags([]);
+        setJobRoleFilter('');
+        setRevenueFilter('');
+        setProfileFilter('');
+    };
 
     // ─── Edit handlers ────────────────────────────────────────────────────────
     const handleEditClick = (client: any) => {
@@ -201,7 +265,63 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
             (client.category_specialization || '').split(',').map((t: string) => t.trim()).filter(Boolean)
         );
         setTagInput('');
+        setShowChangeEmail(false);
+        setNewEmailValue('');
         setIsEditModalOpen(true);
+    };
+
+    // ─── Force password reset ──────────────────────────────────────────────────
+    const handleForcePasswordReset = async () => {
+        if (!editingClient?.email) return;
+        if (!window.confirm(`Send a password reset email to ${editingClient.email}? The user will receive a link to set a new password.`)) return;
+        setIsPasswordResetting(true);
+        try {
+            const { error } = await props.supabase.auth.resetPasswordForEmail(
+                editingClient.email,
+                { redirectTo: `${window.location.origin}/reset-password` }
+            );
+            if (error) throw error;
+            showToast(`Password reset email sent to ${editingClient.email}`);
+        } catch (err: any) {
+            showToast('Failed to send reset email: ' + err.message, 'error');
+        } finally {
+            setIsPasswordResetting(false);
+        }
+    };
+
+    // ─── Change email (admin-initiated, requires user confirmation) ────────────
+    const handleChangeEmail = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const trimmed = newEmailValue.trim().toLowerCase();
+        if (!trimmed || !editingClient) return;
+        if (trimmed === (editingClient.email || '').toLowerCase()) {
+            showToast('New email is the same as the current one.', 'error');
+            return;
+        }
+        setIsEmailChanging(true);
+        try {
+            // Try via Edge Function first (requires service-role key)
+            const { error: fnError } = await props.supabase.functions.invoke('update-user-email', {
+                body: { userId: editingClient.id, newEmail: trimmed },
+            });
+            if (fnError) {
+                // Fallback: admin updateUserById if available
+                const { error: adminError } = await props.supabase.auth.admin.updateUserById(
+                    editingClient.id, { email: trimmed }
+                );
+                if (adminError) throw adminError;
+            }
+            // Update local state
+            setClients(prev => prev.map(c => c.id === editingClient.id ? { ...c, email: trimmed } : c));
+            setEditingClient((p: any) => ({ ...p, email: trimmed }));
+            setShowChangeEmail(false);
+            setNewEmailValue('');
+            showToast(`Email updated to ${trimmed}. A confirmation was sent to the user.`);
+        } catch (err: any) {
+            showToast('Failed to change email: ' + err.message, 'error');
+        } finally {
+            setIsEmailChanging(false);
+        }
     };
 
     const handleAddTag = () => {
@@ -330,56 +450,213 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                     ))}
                 </div>
 
-                {/* ── Filter bar ── */}
-                <div className="flex flex-col sm:flex-row gap-3">
-                    <div className="relative flex-1">
-                        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                        <input
-                            type="text"
-                            placeholder="Search by name, email, company or ID…"
-                            value={searchQuery}
-                            onChange={e => setSearchQuery(e.target.value)}
-                            className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 dark:border-white/10 rounded-xl bg-white dark:bg-gray-900/40 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 shadow-sm"
-                        />
-                        {searchQuery && (
-                            <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                                <X size={14} />
-                            </button>
-                        )}
-                    </div>
-                    <div className="relative sm:w-56">
-                        <Globe size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                        <select
-                            value={countryFilter}
-                            onChange={e => setCountryFilter(e.target.value)}
-                            className="w-full pl-9 pr-8 py-2.5 text-sm border border-gray-200 dark:border-white/10 rounded-xl bg-white dark:bg-gray-900/40 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 appearance-none shadow-sm"
-                        >
-                            <option value="">All Countries</option>
-                            {uniqueCountries.map(c => (
-                                <option key={c} value={c}>
-                                    {COUNTRY_FLAGS[c] ? `${COUNTRY_FLAGS[c]} ` : ''}{c}
-                                </option>
-                            ))}
-                        </select>
-                        <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                    </div>
-                    {(searchQuery || countryFilter) && (
+                {/* ── Search + filter bar ── */}
+                <div className="bg-white dark:bg-gray-900/40 border border-gray-100 dark:border-white/10 rounded-2xl shadow-sm overflow-hidden">
+                    {/* Primary row */}
+                    <div className="flex flex-col sm:flex-row gap-0 divide-y sm:divide-y-0 sm:divide-x divide-gray-100 dark:divide-white/10">
+                        {/* Search input */}
+                        <div className="relative flex-1">
+                            <Search size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                            <input
+                                type="text"
+                                placeholder="Search name, email, company, ID, tags, country…"
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
+                                className="w-full pl-10 pr-10 py-3 text-sm bg-transparent text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none"
+                            />
+                            {searchQuery && (
+                                <button
+                                    onClick={() => setSearchQuery('')}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                                >
+                                    <X size={13} />
+                                </button>
+                            )}
+                        </div>
+                        {/* Country dropdown */}
+                        <div className="relative sm:w-52">
+                            <Globe size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                            <select
+                                value={countryFilter}
+                                onChange={e => setCountryFilter(e.target.value)}
+                                className="w-full pl-9 pr-8 py-3 text-sm bg-transparent text-gray-900 dark:text-white appearance-none focus:outline-none cursor-pointer"
+                            >
+                                <option value="">All Countries</option>
+                                {uniqueCountries.map(c => (
+                                    <option key={c} value={c}>
+                                        {COUNTRY_FLAGS[c] ? `${COUNTRY_FLAGS[c]} ` : ''}{c}
+                                    </option>
+                                ))}
+                            </select>
+                            <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                        </div>
+                        {/* Advanced toggle */}
                         <button
-                            onClick={() => { setSearchQuery(''); setCountryFilter(''); }}
-                            className="flex items-center gap-1.5 px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white border border-gray-200 dark:border-white/10 rounded-xl bg-white dark:bg-gray-900/40 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+                            onClick={() => setShowAdvanced(v => !v)}
+                            className={`flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition ${showAdvanced || hasActiveFilters ? 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
                         >
-                            <X size={13} /> Clear
+                            <SlidersHorizontal size={14} />
+                            <span className="hidden sm:inline">Filters</span>
+                            {hasActiveFilters && (
+                                <span className="flex items-center justify-center w-4 h-4 rounded-full bg-purple-600 text-white text-[10px] font-bold">
+                                    {[countryFilter, jobRoleFilter, revenueFilter, profileFilter].filter(Boolean).length + selectedTags.length}
+                                </span>
+                            )}
+                            {showAdvanced ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                         </button>
+                    </div>
+
+                    {/* Advanced filters panel */}
+                    {showAdvanced && (
+                        <div className="border-t border-gray-100 dark:border-white/10 p-4 space-y-4">
+                            {/* Row 1: Job role, Revenue, Profile status */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                {/* Job role */}
+                                <div>
+                                    <label className="block text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1.5">Job Role</label>
+                                    <div className="relative">
+                                        <Briefcase size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                                        <select
+                                            value={jobRoleFilter}
+                                            onChange={e => setJobRoleFilter(e.target.value)}
+                                            className="w-full pl-8 pr-7 py-2 text-sm border border-gray-200 dark:border-white/10 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white appearance-none focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                        >
+                                            <option value="">All Roles</option>
+                                            {uniqueJobRoles.map(r => <option key={r} value={r}>{r}</option>)}
+                                        </select>
+                                        <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                                    </div>
+                                </div>
+                                {/* Revenue */}
+                                <div>
+                                    <label className="block text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1.5">Revenue Range</label>
+                                    <div className="relative">
+                                        <DollarSign size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                                        <select
+                                            value={revenueFilter}
+                                            onChange={e => setRevenueFilter(e.target.value)}
+                                            className="w-full pl-8 pr-7 py-2 text-sm border border-gray-200 dark:border-white/10 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white appearance-none focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                        >
+                                            <option value="">All Revenues</option>
+                                            {uniqueRevenues.map(r => <option key={r} value={r}>{r}</option>)}
+                                        </select>
+                                        <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                                    </div>
+                                </div>
+                                {/* Profile completeness */}
+                                <div>
+                                    <label className="block text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1.5">Profile Status</label>
+                                    <div className="flex gap-2">
+                                        {(['', 'complete', 'incomplete'] as const).map(v => (
+                                            <button
+                                                key={v}
+                                                onClick={() => setProfileFilter(v)}
+                                                className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium rounded-lg border transition ${
+                                                    profileFilter === v
+                                                        ? v === 'complete'
+                                                            ? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-300 dark:border-emerald-600 text-emerald-700 dark:text-emerald-300'
+                                                            : v === 'incomplete'
+                                                                ? 'bg-amber-50 dark:bg-amber-900/30 border-amber-300 dark:border-amber-600 text-amber-700 dark:text-amber-300'
+                                                                : 'bg-purple-50 dark:bg-purple-900/30 border-purple-300 dark:border-purple-600 text-purple-700 dark:text-purple-300'
+                                                        : 'border-gray-200 dark:border-white/10 text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                                }`}
+                                            >
+                                                {v === '' ? 'All' : v === 'complete' ? <><CircleCheck size={11} /> Done</> : <><CircleX size={11} /> Partial</>}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Tag filters */}
+                            {allTags.length > 0 && (
+                                <div>
+                                    <label className="block text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">
+                                        Specialization Tags {selectedTags.length > 0 && <span className="normal-case text-purple-500">({selectedTags.length} selected — must match all)</span>}
+                                    </label>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {allTags.map(tag => {
+                                            const active = selectedTags.includes(tag);
+                                            return (
+                                                <button
+                                                    key={tag}
+                                                    onClick={() => setSelectedTags(prev =>
+                                                        active ? prev.filter(t => t !== tag) : [...prev, tag]
+                                                    )}
+                                                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition ${
+                                                        active
+                                                            ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
+                                                            : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-300 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                                                    }`}
+                                                >
+                                                    {active && <Check size={10} />}
+                                                    {tag}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Clear all */}
+                            {hasActiveFilters && (
+                                <div className="flex justify-end pt-1">
+                                    <button
+                                        onClick={clearAllFilters}
+                                        className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-600 dark:hover:text-red-400 font-medium transition"
+                                    >
+                                        <X size={12} /> Clear all filters
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     )}
                 </div>
 
-                {/* ── Results summary ── */}
-                {(searchQuery || countryFilter) && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                        Showing {filteredClients.length} of {clients.length} clients
-                        {countryFilter && ` in ${COUNTRY_FLAGS[countryFilter] || ''} ${countryFilter}`}
-                        {searchQuery && ` matching "${searchQuery}"`}
-                    </p>
+                {/* ── Active filter chips + results count ── */}
+                {(searchQuery || hasActiveFilters) && (
+                    <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                            {filteredClients.length} of {clients.length} clients
+                        </span>
+                        {searchQuery && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 text-xs">
+                                <Search size={10} /> "{searchQuery}"
+                                <button onClick={() => setSearchQuery('')} className="ml-0.5 text-gray-400 hover:text-gray-600"><X size={10} /></button>
+                            </span>
+                        )}
+                        {countryFilter && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs">
+                                {COUNTRY_FLAGS[countryFilter]} {countryFilter}
+                                <button onClick={() => setCountryFilter('')} className="ml-0.5 text-blue-400 hover:text-blue-600"><X size={10} /></button>
+                            </span>
+                        )}
+                        {jobRoleFilter && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 text-xs">
+                                <Briefcase size={10} /> {jobRoleFilter}
+                                <button onClick={() => setJobRoleFilter('')} className="ml-0.5 text-orange-400 hover:text-orange-600"><X size={10} /></button>
+                            </span>
+                        )}
+                        {revenueFilter && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-xs">
+                                <DollarSign size={10} /> {revenueFilter}
+                                <button onClick={() => setRevenueFilter('')} className="ml-0.5 text-emerald-400 hover:text-emerald-600"><X size={10} /></button>
+                            </span>
+                        )}
+                        {profileFilter && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs">
+                                {profileFilter === 'complete' ? <CircleCheck size={10} /> : <CircleX size={10} />}
+                                {profileFilter === 'complete' ? 'Complete profiles' : 'Partial profiles'}
+                                <button onClick={() => setProfileFilter('')} className="ml-0.5 text-purple-400 hover:text-purple-600"><X size={10} /></button>
+                            </span>
+                        )}
+                        {selectedTags.map(tag => (
+                            <span key={tag} className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-xs">
+                                <Tag size={10} /> {tag}
+                                <button onClick={() => setSelectedTags(prev => prev.filter(t => t !== tag))} className="ml-0.5 text-indigo-400 hover:text-indigo-600"><X size={10} /></button>
+                            </span>
+                        ))}
+                    </div>
                 )}
 
                 {/* ── Card grid ── */}
@@ -589,7 +866,7 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                                     <User size={12} /> Identity
                                 </h3>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <div>
+                                    <div className="sm:col-span-2">
                                         <label className={labelCls}>Full Name</label>
                                         <input
                                             type="text"
@@ -599,15 +876,63 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                                             className={inputCls}
                                         />
                                     </div>
-                                    <div>
-                                        <label className={labelCls}>Email Address</label>
-                                        <input
-                                            type="email"
-                                            value={editingClient.email || ''}
-                                            onChange={e => setEditingClient({ ...editingClient, email: e.target.value })}
-                                            placeholder="john@company.com"
-                                            className={inputCls}
-                                        />
+                                    {/* Email — read-only with change flow */}
+                                    <div className="sm:col-span-2">
+                                        <label className={labelCls + ' flex items-center justify-between'}>
+                                            <span className="flex items-center gap-1.5">
+                                                Email Address
+                                                <span className="normal-case font-normal text-amber-500 dark:text-amber-400 flex items-center gap-1">
+                                                    <Lock size={9} /> Auth-linked · read-only
+                                                </span>
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={() => { setShowChangeEmail(v => !v); setNewEmailValue(''); }}
+                                                className="normal-case font-medium text-purple-600 dark:text-purple-400 hover:text-purple-700 text-xs flex items-center gap-1 transition"
+                                            >
+                                                <Mail size={10} />
+                                                {showChangeEmail ? 'Cancel' : 'Change Email'}
+                                            </button>
+                                        </label>
+                                        {/* Read-only display */}
+                                        <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-white/10 rounded-lg text-sm text-gray-700 dark:text-gray-300 select-none">
+                                            <Mail size={13} className="text-gray-400 flex-shrink-0" />
+                                            <span className="flex-1 truncate">{editingClient.email || '—'}</span>
+                                            <span className="text-[10px] text-gray-400 bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded font-medium">locked</span>
+                                        </div>
+
+                                        {/* Change email inline form */}
+                                        {showChangeEmail && (
+                                            <form
+                                                onSubmit={handleChangeEmail}
+                                                className="mt-3 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/40 rounded-xl space-y-3"
+                                            >
+                                                <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300">
+                                                    <AlertTriangle size={13} className="flex-shrink-0 mt-0.5" />
+                                                    <p>Changing the email updates the auth account. A confirmation will be sent to the new address. The user must re-verify before the change takes effect.</p>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        type="email"
+                                                        required
+                                                        value={newEmailValue}
+                                                        onChange={e => setNewEmailValue(e.target.value)}
+                                                        placeholder="new@email.com"
+                                                        className={inputCls + ' flex-1 bg-white dark:bg-gray-800'}
+                                                    />
+                                                    <button
+                                                        type="submit"
+                                                        disabled={isEmailChanging || !newEmailValue.trim()}
+                                                        className="flex items-center gap-1.5 px-3 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg transition flex-shrink-0"
+                                                    >
+                                                        {isEmailChanging
+                                                            ? <><RefreshCw size={13} className="animate-spin" /> Updating…</>
+                                                            : <><Send size={13} /> Update</>
+                                                        }
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -729,24 +1054,101 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                                 )}
                             </div>
 
-                            {/* Section: Profile picture (read-only) */}
-                            {editingClient.avatar_url && (
-                                <div>
-                                    <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                        <User size={12} /> Profile Picture
+                            {/* Section: Security & Access (read-only controls) */}
+                            <div className="rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden">
+                                <div className="px-4 py-3 bg-gray-50 dark:bg-white/[0.03] border-b border-gray-200 dark:border-white/10">
+                                    <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                                        <Lock size={11} /> Security &amp; Access
+                                        <span className="normal-case font-normal text-gray-400 dark:text-gray-500">— user-owned, admin view only</span>
                                     </h3>
-                                    <div className="flex items-center gap-4">
-                                        <img
-                                            src={editingClient.avatar_url}
-                                            alt="Profile"
-                                            className="w-20 h-20 rounded-2xl object-cover border border-gray-200 dark:border-white/10 shadow"
-                                        />
-                                        <p className="text-xs text-gray-400 dark:text-gray-500">
-                                            Profile picture is managed by the client from their profile page.
-                                        </p>
+                                </div>
+
+                                <div className="divide-y divide-gray-100 dark:divide-white/5">
+                                    {/* Password row */}
+                                    <div className="flex items-center justify-between px-4 py-3.5 gap-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 rounded-lg bg-orange-50 dark:bg-orange-900/20">
+                                                <KeyRound size={14} className="text-orange-500" />
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-medium text-gray-800 dark:text-white">Password</p>
+                                                <p className="text-xs text-gray-400 dark:text-gray-500">Admin cannot view or set passwords. User controls their own.</p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={handleForcePasswordReset}
+                                            disabled={isPasswordResetting}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-orange-600 dark:text-orange-400 border border-orange-200 dark:border-orange-700/40 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/40 rounded-lg transition disabled:opacity-60 flex-shrink-0 whitespace-nowrap"
+                                        >
+                                            {isPasswordResetting
+                                                ? <><RefreshCw size={11} className="animate-spin" /> Sending…</>
+                                                : <><Send size={11} /> Force Reset Email</>
+                                            }
+                                        </button>
+                                    </div>
+
+                                    {/* Profile picture row */}
+                                    <div className="flex items-center justify-between px-4 py-3.5 gap-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+                                                <Eye size={14} className="text-blue-500" />
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-medium text-gray-800 dark:text-white">Profile Picture</p>
+                                                <p className="text-xs text-gray-400 dark:text-gray-500">Uploaded and managed by the user from their profile page.</p>
+                                            </div>
+                                        </div>
+                                        {editingClient.avatar_url ? (
+                                            <img
+                                                src={editingClient.avatar_url}
+                                                alt="Avatar"
+                                                className="w-10 h-10 rounded-xl object-cover border border-gray-200 dark:border-white/10 flex-shrink-0"
+                                            />
+                                        ) : (
+                                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-xs text-gray-400">
+                                                <ImageOff size={11} /> No photo
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* 2FA row */}
+                                    <div className="flex items-center justify-between px-4 py-3.5 gap-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`p-2 rounded-lg ${
+                                                editingClient.user_metadata?.factors?.length > 0 ||
+                                                editingClient.factors?.length > 0
+                                                    ? 'bg-emerald-50 dark:bg-emerald-900/20'
+                                                    : 'bg-gray-100 dark:bg-gray-800'
+                                            }`}>
+                                                {editingClient.user_metadata?.factors?.length > 0 ||
+                                                 editingClient.factors?.length > 0
+                                                    ? <ShieldCheck size={14} className="text-emerald-500" />
+                                                    : <ShieldOff size={14} className="text-gray-400" />
+                                                }
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-medium text-gray-800 dark:text-white">Two-Factor Authentication</p>
+                                                <p className="text-xs text-gray-400 dark:text-gray-500">
+                                                    User-controlled. Admin cannot enable or disable 2FA.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium flex-shrink-0 ${
+                                            editingClient.user_metadata?.factors?.length > 0 ||
+                                            editingClient.factors?.length > 0
+                                                ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+                                                : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                                        }`}>
+                                            {editingClient.user_metadata?.factors?.length > 0 ||
+                                             editingClient.factors?.length > 0
+                                                ? 'Enabled'
+                                                : 'Not set up'
+                                            }
+                                        </span>
                                     </div>
                                 </div>
-                            )}
+                            </div>
 
                             {/* Section: System info (read-only) */}
                             <div className="bg-gray-50 dark:bg-white/[0.03] rounded-xl p-4 border border-gray-100 dark:border-white/5">
