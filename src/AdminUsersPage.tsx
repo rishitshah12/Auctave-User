@@ -4,10 +4,14 @@ import {
     Mail, Phone, MapPin, Briefcase, DollarSign, Tag, ChevronDown,
     RefreshCw, User, Building2, Hash, Calendar, Check, SlidersHorizontal,
     CircleCheck, CircleX, ChevronUp, Lock, KeyRound, ShieldCheck, ShieldOff,
-    AlertTriangle, Send, ImageOff, Eye, Ban, ShieldAlert, UserCheck
+    AlertTriangle, Send, ImageOff, Eye, Ban, ShieldAlert, UserCheck,
+    FileText, Package, Receipt, FolderOpen, ExternalLink, Clock,
+    ChevronRight, LayoutDashboard, ArrowLeft
 } from 'lucide-react';
 import { MainLayout } from './MainLayout';
 import { userService } from './user.service';
+import { quoteService } from './quote.service';
+import { crmService } from './crm.service';
 
 interface AdminUsersPageProps {
     pageKey: number;
@@ -100,6 +104,50 @@ function getAvatarColor(userId: string): string {
     return colors[idx];
 }
 
+// ─── Small helpers ────────────────────────────────────────────────────────────
+const QUOTE_STATUS_COLORS: Record<string, string> = {
+    'Pending':        'bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300',
+    'Responded':      'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
+    'Accepted':       'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300',
+    'Admin Accepted': 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300',
+    'Client Accepted':'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300',
+    'In Negotiation': 'bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
+    'Declined':       'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300',
+    'Trashed':        'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400',
+    'Draft':          'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400',
+};
+const QuoteStatusBadge: FC<{ status: string }> = ({ status }) => (
+    <span className={`px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${QUOTE_STATUS_COLORS[status] || 'bg-gray-100 text-gray-500'}`}>
+        {status}
+    </span>
+);
+
+const ORDER_STATUS_COLORS: Record<string, string> = {
+    'Pending':        'bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300',
+    'In Production':  'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
+    'Quality Check':  'bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
+    'Shipped':        'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300',
+    'Completed':      'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300',
+};
+const OrderStatusBadge: FC<{ status?: string }> = ({ status }) => (
+    status ? <span className={`px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${ORDER_STATUS_COLORS[status] || 'bg-gray-100 text-gray-500'}`}>{status}</span> : null
+);
+
+const DrawerLoader: FC<{ rows?: number }> = ({ rows = 3 }) => (
+    <div className="space-y-3">
+        {Array.from({ length: rows }).map((_, i) => (
+            <div key={i} className="animate-pulse bg-gray-100 dark:bg-gray-800 rounded-xl h-20" />
+        ))}
+    </div>
+);
+
+const DrawerEmpty: FC<{ icon: FC<any>; label: string }> = ({ icon: Icon, label }) => (
+    <div className="flex flex-col items-center justify-center py-16 text-center">
+        <Icon size={36} className="text-gray-200 dark:text-gray-700 mb-3" />
+        <p className="text-sm text-gray-400 dark:text-gray-500">{label}</p>
+    </div>
+);
+
 // ─── Component ────────────────────────────────────────────────────────────────
 export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
     const CACHE_KEY = 'garment_erp_admin_users';
@@ -132,7 +180,21 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
         client: any;
     } | null>(null);
     const [isConfirmLoading, setIsConfirmLoading] = useState(false);
+    // Profile drawer
+    const [drawerClient, setDrawerClient] = useState<any>(null);
+    const [drawerTab, setDrawerTab] = useState<'overview' | 'quotes' | 'orders' | 'documents'>('overview');
+    const [drawerQuotes, setDrawerQuotes] = useState<any[]>([]);
+    const [drawerOrders, setDrawerOrders] = useState<any[]>([]);
+    const [drawerLoadingQuotes, setDrawerLoadingQuotes] = useState(false);
+    const [drawerLoadingOrders, setDrawerLoadingOrders] = useState(false);
     const abortControllerRef = useRef<AbortController | null>(null);
+
+    // Lock body scroll whenever any modal/drawer is open
+    useEffect(() => {
+        const anyOpen = isEditModalOpen || !!confirmDialog || !!drawerClient;
+        document.body.style.overflow = anyOpen ? 'hidden' : '';
+        return () => { document.body.style.overflow = ''; };
+    }, [isEditModalOpen, confirmDialog, drawerClient]);
 
     const showToast = (message: string, type: 'success' | 'error' = 'success') => {
         if ((window as any).showToast) (window as any).showToast(message, type);
@@ -263,6 +325,49 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
         setRevenueFilter('');
         setProfileFilter('');
     };
+
+    // ─── Profile drawer ───────────────────────────────────────────────────────
+    const openDrawer = async (client: any) => {
+        setDrawerClient(client);
+        setDrawerTab('overview');
+        setDrawerQuotes([]);
+        setDrawerOrders([]);
+        // Prefetch quotes and orders in parallel
+        setDrawerLoadingQuotes(true);
+        setDrawerLoadingOrders(true);
+        const [quotesRes, ordersRes] = await Promise.all([
+            quoteService.getQuotesByUser(client.id),
+            crmService.getOrdersByClient(client.id),
+        ]);
+        setDrawerQuotes(quotesRes.data || []);
+        setDrawerOrders(ordersRes.data || []);
+        setDrawerLoadingQuotes(false);
+        setDrawerLoadingOrders(false);
+    };
+
+    const closeDrawer = () => {
+        setDrawerClient(null);
+        setDrawerQuotes([]);
+        setDrawerOrders([]);
+    };
+
+    // Flatten all documents from crm orders
+    const drawerDocuments = useMemo(() => {
+        return drawerOrders.flatMap((order: any) => {
+            const docs: any[] = Array.isArray(order.documents) ? order.documents : [];
+            const taskDocs = (order.tasks || [])
+                .filter((t: any) => t.documentUrl)
+                .map((t: any) => ({
+                    name: t.documentFileName || t.name + ' document',
+                    path: t.documentUrl,
+                    type: 'Task document',
+                    lastUpdated: t.documentUploadedAt || order.updated_at,
+                    orderId: order.id,
+                    orderProduct: order.product_name || order.product,
+                }));
+            return [...docs.map((d: any) => ({ ...d, orderId: order.id, orderProduct: order.product_name || order.product })), ...taskDocs];
+        });
+    }, [drawerOrders]);
 
     // ─── Edit handlers ────────────────────────────────────────────────────────
     const handleEditClick = (client: any) => {
@@ -745,7 +850,8 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                             return (
                                 <div
                                     key={client.id}
-                                    className="group bg-white dark:bg-gray-900/40 backdrop-blur-sm rounded-2xl border border-gray-100 dark:border-white/10 shadow-sm hover:shadow-md hover:border-purple-200 dark:hover:border-purple-500/30 transition-all duration-200 overflow-hidden"
+                                    className="group bg-white dark:bg-gray-900/40 backdrop-blur-sm rounded-2xl border border-gray-100 dark:border-white/10 shadow-sm hover:shadow-md hover:border-purple-200 dark:hover:border-purple-500/30 transition-all duration-200 overflow-hidden cursor-pointer"
+                                    onClick={() => openDrawer(client)}
                                 >
                                     {/* Card header / avatar strip */}
                                     <div className="relative px-5 pt-5 pb-4">
@@ -787,7 +893,7 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                                             </div>
 
                                             {/* Actions */}
-                                            <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
                                                 <button
                                                     onClick={() => handleEditClick(client)}
                                                     className="p-1.5 rounded-lg text-gray-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition"
@@ -881,12 +987,9 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                                                 ? `Updated ${new Date(client.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
                                                 : 'No updates yet'}
                                         </span>
-                                        <button
-                                            onClick={() => handleEditClick(client)}
-                                            className="text-xs font-medium text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 transition"
-                                        >
-                                            Edit profile
-                                        </button>
+                                        <span className="text-xs font-medium text-purple-600 dark:text-purple-400 flex items-center gap-1">
+                                            View profile <ChevronRight size={11} />
+                                        </span>
                                     </div>
                                 </div>
                             );
@@ -897,8 +1000,8 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
 
             {/* ── Edit Modal ── */}
             {isEditModalOpen && editingClient && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto border border-gray-100 dark:border-white/10">
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start justify-center z-50 pt-4 px-4 pb-4">
+                    <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col border border-gray-100 dark:border-white/10" style={{ maxHeight: 'calc(100vh - 2rem)', height: 'fit-content' }}>
 
                         {/* Modal header */}
                         <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 dark:border-white/10 sticky top-0 bg-white dark:bg-gray-900 z-10">
@@ -926,7 +1029,7 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                             </button>
                         </div>
 
-                        <form onSubmit={handleSaveClient} className="p-6 space-y-6">
+                        <form onSubmit={handleSaveClient} className="p-6 space-y-6 overflow-y-auto flex-1 min-h-0">
 
                             {/* Section: Identity */}
                             <div>
@@ -1305,9 +1408,310 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                     </div>
                 </div>
             )}
+            {/* ── Profile Drawer ── */}
+            {drawerClient && (
+                <>
+                    {/* Backdrop */}
+                    <div
+                        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[55]"
+                        onClick={closeDrawer}
+                    />
+                    {/* Panel */}
+                    <div className="fixed top-0 right-0 h-full w-full max-w-2xl z-[56] flex flex-col bg-white dark:bg-gray-900 shadow-2xl border-l border-gray-100 dark:border-white/10">
+
+                        {/* ── Drawer header ── */}
+                        <div className="flex-shrink-0 border-b border-gray-100 dark:border-white/10">
+                            {/* Profile strip */}
+                            <div className="px-6 pt-5 pb-4 flex items-center gap-4">
+                                <button onClick={closeDrawer} className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition flex-shrink-0">
+                                    <ArrowLeft size={16} />
+                                </button>
+                                {drawerClient.avatar_url ? (
+                                    <img src={drawerClient.avatar_url} alt="" className="w-12 h-12 rounded-2xl object-cover flex-shrink-0 shadow" />
+                                ) : (
+                                    <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${getAvatarColor(drawerClient.id)} flex items-center justify-center text-white font-bold text-base flex-shrink-0 shadow`}>
+                                        {getInitials(drawerClient.name, drawerClient.email)}
+                                    </div>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <h2 className="text-base font-semibold text-gray-900 dark:text-white truncate">
+                                            {drawerClient.name || <span className="italic text-gray-400">No name</span>}
+                                        </h2>
+                                        {drawerClient.status === 'suspended' && (
+                                            <span className="flex items-center gap-1 px-2 py-0.5 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-xs rounded-full font-medium">
+                                                <Ban size={9} /> Suspended
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{drawerClient.company_name || '—'} · {drawerClient.email}</p>
+                                    <span className="inline-flex items-center gap-1 mt-1 text-xs font-mono text-purple-600 dark:text-purple-400">
+                                        <Hash size={9} />
+                                        {drawerClient.customer_id || generateCustomerId(drawerClient.id, drawerClient.created_at)}
+                                    </span>
+                                </div>
+                                <button
+                                    onClick={() => { closeDrawer(); handleEditClick(drawerClient); }}
+                                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-700/40 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 transition flex-shrink-0"
+                                >
+                                    <Edit2 size={12} /> Edit
+                                </button>
+                            </div>
+
+                            {/* Tabs */}
+                            <div className="flex px-6 gap-1">
+                                {([
+                                    { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+                                    { id: 'quotes', label: `Quotes${drawerQuotes.length ? ` (${drawerQuotes.length})` : ''}`, icon: Receipt },
+                                    { id: 'orders', label: `CRM Orders${drawerOrders.length ? ` (${drawerOrders.length})` : ''}`, icon: Package },
+                                    { id: 'documents', label: `Documents${drawerDocuments.length ? ` (${drawerDocuments.length})` : ''}`, icon: FolderOpen },
+                                ] as const).map(({ id, label, icon: Icon }) => (
+                                    <button
+                                        key={id}
+                                        onClick={() => setDrawerTab(id)}
+                                        className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 transition whitespace-nowrap ${
+                                            drawerTab === id
+                                                ? 'border-purple-600 text-purple-600 dark:text-purple-400 dark:border-purple-400'
+                                                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                                        }`}
+                                    >
+                                        <Icon size={12} /> {label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* ── Drawer body (scrollable) ── */}
+                        <div className="flex-1 overflow-y-auto">
+
+                            {/* OVERVIEW TAB */}
+                            {drawerTab === 'overview' && (
+                                <div className="p-6 space-y-5">
+                                    {/* Quick stats */}
+                                    <div className="grid grid-cols-3 gap-3">
+                                        {[
+                                            { label: 'Quotes', value: drawerLoadingQuotes ? '…' : drawerQuotes.length, icon: Receipt, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                                            { label: 'CRM Orders', value: drawerLoadingOrders ? '…' : drawerOrders.length, icon: Package, color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
+                                            { label: 'Documents', value: drawerLoadingOrders ? '…' : drawerDocuments.length, icon: FileText, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+                                        ].map(({ label, value, icon: Icon, color, bg }) => (
+                                            <div key={label} className="bg-gray-50 dark:bg-white/[0.03] rounded-xl p-3 border border-gray-100 dark:border-white/5 text-center">
+                                                <div className={`inline-flex p-2 rounded-lg ${bg} mb-2`}><Icon size={14} className={color} /></div>
+                                                <p className="text-xl font-bold text-gray-900 dark:text-white">{value}</p>
+                                                <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{label}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Profile details */}
+                                    <div className="bg-gray-50 dark:bg-white/[0.03] rounded-xl border border-gray-100 dark:border-white/5 divide-y divide-gray-100 dark:divide-white/5">
+                                        {[
+                                            { icon: Mail, label: 'Email', value: drawerClient.email },
+                                            { icon: Phone, label: 'Phone', value: drawerClient.phone },
+                                            { icon: MapPin, label: 'Country', value: drawerClient.country ? `${COUNTRY_FLAGS[drawerClient.country] || ''} ${drawerClient.country}` : null },
+                                            { icon: Briefcase, label: 'Role', value: drawerClient.job_role },
+                                            { icon: DollarSign, label: 'Revenue', value: drawerClient.yearly_est_revenue },
+                                        ].filter(r => r.value).map(({ icon: Icon, label, value }) => (
+                                            <div key={label} className="flex items-center gap-3 px-4 py-3">
+                                                <Icon size={13} className="text-gray-400 flex-shrink-0" />
+                                                <span className="text-xs text-gray-400 w-16 flex-shrink-0">{label}</span>
+                                                <span className="text-sm text-gray-700 dark:text-gray-200 truncate">{value}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Specialization tags */}
+                                    {drawerClient.category_specialization && (
+                                        <div>
+                                            <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">Specializations</p>
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {drawerClient.category_specialization.split(',').map((t: string) => t.trim()).filter(Boolean).map((tag: string) => (
+                                                    <span key={tag} className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-xs rounded-full">{tag}</span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Recent quotes preview */}
+                                    {!drawerLoadingQuotes && drawerQuotes.length > 0 && (
+                                        <div>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Recent Quotes</p>
+                                                <button onClick={() => setDrawerTab('quotes')} className="text-xs text-purple-600 dark:text-purple-400 hover:underline">View all</button>
+                                            </div>
+                                            <div className="space-y-2">
+                                                {drawerQuotes.slice(0, 3).map((q: any) => (
+                                                    <div key={q.id} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-white/[0.03] rounded-xl border border-gray-100 dark:border-white/5">
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-sm font-medium text-gray-800 dark:text-white truncate">{q.factory_data?.name || 'Unknown Factory'}</p>
+                                                            <p className="text-xs text-gray-400">{new Date(q.created_at).toLocaleDateString()}</p>
+                                                        </div>
+                                                        <QuoteStatusBadge status={q.status} />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* QUOTES TAB */}
+                            {drawerTab === 'quotes' && (
+                                <div className="p-6">
+                                    {drawerLoadingQuotes ? (
+                                        <DrawerLoader rows={4} />
+                                    ) : drawerQuotes.length === 0 ? (
+                                        <DrawerEmpty icon={Receipt} label="No quotes submitted yet" />
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {drawerQuotes.map((q: any) => {
+                                                const items: any[] = q.order_details?.lineItems || [];
+                                                return (
+                                                    <div key={q.id} className="bg-gray-50 dark:bg-white/[0.03] rounded-xl border border-gray-100 dark:border-white/5 overflow-hidden">
+                                                        <div className="flex items-start gap-3 p-4">
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="flex items-center gap-2 flex-wrap mb-1">
+                                                                    <span className="text-sm font-semibold text-gray-900 dark:text-white truncate">{q.factory_data?.name || 'Unknown Factory'}</span>
+                                                                    <QuoteStatusBadge status={q.status} />
+                                                                </div>
+                                                                <p className="text-xs text-gray-400 flex items-center gap-1">
+                                                                    <Hash size={9} /> {q.id.slice(0, 8).toUpperCase()}
+                                                                    <span className="mx-1">·</span>
+                                                                    <Clock size={9} /> {new Date(q.created_at).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                                </p>
+                                                                {items.length > 0 && (
+                                                                    <div className="mt-2 flex flex-wrap gap-1">
+                                                                        {items.slice(0, 3).map((item: any, i: number) => (
+                                                                            <span key={i} className="text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-white/10 px-2 py-0.5 rounded-full text-gray-600 dark:text-gray-300">
+                                                                                {item.category} {item.qty ? `× ${item.qty}` : ''}
+                                                                            </span>
+                                                                        ))}
+                                                                        {items.length > 3 && <span className="text-xs text-gray-400">+{items.length - 3} more</span>}
+                                                                    </div>
+                                                                )}
+                                                                {q.response_details?.price && (
+                                                                    <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-2 flex items-center gap-1">
+                                                                        <DollarSign size={10} /> Quoted: {q.response_details.price}
+                                                                        {q.response_details.leadTime && <span className="text-gray-400 font-normal ml-1">· Lead time: {q.response_details.leadTime}</span>}
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                            {q.files?.length > 0 && (
+                                                                <span className="flex items-center gap-1 text-xs text-gray-400 flex-shrink-0">
+                                                                    <FileText size={11} /> {q.files.length}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* CRM ORDERS TAB */}
+                            {drawerTab === 'orders' && (
+                                <div className="p-6">
+                                    {drawerLoadingOrders ? (
+                                        <DrawerLoader rows={3} />
+                                    ) : drawerOrders.length === 0 ? (
+                                        <DrawerEmpty icon={Package} label="No CRM orders found" />
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {drawerOrders.map((order: any) => {
+                                                const tasks: any[] = order.tasks || [];
+                                                const done = tasks.filter((t: any) => t.status === 'COMPLETE').length;
+                                                const pct = tasks.length ? Math.round((done / tasks.length) * 100) : 0;
+                                                return (
+                                                    <div key={order.id} className="bg-gray-50 dark:bg-white/[0.03] rounded-xl border border-gray-100 dark:border-white/5 p-4">
+                                                        <div className="flex items-start gap-3 mb-3">
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                                                                    <span className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                                                                        {order.product_name || order.product || 'Order'}
+                                                                    </span>
+                                                                    <OrderStatusBadge status={order.status} />
+                                                                </div>
+                                                                <p className="text-xs text-gray-400 flex items-center gap-1">
+                                                                    <Hash size={9} /> {(order.id || '').slice(0, 8).toUpperCase()}
+                                                                    {order.factories?.name && <><span className="mx-1">·</span><Building2 size={9} /> {order.factories.name}</>}
+                                                                    <span className="mx-1">·</span>
+                                                                    <Clock size={9} /> {new Date(order.created_at).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        {tasks.length > 0 && (
+                                                            <div>
+                                                                <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
+                                                                    <span>TNA Progress</span>
+                                                                    <span>{done}/{tasks.length} tasks · {pct}%</span>
+                                                                </div>
+                                                                <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                                    <div className="h-full bg-purple-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        {(order.documents || []).length > 0 && (
+                                                            <p className="text-xs text-gray-400 mt-2 flex items-center gap-1">
+                                                                <FileText size={10} /> {order.documents.length} document{order.documents.length !== 1 ? 's' : ''}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* DOCUMENTS TAB */}
+                            {drawerTab === 'documents' && (
+                                <div className="p-6">
+                                    {drawerLoadingOrders ? (
+                                        <DrawerLoader rows={4} />
+                                    ) : drawerDocuments.length === 0 ? (
+                                        <DrawerEmpty icon={FolderOpen} label="No documents found" />
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {drawerDocuments.map((doc: any, i: number) => (
+                                                <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-white/[0.03] rounded-xl border border-gray-100 dark:border-white/5">
+                                                    <div className="p-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-white/10 flex-shrink-0">
+                                                        <FileText size={14} className="text-indigo-500" />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-medium text-gray-800 dark:text-white truncate">{doc.name}</p>
+                                                        <p className="text-xs text-gray-400 truncate">
+                                                            {doc.type || 'Document'}
+                                                            {doc.orderProduct && <> · {doc.orderProduct}</>}
+                                                            {doc.lastUpdated && <> · {new Date(doc.lastUpdated).toLocaleDateString()}</>}
+                                                        </p>
+                                                    </div>
+                                                    {doc.path && (
+                                                        <a
+                                                            href={doc.path}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            onClick={e => e.stopPropagation()}
+                                                            className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition flex-shrink-0"
+                                                            title="Open document"
+                                                        >
+                                                            <ExternalLink size={13} />
+                                                        </a>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </>
+            )}
+
             {/* ── Confirmation Dialog ── */}
             {confirmDialog && (
-                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-start justify-center z-[60] pt-16 px-4 pb-4">
                     <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md border border-gray-100 dark:border-white/10 overflow-hidden">
 
                         {/* Icon + header */}
