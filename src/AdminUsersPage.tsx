@@ -4,7 +4,7 @@ import {
     Mail, Phone, MapPin, Briefcase, DollarSign, Tag, ChevronDown,
     RefreshCw, User, Building2, Hash, Calendar, Check, SlidersHorizontal,
     CircleCheck, CircleX, ChevronUp, Lock, KeyRound, ShieldCheck, ShieldOff,
-    AlertTriangle, Send, ImageOff, Eye
+    AlertTriangle, Send, ImageOff, Eye, Ban, ShieldAlert, UserCheck
 } from 'lucide-react';
 import { MainLayout } from './MainLayout';
 import { userService } from './user.service';
@@ -126,6 +126,12 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
     const [newEmailValue, setNewEmailValue] = useState('');
     const [isEmailChanging, setIsEmailChanging] = useState(false);
     const [isPasswordResetting, setIsPasswordResetting] = useState(false);
+    // Confirmation dialog for destructive actions
+    const [confirmDialog, setConfirmDialog] = useState<{
+        type: 'delete' | 'suspend' | 'unsuspend';
+        client: any;
+    } | null>(null);
+    const [isConfirmLoading, setIsConfirmLoading] = useState(false);
     const abortControllerRef = useRef<AbortController | null>(null);
 
     const showToast = (message: string, type: 'success' | 'error' = 'success') => {
@@ -377,30 +383,71 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
         }
     };
 
-    const handleDeleteClient = async (id: string) => {
-        if (!window.confirm('Are you sure you want to delete this client? This action cannot be undone.')) return;
+    // ─── Confirm dialog executor ───────────────────────────────────────────────
+    const handleConfirmAction = async () => {
+        if (!confirmDialog) return;
+        const { type, client } = confirmDialog;
+        setIsConfirmLoading(true);
 
-        const { error: funcError } = await props.supabase.functions.invoke('delete-user', {
-            body: { userId: id },
-        });
-
-        if (funcError) {
-            console.warn('Edge function delete failed, falling back to direct DB delete.', funcError);
-            const { error } = await userService.delete(id);
-            if (error) {
-                if (error.message?.includes('violates foreign key constraint') ||
-                    error.message?.includes('Database error deleting user')) {
-                    showToast('Cannot delete user: They have active orders or related data. Please delete those first.', 'error');
+        try {
+            if (type === 'delete') {
+                const { error: funcError } = await props.supabase.functions.invoke('delete-user', {
+                    body: { userId: client.id },
+                });
+                if (funcError) {
+                    // Edge Function failed — attempt direct DB delete (profile only)
+                    console.warn('delete-user Edge Function failed:', funcError.message);
+                    const { error: dbError } = await userService.delete(client.id);
+                    if (dbError) {
+                        if (dbError.message?.includes('violates foreign key constraint')) {
+                            showToast('Cannot delete: user has active orders. Remove those first.', 'error');
+                        } else {
+                            showToast('Failed to delete: ' + dbError.message, 'error');
+                        }
+                        return;
+                    }
+                    showToast('Profile deleted. Auth account removal requires the delete-user Edge Function to be deployed.', 'error');
                 } else {
-                    showToast('Failed to delete client: ' + error.message, 'error');
+                    showToast(`${client.name || client.email} deleted permanently.`);
                 }
-            } else {
-                setClients(prev => prev.filter(c => c.id !== id));
-                showToast('Client profile deleted (Auth account may remain if Edge Function failed)');
+                setClients(prev => prev.filter(c => c.id !== client.id));
+                if (isEditModalOpen && editingClient?.id === client.id) setIsEditModalOpen(false);
+
+            } else if (type === 'suspend' || type === 'unsuspend') {
+                const action = type === 'suspend' ? 'suspend' : 'unsuspend';
+                const { error: funcError } = await props.supabase.functions.invoke('manage-user', {
+                    body: { userId: client.id, action },
+                });
+                if (funcError) {
+                    // Fallback: update status in DB only (won't block auth login, but reflects in UI)
+                    console.warn('manage-user Edge Function failed, updating DB status only:', funcError.message);
+                    const { error: dbError } = await userService.update(client.id, {
+                        status: action === 'suspend' ? 'suspended' : 'active',
+                    });
+                    if (dbError) {
+                        showToast('Failed to update account status: ' + dbError.message, 'error');
+                        return;
+                    }
+                    showToast(
+                        action === 'suspend'
+                            ? 'Account marked suspended in DB. Full auth block requires the manage-user Edge Function.'
+                            : 'Account reactivated in DB.',
+                        action === 'suspend' ? 'error' : 'success'
+                    );
+                } else {
+                    showToast(
+                        action === 'suspend'
+                            ? `${client.name || client.email} has been suspended. They cannot log in until reinstated.`
+                            : `${client.name || client.email} has been reactivated. They can now log in again.`
+                    );
+                }
+                const newStatus = action === 'suspend' ? 'suspended' : 'active';
+                setClients(prev => prev.map(c => c.id === client.id ? { ...c, status: newStatus } : c));
+                if (editingClient?.id === client.id) setEditingClient((p: any) => ({ ...p, status: newStatus }));
             }
-        } else {
-            setClients(prev => prev.filter(c => c.id !== id));
-            showToast('Client deleted successfully');
+        } finally {
+            setIsConfirmLoading(false);
+            setConfirmDialog(null);
         }
     };
 
@@ -726,10 +773,17 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                                                 <p className="text-sm text-gray-500 dark:text-gray-400 truncate mt-0.5">
                                                     {client.company_name || <span className="italic text-gray-300 dark:text-gray-600">No company</span>}
                                                 </p>
-                                                <span className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs font-mono font-medium">
-                                                    <Hash size={10} />
-                                                    {customerId}
-                                                </span>
+                                                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs font-mono font-medium">
+                                                        <Hash size={10} />
+                                                        {customerId}
+                                                    </span>
+                                                    {client.status === 'suspended' && (
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-xs font-medium">
+                                                            <Ban size={9} /> Suspended
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
 
                                             {/* Actions */}
@@ -742,9 +796,23 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                                                     <Edit2 size={14} />
                                                 </button>
                                                 <button
-                                                    onClick={() => handleDeleteClient(client.id)}
+                                                    onClick={() => setConfirmDialog({
+                                                        type: client.status === 'suspended' ? 'unsuspend' : 'suspend',
+                                                        client,
+                                                    })}
+                                                    className={`p-1.5 rounded-lg transition ${
+                                                        client.status === 'suspended'
+                                                            ? 'text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20'
+                                                            : 'text-gray-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20'
+                                                    }`}
+                                                    title={client.status === 'suspended' ? 'Lift suspension' : 'Suspend account'}
+                                                >
+                                                    {client.status === 'suspended' ? <UserCheck size={14} /> : <Ban size={14} />}
+                                                </button>
+                                                <button
+                                                    onClick={() => setConfirmDialog({ type: 'delete', client })}
                                                     className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition"
-                                                    title="Delete"
+                                                    title="Delete permanently"
                                                 >
                                                     <Trash2 size={14} />
                                                 </button>
@@ -1180,7 +1248,40 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                             </div>
 
                             {/* Actions */}
-                            <div className="flex justify-end gap-3 pt-2">
+                            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                                {/* Destructive actions left-aligned */}
+                                <div className="flex gap-2 sm:mr-auto">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setIsEditModalOpen(false);
+                                            setConfirmDialog({
+                                                type: editingClient.status === 'suspended' ? 'unsuspend' : 'suspend',
+                                                client: editingClient,
+                                            });
+                                        }}
+                                        className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-xl border transition ${
+                                            editingClient.status === 'suspended'
+                                                ? 'text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-700/40 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'
+                                                : 'text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-700/40 hover:bg-amber-50 dark:hover:bg-amber-900/20'
+                                        }`}
+                                    >
+                                        {editingClient.status === 'suspended'
+                                            ? <><UserCheck size={14} /> Lift Suspension</>
+                                            : <><Ban size={14} /> Suspend</>
+                                        }
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setIsEditModalOpen(false);
+                                            setConfirmDialog({ type: 'delete', client: editingClient });
+                                        }}
+                                        className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium text-red-600 dark:text-red-400 border border-red-200 dark:border-red-700/40 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition"
+                                    >
+                                        <Trash2 size={14} /> Delete
+                                    </button>
+                                </div>
                                 <button
                                     type="button"
                                     onClick={() => setIsEditModalOpen(false)}
@@ -1201,6 +1302,101 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+            {/* ── Confirmation Dialog ── */}
+            {confirmDialog && (
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+                    <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md border border-gray-100 dark:border-white/10 overflow-hidden">
+
+                        {/* Icon + header */}
+                        <div className={`px-6 pt-6 pb-4 flex items-start gap-4`}>
+                            <div className={`p-3 rounded-xl flex-shrink-0 ${
+                                confirmDialog.type === 'delete'
+                                    ? 'bg-red-100 dark:bg-red-900/30'
+                                    : confirmDialog.type === 'suspend'
+                                        ? 'bg-amber-100 dark:bg-amber-900/30'
+                                        : 'bg-emerald-100 dark:bg-emerald-900/30'
+                            }`}>
+                                {confirmDialog.type === 'delete'
+                                    ? <Trash2 size={22} className="text-red-600 dark:text-red-400" />
+                                    : confirmDialog.type === 'suspend'
+                                        ? <ShieldAlert size={22} className="text-amber-600 dark:text-amber-400" />
+                                        : <UserCheck size={22} className="text-emerald-600 dark:text-emerald-400" />
+                                }
+                            </div>
+                            <div>
+                                <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+                                    {confirmDialog.type === 'delete' && 'Delete Account Permanently'}
+                                    {confirmDialog.type === 'suspend' && 'Suspend Account'}
+                                    {confirmDialog.type === 'unsuspend' && 'Lift Suspension'}
+                                </h3>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                    {confirmDialog.type === 'delete' && (
+                                        <>You are about to permanently delete <strong className="text-gray-900 dark:text-white">{confirmDialog.client.name || confirmDialog.client.email}</strong>. This removes their auth account and all profile data. This <span className="text-red-600 font-medium">cannot be undone</span>.</>
+                                    )}
+                                    {confirmDialog.type === 'suspend' && (
+                                        <><strong className="text-gray-900 dark:text-white">{confirmDialog.client.name || confirmDialog.client.email}</strong> will be immediately signed out and blocked from logging in until you lift the suspension. Their data is preserved.</>
+                                    )}
+                                    {confirmDialog.type === 'unsuspend' && (
+                                        <>This will restore full access for <strong className="text-gray-900 dark:text-white">{confirmDialog.client.name || confirmDialog.client.email}</strong>. They will be able to log in again immediately.</>
+                                    )}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* User info pill */}
+                        <div className="mx-6 mb-4 flex items-center gap-3 p-3 bg-gray-50 dark:bg-white/[0.04] rounded-xl border border-gray-100 dark:border-white/5">
+                            {confirmDialog.client.avatar_url ? (
+                                <img src={confirmDialog.client.avatar_url} alt="" className="w-9 h-9 rounded-lg object-cover flex-shrink-0" />
+                            ) : (
+                                <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${getAvatarColor(confirmDialog.client.id)} flex items-center justify-center text-white text-sm font-semibold flex-shrink-0`}>
+                                    {getInitials(confirmDialog.client.name, confirmDialog.client.email)}
+                                </div>
+                            )}
+                            <div className="min-w-0">
+                                <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{confirmDialog.client.name || '—'}</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{confirmDialog.client.email}</p>
+                            </div>
+                            <span className="ml-auto text-xs font-mono text-purple-500 dark:text-purple-400 flex-shrink-0">
+                                {confirmDialog.client.customer_id || generateCustomerId(confirmDialog.client.id)}
+                            </span>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="px-6 pb-6 flex justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setConfirmDialog(null)}
+                                disabled={isConfirmLoading}
+                                className="px-5 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50 rounded-xl transition"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleConfirmAction}
+                                disabled={isConfirmLoading}
+                                className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white rounded-xl transition disabled:opacity-60 disabled:cursor-not-allowed shadow-sm ${
+                                    confirmDialog.type === 'delete'
+                                        ? 'bg-red-600 hover:bg-red-700'
+                                        : confirmDialog.type === 'suspend'
+                                            ? 'bg-amber-600 hover:bg-amber-700'
+                                            : 'bg-emerald-600 hover:bg-emerald-700'
+                                }`}
+                            >
+                                {isConfirmLoading ? (
+                                    <><RefreshCw size={14} className="animate-spin" /> Processing…</>
+                                ) : confirmDialog.type === 'delete' ? (
+                                    <><Trash2 size={14} /> Delete Permanently</>
+                                ) : confirmDialog.type === 'suspend' ? (
+                                    <><Ban size={14} /> Suspend Account</>
+                                ) : (
+                                    <><UserCheck size={14} /> Lift Suspension</>
+                                )}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

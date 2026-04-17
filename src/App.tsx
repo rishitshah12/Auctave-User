@@ -468,6 +468,21 @@ const AppContent: FC = () => {
                         }
 
                         if (data) {
+                            // Block suspended accounts immediately after login
+                            if (data.status === 'suspended' && !isUserAdmin) {
+                                console.warn('Suspended account attempted login:', session.user.email);
+                                await supabase.auth.signOut();
+                                setUser(null);
+                                setUserProfile(null);
+                                setCurrentPage('login');
+                                setIsAuthReady(true);
+                                // Show error via a small delay so the login page has rendered
+                                setTimeout(() => {
+                                    showToast('Your account has been suspended. Please contact support.', 'error');
+                                }, 300);
+                                return;
+                            }
+
                             // If the clients table has no avatar but Google/OAuth provided one, sync it now
                             const oauthPicture = session.user.user_metadata?.picture
                                 || session.user.user_metadata?.avatar_url;
