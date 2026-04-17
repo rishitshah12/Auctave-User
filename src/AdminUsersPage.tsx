@@ -188,16 +188,22 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
     const [drawerLoadingQuotes, setDrawerLoadingQuotes] = useState(false);
     const [drawerLoadingOrders, setDrawerLoadingOrders] = useState(false);
     const abortControllerRef = useRef<AbortController | null>(null);
+    const savedScrollY = useRef(0);
 
-    // Lock body scroll whenever any modal/drawer is open
+    // Lock body scroll whenever any modal/drawer is open, restore position on close
     useEffect(() => {
         const anyOpen = isEditModalOpen || !!confirmDialog || !!drawerClient;
         if (anyOpen) {
+            savedScrollY.current = window.scrollY;
             document.documentElement.style.overflow = 'hidden';
             document.body.style.overflow = 'hidden';
         } else {
             document.documentElement.style.overflow = '';
             document.body.style.overflow = '';
+            // Restore scroll position in case browser reset it
+            if (savedScrollY.current > 0) {
+                requestAnimationFrame(() => window.scrollTo(0, savedScrollY.current));
+            }
         }
         return () => {
             document.documentElement.style.overflow = '';
@@ -1009,11 +1015,11 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
 
             {/* ── Edit Modal ── */}
             {isEditModalOpen && editingClient && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col border border-gray-100 dark:border-white/10" style={{ maxHeight: 'calc(100dvh - 2rem)' }}>
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 px-4 py-6 md:py-8">
+                    <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col border border-gray-100 dark:border-white/10" style={{ maxHeight: 'min(680px, calc(100dvh - 4rem))' }}>
 
                         {/* Modal header */}
-                        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 dark:border-white/10 sticky top-0 bg-white dark:bg-gray-900 z-10">
+                        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 dark:border-white/10 flex-shrink-0">
                             <div className="flex items-center gap-3">
                                 {editingClient.avatar_url ? (
                                     <img src={editingClient.avatar_url} alt="" className="w-10 h-10 rounded-xl object-cover" />
@@ -1747,7 +1753,7 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
 
             {/* ── Confirmation Dialog ── */}
             {confirmDialog && (
-                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] px-4 py-6 md:py-8">
                     <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md border border-gray-100 dark:border-white/10 overflow-hidden">
 
                         {/* Icon + header */}
