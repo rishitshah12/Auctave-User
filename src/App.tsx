@@ -468,6 +468,20 @@ const AppContent: FC = () => {
                         }
 
                         if (data) {
+                            // If the clients table has no avatar but Google/OAuth provided one, sync it now
+                            const oauthPicture = session.user.user_metadata?.picture
+                                || session.user.user_metadata?.avatar_url;
+                            if (!data.avatar_url && oauthPicture && !isUserAdmin) {
+                                supabase
+                                    .from('clients')
+                                    .update({ avatar_url: oauthPicture })
+                                    .eq('id', session.user.id)
+                                    .then(({ error: syncErr }) => {
+                                        if (syncErr) console.warn('Avatar sync failed:', syncErr.message);
+                                    });
+                                data.avatar_url = oauthPicture; // reflect immediately in profile state
+                            }
+
                             // Map database fields to UserProfile interface
                             currentProfile = {
                                 name: data.name,
@@ -1264,7 +1278,13 @@ const AppContent: FC = () => {
         handleSetCurrentPage(isAdmin ? 'adminDashboard' : 'sourcing');
 
         // Persist to DB in the background while the platform is already loading
-        const updates = {
+        // Include avatar_url: use explicitly set value, or fall back to Google/OAuth picture
+        const avatarToSave = profileData.avatarUrl
+            || user.user_metadata?.avatar_url
+            || user.user_metadata?.picture
+            || undefined;
+
+        const updates: Record<string, any> = {
             id: user.id,
             name: profileData.name,
             company_name: profileData.companyName,
@@ -1276,6 +1296,7 @@ const AppContent: FC = () => {
             yearly_est_revenue: profileData.yearlyEstRevenue,
             updated_at: new Date().toISOString(),
         };
+        if (avatarToSave) updates.avatar_url = avatarToSave;
 
         const tableName = isAdmin ? 'admins' : 'clients';
         const { error } = await supabase.from(tableName).upsert(updates);
