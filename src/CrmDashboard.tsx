@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { analyticsService } from './analytics.service';
 import { getCache, setCache, TTL_FACTORIES } from './sessionCache';
 import { KnittingPreloader } from './KnittingPreloader';
 import { crmService } from './crm.service';
@@ -668,7 +669,7 @@ export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user
                 {tabs.map(tab => (
                     <button
                         key={tab.key}
-                        onClick={() => setTopTab(tab.key)}
+                        onClick={() => { setTopTab(tab.key); analyticsService.track('crm_tab_view', { tab: tab.key }); }}
                         className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all whitespace-nowrap ${
                             topTab === tab.key
                                 ? 'bg-gradient-to-r from-[#c20c0b] to-red-600 text-white shadow-lg shadow-red-500/20'
@@ -722,7 +723,7 @@ export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user
                             order={order}
                             factory={factoryMap.get(order.factoryId)}
                             index={index}
-                            onClick={() => setSelectedOrderKey(orderId)}
+                            onClick={() => { setSelectedOrderKey(orderId); analyticsService.track('crm_order_view', { order_id: orderId }); }}
                             onAISummary={() => setSelectedOrderKey(orderId)}
                         />
                     ))}

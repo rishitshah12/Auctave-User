@@ -162,6 +162,13 @@ const UserDetailPanel: FC<{
     filter_apply: <Filter size={12} className="text-orange-500" />,
     rfq_submit: <TrendingUp size={12} className="text-rose-500" />,
     quote_view: <BarChart2 size={12} className="text-indigo-500" />,
+    catalog_view: <Eye size={12} className="text-cyan-500" />,
+    catalog_exit: <Clock size={12} className="text-cyan-400" />,
+    catalog_item_select: <MousePointerClick size={12} className="text-cyan-600" />,
+    trending_blog_view: <Activity size={12} className="text-pink-500" />,
+    trending_video_play: <TrendingUp size={12} className="text-pink-600" />,
+    crm_tab_view: <Filter size={12} className="text-violet-500" />,
+    crm_order_view: <Eye size={12} className="text-violet-600" />,
   };
 
   return (
@@ -482,6 +489,51 @@ export const AdminUserAnalyticsPage: FC<AdminUserAnalyticsPageProps> = (props) =
       .slice(0, 10);
   }, [events]);
 
+  // Top catalog items selected across all users
+  const topCatalogItems = useMemo(() => {
+    const map: Record<string, { name: string; factory: string; category: string; count: number; userSet: Set<string> }> = {};
+    events.filter(e => e.event_type === 'catalog_item_select').forEach(e => {
+      const id = e.event_data?.item_id || e.event_data?.item_name || '';
+      if (!id) return;
+      map[id] = map[id] || { name: e.event_data?.item_name || id, factory: e.event_data?.factory_name || '', category: e.event_data?.item_category || '', count: 0, userSet: new Set() };
+      map[id].count += 1;
+      map[id].userSet.add(e.user_id);
+    });
+    return Object.values(map).sort((a, b) => b.count - a.count).slice(0, 10);
+  }, [events]);
+
+  // Catalog time per factory (avg seconds on catalog tab)
+  const catalogDurations = useMemo(() => {
+    const map: Record<string, { name: string; totalMs: number; count: number }> = {};
+    events.filter(e => e.event_type === 'catalog_exit').forEach(e => {
+      const id = e.event_data?.factory_id || '';
+      const ms = e.event_data?.duration_ms || 0;
+      if (!id || ms < 1000 || ms > 30 * 60 * 1000) return;
+      map[id] = map[id] || { name: e.event_data?.factory_name || id, totalMs: 0, count: 0 };
+      map[id].totalMs += ms;
+      map[id].count += 1;
+    });
+    return Object.entries(map)
+      .map(([, { name, totalMs, count }]) => ({ name, avgSec: Math.round(totalMs / count / 1000), sessions: count }))
+      .sort((a, b) => b.avgSec - a.avgSec)
+      .slice(0, 8);
+  }, [events]);
+
+  // Top trending content (blogs + videos combined)
+  const topContent = useMemo(() => {
+    const list: { type: 'Blog' | 'Video'; title: string; count: number; userSet: Set<string> }[] = [];
+    const map: Record<string, { type: 'Blog' | 'Video'; title: string; count: number; userSet: Set<string> }> = {};
+    events.filter(e => e.event_type === 'trending_blog_view' || e.event_type === 'trending_video_play').forEach(e => {
+      const key = `${e.event_type}:${e.event_data?.blog_id || e.event_data?.video_id || e.event_data?.blog_title || e.event_data?.video_title || ''}`;
+      const title = e.event_data?.blog_title || e.event_data?.video_title || 'Untitled';
+      const type = e.event_type === 'trending_blog_view' ? 'Blog' : 'Video';
+      map[key] = map[key] || { type, title, count: 0, userSet: new Set() };
+      map[key].count += 1;
+      map[key].userSet.add(e.user_id);
+    });
+    return Object.values(map).sort((a, b) => b.count - a.count).slice(0, 8);
+  }, [events]);
+
   const handleSort = (key: keyof UserSummary) => {
     if (sortKey === key) setSortDir(d => d === 'desc' ? 'asc' : 'desc');
     else { setSortKey(key); setSortDir('desc'); }
@@ -728,6 +780,81 @@ export const AdminUserAnalyticsPage: FC<AdminUserAnalyticsPageProps> = (props) =
                           <span className="text-xs font-bold text-amber-600">{f.hovers} hovers</span>
                           <span className="text-[10px] text-gray-400">avg {f.avgSec}s · {f.uniqueUsers} user{f.uniqueUsers !== 1 ? 's' : ''}</span>
                         </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Catalog + Trending Content Row */}
+            <div className="grid sm:grid-cols-3 gap-4">
+              {/* Top Catalog Items Selected */}
+              <div className="bg-white dark:bg-gray-900/40 rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <Eye size={16} className="text-cyan-500" />
+                  <h2 className="text-sm font-bold text-gray-800 dark:text-white">Top Catalog Items</h2>
+                </div>
+                {topCatalogItems.length === 0 ? (
+                  <p className="text-xs text-gray-400 italic">No catalog selections yet</p>
+                ) : (
+                  <div className="space-y-2">
+                    {topCatalogItems.map((item, i) => (
+                      <div key={i} className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate">{item.name}</p>
+                          <p className="text-[10px] text-gray-400 truncate">{item.factory}{item.category ? ` · ${item.category}` : ''}</p>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-xs font-bold text-cyan-600">{item.count}×</p>
+                          <p className="text-[10px] text-gray-400">{item.userSet.size}u</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Catalog Time Per Factory */}
+              <div className="bg-white dark:bg-gray-900/40 rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <Clock size={16} className="text-cyan-400" />
+                  <h2 className="text-sm font-bold text-gray-800 dark:text-white">Catalog Time</h2>
+                  <span className="text-[10px] text-gray-400 ml-auto">avg per visit</span>
+                </div>
+                {catalogDurations.length === 0 ? (
+                  <p className="text-xs text-gray-400 italic">No catalog duration data yet</p>
+                ) : (
+                  <div className="space-y-2">
+                    {catalogDurations.map((c, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <span className="text-xs text-gray-600 dark:text-gray-300 flex-1 truncate">{c.name}</span>
+                        <span className="text-xs font-bold text-cyan-600 flex-shrink-0">
+                          {c.avgSec >= 60 ? `${Math.floor(c.avgSec / 60)}m ${c.avgSec % 60}s` : `${c.avgSec}s`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Trending Content */}
+              <div className="bg-white dark:bg-gray-900/40 rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <TrendingUp size={16} className="text-pink-500" />
+                  <h2 className="text-sm font-bold text-gray-800 dark:text-white">Trending Engagement</h2>
+                </div>
+                {topContent.length === 0 ? (
+                  <p className="text-xs text-gray-400 italic">No content views yet</p>
+                ) : (
+                  <div className="space-y-2">
+                    {topContent.map((c, i) => (
+                      <div key={i} className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate">{c.title}</p>
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${c.type === 'Blog' ? 'bg-pink-50 dark:bg-pink-900/20 text-pink-600' : 'bg-purple-50 dark:bg-purple-900/20 text-purple-600'}`}>{c.type}</span>
+                        </div>
+                        <span className="text-xs font-bold text-pink-600 flex-shrink-0">{c.count}×</span>
                       </div>
                     ))}
                   </div>

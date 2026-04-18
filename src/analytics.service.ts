@@ -9,7 +9,14 @@ export type AnalyticsEventType =
   | 'category_select'
   | 'filter_apply'
   | 'rfq_submit'
-  | 'quote_view';
+  | 'quote_view'
+  | 'catalog_view'
+  | 'catalog_exit'
+  | 'catalog_item_select'
+  | 'trending_blog_view'
+  | 'trending_video_play'
+  | 'crm_tab_view'
+  | 'crm_order_view';
 
 export interface AnalyticsEventData {
   page?: string;

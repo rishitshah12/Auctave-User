@@ -1,4 +1,5 @@
-import React, { FC, useState, useEffect } from 'react';
+import React, { FC, useState, useEffect, useRef } from 'react';
+import { analyticsService } from './analytics.service';
 import ReactDOM from 'react-dom';
 import {
     Star, MapPin, ChevronLeft, ChevronRight, BookOpen, Activity, ShieldCheck, X, ZoomIn, TrendingUp, AlertCircle, CheckCircle2, Search, Check, Package, Send, DollarSign, MessageSquare, ChevronDown, Loader
@@ -47,8 +48,23 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
     const [factory, setFactory] = useState<Factory>(propFactory);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [activeTab, setActiveTab] = useState<'overview' | 'catalog'>(initialTab);
+    const catalogEnterTimeRef = useRef<number | null>(initialTab === 'catalog' ? Date.now() : null);
     const [isLightboxOpen, setIsLightboxOpen] = useState(false);
     const [catalogSearch, setCatalogSearch] = useState('');
+
+    // Track catalog tab entry and time spent
+    useEffect(() => {
+        if (activeTab === 'catalog') {
+            catalogEnterTimeRef.current = Date.now();
+            analyticsService.track('catalog_view', { factory_id: factory.id, factory_name: factory.name, factory_location: factory.location });
+        } else if (catalogEnterTimeRef.current !== null) {
+            const duration_ms = Date.now() - catalogEnterTimeRef.current;
+            if (duration_ms > 1000) {
+                analyticsService.track('catalog_exit', { factory_id: factory.id, factory_name: factory.name, duration_ms });
+            }
+            catalogEnterTimeRef.current = null;
+        }
+    }, [activeTab]);
 
     // When user types in the header search bar, auto-switch to catalog tab
     const handleCatalogSearch = (value: string) => {
@@ -213,6 +229,12 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
         });
         setIsSubmittingRFQ(false);
         if (success) {
+            analyticsService.track('rfq_submit', {
+                factory_id: factory.id,
+                factory_name: factory.name,
+                factory_location: factory.location,
+                item_count: lineItems.length,
+            });
             closeRFQModal();
             handleSetCurrentPage('myQuotes');
         }
@@ -823,8 +845,18 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                                                             key={product.id}
                                                             onClick={() => setSelectedCatalogIds(prev => {
                                                                 const next = new Set(prev);
-                                                                if (next.has(product.id)) next.delete(product.id);
-                                                                else next.add(product.id);
+                                                                if (next.has(product.id)) {
+                                                                    next.delete(product.id);
+                                                                } else {
+                                                                    next.add(product.id);
+                                                                    analyticsService.track('catalog_item_select', {
+                                                                        factory_id: factory.id,
+                                                                        factory_name: factory.name,
+                                                                        item_id: product.id,
+                                                                        item_name: product.name,
+                                                                        item_category: product.category,
+                                                                    });
+                                                                }
                                                                 return next;
                                                             })}
                                                             className={`relative rounded-2xl text-left transition-all duration-200 active:scale-[0.97] ${

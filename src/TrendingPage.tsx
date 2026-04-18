@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, FC, useCallback } from 'react';
+import { analyticsService } from './analytics.service';
 import { KnittingPreloader } from './KnittingPreloader';
 import { PlayCircle, X, ChevronLeft, ChevronRight, ArrowRight, Clock, User, Tag, ShoppingBag, Sparkles, TrendingUp, Volume2, VolumeX } from 'lucide-react';
 import { MainLayout } from './MainLayout';
@@ -673,7 +674,7 @@ export const TrendingPage: FC<TrendingPageProps> = (props) => {
                         <h2 className="text-base sm:text-2xl font-bold text-gray-800 dark:text-white mb-3 sm:mb-6">Latest Articles</h2>
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-6">
                             {blogs.map(blog => (
-                                <div key={blog.id} onClick={() => setSelectedBlog(blog)} className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-md border border-gray-200 dark:border-white/10 overflow-hidden group cursor-pointer hover:shadow-xl transition-all hover:-translate-y-1">
+                                <div key={blog.id} onClick={() => { setSelectedBlog(blog); analyticsService.track('trending_blog_view', { blog_id: blog.id, blog_title: blog.title, blog_category: blog.category }); }} className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-md border border-gray-200 dark:border-white/10 overflow-hidden group cursor-pointer hover:shadow-xl transition-all hover:-translate-y-1">
                                     {blog.cover_image_url && (
                                         <div className="overflow-hidden">
                                             <img src={blog.cover_image_url} alt={blog.title} className="h-36 sm:h-48 w-full object-cover group-hover:scale-105 transition-transform duration-500" />
@@ -709,7 +710,7 @@ export const TrendingPage: FC<TrendingPageProps> = (props) => {
                                 const ytId = extractYouTubeId(short.video_url || '');
                                 const thumbUrl = short.thumbnail_url || (ytId ? getYouTubeThumbnail(ytId) : null);
                                 return (
-                                    <div key={short.id} className="relative rounded-xl overflow-hidden shadow-lg border border-gray-200 dark:border-white/10 group cursor-pointer aspect-[9/16] hover:shadow-xl transition-all hover:-translate-y-1" onClick={() => setFullscreenVideo(short.video_url)}>
+                                    <div key={short.id} className="relative rounded-xl overflow-hidden shadow-lg border border-gray-200 dark:border-white/10 group cursor-pointer aspect-[9/16] hover:shadow-xl transition-all hover:-translate-y-1" onClick={() => { setFullscreenVideo(short.video_url); analyticsService.track('trending_video_play', { video_id: short.id, video_title: short.title, creator: short.creator }); }}>
                                         {thumbUrl ? (
                                             <img src={thumbUrl} alt={short.title || short.creator} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                                         ) : (
