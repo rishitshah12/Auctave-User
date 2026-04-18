@@ -1,4 +1,5 @@
 import React, { useState, useEffect, FC, useRef, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
     Search, Filter, Users, Globe, TrendingUp, Edit2, Trash2, X, Plus,
     Mail, Phone, MapPin, Briefcase, DollarSign, Tag, ChevronDown,
@@ -1014,8 +1015,8 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
             </div>
 
             {/* ── Edit Modal ── */}
-            {isEditModalOpen && editingClient && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 px-4 py-6 md:py-8">
+            {isEditModalOpen && editingClient && createPortal(
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[200] px-4 py-6 md:py-8">
                     <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col border border-gray-100 dark:border-white/10" style={{ maxHeight: 'min(680px, calc(100dvh - 4rem))' }}>
 
                         {/* Modal header */}
@@ -1422,17 +1423,17 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                         </form>
                     </div>
                 </div>
-            )}
+            , document.body)}
             {/* ── Profile Drawer ── */}
-            {drawerClient && (
+            {drawerClient && createPortal(
                 <>
                     {/* Backdrop */}
                     <div
-                        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[55]"
+                        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[210]"
                         onClick={closeDrawer}
                     />
                     {/* Panel */}
-                    <div className="fixed inset-y-0 right-0 w-full max-w-2xl z-[56] flex flex-col bg-white dark:bg-gray-900 shadow-2xl border-l border-gray-100 dark:border-white/10">
+                    <div className="fixed inset-y-0 right-0 w-full max-w-2xl z-[211] flex flex-col bg-white dark:bg-gray-900 shadow-2xl border-l border-gray-100 dark:border-white/10">
 
                         {/* ── Drawer header ── */}
                         <div className="flex-shrink-0 border-b border-gray-100 dark:border-white/10">
@@ -1749,11 +1750,11 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                         </div>
                     </div>
                 </>
-            )}
+            , document.body)}
 
             {/* ── Confirmation Dialog ── */}
-            {confirmDialog && (
-                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] px-4 py-6 md:py-8">
+            {confirmDialog && createPortal(
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[220] px-4 py-6 md:py-8">
                     <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md border border-gray-100 dark:border-white/10 overflow-hidden">
 
                         {/* Icon + header */}
@@ -1845,7 +1846,7 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                         </div>
                     </div>
                 </div>
-            )}
+            , document.body)}
         </MainLayout>
     );
 };
