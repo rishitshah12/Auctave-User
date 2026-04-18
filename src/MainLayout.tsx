@@ -3,7 +3,7 @@ import {
     Search, DollarSign, Plus, X,
     List, Truck, LogOut, Settings, Flame, FileQuestion,
     LayoutDashboard, Users, Building, ImageIcon, Bell, ChevronLeft,
-    Grid3X3, User
+    Grid3X3, User, BarChart2
 } from 'lucide-react';
 import { NotificationBellButton, NotificationPanel } from './NotificationPanel';
 import { useNotifications } from './NotificationContext';
@@ -45,6 +45,7 @@ const PAGE_TITLES: Record<string, string> = {
     adminRFQ: 'RFQ',
     adminTrending: 'Trending',
     adminLoginSettings: 'Login Settings',
+    adminUserAnalytics: 'User Analytics',
 };
 
 // ── Icon Nav Item ─────────────────────────────────────────────────────────────
@@ -278,14 +279,14 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'> & { onOpenNotif
     ];
 
     const adminMenuItems = [
-        { label: 'Dashboard',  shortLabel: 'Dashboard', page: 'adminDashboard',     icon: <LayoutDashboard className="h-[22px] w-[22px]" /> },
-        { label: 'Users',      shortLabel: 'Users',     page: 'adminUsers',         icon: <Users className="h-[22px] w-[22px]" /> },
-        { label: 'Factories',  shortLabel: 'Factory',   page: 'adminFactories',     icon: <Building className="h-[22px] w-[22px]" /> },
-        { label: 'CRM',        shortLabel: 'CRM',       page: 'adminCRM',           icon: <List className="h-[22px] w-[22px]" /> },
-        { label: 'RFQ',        shortLabel: 'RFQ',       page: 'adminRFQ',           icon: <FileQuestion className="h-[22px] w-[22px]" /> },
-        { label: 'Trending',   shortLabel: 'Trending',  page: 'adminTrending',      icon: <Flame className="h-[22px] w-[22px]" /> },
-        { label: 'Login Imgs', shortLabel: 'Login Imgs',page: 'adminLoginSettings', icon: <ImageIcon className="h-[22px] w-[22px]" /> },
-        { label: 'Settings',   shortLabel: 'Settings',  page: 'settings',           icon: <Settings className="h-[22px] w-[22px]" /> },
+        { label: 'Dashboard',  shortLabel: 'Dashboard', page: 'adminDashboard',      icon: <LayoutDashboard className="h-[22px] w-[22px]" /> },
+        { label: 'Users',      shortLabel: 'Users',     page: 'adminUsers',          icon: <Users className="h-[22px] w-[22px]" /> },
+        { label: 'Analytics',  shortLabel: 'Analytics', page: 'adminUserAnalytics',  icon: <BarChart2 className="h-[22px] w-[22px]" /> },
+        { label: 'Factories',  shortLabel: 'Factory',   page: 'adminFactories',      icon: <Building className="h-[22px] w-[22px]" /> },
+        { label: 'CRM',        shortLabel: 'CRM',       page: 'adminCRM',            icon: <List className="h-[22px] w-[22px]" /> },
+        { label: 'RFQ',        shortLabel: 'RFQ',       page: 'adminRFQ',            icon: <FileQuestion className="h-[22px] w-[22px]" /> },
+        { label: 'Trending',   shortLabel: 'Trending',  page: 'adminTrending',       icon: <Flame className="h-[22px] w-[22px]" /> },
+        { label: 'Login Imgs', shortLabel: 'Login Imgs',page: 'adminLoginSettings',  icon: <ImageIcon className="h-[22px] w-[22px]" /> },
     ];
 
     const menuItems = isAdmin ? adminMenuItems : clientMenuItems;

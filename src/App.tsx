@@ -26,6 +26,7 @@ import { masterController } from './masterController';
 import './index'; // Register Factory Module
 import { quoteService } from './quote.service';
 import { crmService } from './crm.service';
+import { analyticsService } from './analytics.service';
 
 // Lazy-loaded page components — only downloaded when the user navigates to them
 import type { HelloSplashData } from './OnboardingPage';
@@ -41,6 +42,7 @@ const AdminTrendingPage = lazy(() => import('./AdminTrendingPage').then(m => ({ 
 const TrendingPageComponent = lazy(() => import('./TrendingPage').then(m => ({ default: m.TrendingPage })));
 const AdminRFQPage = lazy(() => import('./AdminRFQPage').then(m => ({ default: m.AdminRFQPage })));
 const AdminLoginSettingsPage = lazy(() => import('./AdminLoginSettingsPage').then(m => ({ default: m.AdminLoginSettingsPage })));
+const AdminUserAnalyticsPage = lazy(() => import('./AdminUserAnalyticsPage').then(m => ({ default: m.AdminUserAnalyticsPage })));
 const AdminUniversalChat = lazy(() => import('./AdminUniversalChat').then(m => ({ default: m.AdminUniversalChat })));
 const MyQuotesPage = lazy(() => import('./MyQuotesPage').then(m => ({ default: m.MyQuotesPage })));
 const QuoteDetailPage = lazy(() => import('./QuoteDetailPage').then(m => ({ default: m.QuoteDetailPage })));
@@ -151,6 +153,8 @@ const AppContent: FC = () => {
     
     // State to track which page is currently displayed (default is 'login')
     const [currentPage, setCurrentPage] = useState<string>(() => localStorage.getItem('garment_erp_last_page') || 'login');
+    const pageEnterTimeRef = useRef<number>(Date.now());
+    const trackedPageRef = useRef<string>('');
     // State to store the authenticated user object from Supabase
     const [user, setUser] = useState<any>(null);
     // State to store the user's extended profile data (name, company, etc.)
@@ -335,6 +339,17 @@ const AppContent: FC = () => {
 
     // Function to handle navigation between pages
     const handleSetCurrentPage = (page: string, data: any = null) => {
+        // Track page navigation for analytics (client-side only)
+        if (!isAdmin) {
+            const duration_ms = Date.now() - pageEnterTimeRef.current;
+            // Log time spent on the page being left (only if it was a real page visit)
+            if (trackedPageRef.current && duration_ms > 1000) {
+                analyticsService.track('page_exit', { page: trackedPageRef.current, duration_ms });
+            }
+            analyticsService.track('page_view', { page });
+            pageEnterTimeRef.current = Date.now();
+            trackedPageRef.current = page;
+        }
         // Increment pageKey to force re-render of components if needed
         setPageKey(prevKey => prevKey + 1);
         // If navigating to specific detail pages, set the selected data
@@ -732,6 +747,22 @@ const AppContent: FC = () => {
             if (quotesAbortController.current) quotesAbortController.current.abort();
         };
     }, [user, isAdmin, currentPage, fetchUserQuotes, quoteRequests.length]);
+
+    // Flush page duration on tab hide / browser close
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'hidden' && trackedPageRef.current && !isAdmin) {
+                const duration_ms = Date.now() - pageEnterTimeRef.current;
+                if (duration_ms > 1000) {
+                    analyticsService.track('page_exit', { page: trackedPageRef.current, duration_ms });
+                    // Reset so we don't double-count if the tab becomes visible again
+                    pageEnterTimeRef.current = Date.now();
+                }
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }, [isAdmin]);
 
     // Prefetch all factory data during onboarding so both SourcingPage and FactoryDetailPage
     // render instantly on first sign-up. Uses a ref so the fetch fires exactly once and is
@@ -1593,6 +1624,12 @@ const AppContent: FC = () => {
     // Function to handle factory selection
     const handleSelectFactory = (factory: Factory) => {
         setSelectedFactory(factory);
+        analyticsService.track('factory_view', {
+            factory_id: factory.id,
+            factory_name: factory.name,
+            factory_location: factory.location,
+            factory_trust_tier: factory.trustTier,
+        });
         // Reset AI states for new factory
         setContractBrief(''); setOutreachEmail(''); setOptimizationSuggestions(''); setNegotiationTips('');
         handleSetCurrentPage('factoryDetail', factory);
@@ -3235,6 +3272,7 @@ User message: "${userMsg}"`;
             case 'adminTrending': return <AdminTrendingPage {...layoutProps} />;
             case 'adminRFQ': return <AdminRFQPage {...layoutProps} initialQuoteId={adminRFQInitialId} />;
             case 'adminLoginSettings': return <AdminLoginSettingsPage {...layoutProps} />;
+            case 'adminUserAnalytics': return <AdminUserAnalyticsPage {...layoutProps} handleSetCurrentPage={handleSetCurrentPage} />;
             default: return <SourcingPage
                 {...layoutProps}
                 userProfile={userProfile}

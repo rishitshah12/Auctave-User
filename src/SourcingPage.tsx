@@ -1,5 +1,6 @@
 // Import React and necessary hooks for state and side effects
 import React, { FC, useState, useMemo, useEffect, useRef, ReactNode, useCallback } from 'react';
+import { analyticsService } from './analytics.service';
 import { getCache, getCacheStale, setCache, TTL_FACTORIES, TTL_FACTORY_DETAIL } from './sessionCache';
 // Import icons for UI elements
 import {
@@ -423,6 +424,37 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
         document.addEventListener("mousedown", handleSearchClickOutside);
         return () => document.removeEventListener("mousedown", handleSearchClickOutside);
     }, []);
+
+    // Stable callback for factory hover tracking — useCallback so React.memo on FactoryCard is not defeated
+    const handleFactoryHover = useCallback((f: Factory, duration_ms: number) => {
+        analyticsService.track('factory_hover', {
+            factory_id: f.id,
+            factory_name: f.name,
+            factory_location: f.location,
+            duration_ms,
+        });
+    }, []);
+
+    // Track searches — debounced 1.5s after the user stops typing
+    const searchTrackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    useEffect(() => {
+        const term = searchTerm.trim();
+        if (term.length < 2) return;
+        if (searchTrackTimerRef.current) clearTimeout(searchTrackTimerRef.current);
+        searchTrackTimerRef.current = setTimeout(() => {
+            analyticsService.track('search', { query: term });
+        }, 1500);
+        return () => { if (searchTrackTimerRef.current) clearTimeout(searchTrackTimerRef.current); };
+    }, [searchTerm]);
+
+    // Track garment category selection
+    const prevCategoryRef = useRef(selectedGarmentCategory);
+    useEffect(() => {
+        if (selectedGarmentCategory !== prevCategoryRef.current) {
+            analyticsService.track('category_select', { category: selectedGarmentCategory });
+            prevCategoryRef.current = selectedGarmentCategory;
+        }
+    }, [selectedGarmentCategory]);
 
     // Predictive search suggestions grouped by category
     const searchSuggestions = useMemo(() => {
@@ -948,7 +980,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                         Array.from({ length: 6 }).map((_, index) => <SkeletonCard key={index} />)
                     ) : filteredFactories.length > 0 ? (
                         filteredFactories.map((factory, index) => (
-                            <FactoryCard key={factory.id} factory={factory} onSelect={() => handleSelectFactory(factory)} onPrefetch={() => prefetchFactoryDetail(factory.id)} style={{ animationDelay: `${Math.min(index * 30, 300)}ms` }} />
+                            <FactoryCard key={factory.id} factory={factory} onSelect={() => handleSelectFactory(factory)} onPrefetch={() => prefetchFactoryDetail(factory.id)} style={{ animationDelay: `${Math.min(index * 30, 300)}ms` }} onHover={handleFactoryHover} />
                         ))
                     ) : (
                         <div className="col-span-full text-center py-16 bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-sm border border-gray-200 dark:border-white/10">
