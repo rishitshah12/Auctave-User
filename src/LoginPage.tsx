@@ -575,7 +575,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
         width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
         padding: '12px 0', borderRadius: 12, border: 'none',
         cursor: disabled ? 'not-allowed' : 'pointer',
-        fontWeight: 700, fontSize: 14, color: 'white',
+        fontWeight: 700, fontSize: 16, color: 'white',
         background: disabled
             ? 'rgba(194,12,11,0.35)'
             : 'linear-gradient(135deg, #ff3333 0%, #c20c0b 55%, #900808 100%)',
@@ -587,7 +587,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
     const glassInputStyle: React.CSSProperties = {
         width: '100%', paddingLeft: 40, paddingRight: 14,
         paddingTop: 11, paddingBottom: 11, borderRadius: 12,
-        fontSize: 13.5, boxSizing: 'border-box' as const,
+        fontSize: 16, boxSizing: 'border-box' as const,
         background: 'rgba(255,255,255,0.07)',
         border: '1px solid rgba(255,255,255,0.10)',
         color: 'rgba(255,255,255,0.85)',
@@ -1103,7 +1103,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
                                                     <div style={{ position: 'relative', width: 120 }}>
                                                         <select value={countryCode} onChange={(e) => setCountryCode(e.target.value)}
                                                             disabled={isOtpSent} className="gs"
-                                                            style={{ width: '100%', appearance: 'none', padding: '11px 28px 11px 12px', borderRadius: 12, fontSize: 13, boxSizing: 'border-box' as const }}>
+                                                            style={{ width: '100%', appearance: 'none', padding: '11px 28px 11px 12px', borderRadius: 12, fontSize: 16, boxSizing: 'border-box' as const }}>
                                                             {countryCodes.map((c) => <option key={c.code} value={c.code}>{c.code} {c.label}</option>)}
                                                         </select>
                                                         <Globe size={13} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.28)', pointerEvents: 'none' }} />

@@ -1252,7 +1252,7 @@ export const GanttChartView: FC<{ tasks: any[]; products?: CrmProduct[]; onTaskU
     }
 
     return (
-        <div className="mt-4 sm:mt-6 animate-fade-in flex flex-col bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden" style={{ height: isMobile ? 'calc(100vh - 220px)' : 'calc(100vh - 300px)', minHeight: 320 }}>
+        <div className="mt-4 sm:mt-6 animate-fade-in flex flex-col bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden" style={{ height: isMobile ? 'calc(100svh - 220px)' : 'calc(100svh - 300px)', minHeight: 320 }}>
 
             {/* ── Toolbar ── */}
             <div className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 border-b border-gray-100 dark:border-white/10 flex-shrink-0 flex-wrap bg-gray-50/60 dark:bg-white/[0.02]">

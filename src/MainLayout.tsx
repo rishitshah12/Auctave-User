@@ -242,10 +242,19 @@ const MorePanel: FC<{
 };
 
 // ── Sidebar More Panel (desktop flyout) ──────────────────────────────────────
+type SideMoreItem = {
+    label: string;
+    shortLabel: string;
+    page: string;
+    icon: React.ReactNode;
+    badge?: number;
+    onClickOverride?: () => void;
+};
+
 const SidebarMorePanel: FC<{
     isOpen: boolean;
     onClose: () => void;
-    moreItems: Array<{ label: string; shortLabel: string; page: string; icon: React.ReactNode; badge?: number }>;
+    moreItems: SideMoreItem[];
     currentPage: string;
     handleSetCurrentPage: (page: string) => void;
     isDark: boolean;
@@ -286,11 +295,18 @@ const SidebarMorePanel: FC<{
                 />
                 <div className="relative p-3 grid grid-cols-2 gap-1.5">
                     {moreItems.map(item => {
-                        const isActive = currentPage === item.page;
+                        const isActive = !item.onClickOverride && currentPage === item.page;
                         return (
                             <button
                                 key={item.page}
-                                onClick={() => { handleSetCurrentPage(item.page); onClose(); }}
+                                onClick={() => {
+                                    if (item.onClickOverride) {
+                                        item.onClickOverride();
+                                    } else {
+                                        handleSetCurrentPage(item.page);
+                                    }
+                                    onClose();
+                                }}
                                 className={`relative flex flex-col items-center gap-[6px] py-3 px-1 rounded-xl transition-all duration-150 active:scale-95 ${
                                     isActive ? 'bg-white/20 shadow-inner' : 'hover:bg-white/[0.12]'
                                 }`}
@@ -335,6 +351,8 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'> & { onOpenNotif
         return () => observer.disconnect();
     }, []);
 
+    const totalUnread = notifications.filter(n => !n.isRead).length;
+
     const unreadByPage: Record<string, number> = {
         myQuotes: notifications.filter(n => n.category === 'rfq' && !n.isRead).length,
         crm:      notifications.filter(n => n.category === 'crm' && !n.isRead).length,
@@ -358,24 +376,25 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'> & { onOpenNotif
     ];
 
     const adminPrimaryItems = [
-        { label: 'Dashboard',  shortLabel: 'Dashboard', page: 'adminDashboard', icon: <LayoutDashboard className="h-[22px] w-[22px]" /> },
-        { label: 'Users',      shortLabel: 'Users',     page: 'adminUsers',     icon: <Users className="h-[22px] w-[22px]" /> },
-        { label: 'CRM',        shortLabel: 'CRM',       page: 'adminCRM',       icon: <List className="h-[22px] w-[22px]" /> },
-        { label: 'RFQ',        shortLabel: 'RFQ',       page: 'adminRFQ',       icon: <FileQuestion className="h-[22px] w-[22px]" /> },
-        { label: 'Trending',   shortLabel: 'Trending',  page: 'adminTrending',  icon: <Flame className="h-[22px] w-[22px]" /> },
-    ];
-
-    const adminMoreItems = [
+        { label: 'Dashboard',  shortLabel: 'Dashboard', page: 'adminDashboard',     icon: <LayoutDashboard className="h-[22px] w-[22px]" /> },
+        { label: 'Users',      shortLabel: 'Users',     page: 'adminUsers',         icon: <Users className="h-[22px] w-[22px]" /> },
+        { label: 'CRM',        shortLabel: 'CRM',       page: 'adminCRM',           icon: <List className="h-[22px] w-[22px]" /> },
+        { label: 'RFQ',        shortLabel: 'RFQ',       page: 'adminRFQ',           icon: <FileQuestion className="h-[22px] w-[22px]" /> },
+        { label: 'Trending',   shortLabel: 'Trending',  page: 'adminTrending',      icon: <Flame className="h-[22px] w-[22px]" /> },
         { label: 'Analytics',  shortLabel: 'Analytics', page: 'adminUserAnalytics', icon: <BarChart2 className="h-[22px] w-[22px]" /> },
         { label: 'Factories',  shortLabel: 'Factories', page: 'adminFactories',     icon: <Building className="h-[22px] w-[22px]" /> },
         { label: 'Login Imgs', shortLabel: 'Login',     page: 'adminLoginSettings', icon: <ImageIcon className="h-[22px] w-[22px]" /> },
-        { label: 'Settings',   shortLabel: 'Settings',  page: 'settings',           icon: <Settings className="h-[22px] w-[22px]" /> },
+    ];
+
+    const adminMoreItems: SideMoreItem[] = [
+        { label: 'Alerts',    shortLabel: 'Alerts',   page: '__notif__', icon: <Bell className="h-[22px] w-[22px]" />, badge: totalUnread, onClickOverride: onOpenNotif },
+        { label: 'Settings',  shortLabel: 'Settings', page: 'settings',  icon: <Settings className="h-[22px] w-[22px]" /> },
     ];
 
     const menuItems = isAdmin ? adminPrimaryItems : clientMenuItems;
     const sideMoreItems = isAdmin ? adminMoreItems : [];
-    const isSideMorePageActive = sideMoreItems.some(i => i.page === currentPage);
-    const sideMoreBadge = sideMoreItems.reduce((s, i) => s + (unreadByPage[i.page] || 0), 0);
+    const isSideMorePageActive = sideMoreItems.some(i => !i.onClickOverride && i.page === currentPage);
+    const sideMoreBadge = sideMoreItems.reduce((s, i) => s + (i.badge !== undefined ? i.badge : (unreadByPage[i.page] || 0)), 0);
 
     return (<>
         {/* Mobile overlay */}
@@ -459,13 +478,15 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'> & { onOpenNotif
                     </div>
                 )}
 
-                {/* Notifications bell — desktop only (mobile uses header bell) */}
-                <div className="hidden md:block">
-                    <NotificationBellButton
-                        onClick={onOpenNotif}
-                        isSidebarCollapsed={false}
-                    />
-                </div>
+                {/* Notifications bell — desktop only, client only (admin uses More flyout) */}
+                {!isAdmin && (
+                    <div className="hidden md:block">
+                        <NotificationBellButton
+                            onClick={onOpenNotif}
+                            isSidebarCollapsed={false}
+                        />
+                    </div>
+                )}
             </nav>
 
             <div className="mx-3 h-px bg-white/15 flex-shrink-0" />

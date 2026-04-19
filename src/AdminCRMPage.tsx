@@ -1400,7 +1400,7 @@ function AdminGanttChartView({
         task.status !== 'COMPLETE' && !!task.plannedEndDate && parseDate(task.plannedEndDate) < today;
 
     return (
-        <div className="flex flex-col bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden" style={{ height: 'calc(100vh - 280px)', minHeight: 400 }}>
+        <div className="flex flex-col bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden" style={{ height: 'calc(100svh - 280px)', minHeight: 400 }}>
             {/* ── Toolbar ── */}
             <div className="flex-shrink-0 border-b border-gray-100 dark:border-white/10">
                 {/* Row 1: Title + Today + Add Task */}
