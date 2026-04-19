@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useMemo, FC } from 'react';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
+  PieChart, Pie
 } from 'recharts';
 import {
   Search, Eye, MousePointerClick, TrendingUp, Users, X, ChevronDown, ChevronUp,
-  Activity, BarChart2, Clock, Filter
+  Activity, BarChart2, Clock, Filter, Globe, Smartphone, Monitor
 } from 'lucide-react';
 import { MainLayout } from './MainLayout';
 import { supabase } from './supabaseClient';
@@ -58,6 +59,48 @@ interface FactoryEntry {
   uniqueUsers: number;
 }
 
+// ── Country centroids ─────────────────────────────────────────────────────────
+
+const COUNTRY_CENTROIDS: Record<string, [number, number]> = {
+  US: [-95.71, 37.09], USA: [-95.71, 37.09], 'United States': [-95.71, 37.09],
+  GB: [-3.44, 55.38], UK: [-3.44, 55.38], 'United Kingdom': [-3.44, 55.38],
+  IN: [78.96, 20.59], India: [78.96, 20.59],
+  CN: [104.19, 35.86], China: [104.19, 35.86],
+  BD: [90.35, 23.68], Bangladesh: [90.35, 23.68],
+  VN: [108.28, 14.06], Vietnam: [108.28, 14.06],
+  PK: [69.35, 30.38], Pakistan: [69.35, 30.38],
+  TR: [35.24, 38.96], Turkey: [35.24, 38.96],
+  AU: [133.78, -25.27], Australia: [133.78, -25.27],
+  BR: [-51.93, -14.24], Brazil: [-51.93, -14.24],
+  FR: [2.21, 46.23], France: [2.21, 46.23],
+  CA: [-106.35, 56.13], Canada: [-106.35, 56.13],
+  IT: [12.57, 41.87], Italy: [12.57, 41.87],
+  JP: [138.25, 36.20], Japan: [138.25, 36.20],
+  KR: [127.77, 35.91], 'South Korea': [127.77, 35.91],
+  MX: [-102.55, 23.63], Mexico: [-102.55, 23.63],
+  DE: [10.45, 51.17], Germany: [10.45, 51.17],
+  ID: [113.92, -0.79], Indonesia: [113.92, -0.79],
+  TH: [100.99, 15.87], Thailand: [100.99, 15.87],
+  SG: [103.82, 1.35], Singapore: [103.82, 1.35],
+  MY: [108.96, 4.21], Malaysia: [108.96, 4.21],
+  AE: [53.85, 23.42], UAE: [53.85, 23.42], 'United Arab Emirates': [53.85, 23.42],
+  NL: [5.29, 52.13], Netherlands: [5.29, 52.13],
+  ES: [-3.75, 40.46], Spain: [-3.75, 40.46],
+  PT: [-8.22, 39.40], Portugal: [-8.22, 39.40],
+  ZA: [22.94, -30.56], 'South Africa': [22.94, -30.56],
+  NG: [8.68, 9.08], Nigeria: [8.68, 9.08],
+  EG: [30.80, 26.82], Egypt: [30.80, 26.82],
+  SA: [45.08, 23.89], 'Saudi Arabia': [45.08, 23.89],
+  PH: [121.77, 12.88], Philippines: [121.77, 12.88],
+  RU: [105.32, 61.52], Russia: [105.32, 61.52],
+  PL: [19.15, 51.92], Poland: [19.15, 51.92],
+  SE: [18.64, 60.13], Sweden: [18.64, 60.13],
+  LK: [80.77, 7.87], 'Sri Lanka': [80.77, 7.87],
+  MA: [-7.09, 31.79], Morocco: [-7.09, 31.79],
+  AR: [-63.62, -38.42], Argentina: [-63.62, -38.42],
+  CO: [-74.30, 4.57], Colombia: [-74.30, 4.57],
+};
+
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface AdminUserAnalyticsPageProps {
@@ -95,6 +138,256 @@ function timeAgo(isoString: string): string {
   const days = Math.floor(hours / 24);
   return `${days}d ago`;
 }
+
+// ── World Map Section ─────────────────────────────────────────────────────────
+
+const GEO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
+
+const WorldMapSection: FC<{ events: RawEvent[]; clientMap: Record<string, ClientRow> }> = ({ events, clientMap }) => {
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; country: string; users: string[]; total: number } | null>(null);
+  const [RSM, setRSM] = useState<any>(null);
+
+  React.useEffect(() => {
+    import('react-simple-maps').then(mod => setRSM(mod));
+  }, []);
+
+  const locationPoints = useMemo(() => {
+    const map: Record<string, { coords: [number, number]; country: string; userIds: Set<string> }> = {};
+    events.forEach(e => {
+      const d = e.event_data || {};
+      const lon = d.longitude ?? d.lng ?? d.lon;
+      const lat = d.latitude ?? d.lat;
+      const country = (d.country || d.country_code || d.country_name || '').trim();
+
+      let key = '';
+      let coords: [number, number] | null = null;
+
+      if (typeof lon === 'number' && typeof lat === 'number') {
+        key = `${lon.toFixed(1)},${lat.toFixed(1)}`;
+        coords = [lon, lat];
+      } else if (country) {
+        const c = COUNTRY_CENTROIDS[country];
+        if (!c) return;
+        key = country;
+        coords = c;
+      } else return;
+
+      if (!map[key]) map[key] = { coords, country: country || key, userIds: new Set() };
+      map[key].userIds.add(e.user_id);
+    });
+
+    return Object.values(map).map(({ coords, country, userIds }) => ({
+      coords,
+      country,
+      userCount: userIds.size,
+      users: [...userIds].map(uid => {
+        const c = clientMap[uid];
+        return c ? `${c.name}${c.company_name ? ` · ${c.company_name}` : ''}` : uid.slice(0, 8) + '…';
+      }),
+    }));
+  }, [events, clientMap]);
+
+  const noData = locationPoints.length === 0;
+
+  if (!RSM) return (
+    <div className="bg-white dark:bg-gray-900/40 rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm p-5 flex items-center justify-center h-64">
+      <div className="w-6 h-6 border-2 border-[#c20c0b] border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+
+  const { ComposableMap: CMap, Geographies: Geos, Geography: Geo, Marker: Mrk } = RSM;
+
+  return (
+    <div className="bg-white dark:bg-gray-900/40 rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm p-5 h-full">
+      <div className="flex items-center gap-2 mb-3">
+        <Globe size={16} className="text-rose-500" />
+        <h2 className="text-sm font-bold text-gray-800 dark:text-white">User Locations</h2>
+        {!noData && <span className="ml-auto text-xs text-gray-400">{locationPoints.length} location{locationPoints.length !== 1 ? 's' : ''}</span>}
+      </div>
+      <div className="relative" style={{ background: 'linear-gradient(160deg,#0c1526 0%,#0f1f38 100%)', borderRadius: 12, overflow: 'hidden' }}>
+        <CMap
+          projectionConfig={{ scale: 147, center: [0, 10] }}
+          width={800}
+          height={380}
+          style={{ width: '100%', height: 'auto', display: 'block' }}
+        >
+          <Geos geography={GEO_URL}>
+            {({ geographies }: { geographies: any[] }) =>
+              geographies.map((geo: any) => (
+                <Geo
+                  key={geo.rsmKey}
+                  geography={geo}
+                  fill="#2d4a3e"
+                  stroke="#3d6b52"
+                  strokeWidth={0.5}
+                  style={{ default: { outline: 'none' }, hover: { outline: 'none', fill: '#3a5e4f' }, pressed: { outline: 'none' } }}
+                />
+              ))
+            }
+          </Geos>
+
+          {locationPoints.map((pt, i) => {
+            const r = Math.min(14, 5 + pt.userCount * 2);
+            return (
+              <Mrk key={i} coordinates={pt.coords}>
+                <circle
+                  r={r + 5} fill="#c20c0b" fillOpacity={0.18}
+                  onMouseEnter={(e: React.MouseEvent) => {
+                    const rect = (e.currentTarget.closest('svg') as SVGSVGElement)?.getBoundingClientRect();
+                    setTooltip({ x: e.clientX - (rect?.left ?? 0), y: e.clientY - (rect?.top ?? 0), country: pt.country, users: pt.users, total: pt.userCount });
+                  }}
+                  onMouseLeave={() => setTooltip(null)}
+                  style={{ cursor: 'pointer' }}
+                />
+                <circle
+                  r={r} fill="#c20c0b" fillOpacity={0.9} stroke="#fff" strokeWidth={0.8}
+                  onMouseEnter={(e: React.MouseEvent) => {
+                    const rect = (e.currentTarget.closest('svg') as SVGSVGElement)?.getBoundingClientRect();
+                    setTooltip({ x: e.clientX - (rect?.left ?? 0), y: e.clientY - (rect?.top ?? 0), country: pt.country, users: pt.users, total: pt.userCount });
+                  }}
+                  onMouseLeave={() => setTooltip(null)}
+                  style={{ cursor: 'pointer' }}
+                />
+                {pt.userCount > 1 && (
+                  <text textAnchor="middle" y={r * 0.35} fill="#fff" fontSize={Math.min(9, r * 0.8)} fontWeight={700} style={{ pointerEvents: 'none' }}>
+                    {pt.userCount}
+                  </text>
+                )}
+              </Mrk>
+            );
+          })}
+        </CMap>
+
+        {/* HTML tooltip overlay */}
+        {tooltip && (
+          <div
+            className="absolute z-20 pointer-events-none bg-gray-900/95 border border-white/10 rounded-lg px-3 py-2 text-xs shadow-xl"
+            style={{ left: tooltip.x + 12, top: tooltip.y - 10, maxWidth: 200 }}
+          >
+            <p className="font-bold text-white mb-1">{tooltip.country || 'Unknown'}</p>
+            {tooltip.users.slice(0, 6).map((u, i) => (
+              <p key={i} className="text-gray-300 truncate">{u}</p>
+            ))}
+            {tooltip.total > 6 && <p className="text-gray-500 mt-0.5">+{tooltip.total - 6} more</p>}
+          </div>
+        )}
+
+        {noData && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-gray-400">
+            <Globe size={32} className="opacity-25" />
+            <p className="text-sm font-medium text-white/60">No location data tracked yet</p>
+            <p className="text-xs text-white/30 text-center max-w-56 px-4">
+              Add <code className="bg-white/10 px-1 rounded">country</code> or{' '}
+              <code className="bg-white/10 px-1 rounded">latitude / longitude</code> to your event_data
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ── Device Platform Section ───────────────────────────────────────────────────
+
+const DEVICE_CONFIG: Record<string, { color: string; gradient: string }> = {
+  Android: { color: '#22c55e', gradient: 'from-green-500 to-emerald-600' },
+  iOS:     { color: '#3b82f6', gradient: 'from-blue-500 to-indigo-600' },
+  Desktop: { color: '#8b5cf6', gradient: 'from-violet-500 to-purple-600' },
+  Other:   { color: '#94a3b8', gradient: 'from-slate-400 to-slate-500' },
+};
+
+const categorizeDevice = (raw: string): string => {
+  const dt = raw.toLowerCase();
+  if (dt.includes('android')) return 'Android';
+  if (dt.includes('ios') || dt.includes('iphone') || dt.includes('ipad')) return 'iOS';
+  if (dt.includes('desktop') || dt.includes('windows') || dt.includes('mac') || dt.includes('linux') || dt === 'web') return 'Desktop';
+  return 'Other';
+};
+
+const DevicePlatformSection: FC<{ events: RawEvent[] }> = ({ events }) => {
+  const breakdown = useMemo(() => {
+    const userDevice: Record<string, Record<string, number>> = {};
+    events.forEach(e => {
+      const raw = (e.event_data?.device_type || e.event_data?.platform || e.event_data?.os || '').trim();
+      if (!raw) return;
+      const cat = categorizeDevice(raw);
+      userDevice[e.user_id] = userDevice[e.user_id] || {};
+      userDevice[e.user_id][cat] = (userDevice[e.user_id][cat] || 0) + 1;
+    });
+    const counts: Record<string, number> = {};
+    Object.values(userDevice).forEach(cats => {
+      const top = Object.entries(cats).sort((a, b) => b[1] - a[1])[0]?.[0];
+      if (top) counts[top] = (counts[top] || 0) + 1;
+    });
+    return counts;
+  }, [events]);
+
+  const total = Object.values(breakdown).reduce((a, b) => a + b, 0);
+  const hasData = total > 0;
+  const pieData = Object.entries(breakdown).map(([name, value]) => ({ name, value }));
+
+  const DeviceIcon: FC<{ name: string; size?: number }> = ({ name, size = 14 }) =>
+    name === 'Desktop' ? <Monitor size={size} className="text-white" /> : <Smartphone size={size} className="text-white" />;
+
+  return (
+    <div className="bg-white dark:bg-gray-900/40 rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm p-5 h-full">
+      <div className="flex items-center gap-2 mb-4">
+        <Smartphone size={16} className="text-blue-500" />
+        <h2 className="text-sm font-bold text-gray-800 dark:text-white">Platform Usage</h2>
+        {hasData && <span className="ml-auto text-xs text-gray-400">{total} user{total !== 1 ? 's' : ''}</span>}
+      </div>
+
+      {!hasData ? (
+        <div className="flex flex-col items-center justify-center h-52 text-gray-400 gap-2">
+          <Monitor size={28} className="opacity-25" />
+          <p className="text-sm font-medium">No platform data yet</p>
+          <p className="text-xs text-center text-gray-300 max-w-48">
+            Add <code className="bg-gray-100 dark:bg-white/8 px-1.5 py-0.5 rounded text-[10px]">device_type</code> to your event_data (e.g. "android", "ios", "desktop")
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <ResponsiveContainer width="100%" height={150}>
+            <PieChart>
+              <Pie data={pieData} cx="50%" cy="50%" innerRadius={38} outerRadius={62} dataKey="value" paddingAngle={3} startAngle={90} endAngle={-270}>
+                {pieData.map((entry, i) => (
+                  <Cell key={i} fill={DEVICE_CONFIG[entry.name]?.color ?? '#94a3b8'} />
+                ))}
+              </Pie>
+              <Tooltip
+                contentStyle={{ backgroundColor: '#1f2937', borderRadius: '10px', border: 'none', color: '#f9fafb', fontSize: '12px' }}
+                formatter={(value: number, name: string) => [`${value} user${value !== 1 ? 's' : ''} (${Math.round((value / total) * 100)}%)`, name]}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+
+          <div className="space-y-2.5">
+            {(Object.keys(DEVICE_CONFIG) as string[])
+              .filter(name => breakdown[name])
+              .map(name => {
+                const count = breakdown[name];
+                const pct = Math.round((count / total) * 100);
+                const cfg = DEVICE_CONFIG[name];
+                return (
+                  <div key={name} className="flex items-center gap-2.5">
+                    <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${cfg.gradient} flex items-center justify-center flex-shrink-0`}>
+                      <DeviceIcon name={name} />
+                    </div>
+                    <span className="text-sm text-gray-700 dark:text-gray-300 flex-1">{name}</span>
+                    <span className="text-sm font-bold tabular-nums" style={{ color: cfg.color }}>{count}</span>
+                    <div className="w-16 bg-gray-100 dark:bg-white/8 rounded-full h-1.5 overflow-hidden">
+                      <div className="h-1.5 rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: cfg.color }} />
+                    </div>
+                    <span className="text-xs text-gray-400 w-8 text-right tabular-nums">{pct}%</span>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ── Stat Card ─────────────────────────────────────────────────────────────────
 
@@ -521,7 +814,6 @@ export const AdminUserAnalyticsPage: FC<AdminUserAnalyticsPageProps> = (props) =
 
   // Top trending content (blogs + videos combined)
   const topContent = useMemo(() => {
-    const list: { type: 'Blog' | 'Video'; title: string; count: number; userSet: Set<string> }[] = [];
     const map: Record<string, { type: 'Blog' | 'Video'; title: string; count: number; userSet: Set<string> }> = {};
     events.filter(e => e.event_type === 'trending_blog_view' || e.event_type === 'trending_video_play').forEach(e => {
       const key = `${e.event_type}:${e.event_data?.blog_id || e.event_data?.video_id || e.event_data?.blog_title || e.event_data?.video_title || ''}`;
@@ -614,6 +906,16 @@ export const AdminUserAnalyticsPage: FC<AdminUserAnalyticsPageProps> = (props) =
                 gradient="from-amber-500 to-orange-600"
                 icon={<TrendingUp size={20} className="text-white" />}
               />
+            </div>
+
+            {/* World Map + Device Platform Row */}
+            <div className="grid lg:grid-cols-3 gap-4">
+              <div className="lg:col-span-2">
+                <WorldMapSection events={events} clientMap={clientMap} />
+              </div>
+              <div>
+                <DevicePlatformSection events={events} />
+              </div>
             </div>
 
             {/* Charts Row */}
