@@ -4,6 +4,7 @@ export type AnalyticsEventType =
   | 'page_view'
   | 'page_exit'
   | 'search'
+  | 'catalog_search'
   | 'factory_view'
   | 'factory_hover'
   | 'category_select'
@@ -48,11 +49,12 @@ class AnalyticsService {
   private sessionId: string;
   private deviceType: string;
   private geoData: GeoData | null = null;
+  private geoReady: Promise<void>;
 
   constructor() {
     this.sessionId = this.getOrCreateSessionId();
     this.deviceType = this.detectDeviceType();
-    this.initGeo();
+    this.geoReady = this.initGeo();
   }
 
   private getOrCreateSessionId(): string {
@@ -99,34 +101,35 @@ class AnalyticsService {
   }
 
   track(eventType: AnalyticsEventType, eventData: AnalyticsEventData = {}): void {
-    // Fire and forget — never blocks the UI.
-    // getSession() reads from localStorage (no network call), unlike getUser() which hits the server.
-    Promise.resolve(supabase.auth.getSession()).then(({ data: { session } }) => {
-      if (!session?.user) return;
-      const enriched: AnalyticsEventData = {
-        device_type: this.deviceType,
-        ...(this.geoData
-          ? {
-              country: this.geoData.country,
-              country_name: this.geoData.country_name,
-              city: this.geoData.city,
-              latitude: this.geoData.latitude,
-              longitude: this.geoData.longitude,
-            }
-          : {}),
-        ...eventData,
-      };
-      Promise.resolve(
-        supabase
-          .from('user_events')
-          .insert({
-            user_id: session.user.id,
-            event_type: eventType,
-            event_data: enriched,
-            session_id: this.sessionId,
-          })
-      ).then(() => {}).catch(() => {});
-    }).catch(() => {});
+    // Wait for geo lookup (resolves instantly if cached or failed), then fire-and-forget.
+    this.geoReady.then(() => {
+      Promise.resolve(supabase.auth.getSession()).then(({ data: { session } }) => {
+        if (!session?.user) return;
+        const enriched: AnalyticsEventData = {
+          device_type: this.deviceType,
+          ...(this.geoData
+            ? {
+                country: this.geoData.country,
+                country_name: this.geoData.country_name,
+                city: this.geoData.city,
+                latitude: this.geoData.latitude,
+                longitude: this.geoData.longitude,
+              }
+            : {}),
+          ...eventData,
+        };
+        Promise.resolve(
+          supabase
+            .from('user_events')
+            .insert({
+              user_id: session.user.id,
+              event_type: eventType,
+              event_data: enriched,
+              session_id: this.sessionId,
+            })
+        ).then(() => {}).catch(() => {});
+      }).catch(() => {});
+    });
   }
 }
 

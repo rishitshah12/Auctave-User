@@ -67,9 +67,20 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
     }, [activeTab]);
 
     // When user types in the header search bar, auto-switch to catalog tab
+    const catalogSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const handleCatalogSearch = (value: string) => {
         setCatalogSearch(value);
         if (value && activeTab !== 'catalog') setActiveTab('catalog');
+        if (catalogSearchTimerRef.current) clearTimeout(catalogSearchTimerRef.current);
+        if (value.trim().length >= 2) {
+            catalogSearchTimerRef.current = setTimeout(() => {
+                analyticsService.track('catalog_search', {
+                    query: value.trim(),
+                    factory_id: factory.id,
+                    factory_name: factory.name,
+                });
+            }, 800);
+        }
     };
     const [isFetchingDetails, setIsFetchingDetails] = useState(false);
     const [showProductSelector, setShowProductSelector] = useState(false);

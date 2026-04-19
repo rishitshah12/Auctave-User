@@ -631,7 +631,7 @@ export const AdminUserAnalyticsPage: FC<AdminUserAnalyticsPageProps> = (props) =
 
   const topSearches: SearchEntry[] = useMemo(() => {
     const map: Record<string, { count: number; userSet: Set<string> }> = {};
-    events.filter(e => e.event_type === 'search').forEach(e => {
+    events.filter(e => e.event_type === 'search' || e.event_type === 'catalog_search').forEach(e => {
       const q = (e.event_data?.query || '').trim().toLowerCase();
       if (!q) return;
       map[q] = map[q] || { count: 0, userSet: new Set() };
@@ -640,8 +640,7 @@ export const AdminUserAnalyticsPage: FC<AdminUserAnalyticsPageProps> = (props) =
     });
     return Object.entries(map)
       .map(([query, { count, userSet }]) => ({ query, count, users: userSet.size }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 15);
+      .sort((a, b) => b.count - a.count);
   }, [events]);
 
   const topFactories: FactoryEntry[] = useMemo(() => {
@@ -661,8 +660,7 @@ export const AdminUserAnalyticsPage: FC<AdminUserAnalyticsPageProps> = (props) =
         views,
         uniqueUsers: userSet.size,
       }))
-      .sort((a, b) => b.views - a.views)
-      .slice(0, 10);
+      .sort((a, b) => b.views - a.views);
   }, [events]);
 
   const userSummaries: UserSummary[] = useMemo(() => {
@@ -778,8 +776,7 @@ export const AdminUserAnalyticsPage: FC<AdminUserAnalyticsPageProps> = (props) =
         hovers: count,
         uniqueUsers: userSet.size,
       }))
-      .sort((a, b) => b.hovers - a.hovers)
-      .slice(0, 10);
+      .sort((a, b) => b.hovers - a.hovers);
   }, [events]);
 
   // Top catalog items selected across all users
@@ -792,7 +789,7 @@ export const AdminUserAnalyticsPage: FC<AdminUserAnalyticsPageProps> = (props) =
       map[id].count += 1;
       map[id].userSet.add(e.user_id);
     });
-    return Object.values(map).sort((a, b) => b.count - a.count).slice(0, 10);
+    return Object.values(map).sort((a, b) => b.count - a.count);
   }, [events]);
 
   // Catalog time per factory (avg seconds on catalog tab)
@@ -808,8 +805,7 @@ export const AdminUserAnalyticsPage: FC<AdminUserAnalyticsPageProps> = (props) =
     });
     return Object.entries(map)
       .map(([, { name, totalMs, count }]) => ({ name, avgSec: Math.round(totalMs / count / 1000), sessions: count }))
-      .sort((a, b) => b.avgSec - a.avgSec)
-      .slice(0, 8);
+      .sort((a, b) => b.avgSec - a.avgSec);
   }, [events]);
 
   // Top trending content (blogs + videos combined)
@@ -823,8 +819,26 @@ export const AdminUserAnalyticsPage: FC<AdminUserAnalyticsPageProps> = (props) =
       map[key].count += 1;
       map[key].userSet.add(e.user_id);
     });
-    return Object.values(map).sort((a, b) => b.count - a.count).slice(0, 8);
+    return Object.values(map).sort((a, b) => b.count - a.count);
   }, [events]);
+
+  const PREVIEW = 10;
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const toggle = (key: string) => setExpanded(p => ({ ...p, [key]: !p[key] }));
+
+  const ShowMore: FC<{ id: string; total: number }> = ({ id, total }) => {
+    if (total <= PREVIEW) return null;
+    const open = !!expanded[id];
+    return (
+      <button
+        onClick={() => toggle(id)}
+        className="mt-3 flex items-center gap-1 text-xs font-medium text-gray-400 hover:text-[#c20c0b] dark:hover:text-rose-400 transition-colors"
+      >
+        {open ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+        {open ? 'Show less' : `Show ${total - PREVIEW} more`}
+      </button>
+    );
+  };
 
   const handleSort = (key: keyof UserSummary) => {
     if (sortKey === key) setSortDir(d => d === 'desc' ? 'asc' : 'desc');
@@ -919,9 +933,9 @@ export const AdminUserAnalyticsPage: FC<AdminUserAnalyticsPageProps> = (props) =
             </div>
 
             {/* Charts Row */}
-            <div className="grid sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Top Searches Chart */}
-              <div className="bg-white dark:bg-gray-900/40 rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm p-5">
+              <div className="bg-white dark:bg-gray-900/40 rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm p-4 sm:p-5">
                 <div className="flex items-center gap-2 mb-4">
                   <Search size={16} className="text-blue-500" />
                   <h2 className="text-sm font-bold text-gray-800 dark:text-white">Top Search Terms</h2>
@@ -952,7 +966,7 @@ export const AdminUserAnalyticsPage: FC<AdminUserAnalyticsPageProps> = (props) =
               </div>
 
               {/* Top Factories Chart */}
-              <div className="bg-white dark:bg-gray-900/40 rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm p-5">
+              <div className="bg-white dark:bg-gray-900/40 rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm p-4 sm:p-5">
                 <div className="flex items-center gap-2 mb-4">
                   <Eye size={16} className="text-emerald-500" />
                   <h2 className="text-sm font-bold text-gray-800 dark:text-white">Most Viewed Factories</h2>
@@ -984,49 +998,50 @@ export const AdminUserAnalyticsPage: FC<AdminUserAnalyticsPageProps> = (props) =
             </div>
 
             {/* Top Searches Table (detailed) */}
-            <div className="bg-white dark:bg-gray-900/40 rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm p-5">
+            <div className="bg-white dark:bg-gray-900/40 rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm p-4 sm:p-5">
               <div className="flex items-center gap-2 mb-4">
                 <Search size={16} className="text-blue-500" />
                 <h2 className="text-sm font-bold text-gray-800 dark:text-white">Search Intelligence</h2>
                 <span className="ml-auto text-xs text-gray-400">{topSearches.length} unique queries</span>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+              <div className="overflow-x-auto -mx-4 sm:mx-0">
+                <table className="w-full text-sm min-w-[320px] px-4 sm:px-0">
                   <thead>
                     <tr className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide border-b border-gray-100 dark:border-white/8">
-                      <th className="text-left pb-2 pr-4">#</th>
-                      <th className="text-left pb-2 pr-4">Query</th>
-                      <th className="text-right pb-2 pr-4">Searches</th>
-                      <th className="text-right pb-2">Users</th>
+                      <th className="text-left pb-2 pr-3 pl-4 sm:pl-0">#</th>
+                      <th className="text-left pb-2 pr-3">Query</th>
+                      <th className="text-right pb-2 pr-3">Searches</th>
+                      <th className="text-right pb-2 pr-4 sm:pr-0">Users</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50 dark:divide-white/5">
-                    {topSearches.map((s, i) => (
+                    {(expanded.searches ? topSearches : topSearches.slice(0, PREVIEW)).map((s, i) => (
                       <tr key={s.query} className="hover:bg-gray-50 dark:hover:bg-white/3 transition-colors">
-                        <td className="py-2.5 pr-4 text-gray-400 font-mono text-xs">{i + 1}</td>
-                        <td className="py-2.5 pr-4 font-medium text-gray-800 dark:text-gray-200">
+                        <td className="py-2.5 pr-3 pl-4 sm:pl-0 text-gray-400 font-mono text-xs">{i + 1}</td>
+                        <td className="py-2.5 pr-3 font-medium text-gray-800 dark:text-gray-200">
                           <span className="inline-flex items-center gap-1.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0" />
                             {s.query}
                           </span>
                         </td>
-                        <td className="py-2.5 pr-4 text-right">
+                        <td className="py-2.5 pr-3 text-right">
                           <span className="font-bold text-blue-600">{s.count}</span>
                         </td>
-                        <td className="py-2.5 text-right">
-                          <span className="text-gray-500">{s.users} user{s.users !== 1 ? 's' : ''}</span>
+                        <td className="py-2.5 text-right pr-4 sm:pr-0">
+                          <span className="text-gray-500">{s.users}u</span>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+              <ShowMore id="searches" total={topSearches.length} />
             </div>
 
             {/* Page Duration + Factory Hover Row */}
-            <div className="grid sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Avg Time Per Page */}
-              <div className="bg-white dark:bg-gray-900/40 rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm p-5">
+              <div className="bg-white dark:bg-gray-900/40 rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm p-4 sm:p-5">
                 <div className="flex items-center gap-2 mb-4">
                   <Clock size={16} className="text-purple-500" />
                   <h2 className="text-sm font-bold text-gray-800 dark:text-white">Avg. Time Per Page</h2>
@@ -1037,28 +1052,31 @@ export const AdminUserAnalyticsPage: FC<AdminUserAnalyticsPageProps> = (props) =
                     <p className="text-xs">No page duration data yet</p>
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    {pageDurations.map(p => (
-                      <div key={p.page} className="flex items-center gap-2">
-                        <span className="text-xs text-gray-600 dark:text-gray-300 w-32 flex-shrink-0 truncate">{p.page}</span>
-                        <div className="flex-1 bg-gray-100 dark:bg-white/8 rounded-full h-2 overflow-hidden">
-                          <div
-                            className="h-2 rounded-full bg-gradient-to-r from-purple-500 to-indigo-500"
-                            style={{ width: `${Math.min(100, (p.avgSec / (pageDurations[0]?.avgSec || 1)) * 100)}%` }}
-                          />
+                  <>
+                    <div className="space-y-2">
+                      {(expanded.pageDur ? pageDurations : pageDurations.slice(0, PREVIEW)).map(p => (
+                        <div key={p.page} className="flex items-center gap-2">
+                          <span className="text-xs text-gray-600 dark:text-gray-300 w-28 flex-shrink-0 truncate">{p.page}</span>
+                          <div className="flex-1 bg-gray-100 dark:bg-white/8 rounded-full h-2 overflow-hidden">
+                            <div
+                              className="h-2 rounded-full bg-gradient-to-r from-purple-500 to-indigo-500"
+                              style={{ width: `${Math.min(100, (p.avgSec / (pageDurations[0]?.avgSec || 1)) * 100)}%` }}
+                            />
+                          </div>
+                          <span className="text-xs font-bold text-purple-600 w-12 text-right flex-shrink-0">
+                            {p.avgSec >= 60 ? `${Math.floor(p.avgSec / 60)}m ${p.avgSec % 60}s` : `${p.avgSec}s`}
+                          </span>
+                          <span className="text-[10px] text-gray-400 w-12 text-right flex-shrink-0">{p.visits}v</span>
                         </div>
-                        <span className="text-xs font-bold text-purple-600 w-12 text-right flex-shrink-0">
-                          {p.avgSec >= 60 ? `${Math.floor(p.avgSec / 60)}m ${p.avgSec % 60}s` : `${p.avgSec}s`}
-                        </span>
-                        <span className="text-[10px] text-gray-400 w-14 text-right flex-shrink-0">{p.visits} visits</span>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                    <ShowMore id="pageDur" total={pageDurations.length} />
+                  </>
                 )}
               </div>
 
               {/* Factory Hover Interest */}
-              <div className="bg-white dark:bg-gray-900/40 rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm p-5">
+              <div className="bg-white dark:bg-gray-900/40 rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm p-4 sm:p-5">
                 <div className="flex items-center gap-2 mb-1">
                   <MousePointerClick size={16} className="text-amber-500" />
                   <h2 className="text-sm font-bold text-gray-800 dark:text-white">Factory Hover Interest</h2>
@@ -1070,55 +1088,62 @@ export const AdminUserAnalyticsPage: FC<AdminUserAnalyticsPageProps> = (props) =
                     <p className="text-xs">No hover data yet</p>
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    {factoryHovers.map((f, i) => (
-                      <div key={f.factoryId} className="flex items-center gap-2.5">
-                        <span className="text-[10px] font-mono text-gray-400 w-4">{i + 1}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate">{f.factoryName}</p>
-                          <p className="text-[10px] text-gray-400">{f.factoryLocation}</p>
+                  <>
+                    <div className="space-y-2">
+                      {(expanded.hovers ? factoryHovers : factoryHovers.slice(0, PREVIEW)).map((f, i) => (
+                        <div key={f.factoryId} className="flex items-center gap-2.5">
+                          <span className="text-[10px] font-mono text-gray-400 w-4 flex-shrink-0">{i + 1}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate">{f.factoryName}</p>
+                            <p className="text-[10px] text-gray-400 truncate">{f.factoryLocation}</p>
+                          </div>
+                          <div className="flex flex-col items-end flex-shrink-0">
+                            <span className="text-xs font-bold text-amber-600">{f.hovers}×</span>
+                            <span className="text-[10px] text-gray-400">{f.avgSec}s · {f.uniqueUsers}u</span>
+                          </div>
                         </div>
-                        <div className="flex flex-col items-end flex-shrink-0">
-                          <span className="text-xs font-bold text-amber-600">{f.hovers} hovers</span>
-                          <span className="text-[10px] text-gray-400">avg {f.avgSec}s · {f.uniqueUsers} user{f.uniqueUsers !== 1 ? 's' : ''}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                    <ShowMore id="hovers" total={factoryHovers.length} />
+                  </>
                 )}
               </div>
             </div>
 
             {/* Catalog + Trending Content Row */}
-            <div className="grid sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {/* Top Catalog Items Selected */}
-              <div className="bg-white dark:bg-gray-900/40 rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm p-5">
+              <div className="bg-white dark:bg-gray-900/40 rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm p-4 sm:p-5">
                 <div className="flex items-center gap-2 mb-3">
                   <Eye size={16} className="text-cyan-500" />
                   <h2 className="text-sm font-bold text-gray-800 dark:text-white">Top Catalog Items</h2>
+                  {topCatalogItems.length > 0 && <span className="ml-auto text-xs text-gray-400">{topCatalogItems.length}</span>}
                 </div>
                 {topCatalogItems.length === 0 ? (
                   <p className="text-xs text-gray-400 italic">No catalog selections yet</p>
                 ) : (
-                  <div className="space-y-2">
-                    {topCatalogItems.map((item, i) => (
-                      <div key={i} className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate">{item.name}</p>
-                          <p className="text-[10px] text-gray-400 truncate">{item.factory}{item.category ? ` · ${item.category}` : ''}</p>
+                  <>
+                    <div className="space-y-2">
+                      {(expanded.catalog ? topCatalogItems : topCatalogItems.slice(0, PREVIEW)).map((item, i) => (
+                        <div key={i} className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate">{item.name}</p>
+                            <p className="text-[10px] text-gray-400 truncate">{item.factory}{item.category ? ` · ${item.category}` : ''}</p>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <p className="text-xs font-bold text-cyan-600">{item.count}×</p>
+                            <p className="text-[10px] text-gray-400">{item.userSet.size}u</p>
+                          </div>
                         </div>
-                        <div className="text-right flex-shrink-0">
-                          <p className="text-xs font-bold text-cyan-600">{item.count}×</p>
-                          <p className="text-[10px] text-gray-400">{item.userSet.size}u</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                    <ShowMore id="catalog" total={topCatalogItems.length} />
+                  </>
                 )}
               </div>
 
               {/* Catalog Time Per Factory */}
-              <div className="bg-white dark:bg-gray-900/40 rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm p-5">
+              <div className="bg-white dark:bg-gray-900/40 rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm p-4 sm:p-5">
                 <div className="flex items-center gap-2 mb-3">
                   <Clock size={16} className="text-cyan-400" />
                   <h2 className="text-sm font-bold text-gray-800 dark:text-white">Catalog Time</h2>
@@ -1127,49 +1152,57 @@ export const AdminUserAnalyticsPage: FC<AdminUserAnalyticsPageProps> = (props) =
                 {catalogDurations.length === 0 ? (
                   <p className="text-xs text-gray-400 italic">No catalog duration data yet</p>
                 ) : (
-                  <div className="space-y-2">
-                    {catalogDurations.map((c, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <span className="text-xs text-gray-600 dark:text-gray-300 flex-1 truncate">{c.name}</span>
-                        <span className="text-xs font-bold text-cyan-600 flex-shrink-0">
-                          {c.avgSec >= 60 ? `${Math.floor(c.avgSec / 60)}m ${c.avgSec % 60}s` : `${c.avgSec}s`}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                  <>
+                    <div className="space-y-2">
+                      {(expanded.catDur ? catalogDurations : catalogDurations.slice(0, PREVIEW)).map((c, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <span className="text-xs text-gray-600 dark:text-gray-300 flex-1 truncate">{c.name}</span>
+                          <span className="text-xs font-bold text-cyan-600 flex-shrink-0">
+                            {c.avgSec >= 60 ? `${Math.floor(c.avgSec / 60)}m ${c.avgSec % 60}s` : `${c.avgSec}s`}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <ShowMore id="catDur" total={catalogDurations.length} />
+                  </>
                 )}
               </div>
 
               {/* Trending Content */}
-              <div className="bg-white dark:bg-gray-900/40 rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm p-5">
+              <div className="bg-white dark:bg-gray-900/40 rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm p-4 sm:p-5 sm:col-span-2 lg:col-span-1">
                 <div className="flex items-center gap-2 mb-3">
                   <TrendingUp size={16} className="text-pink-500" />
                   <h2 className="text-sm font-bold text-gray-800 dark:text-white">Trending Engagement</h2>
+                  {topContent.length > 0 && <span className="ml-auto text-xs text-gray-400">{topContent.length}</span>}
                 </div>
                 {topContent.length === 0 ? (
                   <p className="text-xs text-gray-400 italic">No content views yet</p>
                 ) : (
-                  <div className="space-y-2">
-                    {topContent.map((c, i) => (
-                      <div key={i} className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate">{c.title}</p>
-                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${c.type === 'Blog' ? 'bg-pink-50 dark:bg-pink-900/20 text-pink-600' : 'bg-purple-50 dark:bg-purple-900/20 text-purple-600'}`}>{c.type}</span>
+                  <>
+                    <div className="space-y-2">
+                      {(expanded.content ? topContent : topContent.slice(0, PREVIEW)).map((c, i) => (
+                        <div key={i} className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate">{c.title}</p>
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${c.type === 'Blog' ? 'bg-pink-50 dark:bg-pink-900/20 text-pink-600' : 'bg-purple-50 dark:bg-purple-900/20 text-purple-600'}`}>{c.type}</span>
+                          </div>
+                          <span className="text-xs font-bold text-pink-600 flex-shrink-0">{c.count}×</span>
                         </div>
-                        <span className="text-xs font-bold text-pink-600 flex-shrink-0">{c.count}×</span>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                    <ShowMore id="content" total={topContent.length} />
+                  </>
                 )}
               </div>
             </div>
 
             {/* Per-User Table */}
-            <div className="bg-white dark:bg-gray-900/40 rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm p-5">
+            <div className="bg-white dark:bg-gray-900/40 rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm p-4 sm:p-5">
               <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
                 <div className="flex items-center gap-2">
                   <Activity size={16} className="text-rose-500" />
                   <h2 className="text-sm font-bold text-gray-800 dark:text-white">Per-User Behaviour</h2>
+                  <span className="text-xs text-gray-400">{filteredUsers.length}</span>
                 </div>
                 <div className="relative sm:ml-auto">
                   <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -1182,87 +1215,111 @@ export const AdminUserAnalyticsPage: FC<AdminUserAnalyticsPageProps> = (props) =
                   />
                 </div>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[700px]">
-                  <thead>
-                    <tr className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide border-b border-gray-100 dark:border-white/8">
-                      {([
-                        { key: 'name', label: 'User' },
-                        { key: 'searches', label: 'Searches' },
-                        { key: 'factoryViews', label: 'Factory Views' },
-                        { key: 'pageViews', label: 'Page Views' },
-                        { key: 'rfqSubmits', label: 'RFQs' },
-                        { key: 'lastSeen', label: 'Last Seen' },
-                      ] as { key: keyof UserSummary; label: string }[]).map(col => (
-                        <th
-                          key={col.key}
-                          className="text-left pb-2 pr-4 cursor-pointer hover:text-gray-800 dark:hover:text-gray-200 select-none"
-                          onClick={() => handleSort(col.key)}
-                        >
-                          <span className="inline-flex items-center gap-1">
-                            {col.label}
-                            <SortIcon col={col.key} />
-                          </span>
-                        </th>
-                      ))}
-                      <th className="pb-2 text-right pr-1">Detail</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50 dark:divide-white/5">
-                    {filteredUsers.map(u => (
-                      <tr key={u.userId} className="hover:bg-gray-50 dark:hover:bg-white/3 transition-colors group">
-                        <td className="py-3 pr-4">
-                          <div className="font-semibold text-gray-800 dark:text-gray-100 text-sm">{u.name}</div>
-                          <div className="text-[11px] text-gray-400">{u.email}</div>
-                          {u.topSearches.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {u.topSearches.map(s => (
-                                <span key={s} className="text-[9px] bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded font-medium">{s}</span>
-                              ))}
-                            </div>
-                          )}
-                        </td>
-                        <td className="py-3 pr-4">
-                          <span className="font-bold text-blue-600">{u.searches}</span>
-                        </td>
-                        <td className="py-3 pr-4">
-                          <span className="font-bold text-emerald-600">{u.factoryViews}</span>
-                          {u.topFactories.length > 0 && (
-                            <div className="text-[10px] text-gray-400 mt-0.5 truncate max-w-[140px]">{u.topFactories.join(', ')}</div>
-                          )}
-                        </td>
-                        <td className="py-3 pr-4">
-                          <span className="font-bold text-purple-600">{u.pageViews}</span>
-                        </td>
-                        <td className="py-3 pr-4">
-                          <span className={`font-bold ${u.rfqSubmits > 0 ? 'text-amber-600' : 'text-gray-400'}`}>{u.rfqSubmits}</span>
-                        </td>
-                        <td className="py-3 pr-4">
-                          <div className="flex items-center gap-1 text-gray-500">
-                            <Clock size={11} />
-                            <span className="text-[11px]">{timeAgo(u.lastSeen)}</span>
+
+              {filteredUsers.length === 0 ? (
+                <p className="py-10 text-center text-gray-400 text-sm">No user activity found for this period.</p>
+              ) : (
+                <>
+                  {/* Desktop table */}
+                  <div className="hidden sm:block overflow-x-auto">
+                    <table className="w-full text-sm min-w-[640px]">
+                      <thead>
+                        <tr className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide border-b border-gray-100 dark:border-white/8">
+                          {([
+                            { key: 'name', label: 'User' },
+                            { key: 'searches', label: 'Searches' },
+                            { key: 'factoryViews', label: 'Factories' },
+                            { key: 'pageViews', label: 'Pages' },
+                            { key: 'rfqSubmits', label: 'RFQs' },
+                            { key: 'lastSeen', label: 'Last Seen' },
+                          ] as { key: keyof UserSummary; label: string }[]).map(col => (
+                            <th
+                              key={col.key}
+                              className="text-left pb-2 pr-4 cursor-pointer hover:text-gray-800 dark:hover:text-gray-200 select-none"
+                              onClick={() => handleSort(col.key)}
+                            >
+                              <span className="inline-flex items-center gap-1">
+                                {col.label}
+                                <SortIcon col={col.key} />
+                              </span>
+                            </th>
+                          ))}
+                          <th className="pb-2 text-right pr-1">Detail</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50 dark:divide-white/5">
+                        {(expanded.users ? filteredUsers : filteredUsers.slice(0, PREVIEW)).map(u => (
+                          <tr key={u.userId} className="hover:bg-gray-50 dark:hover:bg-white/3 transition-colors group">
+                            <td className="py-3 pr-4">
+                              <div className="font-semibold text-gray-800 dark:text-gray-100 text-sm">{u.name}</div>
+                              <div className="text-[11px] text-gray-400">{u.email}</div>
+                              {u.topSearches.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {u.topSearches.map(s => (
+                                    <span key={s} className="text-[9px] bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded font-medium">{s}</span>
+                                  ))}
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-3 pr-4"><span className="font-bold text-blue-600">{u.searches}</span></td>
+                            <td className="py-3 pr-4">
+                              <span className="font-bold text-emerald-600">{u.factoryViews}</span>
+                              {u.topFactories.length > 0 && (
+                                <div className="text-[10px] text-gray-400 mt-0.5 truncate max-w-[120px]">{u.topFactories.join(', ')}</div>
+                              )}
+                            </td>
+                            <td className="py-3 pr-4"><span className="font-bold text-purple-600">{u.pageViews}</span></td>
+                            <td className="py-3 pr-4">
+                              <span className={`font-bold ${u.rfqSubmits > 0 ? 'text-amber-600' : 'text-gray-400'}`}>{u.rfqSubmits}</span>
+                            </td>
+                            <td className="py-3 pr-4">
+                              <div className="flex items-center gap-1 text-gray-500">
+                                <Clock size={11} />
+                                <span className="text-[11px]">{timeAgo(u.lastSeen)}</span>
+                              </div>
+                            </td>
+                            <td className="py-3 text-right pr-1">
+                              <button
+                                onClick={() => setSelectedUser(u)}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity text-[11px] font-semibold text-[#c20c0b] hover:underline"
+                              >
+                                View →
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Mobile card list */}
+                  <div className="sm:hidden space-y-2">
+                    {(expanded.users ? filteredUsers : filteredUsers.slice(0, PREVIEW)).map(u => (
+                      <div
+                        key={u.userId}
+                        onClick={() => setSelectedUser(u)}
+                        className="flex items-center justify-between gap-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/8 px-3 py-3 active:bg-gray-100 dark:active:bg-white/10 cursor-pointer"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{u.name}</p>
+                          <p className="text-[11px] text-gray-400 truncate">{u.company !== '—' ? u.company : u.email}</p>
+                          <div className="flex items-center gap-3 mt-1.5">
+                            <span className="text-[11px] text-blue-600 font-bold">{u.searches} searches</span>
+                            <span className="text-[11px] text-emerald-600 font-bold">{u.factoryViews} factories</span>
+                            {u.rfqSubmits > 0 && <span className="text-[11px] text-amber-600 font-bold">{u.rfqSubmits} RFQs</span>}
                           </div>
-                        </td>
-                        <td className="py-3 text-right pr-1">
-                          <button
-                            onClick={() => setSelectedUser(u)}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity text-[11px] font-semibold text-[#c20c0b] hover:underline"
-                          >
-                            View →
-                          </button>
-                        </td>
-                      </tr>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-[10px] text-gray-400">{timeAgo(u.lastSeen)}</p>
+                          <p className="text-[10px] text-[#c20c0b] font-semibold mt-1">View →</p>
+                        </div>
+                      </div>
                     ))}
-                    {filteredUsers.length === 0 && (
-                      <tr>
-                        <td colSpan={7} className="py-12 text-center text-gray-400 text-sm">
-                          No user activity found for this period.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                  </div>
+
+                  <ShowMore id="users" total={filteredUsers.length} />
+                </>
+              )}
             </div>
           </>
         )}
