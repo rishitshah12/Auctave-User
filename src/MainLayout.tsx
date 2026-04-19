@@ -241,11 +241,90 @@ const MorePanel: FC<{
     );
 };
 
+// ── Sidebar More Panel (desktop flyout) ──────────────────────────────────────
+const SidebarMorePanel: FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    moreItems: Array<{ label: string; shortLabel: string; page: string; icon: React.ReactNode; badge?: number }>;
+    currentPage: string;
+    handleSetCurrentPage: (page: string) => void;
+    isDark: boolean;
+}> = ({ isOpen, onClose, moreItems, currentPage, handleSetCurrentPage, isDark }) => (
+    <>
+        {isOpen && (
+            <div className="fixed inset-0 z-[49] hidden md:block" onClick={onClose} />
+        )}
+        <div
+            className={`fixed left-[78px] top-1/2 -translate-y-1/2 z-[50] hidden md:block transition-all duration-200 ease-out ${
+                isOpen ? 'opacity-100 pointer-events-auto scale-100' : 'opacity-0 pointer-events-none scale-95'
+            }`}
+        >
+            {/* Arrow pointer */}
+            <div
+                className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-[7px] w-0 h-0"
+                style={{
+                    borderTop: '7px solid transparent',
+                    borderBottom: '7px solid transparent',
+                    borderRight: isDark ? '8px solid #2a0a1e' : '8px solid #c20c0b',
+                }}
+            />
+            <div
+                className="rounded-2xl overflow-hidden shadow-2xl w-[172px]"
+                style={{
+                    background: isDark
+                        ? 'linear-gradient(160deg, #3d0808 0%, #2a0a1eff 55%, #150628ff 100%)'
+                        : 'linear-gradient(160deg, #c20c0b 0%, #7f1010 50%, #350e4a 100%)',
+                    boxShadow: isDark
+                        ? '0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.06)'
+                        : '0 20px 60px rgba(194,12,11,0.4), 0 0 0 1px rgba(255,255,255,0.15)',
+                }}
+            >
+                {/* Shine overlay */}
+                <div
+                    className="absolute inset-0 pointer-events-none"
+                    style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.10) 0%, transparent 55%)' }}
+                />
+                <div className="relative p-3 grid grid-cols-2 gap-1.5">
+                    {moreItems.map(item => {
+                        const isActive = currentPage === item.page;
+                        return (
+                            <button
+                                key={item.page}
+                                onClick={() => { handleSetCurrentPage(item.page); onClose(); }}
+                                className={`relative flex flex-col items-center gap-[6px] py-3 px-1 rounded-xl transition-all duration-150 active:scale-95 ${
+                                    isActive ? 'bg-white/20 shadow-inner' : 'hover:bg-white/[0.12]'
+                                }`}
+                            >
+                                <span className={`relative flex-shrink-0 transition-colors duration-150 ${
+                                    isActive ? 'text-white' : 'text-white/80'
+                                }`}>
+                                    {item.icon}
+                                    {(item.badge ?? 0) > 0 && (
+                                        <span className="absolute -top-[5px] -right-[5px] h-[14px] min-w-[14px] px-0.5 bg-white text-rose-600 text-[7.5px] font-bold rounded-full flex items-center justify-center leading-none">
+                                            {(item.badge ?? 0) > 9 ? '9+' : item.badge}
+                                        </span>
+                                    )}
+                                </span>
+                                <span className={`text-[10px] font-bold leading-tight text-center w-full truncate transition-colors duration-150 ${
+                                    isActive ? 'text-white' : 'text-white/75'
+                                }`}>
+                                    {item.shortLabel}
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+        </div>
+    </>
+);
+
 // ── Side Menu ─────────────────────────────────────────────────────────────────
 const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'> & { onOpenNotif: () => void }> = (
     { currentPage, isMenuOpen, toggleMenu, handleSetCurrentPage, handleSignOut, isAdmin, user, userProfile, onOpenNotif }
 ) => {
     const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+    const [sideMoreOpen, setSideMoreOpen] = useState(false);
     const { notifications } = useNotifications();
 
     useEffect(() => {
@@ -278,19 +357,25 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'> & { onOpenNotif
         { label: 'Trending',   shortLabel: 'Trending',  page: 'trending',   icon: <Flame className="h-[22px] w-[22px]" /> },
     ];
 
-    const adminMenuItems = [
-        { label: 'Dashboard',  shortLabel: 'Dashboard', page: 'adminDashboard',      icon: <LayoutDashboard className="h-[22px] w-[22px]" /> },
-        { label: 'Users',      shortLabel: 'Users',     page: 'adminUsers',          icon: <Users className="h-[22px] w-[22px]" /> },
-        { label: 'Analytics',  shortLabel: 'Analytics', page: 'adminUserAnalytics',  icon: <BarChart2 className="h-[22px] w-[22px]" /> },
-        { label: 'Factories',  shortLabel: 'Factory',   page: 'adminFactories',      icon: <Building className="h-[22px] w-[22px]" /> },
-        { label: 'CRM',        shortLabel: 'CRM',       page: 'adminCRM',            icon: <List className="h-[22px] w-[22px]" /> },
-        { label: 'RFQ',        shortLabel: 'RFQ',       page: 'adminRFQ',            icon: <FileQuestion className="h-[22px] w-[22px]" /> },
-        { label: 'Trending',   shortLabel: 'Trending',  page: 'adminTrending',       icon: <Flame className="h-[22px] w-[22px]" /> },
-        { label: 'Login Imgs', shortLabel: 'Login Imgs',page: 'adminLoginSettings',  icon: <ImageIcon className="h-[22px] w-[22px]" /> },
-        { label: 'Settings',   shortLabel: 'Settings',  page: 'settings',            icon: <Settings className="h-[22px] w-[22px]" /> },
+    const adminPrimaryItems = [
+        { label: 'Dashboard',  shortLabel: 'Dashboard', page: 'adminDashboard', icon: <LayoutDashboard className="h-[22px] w-[22px]" /> },
+        { label: 'Users',      shortLabel: 'Users',     page: 'adminUsers',     icon: <Users className="h-[22px] w-[22px]" /> },
+        { label: 'CRM',        shortLabel: 'CRM',       page: 'adminCRM',       icon: <List className="h-[22px] w-[22px]" /> },
+        { label: 'RFQ',        shortLabel: 'RFQ',       page: 'adminRFQ',       icon: <FileQuestion className="h-[22px] w-[22px]" /> },
+        { label: 'Trending',   shortLabel: 'Trending',  page: 'adminTrending',  icon: <Flame className="h-[22px] w-[22px]" /> },
     ];
 
-    const menuItems = isAdmin ? adminMenuItems : clientMenuItems;
+    const adminMoreItems = [
+        { label: 'Analytics',  shortLabel: 'Analytics', page: 'adminUserAnalytics', icon: <BarChart2 className="h-[22px] w-[22px]" /> },
+        { label: 'Factories',  shortLabel: 'Factories', page: 'adminFactories',     icon: <Building className="h-[22px] w-[22px]" /> },
+        { label: 'Login Imgs', shortLabel: 'Login',     page: 'adminLoginSettings', icon: <ImageIcon className="h-[22px] w-[22px]" /> },
+        { label: 'Settings',   shortLabel: 'Settings',  page: 'settings',           icon: <Settings className="h-[22px] w-[22px]" /> },
+    ];
+
+    const menuItems = isAdmin ? adminPrimaryItems : clientMenuItems;
+    const sideMoreItems = isAdmin ? adminMoreItems : [];
+    const isSideMorePageActive = sideMoreItems.some(i => i.page === currentPage);
+    const sideMoreBadge = sideMoreItems.reduce((s, i) => s + (unreadByPage[i.page] || 0), 0);
 
     return (<>
         {/* Mobile overlay */}
@@ -298,6 +383,18 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'> & { onOpenNotif
             <div
                 className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden"
                 onClick={toggleMenu}
+            />
+        )}
+
+        {/* Desktop sidebar More flyout */}
+        {sideMoreItems.length > 0 && (
+            <SidebarMorePanel
+                isOpen={sideMoreOpen}
+                onClose={() => setSideMoreOpen(false)}
+                moreItems={sideMoreItems}
+                currentPage={currentPage}
+                handleSetCurrentPage={(page) => { handleSetCurrentPage(page); setSideMoreOpen(false); }}
+                isDark={isDark}
             />
         )}
 
@@ -345,9 +442,22 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'> & { onOpenNotif
                         label={item.shortLabel}
                         isActive={currentPage === item.page}
                         badge={unreadByPage[item.page] || 0}
-                        onClick={() => { handleSetCurrentPage(item.page); if (isMenuOpen) toggleMenu(); }}
+                        onClick={() => { handleSetCurrentPage(item.page); if (isMenuOpen) toggleMenu(); setSideMoreOpen(false); }}
                     />
                 ))}
+
+                {/* More button — desktop only, admin only */}
+                {sideMoreItems.length > 0 && (
+                    <div className="hidden md:block">
+                        <NavItem
+                            icon={<Grid3X3 className="h-[22px] w-[22px]" />}
+                            label="More"
+                            isActive={isSideMorePageActive || sideMoreOpen}
+                            badge={sideMoreBadge}
+                            onClick={() => setSideMoreOpen(o => !o)}
+                        />
+                    </div>
+                )}
 
                 {/* Notifications bell — desktop only (mobile uses header bell) */}
                 <div className="hidden md:block">
