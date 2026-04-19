@@ -384,9 +384,10 @@ interface ProductCatalogProps {
     catalog: FactoryCatalog;
     compact?: boolean; // For admin preview
     externalSearch?: string; // Controlled search from parent — hides the internal search bar
+    onItemView?: (product: CatalogProduct) => void;
 }
 
-const ProductCatalog: FC<ProductCatalogProps> = ({ catalog, compact, externalSearch }) => {
+const ProductCatalog: FC<ProductCatalogProps> = ({ catalog, compact, externalSearch, onItemView }) => {
     const data = useMemo(() => migrateCatalog(catalog), [catalog]);
     const products = data.products || [];
     const fabrics = data.fabricOptions || [];
@@ -511,7 +512,7 @@ const ProductCatalog: FC<ProductCatalogProps> = ({ catalog, compact, externalSea
                                             {catProducts.map(p => (
                                                 <button
                                                     key={p.id}
-                                                    onClick={(e) => { e.stopPropagation(); setSelectedProduct(p); }}
+                                                    onClick={(e) => { e.stopPropagation(); setSelectedProduct(p); onItemView?.(p); }}
                                                     className="w-full text-left px-2 py-1.5 rounded-md text-xs text-gray-500 dark:text-gray-400 hover:text-[#c20c0b] hover:bg-[#c20c0b]/5 transition-all truncate"
                                                 >
                                                     {p.name}
@@ -605,11 +606,11 @@ const ProductCatalog: FC<ProductCatalogProps> = ({ catalog, compact, externalSea
                                 </div>
                             ) : viewMode === 'grid' || compact ? (
                                 <div ref={firstResultRef} className={`grid gap-4 ${compact ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3'}`}>
-                                    {filteredProducts.map(p => <ProductCard key={p.id} product={p} onView={setSelectedProduct} />)}
+                                    {filteredProducts.map(p => <ProductCard key={p.id} product={p} onView={p => { setSelectedProduct(p); onItemView?.(p); }} />)}
                                 </div>
                             ) : (
                                 <div ref={firstResultRef} className="space-y-3">
-                                    {filteredProducts.map(p => <ProductRow key={p.id} product={p} onView={setSelectedProduct} />)}
+                                    {filteredProducts.map(p => <ProductRow key={p.id} product={p} onView={p => { setSelectedProduct(p); onItemView?.(p); }} />)}
                                 </div>
                             )}
                         </>

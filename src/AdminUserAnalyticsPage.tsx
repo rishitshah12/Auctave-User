@@ -139,6 +139,20 @@ function timeAgo(isoString: string): string {
   return `${days}d ago`;
 }
 
+// ── Truncated Y-axis tick ─────────────────────────────────────────────────────
+
+const TruncatedYTick: FC<{ x?: number; y?: number; payload?: any; maxChars?: number }> = ({ x = 0, y = 0, payload, maxChars = 18 }) => {
+  const label: string = payload?.value ?? '';
+  const display = label.length > maxChars ? label.slice(0, maxChars - 1) + '…' : label;
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text x={0} y={0} dy="0.35em" textAnchor="end" fill="#6B7280" fontSize={11}>
+        {display}
+      </text>
+    </g>
+  );
+};
+
 // ── World Map Section ─────────────────────────────────────────────────────────
 
 const GEO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
@@ -304,13 +318,22 @@ const categorizeDevice = (raw: string): string => {
   return 'Other';
 };
 
+const categorizeFromUA = (ua: string): string => {
+  const u = ua.toLowerCase();
+  if (/android/.test(u)) return 'Android';
+  if (/ipad|iphone|ipod/.test(u)) return 'iOS';
+  if (/windows|macintosh|linux/.test(u)) return 'Desktop';
+  return 'Other';
+};
+
 const DevicePlatformSection: FC<{ events: RawEvent[] }> = ({ events }) => {
   const breakdown = useMemo(() => {
     const userDevice: Record<string, Record<string, number>> = {};
     events.forEach(e => {
       const raw = (e.event_data?.device_type || e.event_data?.platform || e.event_data?.os || '').trim();
-      if (!raw) return;
-      const cat = categorizeDevice(raw);
+      const ua = (e.event_data?.user_agent || '').trim();
+      if (!raw && !ua) return;
+      const cat = raw ? categorizeDevice(raw) : categorizeFromUA(ua);
       userDevice[e.user_id] = userDevice[e.user_id] || {};
       userDevice[e.user_id][cat] = (userDevice[e.user_id][cat] || 0) + 1;
     });
@@ -946,22 +969,24 @@ export const AdminUserAnalyticsPage: FC<AdminUserAnalyticsPageProps> = (props) =
                     <p className="text-sm">No searches in this period</p>
                   </div>
                 ) : (
-                  <ResponsiveContainer width="100%" height={220}>
-                    <BarChart data={topSearches.slice(0, 8)} layout="vertical" margin={{ left: 0, right: 20, top: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(156,163,175,0.15)" />
-                      <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: '#9CA3AF', fontSize: 10 }} />
-                      <YAxis type="category" dataKey="query" width={90} axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 11 }} />
-                      <Tooltip
-                        contentStyle={{ backgroundColor: '#1f2937', borderRadius: '10px', border: 'none', color: '#f9fafb', fontSize: '12px' }}
-                        formatter={(value: any, name: string) => [value, name === 'count' ? 'Searches' : 'Users']}
-                      />
-                      <Bar dataKey="count" radius={[0, 6, 6, 0]} maxBarSize={20}>
-                        {topSearches.slice(0, 8).map((_, i) => (
-                          <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <div style={{ resize: 'vertical', overflow: 'auto', minHeight: '220px', maxHeight: '500px' }} className="w-full">
+                    <ResponsiveContainer width="100%" height="100%" minHeight={180}>
+                      <BarChart data={topSearches.slice(0, 8)} layout="vertical" margin={{ left: 4, right: 20, top: 4, bottom: 4 }}>
+                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(156,163,175,0.15)" />
+                        <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: '#9CA3AF', fontSize: 10 }} />
+                        <YAxis type="category" dataKey="query" width={110} axisLine={false} tickLine={false} tick={<TruncatedYTick maxChars={16} />} />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: '#1f2937', borderRadius: '10px', border: 'none', color: '#f9fafb', fontSize: '12px' }}
+                          formatter={(value: any, name: string) => [value, name === 'count' ? 'Searches' : 'Users']}
+                        />
+                        <Bar dataKey="count" radius={[0, 6, 6, 0]} maxBarSize={20}>
+                          {topSearches.slice(0, 8).map((_, i) => (
+                            <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
                 )}
               </div>
 
@@ -977,22 +1002,24 @@ export const AdminUserAnalyticsPage: FC<AdminUserAnalyticsPageProps> = (props) =
                     <p className="text-sm">No factory views in this period</p>
                   </div>
                 ) : (
-                  <ResponsiveContainer width="100%" height={220}>
-                    <BarChart data={topFactories.slice(0, 8)} layout="vertical" margin={{ left: 0, right: 20, top: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(156,163,175,0.15)" />
-                      <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: '#9CA3AF', fontSize: 10 }} />
-                      <YAxis type="category" dataKey="factoryName" width={90} axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 11 }} />
-                      <Tooltip
-                        contentStyle={{ backgroundColor: '#1f2937', borderRadius: '10px', border: 'none', color: '#f9fafb', fontSize: '12px' }}
-                        formatter={(value: any, name: string) => [value, name === 'views' ? 'Views' : 'Unique Users']}
-                      />
-                      <Bar dataKey="views" radius={[0, 6, 6, 0]} maxBarSize={20}>
-                        {topFactories.slice(0, 8).map((_, i) => (
-                          <Cell key={i} fill={['#10b981', '#059669', '#047857', '#065f46', '#064e3b', '#6ee7b7'][i % 6]} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <div style={{ resize: 'vertical', overflow: 'auto', minHeight: '220px', maxHeight: '500px' }} className="w-full">
+                    <ResponsiveContainer width="100%" height="100%" minHeight={180}>
+                      <BarChart data={topFactories.slice(0, 8)} layout="vertical" margin={{ left: 4, right: 20, top: 4, bottom: 4 }}>
+                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(156,163,175,0.15)" />
+                        <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: '#9CA3AF', fontSize: 10 }} />
+                        <YAxis type="category" dataKey="factoryName" width={130} axisLine={false} tickLine={false} tick={<TruncatedYTick maxChars={20} />} />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: '#1f2937', borderRadius: '10px', border: 'none', color: '#f9fafb', fontSize: '12px' }}
+                          formatter={(value: any, name: string) => [value, name === 'views' ? 'Views' : 'Unique Users']}
+                        />
+                        <Bar dataKey="views" radius={[0, 6, 6, 0]} maxBarSize={20}>
+                          {topFactories.slice(0, 8).map((_, i) => (
+                            <Cell key={i} fill={['#10b981', '#059669', '#047857', '#065f46', '#064e3b', '#6ee7b7'][i % 6]} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
                 )}
               </div>
             </div>

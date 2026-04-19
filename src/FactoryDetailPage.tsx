@@ -552,7 +552,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                                 ))}
                             </div>
                         ) : (
-                            <ProductCatalog catalog={factory.catalog} externalSearch={catalogSearch} />
+                            <ProductCatalog catalog={factory.catalog} externalSearch={catalogSearch} onItemView={p => analyticsService.track('catalog_item_select', { factory_id: factory.id, factory_name: factory.name, item_id: p.id, item_name: p.name, item_category: p.category })} />
                         )
                     )}
                 </div>
@@ -736,7 +736,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                                     ))}
                                 </div>
                             ) : (
-                                <ProductCatalog catalog={factory.catalog} externalSearch={catalogSearch} />
+                                <ProductCatalog catalog={factory.catalog} externalSearch={catalogSearch} onItemView={p => analyticsService.track('catalog_item_select', { factory_id: factory.id, factory_name: factory.name, item_id: p.id, item_name: p.name, item_category: p.category })} />
                             )
                         )}
                     </div>

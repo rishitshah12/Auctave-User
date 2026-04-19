@@ -107,6 +107,7 @@ class AnalyticsService {
         if (!session?.user) return;
         const enriched: AnalyticsEventData = {
           device_type: this.deviceType,
+          user_agent: navigator.userAgent,
           ...(this.geoData
             ? {
                 country: this.geoData.country,
