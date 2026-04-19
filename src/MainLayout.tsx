@@ -287,6 +287,7 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'> & { onOpenNotif
         { label: 'RFQ',        shortLabel: 'RFQ',       page: 'adminRFQ',            icon: <FileQuestion className="h-[22px] w-[22px]" /> },
         { label: 'Trending',   shortLabel: 'Trending',  page: 'adminTrending',       icon: <Flame className="h-[22px] w-[22px]" /> },
         { label: 'Login Imgs', shortLabel: 'Login Imgs',page: 'adminLoginSettings',  icon: <ImageIcon className="h-[22px] w-[22px]" /> },
+        { label: 'Settings',   shortLabel: 'Settings',  page: 'settings',            icon: <Settings className="h-[22px] w-[22px]" /> },
     ];
 
     const menuItems = isAdmin ? adminMenuItems : clientMenuItems;
@@ -456,6 +457,7 @@ const BottomNavBar: FC<{
         { label: 'Users',      page: 'adminUsers',         icon: <Users className="h-[22px] w-[22px]" /> },
         { label: 'Factories',  page: 'adminFactories',     icon: <Building className="h-[22px] w-[22px]" /> },
         { label: 'CRM',        page: 'adminCRM',           icon: <List className="h-[22px] w-[22px]" />,    badge: unreadByPage['adminCRM'] },
+        { label: 'Analytics',  page: 'adminUserAnalytics', icon: <BarChart2 className="h-[22px] w-[22px]" /> },
         { label: 'Login Imgs', page: 'adminLoginSettings', icon: <ImageIcon className="h-[22px] w-[22px]" /> },
         { label: 'Settings',   page: 'settings',           icon: <Settings className="h-[22px] w-[22px]" /> },
     ];
