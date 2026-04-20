@@ -50,6 +50,7 @@ const FactoryDetailPage = lazy(() => import('./FactoryDetailPage').then(m => ({ 
 import { theme } from './theme';
 import { ToastProvider, useToast } from './ToastContext';
 import { NotificationProvider, useNotifications } from './NotificationContext';
+import { notificationService } from './notificationService';
 import { getCache, setCache, getCacheStale, TTL_FACTORIES, TTL_FACTORY_DETAIL } from './sessionCache';
 
 // ─── Image resize helper ──────────────────────────────────────────────────────
@@ -210,6 +211,26 @@ const AppContent: FC = () => {
         else document.documentElement.classList.remove('dark');
         localStorage.setItem('garment_erp_dark_mode', String(darkMode));
     }, [darkMode]);
+
+    // Init / teardown the notification service whenever the auth state changes.
+    // This drives cross-device real-time sync and browser push notifications.
+    useEffect(() => {
+        if (user?.id) {
+            notificationService.init(user.id);
+            // Register the service worker and request push permission after a short delay
+            // to avoid interrupting the login flow.
+            const t = setTimeout(async () => {
+                if ('serviceWorker' in navigator) {
+                    try {
+                        await navigator.serviceWorker.register('/sw.js');
+                    } catch {}
+                }
+            }, 3000);
+            return () => clearTimeout(t);
+        } else {
+            notificationService.teardown();
+        }
+    }, [user?.id]);
 
     // --- Helper Functions ---
 
@@ -856,13 +877,10 @@ const AppContent: FC = () => {
                 table: 'quotes',
             }, (payload) => {
                 const raw = payload.new as any;
-
-                // Client-side ownership check
                 if (raw.user_id !== user.id) return;
 
                 const tq = transformRawQuote(raw);
 
-                // Update local state
                 setQuoteRequests(prev => {
                     const next = prev.map(q => q.id === tq.id ? tq : q);
                     sessionStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify(next));
@@ -870,7 +888,27 @@ const AppContent: FC = () => {
                 });
                 setSelectedQuote(prev => (prev?.id === tq.id ? tq : prev));
 
+                // Status-change notification (existing)
                 fireQuoteNotification(tq, raw.status);
+
+                // Detect new chat message from factory/admin side
+                const history: any[] = raw.negotiation_details?.history || [];
+                const prevLen = prevQuoteHistoryRef.current.get(raw.id) ?? 0;
+                if (history.length > prevLen) {
+                    const latest = history[history.length - 1];
+                    if (latest?.sender === 'factory') {
+                        const factoryName = tq.factory?.name || 'Factory';
+                        addNotification({
+                            category: 'chat',
+                            title: `New Message from ${factoryName}`,
+                            message: latest.message ? latest.message.slice(0, 120) : '📎 Sent an attachment',
+                            imageUrl: tq.factory?.imageUrl,
+                            meta: factoryName,
+                            action: { page: 'quoteDetail', data: tq },
+                        });
+                    }
+                }
+                prevQuoteHistoryRef.current.set(raw.id, history.length);
             })
             .subscribe((status, err) => {
                 if (err) console.error('[Realtime] quotes channel error:', err);
@@ -878,7 +916,7 @@ const AppContent: FC = () => {
             });
 
         return () => { supabase.removeChannel(channel); };
-    }, [user, isAdmin, fireQuoteNotification]);
+    }, [user, isAdmin, fireQuoteNotification, addNotification]);
 
     // Visibility-change fallback: re-fetch quotes when the tab becomes visible again
     // after being hidden for ≥30 s and fire notifications for any missed status changes.
@@ -916,6 +954,11 @@ const AppContent: FC = () => {
     // Server-side filter removed (same REPLICA IDENTITY FULL requirement as quotes).
     // We use a local ref to diff old vs new since payload.old is unreliable without it.
     const prevCrmRef = useRef<Map<string, { status: string; tasksJson: string; riskScore?: string }>>(new Map());
+    // Admin-side tracking refs (separate from client refs)
+    const prevAdminQuoteMap = useRef<Map<string, { status: string; historyLen: number }>>(new Map());
+    const prevAdminCrmRef = useRef<Map<string, { tasksJson: string; riskScore?: string }>>(new Map());
+    const prevQuoteHistoryRef = useRef<Map<string, number>>(new Map()); // for client chat detection
+    const notifiedOverdueRef = useRef<Set<string>>(new Set()); // tracks which task IDs already got overdue notif
 
     useEffect(() => {
         if (!user || isAdmin) return;
@@ -927,70 +970,83 @@ const AppContent: FC = () => {
                 table: 'crm_orders',
             }, (payload) => {
                 const updated = payload.new as any;
-
-                // Client-side ownership check
                 if (updated.client_id !== user.id) return;
 
                 const prev = prevCrmRef.current.get(updated.id);
                 const newTasksJson = JSON.stringify(updated.tasks || []);
+                const orderLabel = updated.order_name || updated.product_name || 'your order';
 
-                // Notify on order status change.
-                // If prev is undefined this is the first update we've seen → always notify.
+                // Order status change — map to the most specific category
                 const statusChanged = !prev || updated.status !== prev.status;
-                if (statusChanged) {
-                    const statusEmoji: Record<string, string> = {
-                        'In Production': '🏭', 'Quality Check': '🔍',
-                        'Shipped': '🚢', 'Completed': '✅',
+                if (statusChanged && prev) {
+                    type CatStr = 'shipment' | 'qc' | 'order' | 'crm';
+                    const statusMap: Record<string, { category: CatStr; title: string; message: string }> = {
+                        'In Production': { category: 'crm',      title: 'Production Started',    message: `"${orderLabel}" has moved into production.` },
+                        'Quality Check': { category: 'qc',       title: 'Quality Check Started', message: `"${orderLabel}" is now in Quality Check.` },
+                        'Shipped':        { category: 'shipment', title: 'Order Shipped',          message: `"${orderLabel}" has been dispatched and is on its way.` },
+                        'Completed':      { category: 'order',    title: 'Order Completed',        message: `"${orderLabel}" has been completed successfully.` },
                     };
+                    const mapped = statusMap[updated.status];
                     addNotification({
-                        category: 'crm',
-                        title: 'Order Status Updated',
-                        message: `Your order is now "${updated.status}" ${statusEmoji[updated.status] ?? ''}.`,
-                        meta: updated.order_name || undefined,
+                        ...(mapped ?? { category: 'crm' as CatStr, title: 'Order Status Updated', message: `"${orderLabel}" is now "${updated.status}".` }),
+                        meta: orderLabel,
                         action: { page: 'crm' },
                     });
                 }
 
-                // Notify on task status changes (only when order status is unchanged)
-                if (!statusChanged && prev.tasksJson && newTasksJson !== prev.tasksJson) {
+                // Task status changes → 'task' category
+                if (!statusChanged && prev?.tasksJson && newTasksJson !== prev.tasksJson) {
                     const oldTasks = JSON.parse(prev.tasksJson) as any[];
                     const newTasks = (updated.tasks || []) as any[];
+
+                    // Newly added task
+                    const newTask = newTasks.find((t: any) => !oldTasks.some((o: any) => o.id === t.id));
+                    if (newTask) {
+                        addNotification({
+                            category: 'task',
+                            title: 'New Task Added',
+                            message: `"${newTask.name}" has been added to "${orderLabel}".`,
+                            action: { page: 'crm' },
+                        });
+                    }
+
+                    // Task status changed
                     const changedTask = newTasks.find((t: any) => {
                         const old = oldTasks.find((o: any) => o.id === t.id);
                         return old && old.status !== t.status;
                     });
-                    if (changedTask) {
+                    if (changedTask && !newTask) {
                         addNotification({
-                            category: 'crm',
+                            category: 'task',
                             title: 'Task Progress Updated',
-                            message: `"${changedTask.name}" is now ${changedTask.status}.`,
+                            message: `"${changedTask.name}" is now ${changedTask.status} on "${orderLabel}".`,
                             action: { page: 'crm' },
                         });
                     }
                 }
 
-                // Notify on risk score changes
+                // Risk score changes
                 const newRiskScore = updated.risk_score;
                 const prevRiskScore = prev?.riskScore;
                 if (newRiskScore && newRiskScore !== prevRiskScore) {
                     if (newRiskScore === 'red') {
                         addNotification({
                             category: 'crm',
-                            title: 'Critical Delay Detected',
-                            message: `Order "${updated.product_name || updated.id}" is critically at risk — immediate action needed.`,
+                            title: 'Critical Delay Risk',
+                            message: `"${orderLabel}" is critically at risk — immediate action needed.`,
                             action: { page: 'crm' },
                         });
                     } else if (newRiskScore === 'amber') {
                         addNotification({
                             category: 'crm',
                             title: 'Timeline Risk Detected',
-                            message: `Order "${updated.product_name || updated.id}" has a schedule risk — review milestones.`,
+                            message: `"${orderLabel}" has a schedule risk — review milestones.`,
                             action: { page: 'crm' },
                         });
                     }
                 }
 
-                // Notify on buyer confirmation or dispute
+                // Buyer confirmed / disputed (client confirming their own action — informational)
                 if (prev?.tasksJson && newTasksJson !== prev.tasksJson) {
                     const oldTasks = JSON.parse(prev.tasksJson) as any[];
                     const newTasks = (updated.tasks || []) as any[];
@@ -1004,23 +1060,22 @@ const AppContent: FC = () => {
                     });
                     if (confirmedTask) {
                         addNotification({
-                            category: 'crm',
-                            title: 'Milestone Confirmed by Buyer',
-                            message: `"${confirmedTask.name}" was confirmed on order "${updated.product_name || updated.id}".`,
+                            category: 'approval',
+                            title: 'Milestone Confirmed',
+                            message: `You confirmed "${confirmedTask.name}" on "${orderLabel}".`,
                             action: { page: 'crm' },
                         });
                     }
                     if (disputedTask) {
                         addNotification({
-                            category: 'crm',
-                            title: 'Milestone Disputed by Buyer',
-                            message: `"${disputedTask.name}" was disputed: ${disputedTask.disputeReason || 'No reason given'}.`,
+                            category: 'task',
+                            title: 'Milestone Dispute Raised',
+                            message: `You raised a dispute on "${disputedTask.name}": ${disputedTask.disputeReason || 'No reason given'}.`,
                             action: { page: 'crm' },
                         });
                     }
                 }
 
-                // Update local tracking ref
                 prevCrmRef.current.set(updated.id, {
                     status: updated.status,
                     tasksJson: newTasksJson,
@@ -1061,6 +1116,177 @@ const AppContent: FC = () => {
 
         return () => { supabase.removeChannel(channel); };
     }, [user, isAdmin]);
+
+    // ── Admin: quote UPDATE subscription — detect client chat + client-side status actions ──
+    useEffect(() => {
+        if (!user || !isAdmin) return;
+
+        const channel = supabase.channel('admin-quote-updates')
+            .on('postgres_changes', {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'quotes',
+            }, (payload) => {
+                const raw = payload.new as any;
+                const prev = prevAdminQuoteMap.current.get(raw.id);
+                const history: any[] = raw.negotiation_details?.history || [];
+                const historyLen = history.length;
+                const clientName = raw.client_name || raw.company_name || 'A client';
+                const factoryName = raw.factory_data?.name || 'factory';
+
+                // New chat message from client
+                if (prev && historyLen > prev.historyLen) {
+                    const latest = history[historyLen - 1];
+                    if (latest?.sender === 'client') {
+                        addNotification({
+                            category: 'chat',
+                            title: `New Message from ${clientName}`,
+                            message: latest.message ? latest.message.slice(0, 120) : '📎 Sent an attachment',
+                            meta: factoryName,
+                            action: { page: 'adminRFQ', data: { rfqId: raw.id } },
+                        });
+                    }
+                }
+
+                // Client took a status action (counter-offer / accept / decline)
+                if (prev && raw.status !== prev.status) {
+                    const actionMap: Record<string, { category: 'order' | 'rfq'; title: string; message: string }> = {
+                        'Client Accepted':  { category: 'order', title: 'Client Accepted a Quote',    message: `${clientName} accepted the quote for ${factoryName}.` },
+                        'Declined':         { category: 'rfq',   title: 'Client Declined a Quote',    message: `${clientName} declined the quote from ${factoryName}.` },
+                        'In Negotiation':   { category: 'rfq',   title: 'Client Sent Counter-Offer',  message: `${clientName} sent a counter-offer on ${factoryName}.` },
+                    };
+                    const copy = actionMap[raw.status];
+                    if (copy) {
+                        addNotification({
+                            ...copy,
+                            meta: factoryName,
+                            action: { page: 'adminRFQ', data: { rfqId: raw.id } },
+                        });
+                    }
+                }
+
+                prevAdminQuoteMap.current.set(raw.id, { status: raw.status, historyLen });
+            })
+            .subscribe((status, err) => {
+                if (err) console.error('[Realtime] admin-quote channel error:', err);
+            });
+
+        return () => { supabase.removeChannel(channel); };
+    }, [user, isAdmin, addNotification]);
+
+    // ── Admin: CRM order UPDATE subscription — buyer actions + risk alerts ────
+    useEffect(() => {
+        if (!user || !isAdmin) return;
+
+        const channel = supabase.channel('admin-crm-updates')
+            .on('postgres_changes', {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'crm_orders',
+            }, (payload) => {
+                const updated = payload.new as any;
+                const prev = prevAdminCrmRef.current.get(updated.id);
+                const newTasksJson = JSON.stringify(updated.tasks || []);
+                const orderLabel = updated.order_name || updated.product_name || 'an order';
+
+                // Risk score escalation
+                const newRiskScore = updated.risk_score;
+                if (newRiskScore && newRiskScore !== prev?.riskScore) {
+                    if (newRiskScore === 'red') {
+                        addNotification({
+                            category: 'crm',
+                            title: 'Critical Risk Alert',
+                            message: `"${orderLabel}" is critically at risk. Review and act immediately.`,
+                            action: { page: 'adminCRM', data: { orderId: updated.id } },
+                        });
+                    } else if (newRiskScore === 'amber') {
+                        addNotification({
+                            category: 'crm',
+                            title: 'Risk Alert: Timeline Slipping',
+                            message: `"${orderLabel}" has a schedule risk. Review milestones.`,
+                            action: { page: 'adminCRM', data: { orderId: updated.id } },
+                        });
+                    }
+                }
+
+                // Buyer confirmed or disputed a milestone
+                if (prev?.tasksJson && newTasksJson !== prev.tasksJson) {
+                    const oldTasks = JSON.parse(prev.tasksJson) as any[];
+                    const newTasks = (updated.tasks || []) as any[];
+
+                    const confirmedTask = newTasks.find((t: any) => {
+                        const old = oldTasks.find((o: any) => o.id === t.id);
+                        return old && !old.buyerConfirmedAt && t.buyerConfirmedAt;
+                    });
+                    const disputedTask = newTasks.find((t: any) => {
+                        const old = oldTasks.find((o: any) => o.id === t.id);
+                        return old && !old.buyerDisputed && t.buyerDisputed;
+                    });
+
+                    if (confirmedTask) {
+                        addNotification({
+                            category: 'approval',
+                            title: 'Milestone Confirmed by Client',
+                            message: `"${confirmedTask.name}" was confirmed on "${orderLabel}".`,
+                            action: { page: 'adminCRM', data: { orderId: updated.id } },
+                        });
+                    }
+                    if (disputedTask) {
+                        addNotification({
+                            category: 'task',
+                            title: 'Milestone Disputed by Client',
+                            message: `"${disputedTask.name}" disputed on "${orderLabel}": ${disputedTask.disputeReason || 'No reason given'}.`,
+                            action: { page: 'adminCRM', data: { orderId: updated.id } },
+                        });
+                    }
+                }
+
+                prevAdminCrmRef.current.set(updated.id, { tasksJson: newTasksJson, riskScore: newRiskScore });
+            })
+            .subscribe((status, err) => {
+                if (err) console.error('[Realtime] admin-crm channel error:', err);
+            });
+
+        return () => { supabase.removeChannel(channel); };
+    }, [user, isAdmin, addNotification]);
+
+    // ── Admin: periodic overdue task scan (every 5 min) ───────────────────────
+    useEffect(() => {
+        if (!user || !isAdmin) return;
+
+        const checkOverdueTasks = async () => {
+            const today = new Date().toISOString().split('T')[0];
+            const { data } = await supabase
+                .from('crm_orders')
+                .select('id, order_name, product_name, tasks')
+                .in('status', ['Pending', 'In Production', 'Quality Check']);
+            if (!data) return;
+
+            data.forEach((order: any) => {
+                const orderLabel = order.order_name || order.product_name || 'an order';
+                (order.tasks || []).forEach((task: any) => {
+                    if (
+                        task.status !== 'COMPLETE' &&
+                        task.plannedEndDate &&
+                        task.plannedEndDate < today &&
+                        !notifiedOverdueRef.current.has(String(task.id))
+                    ) {
+                        notifiedOverdueRef.current.add(String(task.id));
+                        addNotification({
+                            category: 'task',
+                            title: 'Task Overdue',
+                            message: `"${task.name}" on "${orderLabel}" was due ${task.plannedEndDate} and is still ${task.status}.`,
+                            action: { page: 'adminCRM', data: { orderId: order.id } },
+                        });
+                    }
+                });
+            });
+        };
+
+        checkOverdueTasks();
+        const id = setInterval(checkOverdueTasks, 5 * 60_000);
+        return () => clearInterval(id);
+    }, [user, isAdmin, addNotification]);
 
     // ── Polling fallback: quote status changes (client, every 45 s) ──────────
     // Fires when Supabase Realtime isn't delivering events (table not in publication).

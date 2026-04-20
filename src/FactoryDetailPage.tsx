@@ -1,4 +1,5 @@
 import React, { FC, useState, useEffect, useRef } from 'react';
+import confetti from 'canvas-confetti';
 import { analyticsService } from './analytics.service';
 import ReactDOM from 'react-dom';
 import {
@@ -90,6 +91,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
     const [rfqStep, setRfqStep] = useState<1 | 2>(1);
     const [rfqInputs, setRfqInputs] = useState<Record<string, { qty: string; targetPrice: string; comments: string }>>({});
     const [isSubmittingRFQ, setIsSubmittingRFQ] = useState(false);
+    const [rfqSubmitted, setRfqSubmitted] = useState(false);
 
     // Migrate old productCategories format so the selector always has a products array
     const catalogProducts = React.useMemo(() => {
@@ -183,6 +185,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
         setSelectedCatalogIds(new Set());
         setRfqInputs({});
         setRfqStep(1);
+        setRfqSubmitted(false);
     };
 
     const handleGoToStep2 = () => {
@@ -246,8 +249,15 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                 factory_location: factory.location,
                 item_count: lineItems.length,
             });
-            closeRFQModal();
-            handleSetCurrentPage('myQuotes');
+            setRfqSubmitted(true);
+            try {
+                confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+            } catch (_) {}
+            setTimeout(() => {
+                closeRFQModal();
+                setRfqSubmitted(false);
+                handleSetCurrentPage('myQuotes');
+            }, 1800);
         }
     };
 
@@ -1059,11 +1069,17 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                                     )}
                                     <button
                                         onClick={handleSubmitRFQ}
-                                        disabled={!isStep2Valid() || isSubmittingRFQ || !onSubmitRFQ}
-                                        className="w-full py-4 rounded-2xl bg-[#c20c0b] text-white font-bold text-[15px] disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.97] transition-all flex items-center justify-center gap-2"
-                                        style={isStep2Valid() && !isSubmittingRFQ ? { boxShadow: '0 4px 20px rgba(194,12,11,0.4)' } : {}}
+                                        disabled={!isStep2Valid() || isSubmittingRFQ || rfqSubmitted || !onSubmitRFQ}
+                                        className={`w-full py-4 rounded-2xl font-bold text-[15px] disabled:cursor-not-allowed active:scale-[0.97] transition-all flex items-center justify-center gap-2 ${
+                                            rfqSubmitted
+                                                ? 'bg-green-500 text-white'
+                                                : 'bg-[#c20c0b] text-white disabled:opacity-40'
+                                        }`}
+                                        style={rfqSubmitted ? { boxShadow: '0 4px 20px rgba(34,197,94,0.4)' } : isStep2Valid() && !isSubmittingRFQ ? { boxShadow: '0 4px 20px rgba(194,12,11,0.4)' } : {}}
                                     >
-                                        {isSubmittingRFQ ? (
+                                        {rfqSubmitted ? (
+                                            <><CheckCircle2 size={18} /> Quote Submitted!</>
+                                        ) : isSubmittingRFQ ? (
                                             <><Loader size={18} className="animate-spin" /> Submitting…</>
                                         ) : (
                                             <><Send size={16} /> Submit Quote Request</>

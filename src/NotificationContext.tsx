@@ -1,23 +1,11 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
+import { notificationService } from './notificationService';
+import type { AppNotification, NotificationCategory } from './notificationService';
 
-export type NotificationCategory = 'rfq' | 'crm' | 'order' | 'system';
+// Re-export types so existing imports from this file keep working
+export type { AppNotification, NotificationCategory };
 
-export interface AppNotification {
-    id: string;
-    category: NotificationCategory;
-    title: string;
-    message: string;
-    timestamp: string;
-    isRead: boolean;
-    /** Optional image (e.g. factory logo) shown instead of the category icon */
-    imageUrl?: string;
-    /** Short detail line shown as a pill, e.g. "$4.20/unit · 14d lead time" */
-    meta?: string;
-    action?: {
-        page: string;
-        data?: any;
-    };
-}
+// ─── Context contract ─────────────────────────────────────────────────────────
 
 interface NotificationContextType {
     notifications: AppNotification[];
@@ -27,12 +15,10 @@ interface NotificationContextType {
     markAllAsRead: () => void;
     removeNotification: (id: string) => void;
     clearAll: () => void;
+    requestPushPermission: () => Promise<NotificationPermission>;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
-
-const STORAGE_KEY = 'garment_erp_notifications';
-const MAX_NOTIFICATIONS = 50;
 
 export const useNotifications = (): NotificationContextType => {
     const ctx = useContext(NotificationContext);
@@ -40,52 +26,58 @@ export const useNotifications = (): NotificationContextType => {
     return ctx;
 };
 
+// ─── Provider ─────────────────────────────────────────────────────────────────
+
 export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-    const [notifications, setNotifications] = useState<AppNotification[]>(() => {
-        try {
-            const stored = localStorage.getItem(STORAGE_KEY);
-            return stored ? JSON.parse(stored) : [];
-        } catch {
-            return [];
-        }
-    });
+    const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
     useEffect(() => {
-        try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications.slice(0, MAX_NOTIFICATIONS)));
-        } catch {}
-    }, [notifications]);
+        // Subscribe to the service singleton — gets called whenever the cache changes
+        const unsub = notificationService.subscribe(setNotifications);
+        return unsub;
+    }, []);
 
     const unreadCount = notifications.filter(n => !n.isRead).length;
 
-    const addNotification = useCallback((notif: Omit<AppNotification, 'id' | 'isRead' | 'timestamp'>) => {
-        const newNotif: AppNotification = {
-            ...notif,
-            id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-            isRead: false,
-            timestamp: new Date().toISOString(),
-        };
-        setNotifications(prev => [newNotif, ...prev].slice(0, MAX_NOTIFICATIONS));
-    }, []);
+    const addNotification = useCallback(
+        (notif: Omit<AppNotification, 'id' | 'isRead' | 'timestamp'>) => {
+            notificationService.add(notif);
+        },
+        [],
+    );
 
     const markAsRead = useCallback((id: string) => {
-        setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+        notificationService.markRead(id);
     }, []);
 
     const markAllAsRead = useCallback(() => {
-        setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+        notificationService.markAllRead();
     }, []);
 
     const removeNotification = useCallback((id: string) => {
-        setNotifications(prev => prev.filter(n => n.id !== id));
+        notificationService.remove(id);
     }, []);
 
     const clearAll = useCallback(() => {
-        setNotifications([]);
+        notificationService.clearAll();
+    }, []);
+
+    const requestPushPermission = useCallback(async () => {
+        const perm = await notificationService.requestPermission();
+        return perm;
     }, []);
 
     return (
-        <NotificationContext.Provider value={{ notifications, unreadCount, addNotification, markAsRead, markAllAsRead, removeNotification, clearAll }}>
+        <NotificationContext.Provider value={{
+            notifications,
+            unreadCount,
+            addNotification,
+            markAsRead,
+            markAllAsRead,
+            removeNotification,
+            clearAll,
+            requestPushPermission,
+        }}>
             {children}
         </NotificationContext.Provider>
     );
