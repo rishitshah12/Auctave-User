@@ -180,7 +180,7 @@ BEGIN
     -- No client to notify
     IF NEW.client_id IS NULL THEN RETURN NEW; END IF;
 
-    order_label := COALESCE(NEW.order_name, NEW.product_name, 'Your order');
+    order_label := COALESCE(NEW.product_name, 'Your order');
 
     -- ── 2a. Order status change ───────────────────────────────────────────────
     IF OLD.status IS DISTINCT FROM NEW.status THEN
