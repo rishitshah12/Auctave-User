@@ -823,50 +823,11 @@ const AppContent: FC = () => {
         })();
     }, [isNewUserSignup]);
 
-    // Shared helper: fire a rich RFQ notification for a quote status change
-    const fireQuoteNotification = useCallback((tq: QuoteRequest, newStatus: string) => {
-        const factoryName = tq.factory?.name || 'A factory';
-        const statusMessages: Record<string, { title: string; message: string }> = {
-            'Responded': {
-                title: 'New Quote Received',
-                message: `${factoryName} responded to your request.`,
-            },
-            'In Negotiation': {
-                title: 'Counter-Offer Received',
-                message: `${factoryName} sent a counter-offer on your quote.`,
-            },
-            'Admin Accepted': {
-                title: 'Quote Accepted — Action Required',
-                message: `${factoryName}'s quote was accepted by admin. Review and confirm.`,
-            },
-            'Client Accepted': {
-                title: 'Order Confirmed',
-                message: `You accepted the quote from ${factoryName}. Your order is placed.`,
-            },
-            'Declined': {
-                title: 'Quote Declined',
-                message: `${factoryName} declined your request.`,
-            },
-        };
-        const copy = statusMessages[newStatus] ?? {
-            title: 'Quote Updated',
-            message: `Your quote with ${factoryName} is now "${newStatus}".`,
-        };
-        addNotification({
-            category: 'rfq',
-            title: copy.title,
-            message: copy.message,
-            imageUrl: tq.factory?.imageUrl,
-            meta: buildQuoteMeta(tq.response_details),
-            action: { page: 'quoteDetail', data: tq },
-        });
-        showToast(`${copy.title}: ${factoryName} → ${newStatus}`);
-    }, [addNotification, showToast]);
 
     // Effect to listen for real-time updates on quotes for the current user.
-    // NOTE: The server-side filter (filter: `user_id=eq.${user.id}`) requires
-    // REPLICA IDENTITY FULL on the quotes table. Without it the filter silently
-    // drops all events. We subscribe to all quote UPDATEs and filter client-side.
+    // Notifications for admin→client events are created server-side by the
+    // trg_notify_quote_update DB trigger and delivered via the notifications
+    // realtime channel, so we only update local React state here.
     useEffect(() => {
         if (!user || isAdmin) return;
 
@@ -887,28 +848,6 @@ const AppContent: FC = () => {
                     return next;
                 });
                 setSelectedQuote(prev => (prev?.id === tq.id ? tq : prev));
-
-                // Status-change notification (existing)
-                fireQuoteNotification(tq, raw.status);
-
-                // Detect new chat message from factory/admin side
-                const history: any[] = raw.negotiation_details?.history || [];
-                const prevLen = prevQuoteHistoryRef.current.get(raw.id) ?? 0;
-                if (history.length > prevLen) {
-                    const latest = history[history.length - 1];
-                    if (latest?.sender === 'factory') {
-                        const factoryName = tq.factory?.name || 'Factory';
-                        addNotification({
-                            category: 'chat',
-                            title: `New Message from ${factoryName}`,
-                            message: latest.message ? latest.message.slice(0, 120) : '📎 Sent an attachment',
-                            imageUrl: tq.factory?.imageUrl,
-                            meta: factoryName,
-                            action: { page: 'quoteDetail', data: tq },
-                        });
-                    }
-                }
-                prevQuoteHistoryRef.current.set(raw.id, history.length);
             })
             .subscribe((status, err) => {
                 if (err) console.error('[Realtime] quotes channel error:', err);
@@ -916,10 +855,12 @@ const AppContent: FC = () => {
             });
 
         return () => { supabase.removeChannel(channel); };
-    }, [user, isAdmin, fireQuoteNotification, addNotification]);
+    }, [user, isAdmin]);
 
     // Visibility-change fallback: re-fetch quotes when the tab becomes visible again
-    // after being hidden for ≥30 s and fire notifications for any missed status changes.
+    // after being hidden for ≥30 s to keep local state current.
+    // Missed notifications are already persisted by the DB trigger and will be
+    // delivered by notificationService when the realtime channel reconnects.
     useEffect(() => {
         if (!user || isAdmin) return;
 
@@ -928,17 +869,7 @@ const AppContent: FC = () => {
             if (Date.now() - tabHiddenAtRef.current < 30_000) return;
             const { data } = await quoteService.getQuotesByUser(user.id);
             if (!data) return;
-
-            const prevStatuses = prevQuoteStatusesRef.current;
             const transformed = data.map(transformRawQuote);
-
-            transformed.forEach(tq => {
-                const prev = prevStatuses.get(tq.id);
-                if (prev && prev !== tq.status) {
-                    fireQuoteNotification(tq, tq.status);
-                }
-            });
-
             setQuoteRequests(transformed);
             sessionStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify(transformed));
         };
@@ -948,7 +879,7 @@ const AppContent: FC = () => {
 
         document.addEventListener('visibilitychange', handleVisibility);
         return () => document.removeEventListener('visibilitychange', handleVisibility);
-    }, [user, isAdmin, fireQuoteNotification]);
+    }, [user, isAdmin]);
 
     // Effect to listen for real-time CRM order updates for the current client.
     // Server-side filter removed (same REPLICA IDENTITY FULL requirement as quotes).
@@ -976,75 +907,11 @@ const AppContent: FC = () => {
                 const newTasksJson = JSON.stringify(updated.tasks || []);
                 const orderLabel = updated.order_name || updated.product_name || 'your order';
 
-                // Order status change — map to the most specific category
+                // Order status, task, and risk notifications are handled server-side
+                // by trg_notify_crm_order_update. Only track state for milestone
+                // confirmation/dispute feedback below.
                 const statusChanged = !prev || updated.status !== prev.status;
-                if (statusChanged && prev) {
-                    type CatStr = 'shipment' | 'qc' | 'order' | 'crm';
-                    const statusMap: Record<string, { category: CatStr; title: string; message: string }> = {
-                        'In Production': { category: 'crm',      title: 'Production Started',    message: `"${orderLabel}" has moved into production.` },
-                        'Quality Check': { category: 'qc',       title: 'Quality Check Started', message: `"${orderLabel}" is now in Quality Check.` },
-                        'Shipped':        { category: 'shipment', title: 'Order Shipped',          message: `"${orderLabel}" has been dispatched and is on its way.` },
-                        'Completed':      { category: 'order',    title: 'Order Completed',        message: `"${orderLabel}" has been completed successfully.` },
-                    };
-                    const mapped = statusMap[updated.status];
-                    addNotification({
-                        ...(mapped ?? { category: 'crm' as CatStr, title: 'Order Status Updated', message: `"${orderLabel}" is now "${updated.status}".` }),
-                        meta: orderLabel,
-                        action: { page: 'crm' },
-                    });
-                }
-
-                // Task status changes → 'task' category
-                if (!statusChanged && prev?.tasksJson && newTasksJson !== prev.tasksJson) {
-                    const oldTasks = JSON.parse(prev.tasksJson) as any[];
-                    const newTasks = (updated.tasks || []) as any[];
-
-                    // Newly added task
-                    const newTask = newTasks.find((t: any) => !oldTasks.some((o: any) => o.id === t.id));
-                    if (newTask) {
-                        addNotification({
-                            category: 'task',
-                            title: 'New Task Added',
-                            message: `"${newTask.name}" has been added to "${orderLabel}".`,
-                            action: { page: 'crm' },
-                        });
-                    }
-
-                    // Task status changed
-                    const changedTask = newTasks.find((t: any) => {
-                        const old = oldTasks.find((o: any) => o.id === t.id);
-                        return old && old.status !== t.status;
-                    });
-                    if (changedTask && !newTask) {
-                        addNotification({
-                            category: 'task',
-                            title: 'Task Progress Updated',
-                            message: `"${changedTask.name}" is now ${changedTask.status} on "${orderLabel}".`,
-                            action: { page: 'crm' },
-                        });
-                    }
-                }
-
-                // Risk score changes
                 const newRiskScore = updated.risk_score;
-                const prevRiskScore = prev?.riskScore;
-                if (newRiskScore && newRiskScore !== prevRiskScore) {
-                    if (newRiskScore === 'red') {
-                        addNotification({
-                            category: 'crm',
-                            title: 'Critical Delay Risk',
-                            message: `"${orderLabel}" is critically at risk — immediate action needed.`,
-                            action: { page: 'crm' },
-                        });
-                    } else if (newRiskScore === 'amber') {
-                        addNotification({
-                            category: 'crm',
-                            title: 'Timeline Risk Detected',
-                            message: `"${orderLabel}" has a schedule risk — review milestones.`,
-                            action: { page: 'crm' },
-                        });
-                    }
-                }
 
                 // Buyer confirmed / disputed (client confirming their own action — informational)
                 if (prev?.tasksJson && newTasksJson !== prev.tasksJson) {
@@ -1288,68 +1155,38 @@ const AppContent: FC = () => {
         return () => clearInterval(id);
     }, [user, isAdmin, addNotification]);
 
-    // ── Polling fallback: quote status changes (client, every 45 s) ──────────
-    // Fires when Supabase Realtime isn't delivering events (table not in publication).
+    // ── Polling fallback: quote state sync (client, every 45 s) ─────────────
+    // Keeps local quote state fresh when realtime misses events.
+    // Notifications are now handled server-side by trg_notify_quote_update.
     useEffect(() => {
         if (!user || isAdmin) return;
         const poll = async () => {
             const { data } = await quoteService.getQuotesByUser(user.id);
             if (!data) return;
             const transformed = data.map(transformRawQuote);
-            const prevStatuses = prevQuoteStatusesRef.current;
-            transformed.forEach(tq => {
-                const prev = prevStatuses.get(tq.id);
-                if (prev && prev !== tq.status) {
-                    fireQuoteNotification(tq, tq.status);
-                }
-            });
             setQuoteRequests(transformed);
             sessionStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify(transformed));
         };
         const id = setInterval(poll, 45_000);
         return () => clearInterval(id);
-    }, [user, isAdmin, fireQuoteNotification]);
+    }, [user, isAdmin]);
 
-    // ── Polling fallback: CRM order/task changes (client, every 45 s) ────────
+    // ── Polling fallback: CRM order state sync (client, every 45 s) ──────────
+    // Keeps prevCrmRef fresh for milestone-confirmation diffing.
+    // Notifications are now handled server-side by trg_notify_crm_order_update.
     useEffect(() => {
         if (!user || isAdmin) return;
         const poll = async () => {
             const { data } = await crmService.getOrdersByClient(user.id);
             if (!data) return;
             data.forEach((order: any) => {
-                const prev = prevCrmRef.current.get(order.id);
                 const newTasksJson = JSON.stringify(order.tasks || []);
-                const statusChanged = prev && order.status !== prev.status;
-                if (statusChanged) {
-                    addNotification({
-                        category: 'crm',
-                        title: 'Order Status Updated',
-                        message: `Your order is now "${order.status}".`,
-                        meta: order.order_name || undefined,
-                        action: { page: 'crm' },
-                    });
-                } else if (prev && prev.tasksJson !== newTasksJson) {
-                    const oldTasks = JSON.parse(prev.tasksJson) as any[];
-                    const newTasks = (order.tasks || []) as any[];
-                    const changedTask = newTasks.find((t: any) => {
-                        const old = oldTasks.find((o: any) => o.id === t.id);
-                        return old && old.status !== t.status;
-                    });
-                    if (changedTask) {
-                        addNotification({
-                            category: 'crm',
-                            title: 'Task Progress Updated',
-                            message: `"${changedTask.name}" is now ${changedTask.status}.`,
-                            action: { page: 'crm' },
-                        });
-                    }
-                }
                 prevCrmRef.current.set(order.id, { status: order.status, tasksJson: newTasksJson });
             });
         };
         const id = setInterval(poll, 45_000);
         return () => clearInterval(id);
-    }, [user, isAdmin, addNotification]);
+    }, [user, isAdmin]);
 
     // ── Polling fallback: new RFQ submissions (admin, every 45 s) ────────────
     // Note: admin new-RFQ notifications are handled by the realtime subscription above (admin-new-rfq channel).
