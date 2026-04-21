@@ -278,7 +278,7 @@ class NotificationService {
         if (Notification.permission !== 'granted') return;
         if (document.visibilityState === 'visible') return; // App is focused — no need
 
-        const opts: NotificationOptions = {
+        const opts: NotificationOptions & { renotify?: boolean; data?: any } = {
             body: notif.message,
             icon: '/favicon.ico',
             badge: '/favicon.ico',

@@ -3360,7 +3360,7 @@ User message: "${userMsg}"`;
             />;
             case 'crm': return (
                 <MainLayout {...layoutProps}>
-                    <CrmDashboard callGeminiAPI={callGeminiAPI} handleSetCurrentPage={handleSetCurrentPage} user={user} darkMode={darkMode} />
+                    <CrmDashboard callGeminiAPI={callGeminiAPI} handleSetCurrentPage={handleSetCurrentPage} user={user} darkMode={darkMode} activeCrmOrderKey={activeCrmOrderKey} />
                 </MainLayout>
             );
             case 'factorySuggestions': return <FactorySuggestionsPage />;

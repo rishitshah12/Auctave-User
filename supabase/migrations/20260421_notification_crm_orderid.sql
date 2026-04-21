@@ -1,6 +1,7 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- Update notify_on_crm_order_update to include action_data with orderId so
--- "Tap to view" on CRM notifications navigates directly to the relevant order.
+-- Update notify_on_crm_order_update to:
+--   1. Include action_data with orderId so "Tap to view" deep-links to the order
+--   2. Fire notifications when individual task statuses change (started / completed)
 -- ─────────────────────────────────────────────────────────────────────────────
 
 CREATE OR REPLACE FUNCTION public.notify_on_crm_order_update()
@@ -19,6 +20,13 @@ DECLARE
     new_len      INT;
     old_risk     TEXT;
     new_risk     TEXT;
+    -- Task-loop variables
+    i            INT;
+    t_new        JSONB;
+    t_old        JSONB;
+    t_name       TEXT;
+    t_old_status TEXT;
+    t_new_status TEXT;
 BEGIN
     IF NEW.client_id IS NULL THEN RETURN NEW; END IF;
 
@@ -59,12 +67,13 @@ BEGIN
         END IF;
     END IF;
 
-    -- ── 2b. New task added ────────────────────────────────────────────────────
+    -- ── 2b. Task changes (new task added or existing task status updated) ─────
     new_tasks := COALESCE(NEW.tasks, '[]'::jsonb);
     old_tasks := COALESCE(OLD.tasks, '[]'::jsonb);
     new_len   := jsonb_array_length(new_tasks);
     old_len   := jsonb_array_length(old_tasks);
 
+    -- New task appended
     IF new_len > old_len THEN
         new_task := new_tasks->(new_len - 1);
         INSERT INTO public.notifications
@@ -78,6 +87,45 @@ BEGIN
             'crm', jsonb_build_object('orderId', NEW.id::text)
         );
     END IF;
+
+    -- Existing task status changed
+    FOR i IN 0 .. new_len - 1 LOOP
+        t_new := new_tasks->i;
+
+        -- Find the matching old task by id
+        SELECT elem INTO t_old
+        FROM jsonb_array_elements(old_tasks) AS elem
+        WHERE elem->>'id' = t_new->>'id'
+        LIMIT 1;
+
+        IF t_old IS NOT NULL THEN
+            t_old_status := t_old->>'status';
+            t_new_status := t_new->>'status';
+            t_name       := COALESCE(t_new->>'name', 'A task');
+
+            IF t_old_status IS DISTINCT FROM t_new_status AND t_new_status IS NOT NULL THEN
+                IF t_new_status = 'COMPLETE' THEN
+                    INSERT INTO public.notifications
+                        (user_id, category, title, message, meta, action_page, action_data)
+                    VALUES (
+                        NEW.client_id, 'task',
+                        'Task Completed: ' || t_name,
+                        '"' || t_name || '" on "' || order_label || '" has been marked complete.',
+                        order_label, 'crm', jsonb_build_object('orderId', NEW.id::text)
+                    );
+                ELSIF t_new_status = 'IN PROGRESS' THEN
+                    INSERT INTO public.notifications
+                        (user_id, category, title, message, meta, action_page, action_data)
+                    VALUES (
+                        NEW.client_id, 'task',
+                        'Task In Progress: ' || t_name,
+                        '"' || t_name || '" on "' || order_label || '" is now in progress.',
+                        order_label, 'crm', jsonb_build_object('orderId', NEW.id::text)
+                    );
+                END IF;
+            END IF;
+        END IF;
+    END LOOP;
 
     -- ── 2c. Risk score escalation ─────────────────────────────────────────────
     old_risk := OLD.risk_score;
@@ -107,7 +155,6 @@ BEGIN
 END;
 $$;
 
--- Re-create the trigger (DROP IF EXISTS is idempotent)
 DROP TRIGGER IF EXISTS trg_notify_crm_order_update ON public.crm_orders;
 CREATE TRIGGER trg_notify_crm_order_update
     AFTER UPDATE ON public.crm_orders

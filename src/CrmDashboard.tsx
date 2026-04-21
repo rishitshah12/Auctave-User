@@ -25,6 +25,7 @@ interface CrmDashboardProps {
     handleSetCurrentPage: (page: string, data?: any) => void;
     user: any;
     darkMode?: boolean;
+    activeCrmOrderKey?: string | null;
 }
 
 type TopTab = 'active' | 'all' | 'completed' | 'insights';
@@ -385,7 +386,7 @@ const AggregateStatsView = ({ stats, darkMode }: { stats: any; darkMode?: boolea
     );
 };
 
-export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user, darkMode }: CrmDashboardProps) {
+export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user, darkMode, activeCrmOrderKey }: CrmDashboardProps) {
     const ORDERS_CACHE_KEY = 'garment_erp_client_orders';
     const FACTORIES_CACHE_KEY = 'garment_erp_factories_v2'; // shared key — avoids duplicate network fetches
 
@@ -396,7 +397,12 @@ export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user
     const [allFactories, setAllFactories] = useState<Factory[]>(() => getCache<Factory[]>(FACTORIES_CACHE_KEY, TTL_FACTORIES) ?? []);
     const [loading, setLoading] = useState(() => !sessionStorage.getItem(ORDERS_CACHE_KEY));
     const [topTab, setTopTab] = useState<TopTab>('active');
-    const [selectedOrderKey, setSelectedOrderKey] = useState<string | null>(null);
+    const [selectedOrderKey, setSelectedOrderKey] = useState<string | null>(activeCrmOrderKey ?? null);
+
+    // When notification navigates to a specific order, open it once data is available
+    useEffect(() => {
+        if (activeCrmOrderKey) setSelectedOrderKey(activeCrmOrderKey);
+    }, [activeCrmOrderKey]);
     const [searchQuery, setSearchQuery] = useState('');
     const abortControllerRef = useRef<AbortController | null>(null);
 
