@@ -1951,9 +1951,12 @@ const AppContent: FC = () => {
         const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
             setProfileData(p => ({ ...p, [field]: e.target.value }));
 
-        const formatClientId = (uuid: string): string => {
-            const hex = uuid.replace(/-/g, '').toUpperCase();
-            return `CLT-${hex.slice(0, 4)}-${hex.slice(4, 8)}`;
+        const formatClientId = (uuid: string, createdAt?: string): string => {
+            const date = createdAt ? new Date(createdAt) : new Date();
+            const yy = String(date.getFullYear()).slice(-2);
+            const mm = String(date.getMonth() + 1).padStart(2, '0');
+            const hex = uuid.replace(/-/g, '').slice(0, 4).toUpperCase();
+            return `CLT-${yy}${mm}-${hex}`;
         };
 
         const [postalLoading, setPostalLoading] = useState<{ billing: boolean; company: boolean }>({ billing: false, company: false });
