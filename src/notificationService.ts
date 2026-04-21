@@ -281,33 +281,57 @@ class NotificationService {
         }
     }
 
-    /** Play a short WhatsApp-style double-ping using Web Audio API. */
+    /** Play Apple-style tri-tone notification (D6 → F#6 → Bb6) with bell harmonics. */
     private playNotificationSound(): void {
         try {
             const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
             if (!AudioCtx) return;
             const ctx = new AudioCtx() as AudioContext;
+            const master = ctx.createGain();
+            master.gain.value = 0.85;
+            master.connect(ctx.destination);
             const now = ctx.currentTime;
 
-            const ping = (freq: number, start: number, duration: number) => {
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.type = 'sine';
-                osc.frequency.value = freq;
-                gain.gain.setValueAtTime(0, start);
-                gain.gain.linearRampToValueAtTime(0.28, start + 0.012);
-                gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
-                osc.start(start);
-                osc.stop(start + duration);
+            const bell = (freq: number, t: number) => {
+                // Fundamental sine
+                const fund = ctx.createOscillator();
+                const fGain = ctx.createGain();
+                fund.type = 'sine';
+                fund.frequency.value = freq;
+                fund.connect(fGain);
+                fGain.connect(master);
+                fGain.gain.setValueAtTime(0, t);
+                fGain.gain.linearRampToValueAtTime(0.28, t + 0.006);
+                fGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+                fund.start(t);
+                fund.stop(t + 0.3);
+
+                // Subtle 2nd harmonic for bell timbre
+                const harm = ctx.createOscillator();
+                const hGain = ctx.createGain();
+                harm.type = 'sine';
+                harm.frequency.value = freq * 2;
+                harm.connect(hGain);
+                hGain.connect(master);
+                hGain.gain.setValueAtTime(0, t);
+                hGain.gain.linearRampToValueAtTime(0.06, t + 0.004);
+                hGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+                harm.start(t);
+                harm.stop(t + 0.15);
             };
 
-            ping(880, now, 0.14);
-            ping(1100, now + 0.09, 0.20);
+            // Apple tri-tone: D6 → F#6 → Bb6
+            bell(1174.66, now);
+            bell(1479.98, now + 0.115);
+            bell(1864.66, now + 0.230);
 
-            setTimeout(() => ctx.close().catch(() => {}), 600);
+            setTimeout(() => ctx.close().catch(() => {}), 900);
         } catch { /* Web Audio not available */ }
+
+        // Haptic vibration on mobile (pattern mirrors the tri-tone rhythm)
+        try {
+            if ('vibrate' in navigator) navigator.vibrate([60, 60, 60, 60, 80]);
+        } catch { /* Vibration API not available */ }
     }
 
     /** Show a native browser notification (only when the app is not in focus). */
