@@ -573,6 +573,22 @@ const AppContent: FC = () => {
                                 businessType: data.business_type || '',
                                 billingAddress: data.billing_address || '',
                                 companyAddress: data.company_address || '',
+                                ...(() => {
+                                    const ba = (() => { try { return JSON.parse(data.billing_address || '{}'); } catch { return {}; } })();
+                                    const ca = (() => { try { return JSON.parse(data.company_address || '{}'); } catch { return {}; } })();
+                                    return {
+                                        billingStreet: ba.street ?? (typeof ba === 'string' ? ba : ''),
+                                        billingCity: ba.city ?? '',
+                                        billingState: ba.state ?? '',
+                                        billingPostal: ba.postal ?? '',
+                                        billingCountry: ba.country ?? '',
+                                        companyStreet: ca.street ?? (typeof ca === 'string' ? ca : ''),
+                                        companyCity: ca.city ?? '',
+                                        companyState: ca.state ?? '',
+                                        companyPostal: ca.postal ?? '',
+                                        companyCountry: ca.country ?? '',
+                                    };
+                                })(),
                             };
                             setUserProfile(currentProfile);
                             console.log('Profile loaded successfully');
@@ -1473,8 +1489,12 @@ const AppContent: FC = () => {
             vat_number: profileData.vatNumber || null,
             business_reg_number: profileData.businessRegNumber || null,
             business_type: profileData.businessType || null,
-            billing_address: profileData.billingAddress || null,
-            company_address: profileData.companyAddress || null,
+            billing_address: (profileData.billingStreet || profileData.billingCity || profileData.billingPostal)
+                ? JSON.stringify({ street: profileData.billingStreet || '', city: profileData.billingCity || '', state: profileData.billingState || '', postal: profileData.billingPostal || '', country: profileData.billingCountry || '' })
+                : (profileData.billingAddress || null),
+            company_address: (profileData.companyStreet || profileData.companyCity || profileData.companyPostal)
+                ? JSON.stringify({ street: profileData.companyStreet || '', city: profileData.companyCity || '', state: profileData.companyState || '', postal: profileData.companyPostal || '', country: profileData.companyCountry || '' })
+                : (profileData.companyAddress || null),
             updated_at: new Date().toISOString(),
         };
         if (avatarToSave) updates.avatar_url = avatarToSave;
@@ -1869,6 +1889,16 @@ const AppContent: FC = () => {
             businessType: userProfile?.businessType || '',
             billingAddress: userProfile?.billingAddress || '',
             companyAddress: userProfile?.companyAddress || '',
+            billingStreet: userProfile?.billingStreet || '',
+            billingCity: userProfile?.billingCity || '',
+            billingState: userProfile?.billingState || '',
+            billingPostal: userProfile?.billingPostal || '',
+            billingCountry: userProfile?.billingCountry || '',
+            companyStreet: userProfile?.companyStreet || '',
+            companyCity: userProfile?.companyCity || '',
+            companyState: userProfile?.companyState || '',
+            companyPostal: userProfile?.companyPostal || '',
+            companyCountry: userProfile?.companyCountry || '',
         });
         const [avatarUrl, setAvatarUrl] = useState<string>(
             // DB value is authoritative; fall back to auth metadata if not yet synced
@@ -1920,6 +1950,46 @@ const AppContent: FC = () => {
 
         const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
             setProfileData(p => ({ ...p, [field]: e.target.value }));
+
+        const formatClientId = (uuid: string): string => {
+            const hex = uuid.replace(/-/g, '').toUpperCase();
+            return `CLT-${hex.slice(0, 4)}-${hex.slice(4, 8)}`;
+        };
+
+        const [postalLoading, setPostalLoading] = useState<{ billing: boolean; company: boolean }>({ billing: false, company: false });
+        const billingPostalTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+        const companyPostalTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+        const lookupPostal = async (postal: string, type: 'billing' | 'company') => {
+            if (postal.length < 3) return;
+            setPostalLoading(p => ({ ...p, [type]: true }));
+            try {
+                const res = await fetch(
+                    `https://nominatim.openstreetmap.org/search?postalcode=${encodeURIComponent(postal)}&format=json&addressdetails=1&limit=1`,
+                    { headers: { 'Accept-Language': 'en' } }
+                );
+                const data = await res.json();
+                if (!data.length) { setPostalLoading(p => ({ ...p, [type]: false })); return; }
+                const addr = data[0].address;
+                const city = addr.city || addr.town || addr.village || addr.municipality || addr.hamlet || '';
+                const state = addr.state || addr.region || addr.county || '';
+                const country = addr.country || '';
+                if (type === 'billing') {
+                    setProfileData(p => ({ ...p, billingCity: city || p.billingCity, billingState: state || p.billingState, billingCountry: country || p.billingCountry }));
+                } else {
+                    setProfileData(p => ({ ...p, companyCity: city || p.companyCity, companyState: state || p.companyState, companyCountry: country || p.companyCountry }));
+                }
+            } catch { /* silent */ }
+            setPostalLoading(p => ({ ...p, [type]: false }));
+        };
+
+        const handlePostalChange = (value: string, type: 'billing' | 'company') => {
+            const field = type === 'billing' ? 'billingPostal' : 'companyPostal';
+            setProfileData(p => ({ ...p, [field]: value }));
+            const timerRef = type === 'billing' ? billingPostalTimer : companyPostalTimer;
+            if (timerRef.current) clearTimeout(timerRef.current);
+            timerRef.current = setTimeout(() => lookupPostal(value, type), 700);
+        };
 
         const handleAvatarFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
             const file = e.target.files?.[0];
@@ -2070,7 +2140,10 @@ const AppContent: FC = () => {
                             {/* Account ID row */}
                             <div className="px-6 py-3 border-b border-gray-100 dark:border-white/8 flex items-center gap-3">
                                 <span className="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 w-24 flex-shrink-0">Account ID</span>
-                                <span className="font-mono text-xs text-gray-500 dark:text-gray-400 select-all break-all">{user?.id}</span>
+                                <span className="font-mono text-sm font-bold text-gray-700 dark:text-gray-200 select-all tracking-widest">
+                                    {user?.id ? formatClientId(user.id) : '—'}
+                                </span>
+                                <span className="text-xs text-gray-400 dark:text-gray-500 hidden sm:block">({user?.id})</span>
                             </div>
 
                             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -2158,27 +2231,113 @@ const AppContent: FC = () => {
                                     <label className={labelCls}>Business Registration Number</label>
                                     <input type="text" name="businessRegNumber" value={profileData.businessRegNumber || ''} onChange={set('businessRegNumber')} placeholder="e.g. 12345678" className={fieldCls} />
                                 </div>
+                                {/* Billing Address — structured */}
                                 <div className="md:col-span-2">
                                     <label className={labelCls}>Billing Address</label>
-                                    <textarea
-                                        name="billingAddress"
-                                        value={profileData.billingAddress || ''}
-                                        onChange={e => setProfileData(p => ({ ...p, billingAddress: e.target.value }))}
-                                        placeholder="Street, City, State/Province, Postal Code, Country"
-                                        rows={3}
-                                        className={`${fieldCls} resize-none`}
-                                    />
+                                    <div className="rounded-lg border border-gray-200 dark:border-white/10 overflow-hidden divide-y divide-gray-100 dark:divide-white/8">
+                                        {/* Street */}
+                                        <input
+                                            type="text"
+                                            value={profileData.billingStreet || ''}
+                                            onChange={set('billingStreet')}
+                                            placeholder="Street address / building"
+                                            className="w-full px-3 py-2.5 bg-white dark:bg-white/5 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[var(--color-primary)] placeholder-gray-400 dark:placeholder-gray-500"
+                                        />
+                                        <div className="grid grid-cols-2 divide-x divide-gray-100 dark:divide-white/8">
+                                            {/* Postal Code */}
+                                            <div className="relative">
+                                                <input
+                                                    type="text"
+                                                    value={profileData.billingPostal || ''}
+                                                    onChange={e => handlePostalChange(e.target.value, 'billing')}
+                                                    placeholder="Postal / ZIP code"
+                                                    className="w-full px-3 py-2.5 pr-8 bg-white dark:bg-white/5 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[var(--color-primary)] placeholder-gray-400 dark:placeholder-gray-500"
+                                                />
+                                                {postalLoading.billing && (
+                                                    <RefreshCw size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 animate-spin" />
+                                                )}
+                                            </div>
+                                            {/* City */}
+                                            <input
+                                                type="text"
+                                                value={profileData.billingCity || ''}
+                                                onChange={set('billingCity')}
+                                                placeholder="City"
+                                                className="w-full px-3 py-2.5 bg-white dark:bg-white/5 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[var(--color-primary)] placeholder-gray-400 dark:placeholder-gray-500"
+                                            />
+                                        </div>
+                                        <div className="grid grid-cols-2 divide-x divide-gray-100 dark:divide-white/8">
+                                            {/* State / Province */}
+                                            <input
+                                                type="text"
+                                                value={profileData.billingState || ''}
+                                                onChange={set('billingState')}
+                                                placeholder="State / Province"
+                                                className="w-full px-3 py-2.5 bg-white dark:bg-white/5 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[var(--color-primary)] placeholder-gray-400 dark:placeholder-gray-500"
+                                            />
+                                            {/* Country */}
+                                            <input
+                                                type="text"
+                                                value={profileData.billingCountry || ''}
+                                                onChange={set('billingCountry')}
+                                                placeholder="Country"
+                                                className="w-full px-3 py-2.5 bg-white dark:bg-white/5 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[var(--color-primary)] placeholder-gray-400 dark:placeholder-gray-500"
+                                            />
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5">Enter postal code to auto-fill city &amp; country</p>
                                 </div>
+
+                                {/* Company / Registered Address — structured */}
                                 <div className="md:col-span-2">
                                     <label className={labelCls}>Registered / Company Address <span className="normal-case font-normal text-gray-400">(if different from billing)</span></label>
-                                    <textarea
-                                        name="companyAddress"
-                                        value={profileData.companyAddress || ''}
-                                        onChange={e => setProfileData(p => ({ ...p, companyAddress: e.target.value }))}
-                                        placeholder="Street, City, State/Province, Postal Code, Country"
-                                        rows={3}
-                                        className={`${fieldCls} resize-none`}
-                                    />
+                                    <div className="rounded-lg border border-gray-200 dark:border-white/10 overflow-hidden divide-y divide-gray-100 dark:divide-white/8">
+                                        <input
+                                            type="text"
+                                            value={profileData.companyStreet || ''}
+                                            onChange={set('companyStreet')}
+                                            placeholder="Street address / building"
+                                            className="w-full px-3 py-2.5 bg-white dark:bg-white/5 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[var(--color-primary)] placeholder-gray-400 dark:placeholder-gray-500"
+                                        />
+                                        <div className="grid grid-cols-2 divide-x divide-gray-100 dark:divide-white/8">
+                                            <div className="relative">
+                                                <input
+                                                    type="text"
+                                                    value={profileData.companyPostal || ''}
+                                                    onChange={e => handlePostalChange(e.target.value, 'company')}
+                                                    placeholder="Postal / ZIP code"
+                                                    className="w-full px-3 py-2.5 pr-8 bg-white dark:bg-white/5 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[var(--color-primary)] placeholder-gray-400 dark:placeholder-gray-500"
+                                                />
+                                                {postalLoading.company && (
+                                                    <RefreshCw size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 animate-spin" />
+                                                )}
+                                            </div>
+                                            <input
+                                                type="text"
+                                                value={profileData.companyCity || ''}
+                                                onChange={set('companyCity')}
+                                                placeholder="City"
+                                                className="w-full px-3 py-2.5 bg-white dark:bg-white/5 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[var(--color-primary)] placeholder-gray-400 dark:placeholder-gray-500"
+                                            />
+                                        </div>
+                                        <div className="grid grid-cols-2 divide-x divide-gray-100 dark:divide-white/8">
+                                            <input
+                                                type="text"
+                                                value={profileData.companyState || ''}
+                                                onChange={set('companyState')}
+                                                placeholder="State / Province"
+                                                className="w-full px-3 py-2.5 bg-white dark:bg-white/5 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[var(--color-primary)] placeholder-gray-400 dark:placeholder-gray-500"
+                                            />
+                                            <input
+                                                type="text"
+                                                value={profileData.companyCountry || ''}
+                                                onChange={set('companyCountry')}
+                                                placeholder="Country"
+                                                className="w-full px-3 py-2.5 bg-white dark:bg-white/5 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[var(--color-primary)] placeholder-gray-400 dark:placeholder-gray-500"
+                                            />
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5">Enter postal code to auto-fill city &amp; country</p>
                                 </div>
                                 {/* Category Specialization — tag input */}
                                 <div className="md:col-span-2">

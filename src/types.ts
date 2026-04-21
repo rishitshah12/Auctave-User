@@ -15,6 +15,18 @@ export interface UserProfile {
     businessType?: string;
     billingAddress?: string;
     companyAddress?: string;
+    // Structured billing address
+    billingStreet?: string;
+    billingCity?: string;
+    billingState?: string;
+    billingPostal?: string;
+    billingCountry?: string;
+    // Structured company/registered address
+    companyStreet?: string;
+    companyCity?: string;
+    companyState?: string;
+    companyPostal?: string;
+    companyCountry?: string;
 }
 
 export interface LineItem {
