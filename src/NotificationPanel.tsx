@@ -1,10 +1,10 @@
-import React, { FC, useState } from 'react';
+import React, { FC, useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import {
     Bell, X, CheckCheck, Trash2, Package, Settings,
     ArrowRight, FileQuestion, MessageSquare, Truck,
     ShieldCheck, FileText, DollarSign, ClipboardList,
-    ThumbsUp, List, BellOff,
+    ThumbsUp, List, BellOff, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { useNotifications, AppNotification, NotificationCategory } from './NotificationContext';
 import { notificationService } from './notificationService';
@@ -141,6 +141,26 @@ interface NotificationPanelProps {
 export const NotificationPanel: FC<NotificationPanelProps> = ({ isOpen, onClose, onNavigate }) => {
     const { notifications, unreadCount, markAllAsRead, removeNotification, clearAll, markAsRead, requestPushPermission } = useNotifications();
     const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
+    const tabsRef = useRef<HTMLDivElement>(null);
+    const [canScrollLeft, setCanScrollLeft] = useState(false);
+    const [canScrollRight, setCanScrollRight] = useState(false);
+
+    const updateScrollArrows = () => {
+        const el = tabsRef.current;
+        if (!el) return;
+        setCanScrollLeft(el.scrollLeft > 4);
+        setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+    };
+
+    useEffect(() => {
+        updateScrollArrows();
+    }, [isOpen]);
+
+    const scrollTabs = (delta: number) => {
+        const el = tabsRef.current;
+        if (!el) return;
+        el.scrollBy({ left: delta, behavior: 'smooth' });
+    };
 
     const activeCats = filterTabs.find(t => t.key === activeFilter)?.categories ?? [];
     const filtered = activeFilter === 'all'
@@ -262,30 +282,52 @@ export const NotificationPanel: FC<NotificationPanelProps> = ({ isOpen, onClose,
                 )}
 
                 {/* ── Filter tabs ── */}
-                <div className="flex gap-1 px-4 py-2.5 border-b border-gray-100 dark:border-white/10 overflow-x-auto scrollbar-hide flex-shrink-0">
-                    {filterTabs.map(tab => {
-                        const count = unreadForFilter(tab);
-                        return (
-                            <button
-                                key={tab.key}
-                                onClick={() => setActiveFilter(tab.key)}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${activeFilter === tab.key
-                                    ? 'bg-[var(--color-primary)] text-white shadow-sm'
-                                    : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10'
-                                    }`}
-                            >
-                                {tab.label}
-                                {count > 0 && (
-                                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${activeFilter === tab.key
-                                        ? 'bg-white/25 text-white'
-                                        : 'bg-[var(--color-primary)]/10 text-[var(--color-primary)]'
-                                        }`}>
-                                        {count}
-                                    </span>
-                                )}
-                            </button>
-                        );
-                    })}
+                <div className="relative flex items-center border-b border-gray-100 dark:border-white/10 flex-shrink-0">
+                    {canScrollLeft && (
+                        <button
+                            onClick={() => scrollTabs(-150)}
+                            className="absolute left-0 z-10 h-full px-1.5 bg-gradient-to-r from-white dark:from-gray-950 via-white/90 dark:via-gray-950/90 to-transparent flex items-center pointer-events-auto"
+                        >
+                            <ChevronLeft size={15} className="text-gray-400 dark:text-gray-500" />
+                        </button>
+                    )}
+                    <div
+                        ref={tabsRef}
+                        onScroll={updateScrollArrows}
+                        className="flex gap-1 px-4 py-2.5 overflow-x-auto scrollbar-hide w-full"
+                    >
+                        {filterTabs.map(tab => {
+                            const count = unreadForFilter(tab);
+                            return (
+                                <button
+                                    key={tab.key}
+                                    onClick={() => setActiveFilter(tab.key)}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${activeFilter === tab.key
+                                        ? 'bg-[var(--color-primary)] text-white shadow-sm'
+                                        : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10'
+                                        }`}
+                                >
+                                    {tab.label}
+                                    {count > 0 && (
+                                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${activeFilter === tab.key
+                                            ? 'bg-white/25 text-white'
+                                            : 'bg-[var(--color-primary)]/10 text-[var(--color-primary)]'
+                                            }`}>
+                                            {count}
+                                        </span>
+                                    )}
+                                </button>
+                            );
+                        })}
+                    </div>
+                    {canScrollRight && (
+                        <button
+                            onClick={() => scrollTabs(150)}
+                            className="absolute right-0 z-10 h-full px-1.5 bg-gradient-to-l from-white dark:from-gray-950 via-white/90 dark:via-gray-950/90 to-transparent flex items-center pointer-events-auto"
+                        >
+                            <ChevronRight size={15} className="text-gray-400 dark:text-gray-500" />
+                        </button>
+                    )}
                 </div>
 
                 {/* ── Notification list ── */}

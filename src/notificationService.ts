@@ -72,6 +72,7 @@ class NotificationService {
     private handlers = new Set<ChangeHandler>();
     private cache: AppNotification[] = [];
     private userId: string | null = null;
+    private _suppressRealtimeSoundCount = 0;
 
     // ── Lifecycle ──────────────────────────────────────────────────────────────
 
@@ -109,6 +110,12 @@ class NotificationService {
                     this.cache = [n, ...this.cache].slice(0, 100);
                     this.emit();
                     this.fireBrowserNotification(n);
+                    // Play sound only if not triggered by a local add() call
+                    if (this._suppressRealtimeSoundCount > 0) {
+                        this._suppressRealtimeSoundCount--;
+                    } else {
+                        this.playNotificationSound();
+                    }
                 },
             )
             .on(
@@ -179,6 +186,8 @@ class NotificationService {
         };
         this.cache = [optimistic, ...this.cache].slice(0, 100);
         this.emit();
+        this.playNotificationSound();
+        this._suppressRealtimeSoundCount++;
 
         const { data: row, error } = await supabase
             .from('notifications')
@@ -270,6 +279,35 @@ class NotificationService {
         } catch (err) {
             console.error('[Notifications] push subscription error:', err);
         }
+    }
+
+    /** Play a short WhatsApp-style double-ping using Web Audio API. */
+    private playNotificationSound(): void {
+        try {
+            const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+            if (!AudioCtx) return;
+            const ctx = new AudioCtx() as AudioContext;
+            const now = ctx.currentTime;
+
+            const ping = (freq: number, start: number, duration: number) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.type = 'sine';
+                osc.frequency.value = freq;
+                gain.gain.setValueAtTime(0, start);
+                gain.gain.linearRampToValueAtTime(0.28, start + 0.012);
+                gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+                osc.start(start);
+                osc.stop(start + duration);
+            };
+
+            ping(880, now, 0.14);
+            ping(1100, now + 0.09, 0.20);
+
+            setTimeout(() => ctx.close().catch(() => {}), 600);
+        } catch { /* Web Audio not available */ }
     }
 
     /** Show a native browser notification (only when the app is not in focus). */
