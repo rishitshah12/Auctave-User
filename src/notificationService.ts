@@ -278,17 +278,36 @@ class NotificationService {
         if (Notification.permission !== 'granted') return;
         if (document.visibilityState === 'visible') return; // App is focused — no need
 
-        try {
-            const opts: NotificationOptions = {
-                body: notif.message,
-                icon: '/favicon.ico',
-                badge: '/favicon.ico',
-                tag: notif.category, // Group by category so they don't stack up
-            };
-            const n = new Notification(notif.title, opts);
-            n.onclick = () => { window.focus(); n.close(); };
-        } catch {
-            // Some browsers (e.g. Safari) may throw — silently ignore
+        const opts: NotificationOptions = {
+            body: notif.message,
+            icon: '/favicon.ico',
+            badge: '/favicon.ico',
+            tag: notif.category,
+            renotify: true,
+            data: { notifId: notif.id },
+        };
+
+        const showViaAPI = () => {
+            try {
+                const n = new Notification(notif.title, opts);
+                n.onclick = () => { window.focus(); n.close(); };
+            } catch { /* Safari may throw */ }
+        };
+
+        // Prefer service worker showNotification — required in Chrome when a SW is active,
+        // and more reliable on mobile browsers.
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistration()
+                .then(reg => {
+                    if (reg) {
+                        reg.showNotification(notif.title, opts).catch(showViaAPI);
+                    } else {
+                        showViaAPI();
+                    }
+                })
+                .catch(showViaAPI);
+        } else {
+            showViaAPI();
         }
     }
 }

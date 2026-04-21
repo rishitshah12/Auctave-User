@@ -354,10 +354,10 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'> & { onOpenNotif
     const totalUnread = notifications.filter(n => !n.isRead).length;
 
     const unreadByPage: Record<string, number> = {
-        myQuotes: notifications.filter(n => n.category === 'rfq' && !n.isRead).length,
-        crm:      notifications.filter(n => n.category === 'crm' && !n.isRead).length,
-        adminRFQ: notifications.filter(n => n.category === 'rfq' && !n.isRead).length,
-        adminCRM: notifications.filter(n => n.category === 'crm' && !n.isRead).length,
+        myQuotes: notifications.filter(n => ['rfq', 'chat', 'shipment', 'order'].includes(n.category) && !n.isRead).length,
+        crm:      notifications.filter(n => ['crm', 'task', 'approval', 'qc'].includes(n.category) && !n.isRead).length,
+        adminRFQ: notifications.filter(n => ['rfq', 'chat'].includes(n.category) && !n.isRead).length,
+        adminCRM: notifications.filter(n => ['crm', 'task', 'approval'].includes(n.category) && !n.isRead).length,
     };
 
     const avatarUrl: string = user?.user_metadata?.avatar_url || user?.user_metadata?.picture || '';
@@ -720,10 +720,10 @@ export const MainLayout: FC<MainLayoutProps> = (props) => {
     const totalUnread = notifications.filter(n => !n.isRead).length;
 
     const unreadByPage: Record<string, number> = {
-        myQuotes:  notifications.filter(n => n.category === 'rfq' && !n.isRead).length,
-        crm:       notifications.filter(n => n.category === 'crm' && !n.isRead).length,
-        adminRFQ:  notifications.filter(n => n.category === 'rfq' && !n.isRead).length,
-        adminCRM:  notifications.filter(n => n.category === 'crm' && !n.isRead).length,
+        myQuotes:  notifications.filter(n => ['rfq', 'chat', 'shipment', 'order'].includes(n.category) && !n.isRead).length,
+        crm:       notifications.filter(n => ['crm', 'task', 'approval', 'qc'].includes(n.category) && !n.isRead).length,
+        adminRFQ:  notifications.filter(n => ['rfq', 'chat'].includes(n.category) && !n.isRead).length,
+        adminCRM:  notifications.filter(n => ['crm', 'task', 'approval'].includes(n.category) && !n.isRead).length,
     };
 
     const showNav = !!props.user && !props.hideSidebar;

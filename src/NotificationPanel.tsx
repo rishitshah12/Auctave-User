@@ -154,7 +154,14 @@ export const NotificationPanel: FC<NotificationPanelProps> = ({ isOpen, onClose,
 
     const handleClick = (notif: AppNotification) => {
         markAsRead(notif.id);
-        if (notif.action) onNavigate(notif.action.page, notif.action.data);
+        if (notif.action) {
+            // For chat notifications navigating to quoteDetail, signal the page to auto-open
+            // the chat panel — QuoteDetailPage checks this flag on mount.
+            if (notif.category === 'chat' && notif.action.page === 'quoteDetail') {
+                localStorage.setItem('quote_detail_auto_open_chat', '1');
+            }
+            onNavigate(notif.action.page, notif.action.data);
+        }
         onClose();
     };
 

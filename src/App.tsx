@@ -378,12 +378,25 @@ const AppContent: FC = () => {
             setSelectedFactory(data as Factory);
         }
         if (page === 'quoteDetail') {
-            console.log('[App.tsx] Setting selectedQuote, files:', (data as QuoteRequest)?.files);
-            setSelectedQuote(data as QuoteRequest);
+            if (data && typeof data === 'object' && data.id && !data.status) {
+                // Notification action passes only { id } — look up full quote from cache first
+                const found = quoteRequests.find((q: QuoteRequest) => q.id === data.id) ?? null;
+                if (found) {
+                    setSelectedQuote(found);
+                } else {
+                    // Not cached yet — set a stub so QuoteDetailPage can re-fetch by ID
+                    setSelectedQuote({ id: data.id } as QuoteRequest);
+                    quoteService.getQuoteById(data.id).then(({ data: raw }) => {
+                        if (raw) setSelectedQuote(transformRawQuote(raw));
+                    });
+                }
+            } else {
+                setSelectedQuote(data as QuoteRequest);
+            }
         }
-        if (page === 'adminRFQ' && data?.quoteId) {
-            setAdminRFQInitialId(data.quoteId);
-        } else if (page === 'adminRFQ' && !data?.quoteId) {
+        if (page === 'adminRFQ' && (data?.quoteId || data?.rfqId)) {
+            setAdminRFQInitialId(data.quoteId ?? data.rfqId);
+        } else if (page === 'adminRFQ' && !data?.quoteId && !data?.rfqId) {
             setAdminRFQInitialId(null);
         }
         if (page === 'adminCRM' && data?.orderId) {
@@ -391,9 +404,11 @@ const AppContent: FC = () => {
         } else if (page === 'adminCRM' && !data?.orderId) {
             setAdminCRMInitialId(null);
         }
-        // Reset active CRM order if leaving CRM page
-        if (page !== 'crm') {
-            setActiveCrmOrderKey(null); 
+        // CRM: open specific order if orderId provided, otherwise reset
+        if (page === 'crm' && data?.orderId) {
+            setActiveCrmOrderKey(data.orderId);
+        } else if (page !== 'crm') {
+            setActiveCrmOrderKey(null);
         }
 
         if (page === 'myQuotes') {
@@ -842,12 +857,48 @@ const AppContent: FC = () => {
 
                 const tq = transformRawQuote(raw);
 
+                // Capture previous status before updating state
+                let prevStatus: string | undefined;
                 setQuoteRequests(prev => {
+                    prevStatus = prev.find(q => q.id === tq.id)?.status;
                     const next = prev.map(q => q.id === tq.id ? tq : q);
                     sessionStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify(next));
                     return next;
                 });
                 setSelectedQuote(prev => (prev?.id === tq.id ? tq : prev));
+
+                // Client-side notification fallback (guards against server trigger not running)
+                // Only fire when status changes to an actionable state
+                if (prevStatus !== undefined && prevStatus !== tq.status) {
+                    const notifMap: Record<string, { title: string; message: string } | undefined> = {
+                        'Responded':      { title: 'New Quote Received',             message: `${tq.factory?.name || 'A factory'} responded with pricing on your request.` },
+                        'In Negotiation': { title: 'Counter-Offer Received',         message: `${tq.factory?.name || 'A factory'} sent a counter-offer. Review and respond.` },
+                        'Admin Accepted': { title: 'Quote Accepted — Action Required', message: `${tq.factory?.name || 'A factory'}'s quote has been accepted. Please review and confirm.` },
+                        'Declined':       { title: 'Quote Declined',                 message: `${tq.factory?.name || 'A factory'} declined your quote request.` },
+                    };
+                    const copy = notifMap[tq.status];
+                    if (copy) {
+                        const notifKey = `${tq.id}_${tq.status}`;
+                        if (!clientFiredRFQNotifRef.current.has(notifKey)) {
+                            // Dedup: skip if the DB trigger already delivered a notification for this quote+status
+                            const alreadyInCache = notificationService.getCache().some(n =>
+                                n.category === 'rfq' &&
+                                n.action?.data?.id === tq.id &&
+                                Date.now() - new Date(n.timestamp).getTime() < 15_000
+                            );
+                            if (!alreadyInCache) {
+                                clientFiredRFQNotifRef.current.add(notifKey);
+                                addNotification({
+                                    category: 'rfq',
+                                    title: copy.title,
+                                    message: copy.message,
+                                    imageUrl: tq.factory?.imageUrl,
+                                    action: { page: 'quoteDetail', data: { id: tq.id } },
+                                });
+                            }
+                        }
+                    }
+                }
             })
             .subscribe((status, err) => {
                 if (err) console.error('[Realtime] quotes channel error:', err);
@@ -889,6 +940,7 @@ const AppContent: FC = () => {
     const prevAdminQuoteMap = useRef<Map<string, { status: string; historyLen: number }>>(new Map());
     const prevAdminCrmRef = useRef<Map<string, { tasksJson: string; riskScore?: string }>>(new Map());
     const prevQuoteHistoryRef = useRef<Map<string, number>>(new Map()); // for client chat detection
+    const clientFiredRFQNotifRef = useRef<Set<string>>(new Set()); // tracks "quoteId_status" to avoid duplicate client notifications
     const notifiedOverdueRef = useRef<Set<string>>(new Set()); // tracks which task IDs already got overdue notif
 
     useEffect(() => {
