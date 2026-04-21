@@ -281,56 +281,48 @@ class NotificationService {
         }
     }
 
-    /** Play Apple-style tri-tone notification (D6 → F#6 → Bb6) with bell harmonics. */
+    /** Play a subtle marimba-style notification (A4 → D5) with the characteristic 4th harmonic. */
     private playNotificationSound(): void {
         try {
             const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
             if (!AudioCtx) return;
             const ctx = new AudioCtx() as AudioContext;
             const master = ctx.createGain();
-            master.gain.value = 0.85;
+            master.gain.value = 0.65;
             master.connect(ctx.destination);
             const now = ctx.currentTime;
 
-            const bell = (freq: number, t: number) => {
-                // Fundamental sine
-                const fund = ctx.createOscillator();
-                const fGain = ctx.createGain();
-                fund.type = 'sine';
-                fund.frequency.value = freq;
-                fund.connect(fGain);
-                fGain.connect(master);
-                fGain.gain.setValueAtTime(0, t);
-                fGain.gain.linearRampToValueAtTime(0.28, t + 0.006);
-                fGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
-                fund.start(t);
-                fund.stop(t + 0.3);
+            const marimba = (freq: number, t: number) => {
+                // Marimba bars resonate strongly at the 4th harmonic (2 octaves up)
+                const addPartial = (f: number, amp: number, decay: number) => {
+                    const osc = ctx.createOscillator();
+                    const g = ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.value = f;
+                    osc.connect(g);
+                    g.connect(master);
+                    g.gain.setValueAtTime(0, t);
+                    g.gain.linearRampToValueAtTime(amp, t + 0.014); // soft mallet attack
+                    g.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+                    osc.start(t);
+                    osc.stop(t + decay + 0.05);
+                };
 
-                // Subtle 2nd harmonic for bell timbre
-                const harm = ctx.createOscillator();
-                const hGain = ctx.createGain();
-                harm.type = 'sine';
-                harm.frequency.value = freq * 2;
-                harm.connect(hGain);
-                hGain.connect(master);
-                hGain.gain.setValueAtTime(0, t);
-                hGain.gain.linearRampToValueAtTime(0.06, t + 0.004);
-                hGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
-                harm.start(t);
-                harm.stop(t + 0.15);
+                addPartial(freq,      0.28, 0.55); // fundamental — warm, long
+                addPartial(freq * 4,  0.14, 0.22); // 4th harmonic — the marimba signature
+                addPartial(freq * 2,  0.04, 0.18); // 2nd harmonic — very subtle body
             };
 
-            // Apple tri-tone: D6 → F#6 → Bb6
-            bell(1174.66, now);
-            bell(1479.98, now + 0.115);
-            bell(1864.66, now + 0.230);
+            // Perfect fourth interval — calm and harmonious
+            marimba(440, now);          // A4
+            marimba(587, now + 0.135);  // D5
 
-            setTimeout(() => ctx.close().catch(() => {}), 900);
+            setTimeout(() => ctx.close().catch(() => {}), 1000);
         } catch { /* Web Audio not available */ }
 
-        // Haptic vibration on mobile (pattern mirrors the tri-tone rhythm)
+        // Soft double-tap haptic to match the two-note feel
         try {
-            if ('vibrate' in navigator) navigator.vibrate([60, 60, 60, 60, 80]);
+            if ('vibrate' in navigator) navigator.vibrate([35, 90, 35]);
         } catch { /* Vibration API not available */ }
     }
 
