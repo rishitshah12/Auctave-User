@@ -13,7 +13,7 @@ import {
     History, Edit, Anchor, Ship, Warehouse, PackageCheck, Award, Users, Activity, Shield,
     BarChart as BarChartIcon, FileQuestion, ClipboardCheck, Lock,
     Tag, Weight, Palette, Box, Map as MapIcon, Download, BookOpen, Building, Trash2, Upload, Globe, Moon, Sparkles,
-    Camera, Edit3, ArrowLeft, Search, RefreshCw, ExternalLink, GripVertical, Paperclip, Eye, Check, CheckCheck, LogOut
+    Camera, Edit3, ArrowLeft, Search, RefreshCw, ExternalLink, GripVertical, Paperclip, Eye, EyeOff, Check, CheckCheck, LogOut, AlertTriangle, Smartphone
 } from 'lucide-react';
 // Import TypeScript interfaces/types for data structures used in the app
 import { UserProfile, OrderFormData, Factory, QuoteRequest, CrmOrder, CrmProduct, CrmTask, ToastState, NegotiationHistoryItem, LineItem } from './types';
@@ -28,6 +28,7 @@ import { quoteService } from './quote.service';
 import { crmService } from './crm.service';
 import { analyticsService } from './analytics.service';
 
+import { PhotoRepositionModal } from './PhotoRepositionModal';
 // Lazy-loaded page components — only downloaded when the user navigates to them
 import type { HelloSplashData } from './OnboardingPage';
 const OnboardingPage = lazy(() => import('./OnboardingPage').then(m => ({ default: m.OnboardingPage })));
@@ -566,6 +567,12 @@ const AppContent: FC = () => {
                                 categorySpecialization: data.category_specialization,
                                 yearlyEstRevenue: data.yearly_est_revenue,
                                 avatarUrl: data.avatar_url || '',
+                                website: data.website || '',
+                                vatNumber: data.vat_number || '',
+                                businessRegNumber: data.business_reg_number || '',
+                                businessType: data.business_type || '',
+                                billingAddress: data.billing_address || '',
+                                companyAddress: data.company_address || '',
                             };
                             setUserProfile(currentProfile);
                             console.log('Profile loaded successfully');
@@ -1462,6 +1469,12 @@ const AppContent: FC = () => {
             job_role: profileData.jobRole,
             category_specialization: profileData.categorySpecialization,
             yearly_est_revenue: profileData.yearlyEstRevenue,
+            website: profileData.website || null,
+            vat_number: profileData.vatNumber || null,
+            business_reg_number: profileData.businessRegNumber || null,
+            business_type: profileData.businessType || null,
+            billing_address: profileData.billingAddress || null,
+            company_address: profileData.companyAddress || null,
             updated_at: new Date().toISOString(),
         };
         if (avatarToSave) updates.avatar_url = avatarToSave;
@@ -1850,12 +1863,20 @@ const AppContent: FC = () => {
             jobRole: userProfile?.jobRole || '',
             categorySpecialization: userProfile?.categorySpecialization || '',
             yearlyEstRevenue: userProfile?.yearlyEstRevenue || '',
+            website: userProfile?.website || '',
+            vatNumber: userProfile?.vatNumber || '',
+            businessRegNumber: userProfile?.businessRegNumber || '',
+            businessType: userProfile?.businessType || '',
+            billingAddress: userProfile?.billingAddress || '',
+            companyAddress: userProfile?.companyAddress || '',
         });
         const [avatarUrl, setAvatarUrl] = useState<string>(
             // DB value is authoritative; fall back to auth metadata if not yet synced
             userProfile?.avatarUrl || user?.user_metadata?.avatar_url || user?.user_metadata?.picture || ''
         );
         const [avatarUploading, setAvatarUploading] = useState(false);
+        const [repoSrc, setRepoSrc] = useState<string | null>(null);
+        const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
 
         // Sync avatar from clients table on mount — user_metadata can lag behind
         useEffect(() => {
@@ -1903,25 +1924,26 @@ const AppContent: FC = () => {
         const handleAvatarFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
             const file = e.target.files?.[0];
             if (!file) return;
+            // Load at larger resolution so reposition modal has room to pan/zoom
+            const large = await resizeImage(file, 1200);
+            setRepoSrc(large);
+            e.target.value = '';
+        };
+
+        const handleAvatarConfirm = async (croppedUrl: string) => {
+            setRepoSrc(null);
+            setAvatarMenuOpen(false);
+            setAvatarUrl(croppedUrl);
             setAvatarUploading(true);
             try {
-                const resized = await resizeImage(file, 240);
-                setAvatarUrl(resized);
-
-                // 1. Store in auth user metadata
-                const { error: metaError } = await supabase.auth.updateUser({
-                    data: { avatar_url: resized },
-                });
+                const { error: metaError } = await supabase.auth.updateUser({ data: { avatar_url: croppedUrl } });
                 if (metaError) console.error('Avatar metadata save failed:', metaError.message);
-
-                // 2. Store in clients table (use update — row always exists at this point)
                 if (user && !isAdmin) {
                     const { error: dbError } = await supabase
                         .from('clients')
-                        .update({ avatar_url: resized })
+                        .update({ avatar_url: croppedUrl })
                         .eq('id', user.id);
                     if (dbError) {
-                        console.error('Avatar DB save failed:', dbError.message);
                         showToast('Picture saved locally but DB sync failed: ' + dbError.message, 'error');
                         return;
                     }
@@ -1932,7 +1954,6 @@ const AppContent: FC = () => {
             } finally {
                 setAvatarUploading(false);
             }
-            e.target.value = '';
         };
 
         const addTag = (tag: string) => {
@@ -1972,6 +1993,19 @@ const AppContent: FC = () => {
                         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Update your personal and business details below.</p>
                     </div>
 
+                    {/* Photo reposition modal */}
+                    {repoSrc && (
+                        <PhotoRepositionModal
+                            src={repoSrc}
+                            onConfirm={handleAvatarConfirm}
+                            onCancel={() => setRepoSrc(null)}
+                        />
+                    )}
+                    {/* Dismiss avatar menu on outside click */}
+                    {avatarMenuOpen && (
+                        <div className="fixed inset-0 z-[99]" onClick={() => setAvatarMenuOpen(false)} />
+                    )}
+
                     <form onSubmit={handleSave}>
                         {/* Personal Information card */}
                         <div className="bg-white dark:bg-gray-900/60 rounded-xl border border-gray-200 dark:border-white/10 shadow-sm mb-4">
@@ -1981,11 +2015,12 @@ const AppContent: FC = () => {
 
                             {/* Profile picture row */}
                             <div className="px-6 py-4 flex items-center gap-4 border-b border-gray-100 dark:border-white/8">
-                                <div
-                                    className="relative cursor-pointer flex-shrink-0"
-                                    onClick={() => fileRef.current?.click()}
-                                >
-                                    <div className="w-16 h-16 rounded-full overflow-hidden bg-gradient-to-br from-red-700 to-red-900 flex items-center justify-center border-2 border-red-500/30 relative group">
+                                <div className="relative flex-shrink-0">
+                                    {/* Avatar circle */}
+                                    <div
+                                        className="w-16 h-16 rounded-full overflow-hidden bg-gradient-to-br from-red-700 to-red-900 flex items-center justify-center border-2 border-red-500/30 relative group cursor-pointer"
+                                        onClick={() => avatarUrl ? setAvatarMenuOpen(v => !v) : fileRef.current?.click()}
+                                    >
                                         {avatarUrl
                                             ? <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
                                             : <span className="text-white font-bold text-lg leading-none">{initials}</span>
@@ -1997,15 +2032,45 @@ const AppContent: FC = () => {
                                             }
                                         </div>
                                     </div>
-                                    <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-[var(--color-primary)] flex items-center justify-center border-2 border-white dark:border-gray-900">
+                                    <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-[var(--color-primary)] flex items-center justify-center border-2 border-white dark:border-gray-900 pointer-events-none">
                                         <Edit3 size={9} className="text-white" />
                                     </div>
+                                    {/* Options popup */}
+                                    {avatarMenuOpen && (
+                                        <div
+                                            onClick={e => e.stopPropagation()}
+                                            className="absolute top-[calc(100%+8px)] left-1/2 -translate-x-1/2 z-[100] bg-white dark:bg-gray-800 border border-gray-200 dark:border-white/10 rounded-xl shadow-xl overflow-hidden min-w-[180px]"
+                                        >
+                                            <button
+                                                type="button"
+                                                onClick={() => { setAvatarMenuOpen(false); setRepoSrc(avatarUrl); }}
+                                                className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors border-b border-gray-100 dark:border-white/8"
+                                            >
+                                                <Edit3 size={13} className="text-[var(--color-primary)]" /> Adjust photo
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => { setAvatarMenuOpen(false); fileRef.current?.click(); }}
+                                                className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
+                                            >
+                                                <Camera size={13} className="text-[var(--color-primary)]" /> Upload new photo
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                                 <div>
                                     <p className="text-sm font-medium text-gray-800 dark:text-gray-100">Profile Photo</p>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Click to upload a new photo</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                        {avatarUrl ? 'Click to adjust or replace' : 'Click to upload a photo'}
+                                    </p>
                                 </div>
                                 <input ref={fileRef} type="file" accept="image/*" onChange={handleAvatarFile} className="hidden" />
+                            </div>
+
+                            {/* Account ID row */}
+                            <div className="px-6 py-3 border-b border-gray-100 dark:border-white/8 flex items-center gap-3">
+                                <span className="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 w-24 flex-shrink-0">Account ID</span>
+                                <span className="font-mono text-xs text-gray-500 dark:text-gray-400 select-all break-all">{user?.id}</span>
                             </div>
 
                             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -2065,82 +2130,83 @@ const AppContent: FC = () => {
                             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
                                 <div>
                                     <label className={labelCls}>Company Name <span className="text-[var(--color-primary)]">*</span></label>
-                                    <input
-                                        type="text"
-                                        name="companyName"
-                                        value={profileData.companyName || ''}
-                                        onChange={set('companyName')}
-                                        placeholder="Acme Fashion Co."
-                                        required
-                                        className={fieldCls}
-                                    />
+                                    <input type="text" name="companyName" value={profileData.companyName || ''} onChange={set('companyName')} placeholder="Acme Fashion Co." required className={fieldCls} />
                                 </div>
                                 <div>
                                     <label className={labelCls}>Your Role</label>
-                                    <select
-                                        name="jobRole"
-                                        value={profileData.jobRole || ''}
-                                        onChange={set('jobRole')}
-                                        className={fieldCls}
-                                    >
+                                    <select name="jobRole" value={profileData.jobRole || ''} onChange={set('jobRole')} className={fieldCls}>
                                         <option value="">Select a role</option>
                                         {jobRoles.map(r => <option key={r} value={r}>{r}</option>)}
                                     </select>
                                 </div>
+                                <div>
+                                    <label className={labelCls}>Website URL</label>
+                                    <input type="url" name="website" value={profileData.website || ''} onChange={set('website')} placeholder="https://www.yourcompany.com" className={fieldCls} />
+                                </div>
+                                <div>
+                                    <label className={labelCls}>Business Type / Legal Entity</label>
+                                    <select name="businessType" value={profileData.businessType || ''} onChange={set('businessType')} className={fieldCls}>
+                                        <option value="">Select type</option>
+                                        {['Sole Proprietorship', 'Partnership', 'Private Limited (Ltd / LLC)', 'Public Company (PLC / Inc.)', 'Non-Profit / NGO', 'Joint Venture', 'Other'].map(t => <option key={t} value={t}>{t}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className={labelCls}>VAT / Tax ID Number</label>
+                                    <input type="text" name="vatNumber" value={profileData.vatNumber || ''} onChange={set('vatNumber')} placeholder="e.g. GB123456789" className={fieldCls} />
+                                </div>
+                                <div>
+                                    <label className={labelCls}>Business Registration Number</label>
+                                    <input type="text" name="businessRegNumber" value={profileData.businessRegNumber || ''} onChange={set('businessRegNumber')} placeholder="e.g. 12345678" className={fieldCls} />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className={labelCls}>Billing Address</label>
+                                    <textarea
+                                        name="billingAddress"
+                                        value={profileData.billingAddress || ''}
+                                        onChange={e => setProfileData(p => ({ ...p, billingAddress: e.target.value }))}
+                                        placeholder="Street, City, State/Province, Postal Code, Country"
+                                        rows={3}
+                                        className={`${fieldCls} resize-none`}
+                                    />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className={labelCls}>Registered / Company Address <span className="normal-case font-normal text-gray-400">(if different from billing)</span></label>
+                                    <textarea
+                                        name="companyAddress"
+                                        value={profileData.companyAddress || ''}
+                                        onChange={e => setProfileData(p => ({ ...p, companyAddress: e.target.value }))}
+                                        placeholder="Street, City, State/Province, Postal Code, Country"
+                                        rows={3}
+                                        className={`${fieldCls} resize-none`}
+                                    />
+                                </div>
                                 {/* Category Specialization — tag input */}
                                 <div className="md:col-span-2">
                                     <label className={labelCls}>Category Specialization</label>
-                                    {/* Selected tags */}
                                     {tags.length > 0 && (
                                         <div className="flex flex-wrap gap-2 mb-2">
                                             {tags.map(tag => (
-                                                <span
-                                                    key={tag}
-                                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-[var(--color-primary)]/10 text-[var(--color-primary)] border border-[var(--color-primary)]/20"
-                                                >
+                                                <span key={tag} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-[var(--color-primary)]/10 text-[var(--color-primary)] border border-[var(--color-primary)]/20">
                                                     {tag}
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => removeTag(tag)}
-                                                        className="hover:text-red-500 transition-colors leading-none"
-                                                    >
-                                                        <X size={11} />
-                                                    </button>
+                                                    <button type="button" onClick={() => removeTag(tag)} className="hover:text-red-500 transition-colors leading-none"><X size={11} /></button>
                                                 </span>
                                             ))}
                                         </div>
                                     )}
-                                    {/* Text input + Add button */}
                                     <div className="flex gap-2 mb-2">
                                         <input
                                             type="text"
                                             value={tagInput}
                                             onChange={e => setTagInput(e.target.value)}
-                                            onKeyDown={e => {
-                                                if (e.key === 'Enter') { e.preventDefault(); addTag(tagInput); }
-                                            }}
+                                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag(tagInput); } }}
                                             placeholder="Type a category and press Enter…"
                                             className={fieldCls}
                                         />
-                                        <button
-                                            type="button"
-                                            onClick={() => addTag(tagInput)}
-                                            className="px-4 py-2 rounded-lg bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white text-xs font-semibold transition-colors flex-shrink-0"
-                                        >
-                                            Add
-                                        </button>
+                                        <button type="button" onClick={() => addTag(tagInput)} className="px-4 py-2 rounded-lg bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white text-xs font-semibold transition-colors flex-shrink-0">Add</button>
                                     </div>
-                                    {/* Quick-add suggestions */}
                                     <div className="flex flex-wrap gap-1.5">
                                         {PREDEFINED_CATEGORIES.filter(c => !tags.includes(c)).map(cat => (
-                                            <button
-                                                type="button"
-                                                key={cat}
-                                                onClick={() => addTag(cat)}
-                                                className="text-xs px-2.5 py-0.5 rounded-full border border-gray-200 dark:border-white/10 text-gray-500 dark:text-gray-400 hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition-colors"
-                                            >
-                                                + {cat}
-                                            </button>
+                                            <button type="button" key={cat} onClick={() => addTag(cat)} className="text-xs px-2.5 py-0.5 rounded-full border border-gray-200 dark:border-white/10 text-gray-500 dark:text-gray-400 hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition-colors">+ {cat}</button>
                                         ))}
                                     </div>
                                 </div>
@@ -2169,6 +2235,158 @@ const AppContent: FC = () => {
         const handleLocationSave = () => {
             showToast(`Location updated to ${location}`);
         };
+
+        // Login & Security state
+        const [securityExpanded, setSecurityExpanded] = useState(false);
+        const [pwForm, setPwForm] = useState({ newPassword: '', confirmPassword: '' });
+        const [showNewPw, setShowNewPw] = useState(false);
+        const [showConfirmPw, setShowConfirmPw] = useState(false);
+        const [pwLoading, setPwLoading] = useState(false);
+        const [resetSent, setResetSent] = useState(false);
+
+        const signInProvider = user?.app_metadata?.provider ?? 'email';
+        const isEmailUser = signInProvider === 'email';
+
+        const getPasswordStrength = (pw: string): { label: string; color: string; width: string } => {
+            if (pw.length === 0) return { label: '', color: '', width: '0%' };
+            let score = 0;
+            if (pw.length >= 8) score++;
+            if (pw.length >= 12) score++;
+            if (/[A-Z]/.test(pw)) score++;
+            if (/[0-9]/.test(pw)) score++;
+            if (/[^A-Za-z0-9]/.test(pw)) score++;
+            if (score <= 1) return { label: 'Weak', color: 'bg-red-500', width: '25%' };
+            if (score <= 2) return { label: 'Fair', color: 'bg-yellow-500', width: '50%' };
+            if (score <= 3) return { label: 'Good', color: 'bg-blue-500', width: '75%' };
+            return { label: 'Strong', color: 'bg-green-500', width: '100%' };
+        };
+
+        const handlePasswordChange = async () => {
+            if (pwForm.newPassword.length < 8) {
+                showToast('Password must be at least 8 characters', 'error'); return;
+            }
+            if (pwForm.newPassword !== pwForm.confirmPassword) {
+                showToast('Passwords do not match', 'error'); return;
+            }
+            setPwLoading(true);
+            const { error } = await supabase.auth.updateUser({ password: pwForm.newPassword });
+            setPwLoading(false);
+            if (error) { showToast(error.message, 'error'); }
+            else { showToast('Password updated successfully'); setPwForm({ newPassword: '', confirmPassword: '' }); }
+        };
+
+        const handlePasswordReset = async () => {
+            if (!user?.email) return;
+            const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+                redirectTo: window.location.origin,
+            });
+            if (error) { showToast(error.message, 'error'); }
+            else { setResetSent(true); showToast('Password reset email sent'); }
+        };
+
+        const handleSignOutAllDevices = async () => {
+            const { error } = await supabase.auth.signOut({ scope: 'global' });
+            if (error) { showToast(error.message, 'error'); }
+            else { showToast('Signed out from all devices'); }
+        };
+
+        // Device management state
+        const [devicesExpanded, setDevicesExpanded] = useState(false);
+        const [deviceList, setDeviceList] = useState<Array<{
+            id: string; browser: string; os: string; deviceType: string;
+            lastSeen: string; createdAt: string; name: string;
+        }>>([]);
+        const [removingDeviceId, setRemovingDeviceId] = useState<string | null>(null);
+
+        const parseCurrentUA = () => {
+            const ua = navigator.userAgent;
+            let browser = 'Unknown Browser';
+            let os = 'Unknown OS';
+            let deviceType = 'Desktop';
+            if (/Edg\//.test(ua)) browser = 'Edge';
+            else if (/OPR\/|Opera\//.test(ua)) browser = 'Opera';
+            else if (/Chrome\//.test(ua)) browser = 'Chrome';
+            else if (/Firefox\//.test(ua)) browser = 'Firefox';
+            else if (/Safari\//.test(ua)) browser = 'Safari';
+            if (/iPhone/.test(ua)) { os = 'iOS'; deviceType = 'Mobile'; }
+            else if (/iPad/.test(ua)) { os = 'iPadOS'; deviceType = 'Tablet'; }
+            else if (/Android/.test(ua)) { os = 'Android'; deviceType = /Mobile/.test(ua) ? 'Mobile' : 'Tablet'; }
+            else if (/Windows NT/.test(ua)) os = 'Windows';
+            else if (/Mac OS X/.test(ua)) os = 'macOS';
+            else if (/Linux/.test(ua)) os = 'Linux';
+            return { browser, os, deviceType };
+        };
+
+        const DEVICE_ID_KEY = 'garment_erp_device_id';
+        const getCurrentDeviceId = () => {
+            let id = localStorage.getItem(DEVICE_ID_KEY);
+            if (!id) { id = `dev_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`; localStorage.setItem(DEVICE_ID_KEY, id); }
+            return id;
+        };
+
+        const getDeviceIcon = (deviceType: string, os: string) => {
+            if (deviceType === 'Mobile' || deviceType === 'Tablet') return <Smartphone size={16} />;
+            if (os === 'macOS') return <span className="text-base">💻</span>;
+            return <span className="text-base">🖥️</span>;
+        };
+
+        const timeAgoDevice = (iso: string) => {
+            const diff = Date.now() - new Date(iso).getTime();
+            const m = Math.floor(diff / 60000);
+            if (m < 1) return 'Just now';
+            if (m < 60) return `${m}m ago`;
+            const h = Math.floor(m / 60);
+            if (h < 24) return `${h}h ago`;
+            const d = Math.floor(h / 24);
+            if (d < 7) return `${d}d ago`;
+            return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        };
+
+        // Register / refresh current device in user_metadata on expand
+        const registerCurrentDevice = useCallback(async () => {
+            if (!user) return;
+            const deviceId = getCurrentDeviceId();
+            const { browser, os, deviceType } = parseCurrentUA();
+            const now = new Date().toISOString();
+            const existing: typeof deviceList = user.user_metadata?.devices ?? [];
+            const idx = existing.findIndex((d: any) => d.id === deviceId);
+            let updated;
+            if (idx >= 0) {
+                updated = existing.map((d: any) => d.id === deviceId ? { ...d, lastSeen: now, browser, os, deviceType, name: `${browser} on ${os}` } : d);
+            } else {
+                updated = [...existing, { id: deviceId, browser, os, deviceType, name: `${browser} on ${os}`, lastSeen: now, createdAt: now }];
+            }
+            setDeviceList(updated);
+            await supabase.auth.updateUser({ data: { devices: updated } });
+        }, [user]);
+
+        useEffect(() => {
+            if (devicesExpanded && user) {
+                const stored: typeof deviceList = user.user_metadata?.devices ?? [];
+                setDeviceList(stored);
+                registerCurrentDevice();
+            }
+        }, [devicesExpanded, user]);
+
+        const handleRemoveDevice = async (deviceId: string) => {
+            setRemovingDeviceId(deviceId);
+            const updated = deviceList.filter(d => d.id !== deviceId);
+            const { error } = await supabase.auth.updateUser({ data: { devices: updated } });
+            setRemovingDeviceId(null);
+            if (error) { showToast(error.message, 'error'); }
+            else { setDeviceList(updated); showToast('Device removed'); }
+        };
+
+        const handleSignOutAllDevicesFromManager = async () => {
+            const currentId = getCurrentDeviceId();
+            const updated = deviceList.filter(d => d.id === currentId).map(d => ({ ...d, lastSeen: new Date().toISOString() }));
+            await supabase.auth.updateUser({ data: { devices: updated } });
+            const { error } = await supabase.auth.signOut({ scope: 'global' });
+            if (error) { showToast(error.message, 'error'); }
+            else { showToast('Signed out from all devices'); }
+        };
+
+        const pwStrength = getPasswordStrength(pwForm.newPassword);
         const settingsOptions = [
             { title: "My Profile", description: "Update your personal and company information", icon: <Edit size={20} />, action: () => handleSetCurrentPage('profile'), buttonLabel: "Edit Profile" },
             { title: "Contact Customer Care", description: "Get help with your account or any issue", icon: <LifeBuoy size={20} />, action: () => { window.location.href = 'mailto:support@auctave.com'; }, buttonLabel: "Email Support" },
@@ -2232,6 +2450,284 @@ const AppContent: FC = () => {
                                     <button onClick={handleLocationSave} className="w-full sm:w-auto bg-[var(--color-primary)] text-white font-semibold py-2.5 px-5 rounded-lg hover:bg-[var(--color-primary-hover)] transition text-sm">Save</button>
                                 </div>
                             </div>
+
+                        {/* Login & Security */}
+                        <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-md border border-gray-200 dark:border-white/10 overflow-hidden transition-colors">
+                            <button
+                                onClick={() => setSecurityExpanded(p => !p)}
+                                className="w-full flex items-center justify-between p-4 sm:p-6 text-left hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                            >
+                                <div className="flex items-center gap-3 sm:gap-4">
+                                    <div className="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 p-2.5 sm:p-3 rounded-lg shrink-0">
+                                        <Shield size={18} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-white leading-snug">Login &amp; Security</h3>
+                                        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5 leading-tight">Manage password, sign-in method, and account security</p>
+                                    </div>
+                                </div>
+                                <ChevronDown size={18} className={`text-gray-400 shrink-0 transition-transform duration-200 ${securityExpanded ? 'rotate-180' : ''}`} />
+                            </button>
+
+                            {securityExpanded && (
+                                <div className="border-t border-gray-100 dark:border-white/10 px-4 sm:px-6 pb-6 space-y-6 pt-5">
+
+                                    {/* Sign-in method */}
+                                    <div>
+                                        <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+                                            <Smartphone size={14} className="text-gray-400" /> Sign-in Method
+                                        </h4>
+                                        <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10">
+                                            {signInProvider === 'google' ? (
+                                                <>
+                                                    <div className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center shrink-0">
+                                                        <svg width="16" height="16" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-medium text-gray-800 dark:text-white">Google Account</p>
+                                                        <p className="text-xs text-gray-500 dark:text-gray-400">{user?.email}</p>
+                                                    </div>
+                                                    <span className="ml-auto text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full font-medium">Active</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
+                                                        <Lock size={14} className="text-blue-600 dark:text-blue-400" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-medium text-gray-800 dark:text-white">Email &amp; Password</p>
+                                                        <p className="text-xs text-gray-500 dark:text-gray-400">{user?.email}</p>
+                                                    </div>
+                                                    <span className="ml-auto text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full font-medium">Active</span>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Change Password — only for email users */}
+                                    {isEmailUser && (
+                                        <div>
+                                            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+                                                <Lock size={14} className="text-gray-400" /> Change Password
+                                            </h4>
+                                            <div className="space-y-3">
+                                                {/* New password */}
+                                                <div>
+                                                    <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1.5">New Password</label>
+                                                    <div className="relative">
+                                                        <input
+                                                            type={showNewPw ? 'text' : 'password'}
+                                                            value={pwForm.newPassword}
+                                                            onChange={e => setPwForm(p => ({ ...p, newPassword: e.target.value }))}
+                                                            placeholder="Enter new password"
+                                                            className="w-full pr-10 p-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                        />
+                                                        <button type="button" onClick={() => setShowNewPw(p => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                                                            {showNewPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                                                        </button>
+                                                    </div>
+                                                    {pwForm.newPassword && (
+                                                        <div className="mt-2">
+                                                            <div className="flex items-center justify-between mb-1">
+                                                                <span className="text-xs text-gray-400">Password strength</span>
+                                                                <span className={`text-xs font-medium ${pwStrength.label === 'Strong' ? 'text-green-500' : pwStrength.label === 'Good' ? 'text-blue-500' : pwStrength.label === 'Fair' ? 'text-yellow-500' : 'text-red-500'}`}>{pwStrength.label}</span>
+                                                            </div>
+                                                            <div className="h-1 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
+                                                                <div className={`h-full rounded-full transition-all ${pwStrength.color}`} style={{ width: pwStrength.width }} />
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                {/* Confirm password */}
+                                                <div>
+                                                    <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1.5">Confirm New Password</label>
+                                                    <div className="relative">
+                                                        <input
+                                                            type={showConfirmPw ? 'text' : 'password'}
+                                                            value={pwForm.confirmPassword}
+                                                            onChange={e => setPwForm(p => ({ ...p, confirmPassword: e.target.value }))}
+                                                            placeholder="Confirm new password"
+                                                            className="w-full pr-10 p-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                        />
+                                                        <button type="button" onClick={() => setShowConfirmPw(p => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                                                            {showConfirmPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                                                        </button>
+                                                    </div>
+                                                    {pwForm.confirmPassword && pwForm.newPassword !== pwForm.confirmPassword && (
+                                                        <p className="text-xs text-red-500 mt-1 flex items-center gap-1"><AlertTriangle size={11} /> Passwords do not match</p>
+                                                    )}
+                                                    {pwForm.confirmPassword && pwForm.newPassword === pwForm.confirmPassword && (
+                                                        <p className="text-xs text-green-500 mt-1 flex items-center gap-1"><CheckCircle size={11} /> Passwords match</p>
+                                                    )}
+                                                </div>
+                                                <button
+                                                    onClick={handlePasswordChange}
+                                                    disabled={pwLoading || !pwForm.newPassword || !pwForm.confirmPassword}
+                                                    className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors flex items-center gap-2"
+                                                >
+                                                    {pwLoading ? <RefreshCw size={14} className="animate-spin" /> : <Lock size={14} />}
+                                                    {pwLoading ? 'Updating...' : 'Update Password'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Reset Password via Email */}
+                                    {isEmailUser && (
+                                        <div className="p-4 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/30">
+                                            <div className="flex items-start gap-3">
+                                                <RefreshCw size={16} className="text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Forgot your password?</p>
+                                                    <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">We'll send a secure reset link to <span className="font-medium">{user?.email}</span></p>
+                                                </div>
+                                                {resetSent ? (
+                                                    <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1 shrink-0"><CheckCircle size={13} /> Sent</span>
+                                                ) : (
+                                                    <button
+                                                        onClick={handlePasswordReset}
+                                                        className="shrink-0 text-xs font-semibold text-amber-700 dark:text-amber-300 hover:underline"
+                                                    >
+                                                        Send Link
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Google user — password managed by Google */}
+                                    {!isEmailUser && (
+                                        <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800/30">
+                                            <div className="flex items-start gap-3">
+                                                <Shield size={16} className="text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
+                                                <div>
+                                                    <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">Password managed by Google</p>
+                                                    <p className="text-xs text-blue-700 dark:text-blue-400 mt-0.5">Your account is secured via Google Sign-In. To change your password, visit your Google Account settings.</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Security tips */}
+                                    <div>
+                                        <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+                                            <CheckCircle size={14} className="text-gray-400" /> Security Recommendations
+                                        </h4>
+                                        <ul className="space-y-2">
+                                            {[
+                                                { tip: 'Use a unique password not used on other sites', done: isEmailUser ? pwForm.newPassword.length >= 12 : true },
+                                                { tip: 'Keep your email address up to date', done: !!user?.email },
+                                                { tip: 'Never share your login credentials', done: true },
+                                                { tip: 'Sign out from shared or public devices', done: false },
+                                            ].map((item, i) => (
+                                                <li key={i} className="flex items-center gap-2.5 text-xs text-gray-600 dark:text-gray-400">
+                                                    <span className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 ${item.done ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400' : 'bg-gray-100 dark:bg-gray-700 text-gray-400'}`}>
+                                                        {item.done ? <Check size={10} /> : <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />}
+                                                    </span>
+                                                    {item.tip}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+
+
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Manage Devices */}
+                        <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-md border border-gray-200 dark:border-white/10 overflow-hidden transition-colors">
+                            <button
+                                onClick={() => setDevicesExpanded(p => !p)}
+                                className="w-full flex items-center justify-between p-4 sm:p-6 text-left hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                            >
+                                <div className="flex items-center gap-3 sm:gap-4">
+                                    <div className="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 p-2.5 sm:p-3 rounded-lg shrink-0">
+                                        <Smartphone size={18} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-white leading-snug">Manage Devices</h3>
+                                        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5 leading-tight">View and remove devices signed in to your account</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                    {deviceList.length > 0 && (
+                                        <span className="text-xs bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300 px-2 py-0.5 rounded-full font-medium">{deviceList.length}</span>
+                                    )}
+                                    <ChevronDown size={18} className={`text-gray-400 transition-transform duration-200 ${devicesExpanded ? 'rotate-180' : ''}`} />
+                                </div>
+                            </button>
+
+                            {devicesExpanded && (
+                                <div className="border-t border-gray-100 dark:border-white/10 px-4 sm:px-6 pb-6 pt-5 space-y-4">
+                                    {(() => {
+                                        const currentId = localStorage.getItem('garment_erp_device_id');
+                                        const sorted = [...deviceList].sort((a, b) => {
+                                            if (a.id === currentId) return -1;
+                                            if (b.id === currentId) return 1;
+                                            return new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime();
+                                        });
+                                        return sorted.length === 0 ? (
+                                            <div className="flex flex-col items-center py-6 text-center">
+                                                <Smartphone size={28} className="text-gray-300 dark:text-gray-600 mb-2" />
+                                                <p className="text-sm text-gray-400 dark:text-gray-500">No devices registered yet.</p>
+                                                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">This device will appear here after a moment.</p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-3">
+                                                {sorted.map(device => {
+                                                    const isCurrent = device.id === currentId;
+                                                    return (
+                                                        <div key={device.id} className={`flex items-center gap-3 p-3.5 rounded-lg border transition-colors ${isCurrent ? 'bg-indigo-50 dark:bg-indigo-900/15 border-indigo-200 dark:border-indigo-700/40' : 'bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10'}`}>
+                                                            <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${isCurrent ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'}`}>
+                                                                {getDeviceIcon(device.deviceType, device.os)}
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="flex items-center gap-2 flex-wrap">
+                                                                    <p className="text-sm font-semibold text-gray-800 dark:text-white truncate">{device.name}</p>
+                                                                    {isCurrent && <span className="text-xs bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300 px-1.5 py-0.5 rounded-full font-medium shrink-0">This device</span>}
+                                                                </div>
+                                                                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                                                    <span className="text-xs text-gray-400 dark:text-gray-500">{device.os} · {device.deviceType}</span>
+                                                                    <span className="text-xs text-gray-300 dark:text-gray-600">·</span>
+                                                                    <span className="text-xs text-gray-400 dark:text-gray-500">Last seen {timeAgoDevice(device.lastSeen)}</span>
+                                                                </div>
+                                                            </div>
+                                                            {!isCurrent && (
+                                                                <button
+                                                                    onClick={() => handleRemoveDevice(device.id)}
+                                                                    disabled={removingDeviceId === device.id}
+                                                                    className="shrink-0 text-xs font-semibold text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 border border-red-200 dark:border-red-800/40 rounded-lg px-2.5 py-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50 flex items-center gap-1"
+                                                                >
+                                                                    {removingDeviceId === device.id ? <RefreshCw size={11} className="animate-spin" /> : <X size={11} />}
+                                                                    Remove
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        );
+                                    })()}
+
+                                    {/* Sign out all devices */}
+                                    <div className="pt-3 border-t border-gray-100 dark:border-white/10">
+                                        <div className="flex items-center justify-between gap-4">
+                                            <div>
+                                                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Sign out all devices</p>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">End all active sessions — you'll need to log in again everywhere</p>
+                                            </div>
+                                            <button
+                                                onClick={handleSignOutAllDevicesFromManager}
+                                                className="shrink-0 flex items-center gap-1.5 text-xs font-semibold text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 border border-red-200 dark:border-red-800/40 rounded-lg px-3 py-2 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                            >
+                                                <LogOut size={13} /> Sign Out All
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
 
                         {/* Logout — mobile only */}
                         <div className="sm:hidden">

@@ -7,7 +7,7 @@ import {
     CircleCheck, CircleX, ChevronUp, Lock, KeyRound, ShieldCheck, ShieldOff,
     AlertTriangle, Send, ImageOff, Eye, Ban, ShieldAlert, UserCheck,
     FileText, Package, Receipt, FolderOpen, ExternalLink, Clock,
-    ChevronRight, LayoutDashboard, ArrowLeft
+    ChevronRight, LayoutDashboard, ArrowLeft, Link2, FileSearch, CreditCard
 } from 'lucide-react';
 import { MainLayout } from './MainLayout';
 import { userService } from './user.service';
@@ -484,6 +484,12 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
             category_specialization: editingClient.category_specialization,
             yearly_est_revenue: editingClient.yearly_est_revenue,
             customer_id: customerId,
+            website: editingClient.website || null,
+            vat_number: editingClient.vat_number || null,
+            business_reg_number: editingClient.business_reg_number || null,
+            business_type: editingClient.business_type || null,
+            billing_address: editingClient.billing_address || null,
+            company_address: editingClient.company_address || null,
             updated_at: new Date().toISOString(),
         };
 
@@ -975,6 +981,14 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                                                 <span>{client.yearly_est_revenue}</span>
                                             </div>
                                         )}
+                                        {client.website && (
+                                            <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                                                <Link2 size={13} className="text-gray-400 flex-shrink-0" />
+                                                <a href={client.website} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="truncate text-[var(--color-primary)] hover:underline">
+                                                    {client.website.replace(/^https?:\/\/(www\.)?/, '')}
+                                                </a>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Specialization tags */}
@@ -1194,6 +1208,78 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                                             ))}
                                         </select>
                                         <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Section: KYC / Legal */}
+                            <div>
+                                <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                    <FileSearch size={12} /> KYC &amp; Legal Details
+                                </h3>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className={labelCls}>Website URL</label>
+                                        <input
+                                            type="url"
+                                            value={editingClient.website || ''}
+                                            onChange={e => setEditingClient({ ...editingClient, website: e.target.value })}
+                                            placeholder="https://www.company.com"
+                                            className={inputCls}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={labelCls}>Business Type</label>
+                                        <select
+                                            value={editingClient.business_type || ''}
+                                            onChange={e => setEditingClient({ ...editingClient, business_type: e.target.value })}
+                                            className={inputCls + ' appearance-none'}
+                                        >
+                                            <option value="">Select type…</option>
+                                            {['Sole Proprietorship', 'Partnership', 'Private Limited (Ltd / LLC)', 'Public Company (PLC / Inc.)', 'Non-Profit / NGO', 'Joint Venture', 'Other'].map(t => (
+                                                <option key={t} value={t}>{t}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className={labelCls}>VAT / Tax ID Number</label>
+                                        <input
+                                            type="text"
+                                            value={editingClient.vat_number || ''}
+                                            onChange={e => setEditingClient({ ...editingClient, vat_number: e.target.value })}
+                                            placeholder="e.g. GB123456789"
+                                            className={inputCls}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={labelCls}>Business Registration No.</label>
+                                        <input
+                                            type="text"
+                                            value={editingClient.business_reg_number || ''}
+                                            onChange={e => setEditingClient({ ...editingClient, business_reg_number: e.target.value })}
+                                            placeholder="e.g. 12345678"
+                                            className={inputCls}
+                                        />
+                                    </div>
+                                    <div className="sm:col-span-2">
+                                        <label className={labelCls}>Billing Address</label>
+                                        <textarea
+                                            value={editingClient.billing_address || ''}
+                                            onChange={e => setEditingClient({ ...editingClient, billing_address: e.target.value })}
+                                            placeholder="Street, City, State/Province, Postal Code, Country"
+                                            rows={2}
+                                            className={inputCls + ' resize-none'}
+                                        />
+                                    </div>
+                                    <div className="sm:col-span-2">
+                                        <label className={labelCls}>Registered / Company Address</label>
+                                        <textarea
+                                            value={editingClient.company_address || ''}
+                                            onChange={e => setEditingClient({ ...editingClient, company_address: e.target.value })}
+                                            placeholder="Street, City, State/Province, Postal Code, Country"
+                                            rows={2}
+                                            className={inputCls + ' resize-none'}
+                                        />
                                     </div>
                                 </div>
                             </div>
@@ -1521,16 +1607,29 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                                     {/* Profile details */}
                                     <div className="bg-gray-50 dark:bg-white/[0.03] rounded-xl border border-gray-100 dark:border-white/5 divide-y divide-gray-100 dark:divide-white/5">
                                         {[
+                                            { icon: Hash, label: 'UID', value: drawerClient.id, mono: true },
                                             { icon: Mail, label: 'Email', value: drawerClient.email },
                                             { icon: Phone, label: 'Phone', value: drawerClient.phone },
                                             { icon: MapPin, label: 'Country', value: drawerClient.country ? `${COUNTRY_FLAGS[drawerClient.country] || ''} ${drawerClient.country}` : null },
                                             { icon: Briefcase, label: 'Role', value: drawerClient.job_role },
                                             { icon: DollarSign, label: 'Revenue', value: drawerClient.yearly_est_revenue },
-                                        ].filter(r => r.value).map(({ icon: Icon, label, value }) => (
-                                            <div key={label} className="flex items-center gap-3 px-4 py-3">
-                                                <Icon size={13} className="text-gray-400 flex-shrink-0" />
-                                                <span className="text-xs text-gray-400 w-16 flex-shrink-0">{label}</span>
-                                                <span className="text-sm text-gray-700 dark:text-gray-200 truncate">{value}</span>
+                                            { icon: Link2, label: 'Website', value: drawerClient.website, link: true },
+                                            { icon: Building2, label: 'Biz Type', value: drawerClient.business_type },
+                                            { icon: CreditCard, label: 'VAT / Tax', value: drawerClient.vat_number },
+                                            { icon: FileSearch, label: 'Reg No.', value: drawerClient.business_reg_number },
+                                            { icon: MapPin, label: 'Billing', value: drawerClient.billing_address },
+                                            { icon: MapPin, label: 'Reg Addr', value: drawerClient.company_address },
+                                        ].filter(r => r.value).map(({ icon: Icon, label, value, mono, link }) => (
+                                            <div key={label} className="flex items-start gap-3 px-4 py-3">
+                                                <Icon size={13} className="text-gray-400 flex-shrink-0 mt-0.5" />
+                                                <span className="text-xs text-gray-400 w-16 flex-shrink-0 mt-0.5">{label}</span>
+                                                {link ? (
+                                                    <a href={value as string} target="_blank" rel="noopener noreferrer" className="text-sm text-[var(--color-primary)] hover:underline truncate flex items-center gap-1">
+                                                        {value} <ExternalLink size={10} />
+                                                    </a>
+                                                ) : (
+                                                    <span className={`text-sm text-gray-700 dark:text-gray-200 break-words ${mono ? 'font-mono text-xs' : ''}`}>{value}</span>
+                                                )}
                                             </div>
                                         ))}
                                     </div>
