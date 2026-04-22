@@ -87,7 +87,10 @@ Deno.serve(async (req: Request) => {
 
         const redirectTo = `${appUrl}?invite_token=${invitation.token}`;
 
-        // Send the Supabase invite email
+        // Send the Supabase invite email.
+        // inviteUserByEmail only works for users who don't have an account yet.
+        // For existing users it returns "User already registered" — that's fine,
+        // because the invite link in the DB is still valid; they log in and accept it.
         const { error: inviteErr } = await adminClient.auth.admin.inviteUserByEmail(
             email.toLowerCase(),
             {
@@ -101,11 +104,11 @@ Deno.serve(async (req: Request) => {
             }
         );
 
-        if (inviteErr) {
+        if (inviteErr && !inviteErr.message.includes('already registered')) {
             return respond({ error: inviteErr.message }, 500);
         }
 
-        return respond({ success: true });
+        return respond({ success: true, emailSent: !inviteErr });
     } catch (err: any) {
         return respond({ error: err.message ?? 'Internal server error' }, 500);
     }

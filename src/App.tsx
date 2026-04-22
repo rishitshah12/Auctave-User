@@ -457,11 +457,12 @@ const AppContent: FC = () => {
             showToast(`CMS Startup Error: ${err.message}`, 'error');
         });
 
-        // Capture invite_token from URL on app load — Supabase auth may not have fired yet
+        // Capture invite_token from URL on app load — use localStorage so it survives
+        // Supabase auth redirects that clear sessionStorage.
         const urlParams = new URLSearchParams(window.location.search);
         const rawInviteToken = urlParams.get('invite_token');
         if (rawInviteToken) {
-            sessionStorage.setItem('garment_invite_token', rawInviteToken);
+            localStorage.setItem('garment_invite_token', rawInviteToken);
         }
 
         // Pre-warm the Supabase connection immediately on app load.
@@ -635,16 +636,16 @@ const AppContent: FC = () => {
                     }
 
                     // ── Invite token processing ──────────────────────────────────────────
-                    // When an invited user signs up/logs in via an invite email, the link
-                    // contains ?invite_token=UUID. We accept it here and add them to the org.
-                    if (event === 'SIGNED_IN' && !isUserAdmin) {
+                    // Process on both SIGNED_IN (fresh login) and INITIAL_SESSION (already
+                    // logged-in user visiting an invite link). Token is stored in localStorage
+                    // so it survives Supabase's auth redirect that clears sessionStorage.
+                    if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && !isUserAdmin) {
                         const urlParams = new URLSearchParams(window.location.search);
-                        const inviteToken = urlParams.get('invite_token') ?? sessionStorage.getItem('garment_invite_token');
+                        const inviteToken = urlParams.get('invite_token') ?? localStorage.getItem('garment_invite_token');
                         if (inviteToken) {
-                            sessionStorage.removeItem('garment_invite_token');
+                            localStorage.removeItem('garment_invite_token');
                             // Strip token from URL without reload
-                            const cleanUrl = window.location.pathname;
-                            window.history.replaceState({}, '', cleanUrl);
+                            window.history.replaceState({}, '', window.location.pathname);
                             try {
                                 const { data: invitation } = await supabase
                                     .from('invitations')

@@ -236,16 +236,20 @@ export const TeamSettingsPage: FC<Props> = ({ user, showToast, darkMode: _darkMo
             const link = `${window.location.origin}?invite_token=${invitation.token}`;
             setInviteLink(link);
 
-            // Try Edge Function to send email (non-blocking — failure is okay)
+            // Try Edge Function to send email — invite link always works regardless
             try {
                 const { data: { session } } = await supabase.auth.getSession();
-                await supabase.functions.invoke('invite-member', {
+                const { error: fnError } = await supabase.functions.invoke('invite-member', {
                     body: { email, role: inviteRole, permissions: invitePermissions, orgId: org.id, invitationId: invitation.id },
                     headers: { Authorization: `Bearer ${session?.access_token}` },
                 });
-                showToast(`Invitation sent to ${email}`);
+                if (fnError) {
+                    console.warn('invite-member function error:', fnError.message);
+                    showToast('Invitation created — share the link below (email delivery failed)');
+                } else {
+                    showToast(`Invitation sent to ${email}`);
+                }
             } catch {
-                // Edge Function not deployed yet — invite link still works
                 showToast('Invitation created — share the link below');
             }
 
