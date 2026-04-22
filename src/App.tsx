@@ -636,12 +636,16 @@ const AppContent: FC = () => {
                     }
 
                     // ── Invite token processing ──────────────────────────────────────────
-                    // Process on both SIGNED_IN (fresh login) and INITIAL_SESSION (already
-                    // logged-in user visiting an invite link). Token is stored in localStorage
-                    // so it survives Supabase's auth redirect that clears sessionStorage.
+                    // INITIAL_SESSION: already-logged-in user visiting invite link — read from URL only.
+                    // SIGNED_IN: fresh login after auth redirect — read from URL or localStorage.
+                    // Never read localStorage on INITIAL_SESSION: would steal a token stored by
+                    // a different tab (multi-tab safe).
                     if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && !isUserAdmin) {
                         const urlParams = new URLSearchParams(window.location.search);
-                        const inviteToken = urlParams.get('invite_token') ?? localStorage.getItem('garment_invite_token');
+                        const tokenFromUrl = urlParams.get('invite_token');
+                        const inviteToken = tokenFromUrl ?? (
+                            event === 'SIGNED_IN' ? localStorage.getItem('garment_invite_token') : null
+                        );
                         if (inviteToken) {
                             localStorage.removeItem('garment_invite_token');
                             // Strip token from URL without reload

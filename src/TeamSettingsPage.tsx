@@ -2,7 +2,7 @@ import React, { useState, type FC } from 'react';
 import {
     Users, Mail, Shield, Eye, Edit2, Trash2, RotateCcw,
     Plus, ChevronDown, Clock, CheckCircle, XCircle, Crown,
-    AlertCircle, Send, Copy,
+    AlertCircle, Send, Copy, Building2, ArrowLeftRight,
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import { useOrg, DEFAULT_PERMISSIONS, type OrgRole, type OrgPermissions, type PermissionLevel, type OrgMember } from './OrgContext';
@@ -178,8 +178,22 @@ const EditMemberModal: FC<{
 
 export const TeamSettingsPage: FC<Props> = ({ user, showToast, darkMode: _darkMode }) => {
     const { org, members, invitations, isOrgOwner, isOrgAdmin, loading,
+        allOrgs, switchOrg,
         refreshMembers, refreshInvitations, updateMemberRole, removeMember,
         revokeInvitation, resendInvitation } = useOrg();
+
+    const [switching, setSwitching] = useState<string | null>(null);
+
+    const handleSwitchOrg = async (orgId: string) => {
+        setSwitching(orgId);
+        try {
+            await switchOrg(orgId);
+            // Reload so all page-level data refetches under the new org context
+            window.location.reload();
+        } finally {
+            setSwitching(null);
+        }
+    };
 
     const [inviteEmail, setInviteEmail] = useState('');
     const [inviteRole, setInviteRole] = useState<OrgRole>('viewer');
@@ -320,6 +334,57 @@ export const TeamSettingsPage: FC<Props> = ({ user, showToast, darkMode: _darkMo
                     {org.name} &mdash; {activeMembers.length}/{org.maxMembers} members
                 </p>
             </div>
+
+            {/* Organization switcher — shown when user belongs to multiple orgs */}
+            {allOrgs.length > 1 && (
+                <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 rounded-xl shadow-md border border-gray-200 dark:border-white/10 overflow-hidden">
+                    <div className="p-4 sm:p-6 pb-3 sm:pb-4 border-b border-gray-100 dark:border-white/10">
+                        <h2 className="text-base font-semibold text-gray-800 dark:text-white flex items-center gap-2">
+                            <ArrowLeftRight size={16} className="text-[var(--color-primary)]" />
+                            Switch Organization
+                        </h2>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                            You're a member of {allOrgs.length} organizations. Switch to view another workspace.
+                        </p>
+                    </div>
+                    <div className="divide-y divide-gray-100 dark:divide-white/5">
+                        {allOrgs.map(summary => {
+                            const isActive = summary.org.id === org?.id;
+                            return (
+                                <div key={summary.org.id} className={`flex items-center gap-3 p-4 sm:p-5 transition-colors ${isActive ? 'bg-red-50/50 dark:bg-red-900/10' : 'hover:bg-gray-50 dark:hover:bg-white/5'}`}>
+                                    <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[var(--color-primary)] to-purple-600 flex items-center justify-center shrink-0">
+                                        <Building2 size={16} className="text-white" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{summary.org.name}</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 capitalize">
+                                            {summary.isOwner ? 'Owner' : summary.role}
+                                            {isActive && <span className="ml-2 text-[var(--color-primary)] font-medium">— Active</span>}
+                                        </p>
+                                    </div>
+                                    {isActive ? (
+                                        <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-[var(--color-primary)]/10 text-[var(--color-primary)]">
+                                            <CheckCircle size={11} /> Current
+                                        </span>
+                                    ) : (
+                                        <button
+                                            onClick={() => handleSwitchOrg(summary.org.id)}
+                                            disabled={switching !== null}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-[var(--color-primary)] hover:text-white transition disabled:opacity-50"
+                                        >
+                                            {switching === summary.org.id
+                                                ? <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
+                                                : <ArrowLeftRight size={12} />
+                                            }
+                                            Switch
+                                        </button>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
             {/* Invite form — only for org admins */}
             {isOrgAdmin && (

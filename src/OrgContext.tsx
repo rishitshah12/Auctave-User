@@ -259,14 +259,30 @@ export const OrgProvider: FC<{ user: any | null; children: ReactNode }> = ({ use
     const resendInvitation = useCallback(async (invitationId: string) => {
         const inv = invitations.find(i => i.id === invitationId);
         if (!inv || !org) return;
-        await revokeInvitation(invitationId);
+
+        // Create a fresh invitation record
+        await supabase.from('invitations').update({ status: 'revoked' }).eq('id', invitationId);
+        const { data: newInv, error } = await supabase
+            .from('invitations')
+            .insert({
+                org_id: org.id,
+                email: inv.email,
+                role: inv.role,
+                permissions: inv.permissions,
+                status: 'pending',
+            })
+            .select()
+            .single();
+
+        if (error || !newInv) throw new Error(error?.message ?? 'Failed to create new invitation');
+
         const { data: { session } } = await supabase.auth.getSession();
         await supabase.functions.invoke('invite-member', {
-            body: { email: inv.email, role: inv.role, permissions: inv.permissions, orgId: org.id },
+            body: { email: inv.email, role: inv.role, permissions: inv.permissions, orgId: org.id, invitationId: newInv.id },
             headers: { Authorization: `Bearer ${session?.access_token}` },
         });
         await refreshInvitations();
-    }, [invitations, org, revokeInvitation, refreshInvitations]);
+    }, [invitations, org, refreshInvitations]);
 
     const can = useCallback((module: keyof OrgPermissions, level: PermissionLevel): boolean => {
         if (!currentMember) return false;
