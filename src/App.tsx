@@ -13,7 +13,8 @@ import {
     History, Edit, Anchor, Ship, Warehouse, PackageCheck, Award, Users, Activity, Shield,
     BarChart as BarChartIcon, FileQuestion, ClipboardCheck, Lock,
     Tag, Weight, Palette, Box, Map as MapIcon, Download, BookOpen, Building, Trash2, Upload, Globe, Moon, Sparkles,
-    Camera, Edit3, ArrowLeft, Search, RefreshCw, ExternalLink, GripVertical, Paperclip, Eye, EyeOff, Check, CheckCheck, LogOut, AlertTriangle, Smartphone
+    Camera, Edit3, ArrowLeft, Search, RefreshCw, ExternalLink, GripVertical, Paperclip, Eye, EyeOff, Check, CheckCheck, LogOut, AlertTriangle, Smartphone,
+    Building2, UserPlus, XCircle,
 } from 'lucide-react';
 // Import TypeScript interfaces/types for data structures used in the app
 import { UserProfile, OrderFormData, Factory, QuoteRequest, CrmOrder, CrmProduct, CrmTask, ToastState, NegotiationHistoryItem, LineItem } from './types';
@@ -202,6 +203,18 @@ const AppContent: FC = () => {
 
     // Hello splash overlay shown after onboarding completes
     const [helloSplash, setHelloSplash] = useState<HelloSplashData | null>(null);
+
+    // Pending invitation awaiting user accept/decline
+    const [pendingInvitation, setPendingInvitation] = useState<{
+        id: string;
+        orgId: string;
+        orgName: string;
+        role: string;
+        permissions: any;
+        invitedBy: string | null;
+        token: string;
+    } | null>(null);
+    const [acceptingInvite, setAcceptingInvite] = useState(false);
 
     // State for dark mode
     const [darkMode, setDarkMode] = useState<boolean>(() => {
@@ -648,48 +661,34 @@ const AppContent: FC = () => {
                         );
                         if (inviteToken) {
                             localStorage.removeItem('garment_invite_token');
-                            // Strip token from URL without reload
                             window.history.replaceState({}, '', window.location.pathname);
                             try {
                                 const { data: invitation } = await supabase
                                     .from('invitations')
-                                    .select('*, organizations(id, owner_id, max_members)')
+                                    .select('*, organizations(id, name, owner_id, max_members)')
                                     .eq('token', inviteToken)
                                     .eq('status', 'pending')
                                     .single();
 
                                 if (invitation && new Date(invitation.expires_at) > new Date()) {
-                                    // Verify the email matches (case-insensitive)
                                     if (invitation.email.toLowerCase() === session.user.email?.toLowerCase()) {
-                                        const { error: memberErr } = await supabase
-                                            .from('organization_members')
-                                            .upsert({
-                                                org_id: invitation.org_id,
-                                                user_id: session.user.id,
-                                                role: invitation.role,
-                                                permissions: invitation.permissions,
-                                                status: 'active',
-                                                invited_by: invitation.invited_by,
-                                            }, { onConflict: 'org_id,user_id' });
-
-                                        if (!memberErr) {
-                                            await supabase
-                                                .from('invitations')
-                                                .update({ status: 'accepted' })
-                                                .eq('id', invitation.id);
-                                            // Auto-switch to the new org on reload
-                                            localStorage.setItem('garment_erp_active_org', invitation.org_id);
-                                            setTimeout(() => {
-                                                showToast('You\'ve joined the organization successfully!');
-                                                // Reload so OrgContext picks up the new membership
-                                                setTimeout(() => window.location.reload(), 800);
-                                            }, 300);
-                                        }
+                                        // Show accept/decline dialog instead of auto-accepting
+                                        setPendingInvitation({
+                                            id: invitation.id,
+                                            orgId: invitation.org_id,
+                                            orgName: (invitation.organizations as any)?.name ?? 'the organization',
+                                            role: invitation.role,
+                                            permissions: invitation.permissions,
+                                            invitedBy: invitation.invited_by,
+                                            token: inviteToken,
+                                        });
                                     } else {
                                         setTimeout(() => showToast('This invitation was sent to a different email address.', 'error'), 500);
                                     }
                                 } else if (invitation && new Date(invitation.expires_at) <= new Date()) {
                                     setTimeout(() => showToast('This invitation has expired. Please ask for a new one.', 'error'), 500);
+                                } else if (!invitation) {
+                                    setTimeout(() => showToast('Invitation not found or already used.', 'error'), 500);
                                 }
                             } catch (inviteErr) {
                                 console.warn('Invite token processing failed:', inviteErr);
@@ -1388,6 +1387,43 @@ const AppContent: FC = () => {
     }, [user]);
 
     // Function to handle user sign out
+    const handleAcceptInvite = useCallback(async () => {
+        if (!pendingInvitation || !user) return;
+        setAcceptingInvite(true);
+        try {
+            const { error: memberErr } = await supabase
+                .from('organization_members')
+                .upsert({
+                    org_id: pendingInvitation.orgId,
+                    user_id: user.id,
+                    role: pendingInvitation.role,
+                    permissions: pendingInvitation.permissions,
+                    status: 'active',
+                    invited_by: pendingInvitation.invitedBy,
+                }, { onConflict: 'org_id,user_id' });
+
+            if (memberErr) {
+                showToast('Failed to join organization: ' + memberErr.message, 'error');
+                return;
+            }
+
+            await supabase.from('invitations').update({ status: 'accepted' }).eq('id', pendingInvitation.id);
+            localStorage.setItem('garment_erp_active_org', pendingInvitation.orgId);
+            setPendingInvitation(null);
+            showToast(`You've joined ${pendingInvitation.orgName} successfully!`);
+            setTimeout(() => window.location.reload(), 800);
+        } finally {
+            setAcceptingInvite(false);
+        }
+    }, [pendingInvitation, user]);
+
+    const handleDeclineInvite = useCallback(async () => {
+        if (!pendingInvitation) return;
+        await supabase.from('invitations').update({ status: 'revoked' }).eq('id', pendingInvitation.id);
+        setPendingInvitation(null);
+        showToast('Invitation declined.');
+    }, [pendingInvitation]);
+
     const handleSignOut = useCallback(async (skipConfirmation = false) => {
         if (!skipConfirmation && !window.confirm("Are you sure you want to log out?")) return;
         try {
@@ -4424,6 +4460,60 @@ User message: "${userMsg}"`;
             <Suspense fallback={null}>
                 {user && isAdmin && <AdminUniversalChat onNavigate={handleSetCurrentPage} />}
             </Suspense>
+            {/* Invite accept/decline dialog */}
+            {pendingInvitation && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+                    <div className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md border border-gray-200 dark:border-white/10 overflow-hidden">
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-[var(--color-primary)] to-purple-600 p-6">
+                            <div className="flex items-center gap-3">
+                                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                                    <Building2 size={24} className="text-white" />
+                                </div>
+                                <div>
+                                    <p className="text-white/80 text-sm font-medium">You've been invited to join</p>
+                                    <h2 className="text-white text-xl font-bold leading-tight">{pendingInvitation.orgName}</h2>
+                                </div>
+                            </div>
+                        </div>
+                        {/* Body */}
+                        <div className="p-6 space-y-4">
+                            <div className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/60">
+                                <UserPlus size={18} className="text-[var(--color-primary)] shrink-0" />
+                                <div>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">Your role</p>
+                                    <p className="text-sm font-semibold text-gray-900 dark:text-white capitalize">{pendingInvitation.role}</p>
+                                </div>
+                            </div>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+                                Accepting will add this workspace to your account. You can switch between your organizations at any time from Settings → Team.
+                            </p>
+                        </div>
+                        {/* Actions */}
+                        <div className="px-6 pb-6 flex gap-3">
+                            <button
+                                onClick={handleDeclineInvite}
+                                disabled={acceptingInvite}
+                                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition disabled:opacity-50"
+                            >
+                                <XCircle size={16} /> Decline
+                            </button>
+                            <button
+                                onClick={handleAcceptInvite}
+                                disabled={acceptingInvite}
+                                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--color-primary)] text-white text-sm font-medium hover:bg-[var(--color-primary-hover)] transition disabled:opacity-50"
+                            >
+                                {acceptingInvite
+                                    ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                    : <CheckCircle size={16} />
+                                }
+                                {acceptingInvite ? 'Joining...' : 'Accept Invitation'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
             {/* Hello splash overlay — shown after onboarding, sits above everything */}
             {helloSplash && <HelloSplashOverlay data={helloSplash} />}
         </div>
