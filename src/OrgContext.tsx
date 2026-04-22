@@ -270,6 +270,7 @@ export const OrgProvider: FC<{ user: any | null; children: ReactNode }> = ({ use
                 role: inv.role,
                 permissions: inv.permissions,
                 status: 'pending',
+                invited_by: user?.id ?? inv.invitedBy,
             })
             .select()
             .single();

@@ -677,7 +677,13 @@ const AppContent: FC = () => {
                                                 .from('invitations')
                                                 .update({ status: 'accepted' })
                                                 .eq('id', invitation.id);
-                                            setTimeout(() => showToast('You\'ve joined the organization successfully!'), 500);
+                                            // Auto-switch to the new org on reload
+                                            localStorage.setItem('garment_erp_active_org', invitation.org_id);
+                                            setTimeout(() => {
+                                                showToast('You\'ve joined the organization successfully!');
+                                                // Reload so OrgContext picks up the new membership
+                                                setTimeout(() => window.location.reload(), 800);
+                                            }, 300);
                                         }
                                     } else {
                                         setTimeout(() => showToast('This invitation was sent to a different email address.', 'error'), 500);
