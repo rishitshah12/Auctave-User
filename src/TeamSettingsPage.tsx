@@ -253,15 +253,18 @@ export const TeamSettingsPage: FC<Props> = ({ user, showToast, darkMode: _darkMo
             // Try Edge Function to send email — invite link always works regardless
             try {
                 const { data: { session } } = await supabase.auth.getSession();
-                const { error: fnError } = await supabase.functions.invoke('invite-member', {
+                const { data: fnData, error: fnError } = await supabase.functions.invoke('invite-member', {
                     body: { email, role: inviteRole, permissions: invitePermissions, orgId: org.id, invitationId: invitation.id },
                     headers: { Authorization: `Bearer ${session?.access_token}` },
                 });
                 if (fnError) {
                     console.warn('invite-member function error:', fnError.message);
-                    showToast('Invitation created — share the link below (email delivery failed)');
+                    showToast('Invitation created — share the link below');
+                } else if (fnData?.emailSent) {
+                    showToast(`Invitation email sent to ${email}`);
                 } else {
-                    showToast(`Invitation sent to ${email}`);
+                    // Existing user — Supabase can't re-send invite; admin shares link
+                    showToast('Invitation created — share the link below (existing account)');
                 }
             } catch {
                 showToast('Invitation created — share the link below');
