@@ -51,6 +51,8 @@ const FactoryDetailPage = lazy(() => import('./FactoryDetailPage').then(m => ({ 
 import { theme } from './theme';
 import { ToastProvider, useToast } from './ToastContext';
 import { NotificationProvider, useNotifications } from './NotificationContext';
+import { OrgProvider } from './OrgContext';
+import { TeamSettingsPage } from './TeamSettingsPage';
 import { notificationService } from './notificationService';
 import { getCache, setCache, getCacheStale, TTL_FACTORIES, TTL_FACTORY_DETAIL } from './sessionCache';
 
@@ -455,6 +457,13 @@ const AppContent: FC = () => {
             showToast(`CMS Startup Error: ${err.message}`, 'error');
         });
 
+        // Capture invite_token from URL on app load — Supabase auth may not have fired yet
+        const urlParams = new URLSearchParams(window.location.search);
+        const rawInviteToken = urlParams.get('invite_token');
+        if (rawInviteToken) {
+            sessionStorage.setItem('garment_invite_token', rawInviteToken);
+        }
+
         // Pre-warm the Supabase connection immediately on app load.
         // This fires a lightweight 1-row query so the database wakes up in the
         // background while the user is on the login screen — not while they wait
@@ -624,6 +633,59 @@ const AppContent: FC = () => {
                         profileFetchFailed = true;
                         // Don't set profile to null on network errors - keep existing state
                     }
+
+                    // ── Invite token processing ──────────────────────────────────────────
+                    // When an invited user signs up/logs in via an invite email, the link
+                    // contains ?invite_token=UUID. We accept it here and add them to the org.
+                    if (event === 'SIGNED_IN' && !isUserAdmin) {
+                        const urlParams = new URLSearchParams(window.location.search);
+                        const inviteToken = urlParams.get('invite_token') ?? sessionStorage.getItem('garment_invite_token');
+                        if (inviteToken) {
+                            sessionStorage.removeItem('garment_invite_token');
+                            // Strip token from URL without reload
+                            const cleanUrl = window.location.pathname;
+                            window.history.replaceState({}, '', cleanUrl);
+                            try {
+                                const { data: invitation } = await supabase
+                                    .from('invitations')
+                                    .select('*, organizations(id, owner_id, max_members)')
+                                    .eq('token', inviteToken)
+                                    .eq('status', 'pending')
+                                    .single();
+
+                                if (invitation && new Date(invitation.expires_at) > new Date()) {
+                                    // Verify the email matches (case-insensitive)
+                                    if (invitation.email.toLowerCase() === session.user.email?.toLowerCase()) {
+                                        const { error: memberErr } = await supabase
+                                            .from('organization_members')
+                                            .upsert({
+                                                org_id: invitation.org_id,
+                                                user_id: session.user.id,
+                                                role: invitation.role,
+                                                permissions: invitation.permissions,
+                                                status: 'active',
+                                                invited_by: invitation.invited_by,
+                                            }, { onConflict: 'org_id,user_id' });
+
+                                        if (!memberErr) {
+                                            await supabase
+                                                .from('invitations')
+                                                .update({ status: 'accepted' })
+                                                .eq('id', invitation.id);
+                                            setTimeout(() => showToast('You\'ve joined the organization successfully!'), 500);
+                                        }
+                                    } else {
+                                        setTimeout(() => showToast('This invitation was sent to a different email address.', 'error'), 500);
+                                    }
+                                } else if (invitation && new Date(invitation.expires_at) <= new Date()) {
+                                    setTimeout(() => showToast('This invitation has expired. Please ask for a new one.', 'error'), 500);
+                                }
+                            } catch (inviteErr) {
+                                console.warn('Invite token processing failed:', inviteErr);
+                            }
+                        }
+                    }
+                    // ── End invite token processing ──────────────────────────────────────
 
                     // Enforce Onboarding Flow via MasterController - ONLY if profile fetch succeeded
                     // Skip onboarding redirect if fetch failed due to network/timeout issues
@@ -2551,6 +2613,7 @@ const AppContent: FC = () => {
         const pwStrength = getPasswordStrength(pwForm.newPassword);
         const settingsOptions = [
             { title: "My Profile", description: "Update your personal and company information", icon: <Edit size={20} />, action: () => handleSetCurrentPage('profile'), buttonLabel: "Edit Profile" },
+            { title: "Team Members", description: "Invite colleagues and manage their access", icon: <Users size={20} />, action: () => handleSetCurrentPage('teamSettings'), buttonLabel: "Manage Team" },
             { title: "Contact Customer Care", description: "Get help with your account or any issue", icon: <LifeBuoy size={20} />, action: () => { window.location.href = 'mailto:support@auctave.com'; }, buttonLabel: "Email Support" },
             { title: "Order Details", description: "View and track all your past and current orders", icon: <History size={20} />, action: () => handleSetCurrentPage('crm'), buttonLabel: "View Orders" },
         ];
@@ -4026,6 +4089,11 @@ User message: "${userMsg}"`;
             case 'factoryCatalog': return <FactoryDetailPage {...layoutProps} selectedFactory={selectedFactory!} suggestedFactories={suggestedFactories} initialTab="catalog" onSubmitRFQ={submitQuoteRequest} />;
             case 'factoryTools': return <FactoryToolsPage />;
             case 'settings': return <SettingsPage />;
+            case 'teamSettings': return (
+                <MainLayout {...layoutProps}>
+                    <TeamSettingsPage user={user} showToast={showToast} darkMode={darkMode} />
+                </MainLayout>
+            );
             case 'tracking': return <OrderTrackingPage />;
             case 'trending': return <TrendingPageComponent {...layoutProps} />;
             case 'myQuotes': return <MyQuotesPage quoteRequests={quoteRequests} handleSetCurrentPage={handleSetCurrentPage} layoutProps={layoutProps} isLoading={isQuotesLoading} onRefresh={fetchUserQuotes} initialFilterStatus={myQuotesFilter} />;
@@ -4288,6 +4356,7 @@ User message: "${userMsg}"`;
 
     // Render the main application structure
     return (
+        <OrgProvider user={user}>
         <div className="antialiased">
             {/* Global styles for fonts and animations */}
             <style>{`
@@ -4347,6 +4416,7 @@ User message: "${userMsg}"`;
             {/* Hello splash overlay — shown after onboarding, sits above everything */}
             {helloSplash && <HelloSplashOverlay data={helloSplash} />}
         </div>
+        </OrgProvider>
     );
 };
 
@@ -4359,6 +4429,9 @@ const App: FC = () => {
         </NotificationProvider>
     );
 };
+
+// OrgProvider is rendered inside AppContent so it has access to the `user` state.
+// See the OrgProviderWrapper component injected into AppContent's render tree.
 
 // Export the App component as the default export
 export default App;

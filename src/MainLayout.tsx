@@ -3,10 +3,11 @@ import {
     Search, DollarSign, Plus, X,
     List, Truck, LogOut, Settings, Flame, FileQuestion,
     LayoutDashboard, Users, Building, ImageIcon, Bell, ChevronLeft,
-    Grid3X3, User, BarChart2
+    Grid3X3, User, BarChart2, ChevronDown, Check, Crown, Shuffle
 } from 'lucide-react';
 import { NotificationBellButton, NotificationPanel } from './NotificationPanel';
 import { useNotifications } from './NotificationContext';
+import { useOrg } from './OrgContext';
 
 interface MainLayoutProps {
     children: ReactNode;
@@ -335,6 +336,69 @@ const SidebarMorePanel: FC<{
     </>
 );
 
+// ── Org Switcher ──────────────────────────────────────────────────────────────
+const OrgSwitcher: FC = () => {
+    const { org, allOrgs, switchOrg } = useOrg();
+    const [open, setOpen] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClick = (e: MouseEvent) => {
+            if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+        };
+        document.addEventListener('mousedown', handleClick);
+        return () => document.removeEventListener('mousedown', handleClick);
+    }, []);
+
+    if (allOrgs.length <= 1) return null;
+
+    const orgInitials = (org?.name || 'O').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+
+    return (
+        <div ref={ref} className="relative px-2 flex-shrink-0">
+            <button
+                onClick={() => setOpen(o => !o)}
+                className="w-full flex flex-col items-center gap-[5px] py-[9px] px-1 rounded-xl hover:bg-white/[0.12] transition-all group"
+                title={`Switch org: ${org?.name}`}
+            >
+                <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center text-white font-bold text-[10px]">
+                    {orgInitials}
+                </div>
+                <span className="text-[9px] font-medium text-white/60 group-hover:text-white/90 transition-colors leading-tight flex items-center gap-0.5">
+                    Org <ChevronDown size={8} />
+                </span>
+            </button>
+
+            {open && (
+                <div className="absolute left-full bottom-0 ml-2 w-56 bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-white/10 overflow-hidden z-[80]">
+                    <div className="px-3 py-2.5 border-b border-gray-100 dark:border-white/10">
+                        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Switch Organization</p>
+                    </div>
+                    {allOrgs.map(({ org: o, role, isOwner }) => (
+                        <button
+                            key={o.id}
+                            onClick={() => { switchOrg(o.id); setOpen(false); }}
+                            className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-left"
+                        >
+                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--color-primary)] to-purple-600 flex items-center justify-center text-white font-bold text-[11px] shrink-0">
+                                {o.name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{o.name}</p>
+                                <p className="text-[11px] text-gray-400 dark:text-gray-500 flex items-center gap-1">
+                                    {isOwner && <Crown size={9} className="text-amber-500" />}
+                                    {isOwner ? 'Owner' : role}
+                                </p>
+                            </div>
+                            {org?.id === o.id && <Check size={14} className="text-[var(--color-primary)] shrink-0" />}
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
 // ── Side Menu ─────────────────────────────────────────────────────────────────
 const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'> & { onOpenNotif: () => void }> = (
     { currentPage, isMenuOpen, toggleMenu, handleSetCurrentPage, handleSignOut, isAdmin, user, userProfile, onOpenNotif }
@@ -488,6 +552,9 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'> & { onOpenNotif
                     </div>
                 )}
             </nav>
+
+            {/* Org switcher — only visible when user belongs to multiple orgs */}
+            {!isAdmin && <OrgSwitcher />}
 
             <div className="mx-3 h-px bg-white/15 flex-shrink-0" />
 
