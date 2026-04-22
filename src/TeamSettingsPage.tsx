@@ -2,7 +2,7 @@ import React, { useState, type FC } from 'react';
 import {
     Users, Mail, Shield, Eye, Edit2, Trash2, RotateCcw,
     Plus, ChevronDown, Clock, CheckCircle, XCircle, Crown,
-    AlertCircle, Send,
+    AlertCircle, Send, Copy,
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import { useOrg, DEFAULT_PERMISSIONS, type OrgRole, type OrgPermissions, type PermissionLevel, type OrgMember } from './OrgContext';
@@ -186,6 +186,8 @@ export const TeamSettingsPage: FC<Props> = ({ user, showToast, darkMode: _darkMo
     const [invitePermissions, setInvitePermissions] = useState<OrgPermissions>({ ...DEFAULT_PERMISSIONS.viewer });
     const [showPermEditor, setShowPermEditor] = useState(false);
     const [inviting, setSending] = useState(false);
+    // Shown after invite creation so admin can copy/share the link
+    const [inviteLink, setInviteLink] = useState<string | null>(null);
 
     const [editingMember, setEditingMember] = useState<OrgMember | null>(null);
     const [removingId, setRemovingId] = useState<string | null>(null);
@@ -201,23 +203,52 @@ export const TeamSettingsPage: FC<Props> = ({ user, showToast, darkMode: _darkMo
 
         setSending(true);
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const { data, error } = await supabase.functions.invoke('invite-member', {
-                body: {
-                    email: inviteEmail.trim().toLowerCase(),
+            const email = inviteEmail.trim().toLowerCase();
+
+            // Revoke any existing pending invite for this email+org
+            await supabase
+                .from('invitations')
+                .update({ status: 'revoked' })
+                .eq('org_id', org.id)
+                .eq('email', email)
+                .eq('status', 'pending');
+
+            // Create invitation record directly in DB (RLS allows org owners)
+            const { data: invitation, error: dbErr } = await supabase
+                .from('invitations')
+                .insert({
+                    org_id: org.id,
+                    email,
                     role: inviteRole,
                     permissions: invitePermissions,
-                    orgId: org.id,
-                },
-                headers: { Authorization: `Bearer ${session?.access_token}` },
-            });
+                    invited_by: user.id,
+                    status: 'pending',
+                })
+                .select()
+                .single();
 
-            if (error || data?.error) {
-                showToast(data?.error ?? error?.message ?? 'Failed to send invitation', 'error');
+            if (dbErr || !invitation) {
+                showToast(dbErr?.message ?? 'Failed to create invitation', 'error');
                 return;
             }
 
-            showToast(`Invitation sent to ${inviteEmail}`);
+            // Build the invite link — works whether or not the email was sent
+            const link = `${window.location.origin}?invite_token=${invitation.token}`;
+            setInviteLink(link);
+
+            // Try Edge Function to send email (non-blocking — failure is okay)
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                await supabase.functions.invoke('invite-member', {
+                    body: { email, role: inviteRole, permissions: invitePermissions, orgId: org.id, invitationId: invitation.id },
+                    headers: { Authorization: `Bearer ${session?.access_token}` },
+                });
+                showToast(`Invitation sent to ${email}`);
+            } catch {
+                // Edge Function not deployed yet — invite link still works
+                showToast('Invitation created — share the link below');
+            }
+
             setInviteEmail('');
             setInviteRole('viewer');
             setInvitePermissions({ ...DEFAULT_PERMISSIONS.viewer });
@@ -378,6 +409,31 @@ export const TeamSettingsPage: FC<Props> = ({ user, showToast, darkMode: _darkMo
                                         ))}
                                     </div>
                                 )}
+                            </div>
+                        )}
+
+                        {/* Invite link — shown after invite is created */}
+                        {inviteLink && (
+                            <div className="mt-3 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                                <p className="text-xs font-medium text-green-700 dark:text-green-400 mb-1.5 flex items-center gap-1">
+                                    <CheckCircle size={12} /> Invite link ready — share this with your teammate
+                                </p>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        readOnly
+                                        value={inviteLink}
+                                        className="flex-1 text-xs bg-white dark:bg-gray-800 border border-green-200 dark:border-green-700 rounded px-2 py-1.5 text-gray-600 dark:text-gray-300 truncate"
+                                    />
+                                    <button
+                                        onClick={() => { navigator.clipboard.writeText(inviteLink); showToast('Link copied!'); }}
+                                        className="shrink-0 px-3 py-1.5 rounded text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition"
+                                    >
+                                        Copy
+                                    </button>
+                                    <button onClick={() => setInviteLink(null)} className="p-1 text-gray-400 hover:text-gray-600">
+                                        <XCircle size={14} />
+                                    </button>
+                                </div>
                             </div>
                         )}
                     </div>
