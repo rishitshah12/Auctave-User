@@ -12,6 +12,7 @@ import {
     Search, ChevronLeft
 } from 'lucide-react';
 import { updateOrderRiskScore, calculateOrderRiskScore, updateFactoryMetricsOnCompletion } from './risk.service';
+import { useOrgPermissions } from './OrgContext';
 import jsPDF from 'jspdf';
 import {
     DashboardView, ListView, BoardView, GanttChartView, TNAView
@@ -306,6 +307,8 @@ const OrderDetailsView: FC<{
     handleSetCurrentPage: (page: string, data?: any) => void;
 }> = ({ order, allFactories, supabase, onUpdate, onSelectProduct, handleSetCurrentPage }) => {
     const { showToast } = useToast();
+    const { can } = useOrgPermissions();
+    const canEdit = can('crm', 'edit');
     let factory = allFactories.find(f => f.id === order.factoryId || f.id === (order as any).factory_id);
     if (!factory && (order as any).factory) {
         const f = (order as any).factory;
@@ -646,11 +649,13 @@ const OrderDetailsView: FC<{
             <div className="bg-white dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
                 <div className="px-5 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex justify-between items-center">
                     <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider">Attachments</h3>
-                    <label className={`cursor-pointer flex items-center gap-1 text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                        {uploading ? <RefreshCw size={14} className="animate-spin" /> : <Plus size={14} />}
-                        {uploading ? 'Uploading...' : 'Add File'}
-                        <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileSelect} disabled={uploading} />
-                    </label>
+                    {canEdit && (
+                        <label className={`cursor-pointer flex items-center gap-1 text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                            {uploading ? <RefreshCw size={14} className="animate-spin" /> : <Plus size={14} />}
+                            {uploading ? 'Uploading...' : 'Add File'}
+                            <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileSelect} disabled={uploading} />
+                        </label>
+                    )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-100 dark:divide-gray-800">
@@ -686,13 +691,15 @@ const OrderDetailsView: FC<{
                                         >
                                             <Download size={13} />
                                         </button>
-                                        <button
-                                            onClick={() => setConfirmDeleteDoc({ doc, origIdx })}
-                                            title="Delete"
-                                            className="p-1.5 rounded-md text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                                        >
-                                            <Trash2 size={13} />
-                                        </button>
+                                        {canEdit && (
+                                            <button
+                                                onClick={() => setConfirmDeleteDoc({ doc, origIdx })}
+                                                title="Delete"
+                                                className="p-1.5 rounded-md text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                            >
+                                                <Trash2 size={13} />
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             ))}

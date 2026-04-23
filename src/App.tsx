@@ -52,7 +52,7 @@ const FactoryDetailPage = lazy(() => import('./FactoryDetailPage').then(m => ({ 
 import { theme } from './theme';
 import { ToastProvider, useToast } from './ToastContext';
 import { NotificationProvider, useNotifications } from './NotificationContext';
-import { OrgProvider, useOrg } from './OrgContext';
+import { OrgProvider, useOrg, useOrgPermissions } from './OrgContext';
 import { TeamSettingsPage } from './TeamSettingsPage';
 import { notificationService } from './notificationService';
 import { getCache, setCache, getCacheStale, TTL_FACTORIES, TTL_FACTORY_DETAIL } from './sessionCache';
@@ -3223,6 +3223,9 @@ const AppContent: FC = () => {
         const activeTab = aiActiveTab;
         const setActiveTab = setAiActiveTab;
 
+        const { can } = useOrgPermissions();
+        const canSend = can('sourcing', 'edit');
+
         // ── AI Chat State ─────────────────────────────────────────────────────
         const messages = aiMessages;
         const setMessages = setAiMessages;
@@ -4079,6 +4082,7 @@ User message: "${userMsg}"`;
                                         )}
 
                                         {/* Input */}
+                                        {canSend ? (
                                         <div className="border-t border-gray-100 dark:border-white/10 px-3 py-2.5 flex-shrink-0 flex items-end gap-2 bg-white dark:bg-gray-900">
                                             <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileSelect} />
                                             <button onClick={() => fileInputRef.current?.click()}
@@ -4108,6 +4112,11 @@ User message: "${userMsg}"`;
                                                 {quotesSending ? <RefreshCw size={17} className="animate-spin" /> : <Send size={17} />}
                                             </button>
                                         </div>
+                                        ) : (
+                                        <div className="border-t border-gray-100 dark:border-white/10 px-3 py-2.5 flex-shrink-0 bg-white dark:bg-gray-900">
+                                            <p className="text-xs text-center text-gray-400 dark:text-gray-500 italic">View-only access — messaging is disabled</p>
+                                        </div>
+                                        )}
                                     </div>
                                 )}
                             </>
