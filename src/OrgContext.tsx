@@ -37,6 +37,7 @@ export interface PendingInvitation {
     status: 'pending' | 'accepted' | 'expired' | 'revoked';
     expiresAt: string;
     createdAt: string;
+    invitedBy: string | null;
 }
 
 export interface Organization {
@@ -141,13 +142,12 @@ export const OrgProvider: FC<{ user: any | null; children: ReactNode }> = ({ use
                 isOwner: row.owner_id === userId,
             }));
 
-            const savedOrgId = localStorage.getItem('garment_erp_active_org');
+            const savedOrgId = localStorage.getItem(ORG_STORAGE_KEY);
             console.log('[OrgContext] summaries:', summaries.map(s => s.org.name), '| savedOrgId:', savedOrgId);
 
             setAllOrgs(summaries);
 
             // Determine which org to activate: persisted preference, or first owned org, or first in list
-            const savedOrgId = localStorage.getItem(ORG_STORAGE_KEY);
             const preferred =
                 summaries.find(s => s.org.id === savedOrgId) ??
                 summaries.find(s => s.isOwner) ??
@@ -217,6 +217,7 @@ export const OrgProvider: FC<{ user: any | null; children: ReactNode }> = ({ use
                 status: row.status,
                 expiresAt: row.expires_at,
                 createdAt: row.created_at,
+                invitedBy: row.invited_by ?? null,
             })));
         }
     }, [org]);
