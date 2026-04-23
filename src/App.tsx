@@ -209,6 +209,7 @@ const AppContent: FC = () => {
         id: string;
         orgId: string;
         orgName: string;
+        inviterName: string;
         role: string;
         permissions: any;
         invitedBy: string | null;
@@ -672,11 +673,22 @@ const AppContent: FC = () => {
 
                                 if (invitation && new Date(invitation.expires_at) > new Date()) {
                                     if (invitation.email.toLowerCase() === session.user.email?.toLowerCase()) {
+                                        // Fetch inviter's name from clients table
+                                        let inviterName = 'Your admin';
+                                        if (invitation.invited_by) {
+                                            const { data: inviterRow } = await supabase
+                                                .from('clients')
+                                                .select('name')
+                                                .eq('user_id', invitation.invited_by)
+                                                .single();
+                                            if (inviterRow?.name) inviterName = inviterRow.name;
+                                        }
                                         // Show accept/decline dialog instead of auto-accepting
                                         setPendingInvitation({
                                             id: invitation.id,
                                             orgId: invitation.org_id,
                                             orgName: (invitation.organizations as any)?.name ?? 'the organization',
+                                            inviterName,
                                             role: invitation.role,
                                             permissions: invitation.permissions,
                                             invitedBy: invitation.invited_by,
@@ -4472,7 +4484,9 @@ User message: "${userMsg}"`;
                                     <Building2 size={24} className="text-white" />
                                 </div>
                                 <div>
-                                    <p className="text-white/80 text-sm font-medium">You've been invited to join</p>
+                                    <p className="text-white/90 text-sm font-semibold">
+                                        {pendingInvitation.inviterName} has invited you to join
+                                    </p>
                                     <h2 className="text-white text-xl font-bold leading-tight">{pendingInvitation.orgName}</h2>
                                 </div>
                             </div>
