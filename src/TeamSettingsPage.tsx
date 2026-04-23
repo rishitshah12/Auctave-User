@@ -187,6 +187,7 @@ export const TeamSettingsPage: FC<Props> = ({ user, showToast, darkMode: _darkMo
     const handleSwitchOrg = (orgId: string) => {
         setSwitching(orgId);
         localStorage.setItem('garment_erp_active_org', orgId);
+        console.log('[Switch] Switching to org:', orgId, '| stored in localStorage:', localStorage.getItem('garment_erp_active_org'));
         window.location.reload();
     };
 

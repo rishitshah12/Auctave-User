@@ -125,6 +125,8 @@ export const OrgProvider: FC<{ user: any | null; children: ReactNode }> = ({ use
             // SECURITY DEFINER function — bypasses RLS entirely, returns all orgs for current user
             const { data, error } = await supabase.rpc('get_user_orgs');
 
+            console.log('[OrgContext] get_user_orgs result:', { data, error });
+
             if (error || !data || data.length === 0) { setLoading(false); return; }
 
             const summaries: OrgSummary[] = data.map((row: any) => ({
@@ -138,6 +140,10 @@ export const OrgProvider: FC<{ user: any | null; children: ReactNode }> = ({ use
                 role: row.role as OrgRole,
                 isOwner: row.owner_id === userId,
             }));
+
+            const savedOrgId = localStorage.getItem('garment_erp_active_org');
+            console.log('[OrgContext] summaries:', summaries.map(s => s.org.name), '| savedOrgId:', savedOrgId);
+
             setAllOrgs(summaries);
 
             // Determine which org to activate: persisted preference, or first owned org, or first in list
