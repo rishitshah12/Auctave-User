@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, type FC, type ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState, useCallback, type FC, type ReactNode } from 'react';
 import { supabase } from './supabaseClient';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -284,10 +284,16 @@ export const OrgProvider: FC<{ user: any | null; children: ReactNode }> = ({ use
         return PERMISSION_RANK[granted] >= PERMISSION_RANK[level];
     }, [currentMember]);
 
+    const prevUserIdRef = useRef<string | null>(null);
+
     useEffect(() => {
         if (user?.id) {
+            prevUserIdRef.current = user.id;
             fetchAllOrgs(user.id);
-        } else {
+        } else if (prevUserIdRef.current) {
+            // Only clear when transitioning from a real user → null (actual sign-out)
+            // NOT on initial page load where user starts as null briefly
+            prevUserIdRef.current = null;
             setOrg(null);
             setCurrentMember(null);
             setAllOrgs([]);
