@@ -122,18 +122,30 @@ export const OrgProvider: FC<{ user: any | null; children: ReactNode }> = ({ use
     const fetchAllOrgs = useCallback(async (userId: string) => {
         setLoading(true);
         try {
-            const { data } = await supabase
+            // Step 1: get memberships (uses members_select_own RLS — simple uid check)
+            const { data: memberships } = await supabase
                 .from('organization_members')
-                .select('role, status, org_id, organizations(*)')
+                .select('role, org_id')
                 .eq('user_id', userId)
                 .eq('status', 'active');
 
-            if (!data || data.length === 0) { setLoading(false); return; }
+            if (!memberships || memberships.length === 0) { setLoading(false); return; }
 
-            const summaries: OrgSummary[] = data
-                .filter(row => row.organizations)
-                .map(row => {
-                    const orgRow = row.organizations as any;
+            // Step 2: fetch org details separately (avoids RLS join issue)
+            const orgIds = memberships.map(m => m.org_id);
+            const { data: orgs } = await supabase
+                .from('organizations')
+                .select('id, name, owner_id, max_members, created_at')
+                .in('id', orgIds);
+
+            if (!orgs || orgs.length === 0) { setLoading(false); return; }
+
+            const orgMap = Object.fromEntries(orgs.map(o => [o.id, o]));
+
+            const summaries: OrgSummary[] = memberships
+                .filter(m => orgMap[m.org_id])
+                .map(m => {
+                    const orgRow = orgMap[m.org_id];
                     return {
                         org: {
                             id: orgRow.id,
@@ -142,7 +154,7 @@ export const OrgProvider: FC<{ user: any | null; children: ReactNode }> = ({ use
                             maxMembers: orgRow.max_members,
                             createdAt: orgRow.created_at,
                         },
-                        role: row.role as OrgRole,
+                        role: m.role as OrgRole,
                         isOwner: orgRow.owner_id === userId,
                     };
                 });
@@ -190,20 +202,12 @@ export const OrgProvider: FC<{ user: any | null; children: ReactNode }> = ({ use
         if (!org) return;
         const { data } = await supabase
             .from('organization_members')
-            .select(`
-                *,
-                clients!organization_members_user_id_fkey(name, email, avatar_url)
-            `)
+            .select('*')
             .eq('org_id', org.id)
             .order('joined_at');
 
         if (data) {
-            setMembers(data.map(row => mapMember({
-                ...row,
-                client_name: row.clients?.name,
-                client_email: row.clients?.email,
-                avatar_url: row.clients?.avatar_url,
-            })));
+            setMembers(data.map(row => mapMember(row)));
         }
     }, [org]);
 
