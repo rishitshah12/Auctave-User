@@ -14,6 +14,7 @@ import { MainLayout } from '../src/MainLayout';
 import { CrmOrder, CrmProduct, CrmTask, Factory } from '../src/types';
 import { crmService } from './crm.service';
 import { normalizeOrder, getOrderStatusColor } from './utils';
+import { useOrg } from './OrgContext';
 import jsPDF from 'jspdf';
 
 interface CRMPageProps {
@@ -2946,13 +2947,15 @@ export const OrderDetailsView: FC<{ order: any; allFactories: Factory[]; handleS
     }
 
 export const CRMPage: FC<CRMPageProps> = (props) => {
-    const { 
+    const {
         crmData: initialCrmData, activeCrmOrderKey, allFactories, callGeminiAPI, showToast, handleSetCurrentPage, user
     } = props;
 
+    const { org } = useOrg();
+
     const [crmData, setCrmData] = useState<{ [key: string]: CrmOrder }>(initialCrmData);
     const [activeOrderKey, setActiveOrderKey] = useState<string | null>(activeCrmOrderKey || (Object.keys(initialCrmData).length > 0 ? Object.keys(initialCrmData)[0] : null));
-    
+
     useEffect(() => {
         if (activeCrmOrderKey) {
             setActiveOrderKey(activeCrmOrderKey);
@@ -2962,7 +2965,8 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
     useEffect(() => {
         const fetchClientOrders = async () => {
             if (user) {
-                const { data } = await crmService.getOrdersByClient(user.id);
+                const fetchId = org?.ownerId ?? user.id;
+                const { data } = await crmService.getOrdersByClient(fetchId);
                 if (data) {
                     const mappedData: { [key: string]: CrmOrder } = {};
                     data.forEach((order: any) => {
@@ -2979,7 +2983,7 @@ export const CRMPage: FC<CRMPageProps> = (props) => {
             }
         };
         fetchClientOrders();
-    }, [user]);
+    }, [user, org?.ownerId]);
 
     const [activeView, setActiveView] = useState('Overview');
     const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);

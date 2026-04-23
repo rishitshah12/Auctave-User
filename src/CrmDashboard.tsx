@@ -19,6 +19,7 @@ import {
 import CrmOrderCard from './CrmOrderCard';
 import CrmOrderDetail from './CrmOrderDetail';
 import { supabase } from './supabaseClient';
+import { useOrg } from './OrgContext';
 
 interface CrmDashboardProps {
     callGeminiAPI: (prompt: string) => Promise<string>;
@@ -387,6 +388,7 @@ const AggregateStatsView = ({ stats, darkMode }: { stats: any; darkMode?: boolea
 };
 
 export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user, darkMode, activeCrmOrderKey }: CrmDashboardProps) {
+    const { org } = useOrg();
     const ORDERS_CACHE_KEY = 'garment_erp_client_orders';
     const FACTORIES_CACHE_KEY = 'garment_erp_factories_v2'; // shared key — avoids duplicate network fetches
 
@@ -425,6 +427,7 @@ export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user
                 const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 15000));
 
                 if (user && user.id && !signal.aborted) {
+                    const fetchId = org?.ownerId ?? user.id;
                     // Fetch factories directly to bypass service permission checks (client-side access)
                     // Only select fields used in CRMPage's OrderDetailsView: id, name, location, rating, imageUrl, specialties
                     const factoriesPromise = supabase.from('factories')
@@ -457,8 +460,8 @@ export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user
 
                     const [ordersRes, quotesRes, factoriesRes] = await Promise.race([
                         Promise.all([
-                            crmService.getOrdersByClient(user.id),
-                            quoteService.getQuotesByUser(user.id),
+                            crmService.getOrdersByClient(fetchId),
+                            quoteService.getQuotesByUser(fetchId),
                             factoriesPromise,
                         ]),
                         timeoutPromise
@@ -500,7 +503,7 @@ export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user
                 await new Promise(r => setTimeout(r, 1000 * attempts));
             }
         }
-    }, [user]);
+    }, [user, org?.ownerId]);
 
     useEffect(() => {
         fetchData();

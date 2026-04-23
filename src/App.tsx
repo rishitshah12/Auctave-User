@@ -52,7 +52,7 @@ const FactoryDetailPage = lazy(() => import('./FactoryDetailPage').then(m => ({ 
 import { theme } from './theme';
 import { ToastProvider, useToast } from './ToastContext';
 import { NotificationProvider, useNotifications } from './NotificationContext';
-import { OrgProvider } from './OrgContext';
+import { OrgProvider, useOrg } from './OrgContext';
 import { TeamSettingsPage } from './TeamSettingsPage';
 import { notificationService } from './notificationService';
 import { getCache, setCache, getCacheStale, TTL_FACTORIES, TTL_FACTORY_DETAIL } from './sessionCache';
@@ -146,6 +146,16 @@ const HelloSplashOverlay: FC<{ data: import('./OnboardingPage').HelloSplashData 
     );
 };
 
+// Relays org.ownerId into AppContent state — needed because AppContent wraps OrgProvider
+// and cannot call useOrg() itself.
+const OrgBridge: FC<{ onOrgOwnerChange: (ownerId: string) => void }> = ({ onOrgOwnerChange }) => {
+    const { org } = useOrg();
+    useEffect(() => {
+        if (org?.ownerId) onOrgOwnerChange(org.ownerId);
+    }, [org?.ownerId]);
+    return null;
+};
+
 // --- Main App Component ---
 // This is the root component of the application
 const AppContent: FC = () => {
@@ -168,6 +178,11 @@ const AppContent: FC = () => {
     const [isAuthReady, setIsAuthReady] = useState<boolean>(false);
     // State to show loading indicator when saving profile
     const [isProfileLoading, setIsProfileLoading] = useState<boolean>(false);
+    // Active org owner's user ID — set by OrgBridge when the active org changes.
+    // When a team member is viewing an org they don't own, data must be fetched
+    // using the owner's ID (quotes/crm_orders are keyed on the owner's user_id/client_id).
+    const [activeOrgOwnerId, setActiveOrgOwnerId] = useState<string | null>(null);
+
     // State to track if the current user is a new signup (needs onboarding)
     const [isNewUserSignup, setIsNewUserSignup] = useState<boolean>(false);
     // State to store authentication error messages
@@ -813,10 +828,11 @@ const AppContent: FC = () => {
                 setGlobalLoading(true);
                 setIsQuotesLoading(true);
             }
-            
+
             try {
                 if (signal.aborted) return;
-                const { data, error } = await quoteService.getQuotesByUser(user.id);
+                const fetchId = activeOrgOwnerId ?? user.id;
+                const { data, error } = await quoteService.getQuotesByUser(fetchId);
 
                 if (error) throw error;
 
@@ -849,7 +865,7 @@ const AppContent: FC = () => {
             if (!signal.aborted) setIsQuotesLoading(false);
             if (!signal.aborted) setGlobalLoading(false);
         }
-    }, [user, isAdmin, showToast, setGlobalLoading]);
+    }, [user, isAdmin, activeOrgOwnerId, showToast, setGlobalLoading]);
 
     // Keep prevQuoteStatusesRef in sync so the visibilitychange handler can diff changes
     useEffect(() => {
@@ -883,13 +899,20 @@ const AppContent: FC = () => {
     };
 
     useEffect(() => {
-        if (user && !isAdmin && (currentPage === 'myQuotes' || quoteRequests.length === 0)) {
+        if (user && !isAdmin) {
+            sessionStorage.removeItem(QUOTES_CACHE_KEY);
             fetchUserQuotes();
         }
         return () => {
             if (quotesAbortController.current) quotesAbortController.current.abort();
         };
-    }, [user, isAdmin, currentPage, fetchUserQuotes, quoteRequests.length]);
+    }, [user, isAdmin, activeOrgOwnerId]);
+
+    useEffect(() => {
+        if (user && !isAdmin && currentPage === 'myQuotes') {
+            fetchUserQuotes();
+        }
+    }, [currentPage]);
 
     // Flush page duration on tab hide / browser close
     useEffect(() => {
@@ -1025,7 +1048,7 @@ const AppContent: FC = () => {
         const onHide = () => { tabHiddenAtRef.current = Date.now(); };
         const onShow = async () => {
             if (Date.now() - tabHiddenAtRef.current < 30_000) return;
-            const { data } = await quoteService.getQuotesByUser(user.id);
+            const { data } = await quoteService.getQuotesByUser(activeOrgOwnerId ?? user.id);
             if (!data) return;
             const transformed = data.map(transformRawQuote);
             setQuoteRequests(transformed);
@@ -1037,7 +1060,7 @@ const AppContent: FC = () => {
 
         document.addEventListener('visibilitychange', handleVisibility);
         return () => document.removeEventListener('visibilitychange', handleVisibility);
-    }, [user, isAdmin]);
+    }, [user, isAdmin, activeOrgOwnerId]);
 
     // Effect to listen for real-time CRM order updates for the current client.
     // Server-side filter removed (same REPLICA IDENTITY FULL requirement as quotes).
@@ -1320,7 +1343,7 @@ const AppContent: FC = () => {
     useEffect(() => {
         if (!user || isAdmin) return;
         const poll = async () => {
-            const { data } = await quoteService.getQuotesByUser(user.id);
+            const { data } = await quoteService.getQuotesByUser(activeOrgOwnerId ?? user.id);
             if (!data) return;
             const transformed = data.map(transformRawQuote);
             setQuoteRequests(transformed);
@@ -1328,7 +1351,7 @@ const AppContent: FC = () => {
         };
         const id = setInterval(poll, 45_000);
         return () => clearInterval(id);
-    }, [user, isAdmin]);
+    }, [user, isAdmin, activeOrgOwnerId]);
 
     // ── Polling fallback: CRM order state sync (client, every 45 s) ──────────
     // Keeps prevCrmRef fresh for milestone-confirmation diffing.
@@ -4416,6 +4439,7 @@ User message: "${userMsg}"`;
     // Render the main application structure
     return (
         <OrgProvider user={user}>
+        <OrgBridge onOrgOwnerChange={setActiveOrgOwnerId} />
         <div className="antialiased">
             {/* Global styles for fonts and animations */}
             <style>{`
