@@ -122,42 +122,22 @@ export const OrgProvider: FC<{ user: any | null; children: ReactNode }> = ({ use
     const fetchAllOrgs = useCallback(async (userId: string) => {
         setLoading(true);
         try {
-            // Step 1: get memberships (uses members_select_own RLS — simple uid check)
-            const { data: memberships } = await supabase
-                .from('organization_members')
-                .select('role, org_id')
-                .eq('user_id', userId)
-                .eq('status', 'active');
+            // SECURITY DEFINER function — bypasses RLS entirely, returns all orgs for current user
+            const { data, error } = await supabase.rpc('get_user_orgs');
 
-            if (!memberships || memberships.length === 0) { setLoading(false); return; }
+            if (error || !data || data.length === 0) { setLoading(false); return; }
 
-            // Step 2: fetch org details separately (avoids RLS join issue)
-            const orgIds = memberships.map(m => m.org_id);
-            const { data: orgs } = await supabase
-                .from('organizations')
-                .select('id, name, owner_id, max_members, created_at')
-                .in('id', orgIds);
-
-            if (!orgs || orgs.length === 0) { setLoading(false); return; }
-
-            const orgMap = Object.fromEntries(orgs.map(o => [o.id, o]));
-
-            const summaries: OrgSummary[] = memberships
-                .filter(m => orgMap[m.org_id])
-                .map(m => {
-                    const orgRow = orgMap[m.org_id];
-                    return {
-                        org: {
-                            id: orgRow.id,
-                            name: orgRow.name,
-                            ownerId: orgRow.owner_id,
-                            maxMembers: orgRow.max_members,
-                            createdAt: orgRow.created_at,
-                        },
-                        role: m.role as OrgRole,
-                        isOwner: orgRow.owner_id === userId,
-                    };
-                });
+            const summaries: OrgSummary[] = data.map((row: any) => ({
+                org: {
+                    id: row.org_id,
+                    name: row.org_name,
+                    ownerId: row.owner_id,
+                    maxMembers: row.max_members,
+                    createdAt: row.created_at,
+                },
+                role: row.role as OrgRole,
+                isOwner: row.owner_id === userId,
+            }));
             setAllOrgs(summaries);
 
             // Determine which org to activate: persisted preference, or first owned org, or first in list
