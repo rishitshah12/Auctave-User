@@ -219,13 +219,12 @@ export const TeamSettingsPage: FC<Props> = ({ user, showToast, darkMode: _darkMo
         try {
             const email = inviteEmail.trim().toLowerCase();
 
-            // Revoke any existing pending invite for this email+org
+            // Remove any existing invitation for this email+org (avoids unique constraint violation)
             await supabase
                 .from('invitations')
-                .update({ status: 'revoked' })
+                .delete()
                 .eq('org_id', org.id)
-                .eq('email', email)
-                .eq('status', 'pending');
+                .eq('email', email);
 
             // Create invitation record directly in DB (RLS allows org owners)
             const { data: invitation, error: dbErr } = await supabase

@@ -250,7 +250,7 @@ export const OrgProvider: FC<{ user: any | null; children: ReactNode }> = ({ use
     const revokeInvitation = useCallback(async (invitationId: string) => {
         const { error } = await supabase
             .from('invitations')
-            .update({ status: 'revoked' })
+            .delete()
             .eq('id', invitationId);
         if (error) throw new Error(error.message);
         await refreshInvitations();
@@ -260,8 +260,8 @@ export const OrgProvider: FC<{ user: any | null; children: ReactNode }> = ({ use
         const inv = invitations.find(i => i.id === invitationId);
         if (!inv || !org) return;
 
-        // Create a fresh invitation record
-        await supabase.from('invitations').update({ status: 'revoked' }).eq('id', invitationId);
+        // Delete old record so the unique (org_id, email) constraint allows a fresh insert
+        await supabase.from('invitations').delete().eq('id', invitationId);
         const { data: newInv, error } = await supabase
             .from('invitations')
             .insert({
