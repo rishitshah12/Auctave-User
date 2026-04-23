@@ -976,14 +976,15 @@ const AppContent: FC = () => {
     useEffect(() => {
         if (!user || isAdmin) return;
 
-        const channel = supabase.channel(`quotes-rt-${user.id}`)
+        const ownerId = activeOrgOwnerId ?? user.id;
+        const channel = supabase.channel(`quotes-rt-${ownerId}`)
             .on('postgres_changes', {
                 event: 'UPDATE',
                 schema: 'public',
                 table: 'quotes',
             }, (payload) => {
                 const raw = payload.new as any;
-                if (raw.user_id !== user.id) return;
+                if (raw.user_id !== ownerId) return;
 
                 const tq = transformRawQuote(raw);
 
@@ -1036,7 +1037,7 @@ const AppContent: FC = () => {
             });
 
         return () => { supabase.removeChannel(channel); };
-    }, [user, isAdmin]);
+    }, [user, isAdmin, activeOrgOwnerId]);
 
     // Visibility-change fallback: re-fetch quotes when the tab becomes visible again
     // after being hidden for ≥30 s to keep local state current.
@@ -1076,14 +1077,15 @@ const AppContent: FC = () => {
     useEffect(() => {
         if (!user || isAdmin) return;
 
-        const channel = supabase.channel(`crm-rt-${user.id}`)
+        const ownerId = activeOrgOwnerId ?? user.id;
+        const channel = supabase.channel(`crm-rt-${ownerId}`)
             .on('postgres_changes', {
                 event: 'UPDATE',
                 schema: 'public',
                 table: 'crm_orders',
             }, (payload) => {
                 const updated = payload.new as any;
-                if (updated.client_id !== user.id) return;
+                if (updated.client_id !== ownerId) return;
 
                 const prev = prevCrmRef.current.get(updated.id);
                 const newTasksJson = JSON.stringify(updated.tasks || []);
@@ -1136,7 +1138,7 @@ const AppContent: FC = () => {
             });
 
         return () => { supabase.removeChannel(channel); };
-    }, [user, isAdmin, addNotification]);
+    }, [user, isAdmin, activeOrgOwnerId, addNotification]);
 
     // Effect to listen for new RFQ submissions (admin only)
     useEffect(() => {

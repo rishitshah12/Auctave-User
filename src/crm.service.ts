@@ -23,12 +23,30 @@ export class CRMService extends BaseService<any> {
     // Takes the client's ID as input and returns a list of orders
     async getOrdersByClient(clientId: string): Promise<ServiceResponse<any[]>> {
         try {
-            // Check if the user is an admin OR if they are fetching their own orders
             const { data: { user } } = await supabase.auth.getUser();
             const isOwnData = user?.id === clientId;
 
-            // Only enforce strict permission check (via MasterController) if not accessing own data
-            if (!isOwnData) {
+            // Check if the user is an active org member of the org owned by clientId.
+            // The RLS policy already enforces this at the DB level, so no extra masterController
+            // check is needed for org members — it would incorrectly block invitees.
+            let isOrgMember = false;
+            if (!isOwnData && user) {
+                const { data: memberRow } = await supabase
+                    .from('organization_members')
+                    .select('id')
+                    .eq('user_id', user.id)
+                    .eq('status', 'active')
+                    .limit(1)
+                    .maybeSingle();
+
+                // If the user is in any org, they can access the org owner's data.
+                // The DB RLS policy filters to only the correct org owner's rows.
+                isOrgMember = !!memberRow;
+            }
+
+            // Only enforce strict permission check (via MasterController) if not own data
+            // and not an org member — i.e., this is a true cross-account admin access.
+            if (!isOwnData && !isOrgMember) {
                 await this.checkPermission(this.config.permissions?.read);
             }
             

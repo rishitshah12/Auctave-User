@@ -13,6 +13,7 @@ import { MainLayout } from '../src/MainLayout';
 import { OrderFormData, QuoteRequest, LineItem } from '../src/types';
 import { formatFriendlyDate, getStatusColor, getStatusGradientBorder } from './utils';
 import { useToast } from './ToastContext';
+import { useOrgPermissions } from './OrgContext';
 
 // Define the properties (props) that this component expects to receive from its parent (App.tsx).
 interface OrderFormPageProps {
@@ -705,6 +706,8 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
     // Destructure (extract) specific functions we need from the props object.
     const { handleSetCurrentPage, handleSubmitOrderForm, handleAddToQuoteRequest, quoteRequests } = props;
 
+    const { can } = useOrgPermissions();
+    const canEdit = can('sourcing', 'edit');
     const [orderType, setOrderType] = useState<'new' | 'existing'>('new');
     const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
     const [originalLineItems, setOriginalLineItems] = useState<LineItem[]>([]);
@@ -2685,10 +2688,11 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                     <button
                                         type="button"
                                         onClick={onSubmitButtonClick}
-                                        disabled={isSubmitting}
+                                        disabled={isSubmitting || !canEdit}
                                         className={`w-full py-3.5 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 text-base ${
-                                            isSubmitting ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white'
+                                            isSubmitting || !canEdit ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white'
                                         }`}
+                                        title={!canEdit ? 'View-only access' : undefined}
                                     >
                                         {isSubmitting ? <><Zap className="animate-spin" size={18}/> Submitting...</> : <><Check size={18}/> Submit Request</>}
                                     </button>
@@ -2699,10 +2703,10 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                             <ChevronLeft size={16}/> Back
                                         </button>
                                     )}
-                                    <button type="button" onClick={handleSaveDraft} className="flex-1 py-3 text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl font-bold flex items-center justify-center gap-1 shadow-sm text-sm">
+                                    <button type="button" onClick={handleSaveDraft} disabled={!canEdit} className="flex-1 py-3 text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl font-bold flex items-center justify-center gap-1 shadow-sm text-sm disabled:opacity-50 disabled:cursor-not-allowed" title={!canEdit ? 'View-only access' : undefined}>
                                         <Save size={15}/> Draft
                                     </button>
-                                    <button type="button" onClick={handleResetForm} className="px-4 py-3 text-red-600 bg-red-50 dark:bg-red-900/20 rounded-xl font-bold">
+                                    <button type="button" onClick={handleResetForm} disabled={!canEdit} className="px-4 py-3 text-red-600 bg-red-50 dark:bg-red-900/20 rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed" title={!canEdit ? 'View-only access' : undefined}>
                                         <Trash2 size={16}/>
                                     </button>
                                 </div>
@@ -2741,12 +2745,13 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                     <button
                                         type="button"
                                         onClick={onSubmitButtonClick}
-                                        disabled={isSubmitting}
+                                        disabled={isSubmitting || !canEdit}
                                         className={`px-8 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center gap-2 ${
-                                            isSubmitting
+                                            isSubmitting || !canEdit
                                                 ? 'bg-gray-400 cursor-not-allowed text-white'
                                                 : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:scale-105'
                                         }`}
+                                        title={!canEdit ? 'View-only access' : undefined}
                                     >
                                         {isSubmitting ? (
                                             <><Zap className="animate-spin" size={18}/> Submitting...</>

@@ -14,7 +14,7 @@ import { MainLayout } from '../src/MainLayout';
 import { CrmOrder, CrmProduct, CrmTask, Factory } from '../src/types';
 import { crmService } from './crm.service';
 import { normalizeOrder, getOrderStatusColor } from './utils';
-import { useOrg } from './OrgContext';
+import { useOrg, useOrgPermissions } from './OrgContext';
 import jsPDF from 'jspdf';
 
 interface CRMPageProps {
@@ -1650,6 +1650,8 @@ export const TNAView: FC<{
         onSaveBulkTasks?: (tasks: CrmTask[]) => Promise<void>;
         onBuyerConfirm?: (task: CrmTask, confirmed: boolean, reason?: string) => Promise<void>;
     }> = ({ tasks, products, orderName, onSaveTask, onSaveBulkTasks, onBuyerConfirm }) => {
+        const { can } = useOrgPermissions();
+        const canEdit = can('crm', 'edit');
         const parseDate = (str: string | null) => str ? new Date(str) : null;
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -2118,7 +2120,7 @@ export const TNAView: FC<{
                             <span className="flex items-center gap-1"><AlertCircle size={14} />+{delayInfo.days}d</span>
                         ) : '—'}
                     </td>
-                    {onSaveTask && !isEditMode && (
+                    {onSaveTask && !isEditMode && canEdit && (
                         <td className="px-3 py-4 whitespace-nowrap">
                             <button
                                 onClick={() => setEditingTask({ ...task })}
@@ -2160,7 +2162,7 @@ export const TNAView: FC<{
                         <div className="flex items-center gap-1.5 flex-shrink-0">
                             {isOverdue && <AlertTriangle size={12} className="text-red-500" />}
                             <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${statusColors[task.status] || statusColors['TO DO']}`}>{task.status}</span>
-                            {onEdit && (
+                            {onEdit && canEdit && (
                                 <button onClick={onEdit} className="p-1 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all">
                                     <Pencil size={12} />
                                 </button>
@@ -2255,7 +2257,7 @@ export const TNAView: FC<{
                 </div>
 
                 {/* ── Buyer Confirmation Panel ──────────────────── */}
-                {onBuyerConfirm && pendingConfirmTasks.length > 0 && (
+                {onBuyerConfirm && canEdit && pendingConfirmTasks.length > 0 && (
                     <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-xl p-4 space-y-3">
                         <div className="flex items-center gap-2 mb-1">
                             <AlertCircle size={16} className="text-yellow-600 dark:text-yellow-400" />
@@ -2337,7 +2339,7 @@ export const TNAView: FC<{
                                     <button onClick={cancelEditMode} className="px-3 py-1.5 text-sm font-semibold text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all">
                                         Cancel
                                     </button>
-                                    <button onClick={handleBulkSave} disabled={isSavingBulk} className="flex items-center gap-2 px-4 py-1.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-sm font-semibold rounded-lg hover:from-blue-600 hover:to-indigo-600 transition-all shadow-md disabled:opacity-60 disabled:cursor-not-allowed">
+                                    <button onClick={handleBulkSave} disabled={isSavingBulk || !canEdit} className="flex items-center gap-2 px-4 py-1.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-sm font-semibold rounded-lg hover:from-blue-600 hover:to-indigo-600 transition-all shadow-md disabled:opacity-60 disabled:cursor-not-allowed">
                                         {isSavingBulk ? <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save size={13} />}
                                         {isSavingBulk ? 'Saving...' : 'Save All Changes'}
                                     </button>
@@ -2346,7 +2348,7 @@ export const TNAView: FC<{
                         ) : (
                             <>
                                 <span className="text-sm text-gray-500 dark:text-gray-400">Manage all tasks at once</span>
-                                <button onClick={enterEditMode} className="flex items-center gap-2 px-4 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-sm font-semibold rounded-lg hover:border-blue-400 hover:text-blue-600 dark:hover:border-blue-500 dark:hover:text-blue-400 transition-all shadow-sm">
+                                <button onClick={enterEditMode} disabled={!canEdit} className="flex items-center gap-2 px-4 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-sm font-semibold rounded-lg hover:border-blue-400 hover:text-blue-600 dark:hover:border-blue-500 dark:hover:text-blue-400 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed" title={!canEdit ? 'View-only access' : undefined}>
                                     <Pencil size={13} />
                                     Edit TNA
                                 </button>

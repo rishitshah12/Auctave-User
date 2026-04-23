@@ -390,13 +390,19 @@ const AggregateStatsView = ({ stats, darkMode }: { stats: any; darkMode?: boolea
 export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user, darkMode, activeCrmOrderKey }: CrmDashboardProps) {
     const { org } = useOrg();
     const ORDERS_CACHE_KEY = 'garment_erp_client_orders';
-    const FACTORIES_CACHE_KEY = 'garment_erp_factories_v2'; // shared key — avoids duplicate network fetches
+    // Use a CRM-private key so we never overwrite SourcingPage's full factory cache
+    // (which has tags, certifications, description etc.) with our partial fetch.
+    const FACTORIES_CACHE_KEY = 'garment_erp_factories_crm';
+    const FACTORIES_FULL_KEY  = 'garment_erp_factories_v2';
 
     const [crmData, setCrmData] = useState<{ [key: string]: CrmOrder }>(() => {
         const cached = sessionStorage.getItem(ORDERS_CACHE_KEY);
         return cached ? JSON.parse(cached) : {};
     });
-    const [allFactories, setAllFactories] = useState<Factory[]>(() => getCache<Factory[]>(FACTORIES_CACHE_KEY, TTL_FACTORIES) ?? []);
+    // Prefer the full factory cache written by SourcingPage; fall back to our own partial cache.
+    const [allFactories, setAllFactories] = useState<Factory[]>(() =>
+        getCache<Factory[]>(FACTORIES_FULL_KEY, TTL_FACTORIES) ??
+        getCache<Factory[]>(FACTORIES_CACHE_KEY, TTL_FACTORIES) ?? []);
     const [loading, setLoading] = useState(() => !sessionStorage.getItem(ORDERS_CACHE_KEY));
     const [topTab, setTopTab] = useState<TopTab>('active');
     const [selectedOrderKey, setSelectedOrderKey] = useState<string | null>(activeCrmOrderKey ?? null);
@@ -467,7 +473,7 @@ export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user
                         timeoutPromise
                     ]) as any;
 
-                    if (ordersRes.error) throw ordersRes.error;
+                    if (ordersRes.error && !signal.aborted) throw ordersRes.error;
                     if (ordersRes.data) {
                         const quotes: any[] = quotesRes.data || [];
                         const mappedData: { [key: string]: CrmOrder } = {};
@@ -482,11 +488,14 @@ export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user
                                 portOfDischarge: normalized.portOfDischarge || matchedQuote?.admin_response?.commercialData?.portOfDischarge || '',
                             };
                         });
-                        setCrmData(mappedData);
+                        // Always persist to cache even when navigated away so next mount reads fresh data.
                         sessionStorage.setItem(ORDERS_CACHE_KEY, JSON.stringify(mappedData));
+                        if (!signal.aborted) setCrmData(mappedData);
                     }
                     if (!signal.aborted) {
                         setAllFactories(factoriesRes.data || []);
+                        // Write to private CRM cache only — never overwrite the full factory
+                        // cache (FACTORIES_FULL_KEY) which SourcingPage populates with all fields.
                         setCache(FACTORIES_CACHE_KEY, factoriesRes.data || []);
                     }
                 }

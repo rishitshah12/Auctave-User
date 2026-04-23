@@ -28,6 +28,7 @@ import html2canvas from 'html2canvas';
 import confetti from 'canvas-confetti';
 import { formatFriendlyDate, getStatusColor, getStatusGradient } from './utils';
 import { useToast } from './ToastContext';
+import { useOrgPermissions } from './OrgContext';
 
 interface QuoteDetailPageProps {
     selectedQuote: QuoteRequest | null;
@@ -296,6 +297,8 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
     createCrmOrder,
     layoutProps
 }) => {
+    const { can } = useOrgPermissions();
+    const canEdit = can('sourcing', 'edit');
     // Use local state for the quote so we can refresh it if needed
     const [quote, setQuote] = useState<QuoteRequest | null>(initialQuote);
     const [isNegotiationModalOpen, setIsNegotiationModalOpen] = useState(false);
@@ -1695,14 +1698,18 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                         {!sampleRequest && (
                                             <button
                                                 onClick={() => setIsSampleRequestModalOpen(true)}
-                                                className="px-4 py-2 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-700 font-semibold rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/40 transition shadow-sm flex items-center gap-2"
+                                                disabled={!canEdit}
+                                                className="px-4 py-2 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-700 font-semibold rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/40 transition shadow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                title={!canEdit ? 'View-only access' : undefined}
                                             >
                                                 <Box size={18} /> Request Sample
                                             </button>
                                         )}
                                         <button
                                             onClick={() => setIsNegotiationModalOpen(true)}
-                                            className="px-4 py-2 bg-[#c20c0b] text-white font-semibold rounded-lg hover:bg-[#a50a09] transition shadow-md flex items-center gap-2"
+                                            disabled={!canEdit}
+                                            className="px-4 py-2 bg-[#c20c0b] text-white font-semibold rounded-lg hover:bg-[#a50a09] transition shadow-md flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                            title={!canEdit ? 'View-only access' : undefined}
                                         >
                                             <MessageSquare size={18} /> Negotiate / Respond
                                         </button>
@@ -1831,7 +1838,9 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                     {sampleRequest.status === 'sent' && (
                                                         <button
                                                             onClick={handleConfirmSample}
-                                                            className="w-full mt-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+                                                            disabled={!canEdit}
+                                                            className="w-full mt-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            title={!canEdit ? 'View-only access' : undefined}
                                                         >
                                                             <CheckCircle size={14} /> Confirm Receipt
                                                         </button>
@@ -2250,8 +2259,9 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                         />
                                                         <button
                                                             onClick={() => handleSendChat(item.id)}
-                                                            disabled={(!chatStates[item.id]?.message?.trim() && !chatStates[item.id]?.files?.length) || uploadingChats[item.id]}
+                                                            disabled={(!chatStates[item.id]?.message?.trim() && !chatStates[item.id]?.files?.length) || uploadingChats[item.id] || !canEdit}
                                                             className="p-2 bg-[#c20c0b] text-white rounded-lg hover:bg-[#a50a09] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                                            title={!canEdit ? 'View-only access' : undefined}
                                                         >
                                                             {uploadingChats[item.id] ? <RefreshCw size={18} className="animate-spin" /> : <Send size={18} />}
                                                         </button>
@@ -3056,8 +3066,9 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                                         />
                                                         <button
                                                             onClick={() => handleSendChat(item.id)}
-                                                            disabled={(!chatStates[item.id]?.message?.trim() && !chatStates[item.id]?.files?.length) || uploadingChats[item.id]}
+                                                            disabled={(!chatStates[item.id]?.message?.trim() && !chatStates[item.id]?.files?.length) || uploadingChats[item.id] || !canEdit}
                                                             className="p-2 bg-[#c20c0b] text-white rounded-lg hover:bg-[#a50a09] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                                            title={!canEdit ? 'View-only access' : undefined}
                                                         >
                                                             {uploadingChats[item.id] ? <RefreshCw size={20} className="animate-spin" /> : <Send size={20} />}
                                                         </button>
@@ -3080,17 +3091,17 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                     </button>
                     <div className="flex-1 flex gap-2 justify-end">
                         {(status === 'Responded' || status === 'In Negotiation' || status === 'Admin Accepted') && (
-                            <button onClick={() => setIsNegotiationModalOpen(true)} className="px-4 py-2 text-gray-700 dark:text-white font-medium border border-gray-200 dark:border-gray-700 rounded-lg">
+                            <button onClick={() => setIsNegotiationModalOpen(true)} disabled={!canEdit} className="px-4 py-2 text-gray-700 dark:text-white font-medium border border-gray-200 dark:border-gray-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed" title={!canEdit ? 'View-only access' : undefined}>
                                 Negotiate
                             </button>
                         )}
                         {(status === 'Responded' || status === 'In Negotiation') && (
-                            <button onClick={handleAcceptQuote} className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg flex items-center gap-1">
+                            <button onClick={handleAcceptQuote} disabled={!canEdit} className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed" title={!canEdit ? 'View-only access' : undefined}>
                                 <Check size={16} /> Accept
                             </button>
                         )}
                         {status === 'Admin Accepted' && (
-                            <button onClick={handleAcceptQuote} className="px-4 py-2 bg-[#c20c0b] text-white font-medium rounded-lg flex items-center gap-1">
+                            <button onClick={handleAcceptQuote} disabled={!canEdit} className="px-4 py-2 bg-[#c20c0b] text-white font-medium rounded-lg flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed" title={!canEdit ? 'View-only access' : undefined}>
                                 <CheckCheck size={16} /> Finalize
                             </button>
                         )}

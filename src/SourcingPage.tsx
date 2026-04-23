@@ -9,6 +9,7 @@ import {
     Sparkles, TrendingUp, ArrowRight, Zap, Globe, Award, ShieldCheck, Clock, Bell
 } from 'lucide-react';
 import { Factory, UserProfile, QuoteRequest } from '../src/types';
+import { useOrgPermissions } from './OrgContext';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell
 } from 'recharts';
@@ -253,6 +254,8 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
     const { pageKey, user, userProfile, handleSelectFactory, toggleMenu, selectedGarmentCategory, setSelectedGarmentCategory, handleSetCurrentPage, handleSignOut, showToast, quoteRequests = [], setGlobalLoading } = props;
     const { notifications } = useNotifications();
     const unreadCount = notifications.filter(n => !n.isRead).length;
+    const { can } = useOrgPermissions();
+    const canEdit = can('sourcing', 'edit');
 
     const CACHE_KEY = 'garment_erp_factories_v2';
     // State to hold the complete list of factories fetched from the database
@@ -332,13 +335,10 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                     timeoutPromise
                 ]) as any;
 
-                if (signal.aborted) return;
-
                 if (error) {
+                    if (signal.aborted) return;
                     throw error;
                 } else if (data) {
-                    // Transform the raw database data (snake_case) into the format our app uses (camelCase)
-                    // This ensures the rest of the app doesn't break if DB column names change
                     const transformedFactories: Factory[] = data.map((f: any) => ({
                         id: f.id,
                         name: f.name,
@@ -349,20 +349,20 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                         minimumOrderQuantity: f.minimum_order_quantity,
                         offer: f.offer,
                         imageUrl: f.cover_image_url,
-                        gallery: [],          // not fetched here — FactoryDetailPage loads it on demand
+                        gallery: [],
                         tags: f.tags || [],
                         certifications: f.certifications || [],
                         specialties: f.specialties || [],
-                        productionLines: [], // not fetched here — FactoryDetailPage loads it on demand
-                        catalog: { products: [], fabricOptions: [] }, // not fetched here
+                        productionLines: [],
+                        catalog: { products: [], fabricOptions: [] },
                         trustTier: (f.trust_tier as Factory['trustTier']) || 'unverified',
                         completedOrdersCount: f.completed_orders_count ?? 0,
                         onTimeDeliveryRate: f.on_time_delivery_rate ?? undefined,
                         qualityRejectionRate: f.quality_rejection_rate ?? undefined,
                     }));
-                    // Update state with the processed list of factories
-                    setAllFactories(transformedFactories);
+                    // Always write to cache even if navigated away — next mount will read it.
                     setCache(CACHE_KEY, transformedFactories);
+                    if (!signal.aborted) setAllFactories(transformedFactories);
                 }
                 break;
             } catch (err: any) {
@@ -868,7 +868,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                                 {userProfile?.companyName ? `${userProfile.companyName} · ` : ''}Discover top factories, get instant quotes, and scale production.
                             </p>
                             <div className="flex gap-3 mt-5">
-                                <button onClick={() => handleSetCurrentPage('orderForm')} className="px-5 py-2.5 bg-gradient-to-r from-[#c20c0b] to-red-600 text-white rounded-xl font-semibold text-sm shadow-lg shadow-red-500/25 hover:shadow-red-500/40 transition-all duration-300 hover:scale-[1.03] flex items-center gap-2">
+                                <button onClick={() => handleSetCurrentPage('orderForm')} disabled={!canEdit} className="px-5 py-2.5 bg-gradient-to-r from-[#c20c0b] to-red-600 text-white rounded-xl font-semibold text-sm shadow-lg shadow-red-500/25 hover:shadow-red-500/40 transition-all duration-300 hover:scale-[1.03] flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-red-500/25" title={!canEdit ? 'View-only access' : undefined}>
                                     <Zap size={15} /> Place Order
                                 </button>
                                 <button onClick={() => handleSetCurrentPage('myQuotes')} className="px-5 py-2.5 bg-white/10 backdrop-blur-sm text-white rounded-xl font-semibold text-sm border border-white/20 hover:bg-white/20 transition-all duration-300 flex items-center gap-2">

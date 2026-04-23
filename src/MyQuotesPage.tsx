@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { formatFriendlyDate, getStatusColor, getStatusGradientBorder, getStatusHoverShadow } from './utils';
 import { useToast } from './ToastContext';
+import { useOrgPermissions } from './OrgContext';
 
 interface MyQuotesPageProps {
     quoteRequests: QuoteRequest[];
@@ -175,6 +176,8 @@ const getProgressStep = (status: string): number => {
 };
 
 export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCurrentPage, layoutProps, isLoading, onRefresh, initialFilterStatus }) => {
+    const { can } = useOrgPermissions();
+    const canEdit = can('sourcing', 'edit');
     const [filterStatus, setFilterStatus] = useState(initialFilterStatus || 'All');
     const [dateFilter, setDateFilter] = useState('All Time');
     const [searchTerm, setSearchTerm] = useState('');
@@ -762,8 +765,9 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                             {quote.status === 'Draft' && (
                                 <button
                                     onClick={(e) => handleDeleteDraft(e, quote.id)}
-                                    className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50/80 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                    title="Delete Draft"
+                                    disabled={!canEdit}
+                                    className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50/80 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                    title={!canEdit ? 'View-only access' : 'Delete Draft'}
                                 >
                                     <Trash2 size={15} />
                                 </button>
@@ -850,7 +854,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                         <h1 className="text-xl sm:text-3xl font-bold text-gray-800 dark:text-white truncate">My Quotes</h1>
                         <p className="text-gray-500 dark:text-gray-200 text-xs sm:text-sm mt-0.5 hidden sm:block">Track and manage your quotes with factories.</p>
                     </div>
-                    <button onClick={handleRequestNewQuote} className="bg-[#c20c0b] text-white font-semibold py-2 px-3 sm:px-4 rounded-lg flex items-center justify-center gap-1.5 hover:bg-[#a50a09] transition shadow-md flex-shrink-0 text-sm">
+                    <button onClick={handleRequestNewQuote} disabled={!canEdit} className="bg-[#c20c0b] text-white font-semibold py-2 px-3 sm:px-4 rounded-lg flex items-center justify-center gap-1.5 hover:bg-[#a50a09] transition shadow-md flex-shrink-0 text-sm disabled:opacity-50 disabled:cursor-not-allowed" title={!canEdit ? 'View-only access' : undefined}>
                         <Plus size={16} />
                         <span className="hidden sm:inline">Request New Quote</span>
                         <span className="sm:hidden">New</span>
