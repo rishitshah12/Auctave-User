@@ -130,20 +130,22 @@ export const OrgProvider: FC<{ user: any | null; children: ReactNode }> = ({ use
 
             if (!data || data.length === 0) { setLoading(false); return; }
 
-            const summaries: OrgSummary[] = data.map(row => {
-                const orgRow = row.organizations as any;
-                return {
-                    org: {
-                        id: orgRow.id,
-                        name: orgRow.name,
-                        ownerId: orgRow.owner_id,
-                        maxMembers: orgRow.max_members,
-                        createdAt: orgRow.created_at,
-                    },
-                    role: row.role as OrgRole,
-                    isOwner: orgRow.owner_id === userId,
-                };
-            });
+            const summaries: OrgSummary[] = data
+                .filter(row => row.organizations)
+                .map(row => {
+                    const orgRow = row.organizations as any;
+                    return {
+                        org: {
+                            id: orgRow.id,
+                            name: orgRow.name,
+                            ownerId: orgRow.owner_id,
+                            maxMembers: orgRow.max_members,
+                            createdAt: orgRow.created_at,
+                        },
+                        role: row.role as OrgRole,
+                        isOwner: orgRow.owner_id === userId,
+                    };
+                });
             setAllOrgs(summaries);
 
             // Determine which org to activate: persisted preference, or first owned org, or first in list

@@ -184,15 +184,10 @@ export const TeamSettingsPage: FC<Props> = ({ user, showToast, darkMode: _darkMo
 
     const [switching, setSwitching] = useState<string | null>(null);
 
-    const handleSwitchOrg = async (orgId: string) => {
+    const handleSwitchOrg = (orgId: string) => {
         setSwitching(orgId);
-        try {
-            await switchOrg(orgId);
-            // Reload so all page-level data refetches under the new org context
-            window.location.reload();
-        } finally {
-            setSwitching(null);
-        }
+        localStorage.setItem('garment_erp_active_org', orgId);
+        window.location.reload();
     };
 
     const [inviteEmail, setInviteEmail] = useState('');
