@@ -501,8 +501,8 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                     animationDelay: `${index * 50}ms`,
                 }}
             >
-                {/* Status gradient top bar — kept as user likes it */}
-                <div className={`h-[3px] w-full bg-gradient-to-r ${getStatusGradientBorder(quote.status)} flex-shrink-0`} />
+                {/* Status gradient top bar */}
+                <div className={`h-[7px] w-full bg-gradient-to-r ${getStatusGradientBorder(quote.status)} flex-shrink-0`} />
 
                 {/* Subtle ambient overlay */}
                 <div
@@ -512,45 +512,73 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
 
                 <div className="flex flex-col flex-grow relative">
 
-                    {/* ── SECTION 1: Document header ─────────────────── */}
-                    <div className="px-4 pt-4 pb-3 flex items-start justify-between gap-2">
-                        <div className="flex items-start gap-2 min-w-0">
-                            {isSelectMode && quote.status !== 'Draft' && (
-                                <input
-                                    type="checkbox"
-                                    checked={isSelected}
-                                    onChange={() => toggleSelectId(quote.id)}
-                                    onClick={e => e.stopPropagation()}
-                                    className="rounded text-[#c20c0b] focus:ring-[#c20c0b] h-4 w-4 cursor-pointer flex-shrink-0 mt-1"
-                                />
-                            )}
-                            <div className="min-w-0">
-                                <div className="flex items-center gap-1.5 mb-0.5">
-                                    <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500">Request for Quote</span>
-                                    {isUnreadCard && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse flex-shrink-0" />}
+                    {/* ── SECTION 1: Header — factory identity + status ── */}
+                    <div className="px-4 pt-4 pb-3">
+                        {/* Top row: factory avatar + name + status badge */}
+                        <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                {isSelectMode && quote.status !== 'Draft' && (
+                                    <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={() => toggleSelectId(quote.id)}
+                                        onClick={e => e.stopPropagation()}
+                                        className="rounded text-[#c20c0b] focus:ring-[#c20c0b] h-4 w-4 cursor-pointer flex-shrink-0"
+                                    />
+                                )}
+                                {quote.factory?.imageUrl ? (
+                                    <div className="relative flex-shrink-0">
+                                        <img
+                                            className="h-11 w-11 rounded-xl object-cover shadow-sm"
+                                            style={{ border: `2px solid ${theme.progressColor}45` }}
+                                            src={quote.factory.imageUrl}
+                                            alt={quote.factory.name}
+                                        />
+                                        <span
+                                            className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white dark:border-gray-900"
+                                            style={{ backgroundColor: theme.progressColor }}
+                                        />
+                                    </div>
+                                ) : (
+                                    <div className="h-11 w-11 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0 border border-gray-200 dark:border-gray-700">
+                                        <Package size={18} className="text-gray-400" />
+                                    </div>
+                                )}
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-1.5">
+                                        <p className="text-sm font-bold text-gray-900 dark:text-white truncate leading-tight group-hover:text-[#c20c0b] transition-colors">
+                                            {quote.factory?.name || 'New Request'}
+                                        </p>
+                                        {isUnreadCard && <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse flex-shrink-0" />}
+                                    </div>
+                                    {quote.factory?.location && (
+                                        <p className="text-[10px] text-gray-400 dark:text-gray-500 flex items-center gap-1 mt-0.5">
+                                            <MapPin size={8} /> {quote.factory.location}
+                                        </p>
+                                    )}
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <span className="font-mono text-sm font-bold text-gray-700 dark:text-gray-200 tracking-tight">
-                                        #{quote.id.slice(0, 8).toUpperCase()}
-                                    </span>
-                                </div>
-                                <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 flex items-center gap-1">
-                                    <Clock size={9} />
-                                    {getDisplayDateInfo(quote).label} · {getDisplayDateInfo(quote).date}
-                                </p>
                             </div>
-                        </div>
-                        <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                            <span className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide rounded-md border ${getStatusColor(quote.status)} flex items-center gap-1`}>
+                            {/* Status badge */}
+                            <span className={`px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide rounded-lg border ${getStatusColor(quote.status)} flex items-center gap-1 flex-shrink-0`}>
                                 {quote.status === 'Accepted' && <CheckCheck size={11} />}
                                 {(quote.status === 'Admin Accepted' || quote.status === 'Client Accepted') && <Check size={11} />}
                                 {displayStatus}
                             </span>
+                        </div>
+                        {/* Second row: RFQ reference + date + modification badge */}
+                        <div className="flex items-center gap-2 mt-2.5 flex-wrap">
+                            <span className="font-mono text-[10px] font-bold bg-gray-100/90 dark:bg-gray-800/70 text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded-md tracking-wider border border-gray-200/60 dark:border-gray-700/50">
+                                RFQ-{quote.id.slice(0, 6).toUpperCase()}
+                            </span>
                             {(quote.modification_count || 0) > 0 && (
-                                <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide rounded-md border border-amber-300 dark:border-amber-600/60 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 flex items-center gap-1">
-                                    <Pencil size={10} /> Modified ×{quote.modification_count}
+                                <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-md border border-amber-300 dark:border-amber-600/60 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                                    <Pencil size={9} /> ×{quote.modification_count}
                                 </span>
                             )}
+                            <span className="text-[10px] text-gray-400 dark:text-gray-500 flex items-center gap-1 ml-auto">
+                                <Clock size={9} />
+                                {getDisplayDateInfo(quote).label} · {getDisplayDateInfo(quote).date}
+                            </span>
                         </div>
                     </div>
 
@@ -567,37 +595,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                         </div>
                     ) : (
                         <>
-                            {/* ── SECTION 2: TO — Manufacturer ───────────── */}
-                            {quote.factory && (
-                                <div className="px-4 pb-3">
-                                    <div className="flex items-center gap-2.5 bg-white/50 dark:bg-gray-800/30 rounded-xl px-3 py-2.5 border border-white/80 dark:border-gray-700/40">
-                                        <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 flex-shrink-0">Supplier</span>
-                                        <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 flex-shrink-0" />
-                                        <div className="relative flex-shrink-0">
-                                            <img
-                                                className="h-8 w-8 rounded-lg object-cover shadow-sm"
-                                                style={{ border: `2px solid ${theme.progressColor}35` }}
-                                                src={quote.factory.imageUrl}
-                                                alt={quote.factory.name}
-                                            />
-                                            <span
-                                                className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white dark:border-gray-900"
-                                                style={{ backgroundColor: theme.progressColor }}
-                                            />
-                                        </div>
-                                        <div className="min-w-0 flex-1">
-                                            <p className="text-sm font-bold text-gray-900 dark:text-white truncate group-hover:text-[#c20c0b] transition-colors leading-tight">
-                                                {quote.factory.name}
-                                            </p>
-                                            <p className="text-[10px] text-gray-400 dark:text-gray-500 flex items-center gap-1 mt-0.5">
-                                                <MapPin size={8} /> {quote.factory.location}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* ── SECTION 3: Items Requested ─────────────── */}
+                            {/* ── SECTION 2: Items Requested ─────────────── */}
                             <div className="px-4 pb-3">
                                 <div className="border-t border-dashed border-gray-200 dark:border-gray-700/50 mb-3" />
                                 <div className="flex items-center justify-between mb-2">
@@ -688,35 +686,40 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                             {/* ── SECTION 5: Progress timeline ────────────── */}
                             <div className="px-4 pb-3">
                                 <div className="border-t border-dashed border-gray-200 dark:border-gray-700/50 mb-3" />
-                                <div className="flex items-center">
+                                <div className="flex items-start">
                                     {QUOTE_PROGRESS_STEPS.map((step, i) => {
                                         const isCompleted = progressStep > i;
                                         const isCurrent = progressStep === i;
                                         return (
                                             <React.Fragment key={step.label}>
-                                                <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                                                <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
                                                     <div
-                                                        className="rounded-full transition-all duration-300"
+                                                        className="rounded-full transition-all duration-300 flex items-center justify-center"
                                                         style={{
-                                                            width: isCurrent ? 10 : 7,
-                                                            height: isCurrent ? 10 : 7,
-                                                            backgroundColor: (isCompleted || isCurrent) ? theme.progressColor : '#d1d5db',
-                                                            boxShadow: isCurrent ? `0 0 0 2.5px white, 0 0 0 4px ${theme.progressColor}` : 'none',
+                                                            width: isCurrent ? 14 : 9,
+                                                            height: isCurrent ? 14 : 9,
+                                                            backgroundColor: (isCompleted || isCurrent) ? theme.progressColor : '#e5e7eb',
+                                                            boxShadow: isCurrent ? `0 0 0 3px white, 0 0 0 5px ${theme.progressColor}60` : 'none',
                                                         }}
-                                                    />
+                                                    >
+                                                        {isCompleted && (
+                                                            <svg width="6" height="6" viewBox="0 0 6 6" fill="none">
+                                                                <path d="M1 3L2.5 4.5L5 1.5" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                                                            </svg>
+                                                        )}
+                                                    </div>
                                                     <span
-                                                        className="text-[8px] font-semibold leading-none"
-                                                        style={{ color: (isCompleted || isCurrent) ? theme.progressColor : '#9ca3af', opacity: (isCompleted || isCurrent) ? 1 : 0.6 }}
+                                                        className="text-[9px] font-semibold leading-none text-center"
+                                                        style={{ color: (isCompleted || isCurrent) ? theme.progressColor : '#9ca3af' }}
                                                     >
                                                         {step.short}
                                                     </span>
                                                 </div>
                                                 {i < QUOTE_PROGRESS_STEPS.length - 1 && (
                                                     <div
-                                                        className="flex-1 h-[2px] mx-1 rounded-full transition-all duration-500"
+                                                        className="flex-1 h-[2px] mx-1 rounded-full transition-all duration-500 mt-[5px]"
                                                         style={{
                                                             backgroundColor: progressStep > i ? theme.progressColor : '#e5e7eb',
-                                                            opacity: progressStep > i ? 0.7 : 1,
                                                         }}
                                                     />
                                                 )}
@@ -977,19 +980,19 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
             </div>
 
             {/* Color Legend */}
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mb-4 sm:mb-5 px-0.5">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mb-4 sm:mb-5 px-0.5">
                 {[
-                    { label: 'Draft',           color: '#9ca3af' },
-                    { label: 'Pending',         color: '#f59e0b' },
-                    { label: 'Responded',       color: '#3b82f6' },
-                    { label: 'In Negotiation',  color: '#8b5cf6' },
-                    { label: 'Client Accepted', color: '#06b6d4' },
-                    { label: 'Admin Accepted',  color: '#14b8a6' },
-                    { label: 'Accepted',        color: '#10b981' },
-                    { label: 'Declined',        color: '#ef4444' },
+                    { label: 'Draft',              color: '#9ca3af', desc: 'unsaved' },
+                    { label: 'Pending',            color: '#f59e0b', desc: 'awaiting factory' },
+                    { label: 'Responded',          color: '#3b82f6', desc: 'quote received' },
+                    { label: 'In Negotiation',     color: '#8b5cf6', desc: 'active chat' },
+                    { label: 'You Accepted',       color: '#06b6d4', desc: 'pending admin' },
+                    { label: 'Admin Acc. — Act!',  color: '#14b8a6', desc: 'your action needed' },
+                    { label: 'Accepted',           color: '#10b981', desc: 'finalized' },
+                    { label: 'Declined',           color: '#ef4444', desc: 'rejected' },
                 ].map(({ label, color }) => (
                     <span key={label} className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
                         <span className="text-[11px] sm:text-xs text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">{label}</span>
                     </span>
                 ))}

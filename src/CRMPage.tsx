@@ -3658,20 +3658,60 @@ Keep it professional and brief. Use bullet points, not paragraphs (except Execut
                     {/* Row 1: Order Tabs + AI Button */}
                     <div className="flex flex-wrap items-center justify-between gap-y-2 gap-x-3">
                         <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1">
-                            {Object.keys(crmData).map(orderKey => (
-                                <button
-                                    key={orderKey}
-                                    onClick={() => { setActiveOrderKey(orderKey); setSelectedProductId(null); setActiveView('Overview'); }}
-                                    className={`flex-shrink-0 py-2.5 px-5 font-semibold text-sm rounded-xl transition-all duration-300 ${
-                                        activeOrderKey === orderKey
-                                            ? 'bg-gradient-to-r from-[#c20c0b] to-red-600 text-white shadow-lg shadow-red-500/25 scale-105'
-                                            : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 hover:scale-105'
-                                    }`}
-                                >
-                                    <Package size={14} className="inline mr-1.5" />
-                                    {crmData[orderKey].product}
-                                </button>
-                            ))}
+                            {Object.keys(crmData).map((orderKey, tabIdx) => {
+                                const order = crmData[orderKey];
+                                const tasks = order.tasks || [];
+                                const completed = tasks.filter((t: any) => t.status === 'COMPLETE').length;
+                                const overdue = tasks.filter((t: any) => t.plannedEndDate && new Date(t.plannedEndDate) < new Date() && t.status !== 'COMPLETE').length;
+                                const pct = tasks.length > 0 ? Math.round((completed / tasks.length) * 100) : 0;
+                                const isActive = activeOrderKey === orderKey;
+                                const TAB_ACCENT_COLORS = [
+                                    { active: 'from-[#c20c0b] to-red-700', bar: '#c20c0b' },
+                                    { active: 'from-violet-600 to-purple-700', bar: '#7c3aed' },
+                                    { active: 'from-blue-600 to-indigo-700', bar: '#2563eb' },
+                                    { active: 'from-emerald-600 to-teal-700', bar: '#059669' },
+                                    { active: 'from-amber-500 to-orange-600', bar: '#d97706' },
+                                ];
+                                const accent = TAB_ACCENT_COLORS[tabIdx % TAB_ACCENT_COLORS.length];
+                                return (
+                                    <button
+                                        key={orderKey}
+                                        onClick={() => { setActiveOrderKey(orderKey); setSelectedProductId(null); setActiveView('Overview'); }}
+                                        className={`flex-shrink-0 py-2.5 px-4 rounded-xl transition-all duration-300 text-left min-w-[130px] group relative overflow-hidden ${
+                                            isActive
+                                                ? `bg-gradient-to-br ${accent.active} text-white shadow-lg scale-[1.02]`
+                                                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                        }`}
+                                    >
+                                        {/* Top accent bar (inactive state) */}
+                                        {!isActive && (
+                                            <div className="absolute top-0 left-0 right-0 h-[3px] rounded-t-xl" style={{ backgroundColor: accent.bar }} />
+                                        )}
+                                        <div className="flex flex-col gap-0.5">
+                                            <span className={`text-[9px] font-bold tracking-widest uppercase font-mono ${isActive ? 'text-white/65' : 'text-gray-400 dark:text-gray-500'}`}>
+                                                ORD-{orderKey.slice(0, 6).toUpperCase()}
+                                            </span>
+                                            <span className="font-semibold text-sm leading-tight truncate max-w-[160px]">
+                                                {order.product}
+                                            </span>
+                                            <div className="flex items-center gap-1.5 mt-1">
+                                                <div className={`flex-1 h-1 rounded-full ${isActive ? 'bg-white/25' : 'bg-gray-200 dark:bg-gray-700'} overflow-hidden max-w-[56px]`}>
+                                                    <div
+                                                        className={`h-full rounded-full transition-all ${isActive ? 'bg-white/80' : ''}`}
+                                                        style={{ width: `${pct}%`, ...(!isActive ? { backgroundColor: accent.bar } : {}) }}
+                                                    />
+                                                </div>
+                                                <span className={`text-[10px] font-bold ${isActive ? 'text-white/80' : 'text-gray-500 dark:text-gray-400'}`}>{pct}%</span>
+                                                {overdue > 0 && (
+                                                    <span className={`text-[9px] font-bold flex items-center gap-0.5 ${isActive ? 'text-white/80' : 'text-red-500'}`}>
+                                                        <AlertCircle size={9} />{overdue}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </button>
+                                );
+                            })}
                         </div>
                         <button
                             onClick={generateOrderSummary}
@@ -3731,6 +3771,56 @@ Keep it professional and brief. Use bullet points, not paragraphs (except Execut
                         </div>
                     </div>
                 </div>
+                {/* ── Order Identity Banner ── */}
+                {activeOrder && (() => {
+                    const tasks = activeOrder.tasks || [];
+                    const completed = tasks.filter((t: any) => t.status === 'COMPLETE').length;
+                    const inProgress = tasks.filter((t: any) => t.status === 'IN PROGRESS').length;
+                    const overdue = tasks.filter((t: any) => t.plannedEndDate && new Date(t.plannedEndDate) < new Date() && t.status !== 'COMPLETE').length;
+                    const pct = tasks.length > 0 ? Math.round((completed / tasks.length) * 100) : 0;
+                    const factory = allFactories.find(f => f.id === (activeOrder as any).factoryId || f.id === (activeOrder as any).factory_id);
+                    return (
+                        <div className="flex items-center gap-3 mt-3 mb-1 px-1 py-3 border-b border-gray-100 dark:border-white/5 flex-wrap">
+                            {/* Reference pill */}
+                            <span className="font-mono text-xs font-bold text-[#c20c0b] dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 px-3 py-1.5 rounded-lg flex-shrink-0 tracking-wider">
+                                ORD-{activeOrderKey?.slice(0, 6).toUpperCase()}
+                            </span>
+                            {/* Order name + factory */}
+                            <div className="flex-1 min-w-0">
+                                <p className="font-bold text-gray-900 dark:text-white text-sm truncate">{activeOrder.product}</p>
+                                {factory && (
+                                    <p className="text-[11px] text-gray-500 dark:text-gray-400 flex items-center gap-1 mt-0.5">
+                                        <Building size={10} /> {factory.name} · {factory.location}
+                                    </p>
+                                )}
+                            </div>
+                            {/* Stats */}
+                            <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+                                {overdue > 0 && (
+                                    <span className="flex items-center gap-1 text-[11px] font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 px-2.5 py-1 rounded-lg">
+                                        <AlertCircle size={11} /> {overdue} overdue
+                                    </span>
+                                )}
+                                {inProgress > 0 && (
+                                    <span className="flex items-center gap-1 text-[11px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2.5 py-1 rounded-lg border border-amber-200 dark:border-amber-800/40">
+                                        <Activity size={11} /> {inProgress} active
+                                    </span>
+                                )}
+                                <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700">
+                                    <div className="w-24 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                        <div
+                                            className="h-full bg-gradient-to-r from-[#c20c0b] to-red-500 rounded-full transition-all duration-700"
+                                            style={{ width: `${pct}%` }}
+                                        />
+                                    </div>
+                                    <span className="text-[11px] font-bold text-gray-700 dark:text-gray-300">{completed}/{tasks.length}</span>
+                                    <span className="text-[11px] font-extrabold text-[#c20c0b] dark:text-red-400">{pct}%</span>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })()}
+
                 {/* Inline AI Summary Card */}
                 {activeOrder && (inlineSummaryLoading || inlineSummary) && (
                     <div className="mx-0 mt-3 mb-1">
