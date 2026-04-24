@@ -1877,7 +1877,9 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                                     {(status === 'Responded' || status === 'In Negotiation' || status === 'Admin Accepted' || status === 'Client Accepted') && response_details && (
                                         <button
                                             onClick={() => setShowBulkAcceptModal(true)}
-                                            className="shrink-0 flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors"
+                                            disabled={!canEdit}
+                                            className="shrink-0 flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                            title={!canEdit ? 'View-only access' : undefined}
                                         >
                                             <CheckCheck size={15} /> Accept Prices
                                         </button>
