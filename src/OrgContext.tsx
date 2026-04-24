@@ -186,14 +186,9 @@ export const OrgProvider: FC<{ user: any | null; children: ReactNode }> = ({ use
 
     const refreshMembers = useCallback(async () => {
         if (!org) return;
-        const { data } = await supabase
-            .from('organization_members')
-            .select('*')
-            .eq('org_id', org.id)
-            .order('joined_at');
-
+        const { data } = await supabase.rpc('get_org_members_with_profiles', { p_org_id: org.id });
         if (data) {
-            setMembers(data.map(row => mapMember(row)));
+            setMembers(data.map((row: any) => mapMember(row)));
         }
     }, [org]);
 

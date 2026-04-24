@@ -43,6 +43,7 @@ interface UserSummary {
   lastSeen: string;
   topSearches: string[];
   topFactories: string[];
+  orgInfo?: string; // "Team: <org name>" for invitee members
 }
 
 interface SearchEntry {
@@ -612,6 +613,7 @@ export const AdminUserAnalyticsPage: FC<AdminUserAnalyticsPageProps> = (props) =
 
   const [events, setEvents] = useState<RawEvent[]>([]);
   const [clients, setClients] = useState<ClientRow[]>([]);
+  const [orgMemberMap, setOrgMemberMap] = useState<Record<string, { orgName: string; ownerName: string }>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [dateRangeIdx, setDateRangeIdx] = useState(1); // default 30 days
   const [selectedUser, setSelectedUser] = useState<UserSummary | null>(null);
@@ -632,13 +634,33 @@ export const AdminUserAnalyticsPage: FC<AdminUserAnalyticsPageProps> = (props) =
       eventsQuery = eventsQuery.gte('created_at', since);
     }
 
-    const [eventsResult, clientsResult] = await Promise.all([
+    const [eventsResult, clientsResult, orgResult] = await Promise.all([
       eventsQuery.limit(10000),
       supabase.from('clients').select('id, name, email, company_name, customer_id'),
+      supabase.rpc('admin_get_all_org_memberships'),
     ]);
 
     setEvents((eventsResult.data as RawEvent[]) ?? []);
-    setClients((clientsResult.data as ClientRow[]) ?? []);
+
+    const clientRows = (clientsResult.data as ClientRow[]) ?? [];
+    setClients(clientRows);
+
+    // Build org member map: invitee userId → { orgName, ownerName }
+    if (orgResult.data) {
+      const clientLookup: Record<string, string> = {};
+      clientRows.forEach(c => { clientLookup[c.id] = c.name || c.email; });
+      const map: Record<string, { orgName: string; ownerName: string }> = {};
+      for (const row of orgResult.data as any[]) {
+        if (row.member_user_id !== row.owner_id) {
+          map[row.member_user_id] = {
+            orgName: row.org_name,
+            ownerName: clientLookup[row.owner_id] || 'Org owner',
+          };
+        }
+      }
+      setOrgMemberMap(map);
+    }
+
     setIsLoading(false);
   };
 
@@ -721,11 +743,12 @@ export const AdminUserAnalyticsPage: FC<AdminUserAnalyticsPageProps> = (props) =
 
     return Object.values(map).map(u => {
       const client = clientMap[u.userId!];
+      const orgInfo = orgMemberMap[u.userId!];
       return {
         userId: u.userId!,
-        name: client?.name || 'Unknown',
+        name: client?.name || orgInfo?.ownerName && `(${orgInfo.orgName} member)` || 'Unknown',
         email: client?.email || u.userId!,
-        company: client?.company_name || '—',
+        company: client?.company_name || (orgInfo ? orgInfo.orgName : '—'),
         customerId: client?.customer_id || '—',
         totalEvents: u.totalEvents!,
         searches: u.searches!,
@@ -735,9 +758,10 @@ export const AdminUserAnalyticsPage: FC<AdminUserAnalyticsPageProps> = (props) =
         lastSeen: u.lastSeen!,
         topSearches: Object.entries(u.topSearchMap).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([q]) => q),
         topFactories: Object.values(u.topFactoryMap).slice(0, 3),
+        orgInfo: orgInfo ? `Team: ${orgInfo.orgName}` : undefined,
       } as UserSummary;
     });
-  }, [events, clientMap]);
+  }, [events, clientMap, orgMemberMap]);
 
   const filteredUsers = useMemo(() => {
     const q = userSearch.toLowerCase();
@@ -1280,6 +1304,11 @@ export const AdminUserAnalyticsPage: FC<AdminUserAnalyticsPageProps> = (props) =
                             <td className="py-3 pr-4">
                               <div className="font-semibold text-gray-800 dark:text-gray-100 text-sm">{u.name}</div>
                               <div className="text-[11px] text-gray-400">{u.email}</div>
+                              {u.orgInfo && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400 text-[9px] font-medium mt-0.5">
+                                  {u.orgInfo}
+                                </span>
+                              )}
                               {u.topSearches.length > 0 && (
                                 <div className="flex flex-wrap gap-1 mt-1">
                                   {u.topSearches.map(s => (
@@ -1330,6 +1359,7 @@ export const AdminUserAnalyticsPage: FC<AdminUserAnalyticsPageProps> = (props) =
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{u.name}</p>
                           <p className="text-[11px] text-gray-400 truncate">{u.company !== '—' ? u.company : u.email}</p>
+                          {u.orgInfo && <p className="text-[10px] text-teal-500 font-medium">{u.orgInfo}</p>}
                           <div className="flex items-center gap-3 mt-1.5">
                             <span className="text-[11px] text-blue-600 font-bold">{u.searches} searches</span>
                             <span className="text-[11px] text-emerald-600 font-bold">{u.factoryViews} factories</span>

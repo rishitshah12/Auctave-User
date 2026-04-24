@@ -191,6 +191,12 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
     const abortControllerRef = useRef<AbortController | null>(null);
     const savedScrollY = useRef(0);
 
+    // Org membership data — org admins mapped to their team, team members mapped to their org
+    type OrgTeamMember = { userId: string; name: string | null; email: string | null; role: string; avatar: string | null };
+    const [orgsByOwner, setOrgsByOwner] = useState<Record<string, { orgId: string; orgName: string; members: OrgTeamMember[] }>>({});
+    const [memberOfOrg, setMemberOfOrg] = useState<Record<string, { orgId: string; orgName: string; role: string }>>({});
+    const [expandedOrgCards, setExpandedOrgCards] = useState<Set<string>>(new Set());
+
     // Lock body scroll whenever any modal/drawer is open, restore position on close
     useEffect(() => {
         const anyOpen = isEditModalOpen || !!confirmDialog || !!drawerClient;
@@ -240,6 +246,29 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                     sessionStorage.setItem(CACHE_KEY, JSON.stringify(data || []));
                     setIsLoading(false);
                 }
+                // Fetch org memberships in parallel (best-effort, no retry)
+                props.supabase.rpc('admin_get_all_org_memberships').then(({ data: orgData }: any) => {
+                    if (!orgData || signal.aborted) return;
+                    const byOwner: Record<string, { orgId: string; orgName: string; members: OrgTeamMember[] }> = {};
+                    const byMember: Record<string, { orgId: string; orgName: string; role: string }> = {};
+                    for (const row of orgData as any[]) {
+                        if (!byOwner[row.owner_id]) {
+                            byOwner[row.owner_id] = { orgId: row.org_id, orgName: row.org_name, members: [] };
+                        }
+                        if (row.member_user_id !== row.owner_id) {
+                            byOwner[row.owner_id].members.push({
+                                userId: row.member_user_id,
+                                name: row.member_name,
+                                email: row.member_email,
+                                role: row.member_role,
+                                avatar: row.member_avatar,
+                            });
+                            byMember[row.member_user_id] = { orgId: row.org_id, orgName: row.org_name, role: row.member_role };
+                        }
+                    }
+                    setOrgsByOwner(byOwner);
+                    setMemberOfOrg(byMember);
+                });
                 return;
             } catch (err: any) {
                 if (err.name === 'AbortError' || signal.aborted) return;
@@ -911,6 +940,16 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                                                             <Ban size={9} /> Suspended
                                                         </span>
                                                     )}
+                                                    {orgsByOwner[client.id] && (
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-xs font-medium">
+                                                            <Users size={9} /> Team ({orgsByOwner[client.id].members.length})
+                                                        </span>
+                                                    )}
+                                                    {memberOfOrg[client.id] && (
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 text-xs font-medium">
+                                                            <Users size={9} /> {memberOfOrg[client.id].orgName}
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </div>
 
@@ -1006,6 +1045,50 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                                                 <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-xs rounded-full">
                                                     +{tags.length - 4}
                                                 </span>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Team members (org owner only) */}
+                                    {orgsByOwner[client.id] && orgsByOwner[client.id].members.length > 0 && (
+                                        <div className="border-t border-gray-100 dark:border-white/5" onClick={e => e.stopPropagation()}>
+                                            <button
+                                                onClick={() => setExpandedOrgCards(prev => {
+                                                    const next = new Set(prev);
+                                                    next.has(client.id) ? next.delete(client.id) : next.add(client.id);
+                                                    return next;
+                                                })}
+                                                className="w-full flex items-center justify-between px-5 py-2.5 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition"
+                                            >
+                                                <span className="flex items-center gap-1.5">
+                                                    <Users size={11} />
+                                                    Team Members ({orgsByOwner[client.id].members.length})
+                                                </span>
+                                                {expandedOrgCards.has(client.id) ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                                            </button>
+                                            {expandedOrgCards.has(client.id) && (
+                                                <div className="px-5 pb-3 space-y-2">
+                                                    {orgsByOwner[client.id].members.map(m => (
+                                                        <div key={m.userId} className="flex items-center gap-2.5">
+                                                            {m.avatar ? (
+                                                                <img src={m.avatar} alt={m.name || ''} className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
+                                                            ) : (
+                                                                <div className={`w-7 h-7 rounded-full bg-gradient-to-br ${getAvatarColor(m.userId)} flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0`}>
+                                                                    {getInitials(m.name || undefined, m.email || undefined)}
+                                                                </div>
+                                                            )}
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className="text-xs font-medium text-gray-800 dark:text-gray-200 truncate">{m.name || m.email || 'Team member'}</p>
+                                                                {m.name && m.email && <p className="text-[10px] text-gray-400 truncate">{m.email}</p>}
+                                                            </div>
+                                                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${
+                                                                m.role === 'admin' ? 'bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
+                                                                : m.role === 'editor' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                                                                : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                                                            }`}>{m.role}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
                                             )}
                                         </div>
                                     )}
