@@ -1,5 +1,7 @@
 // Import React library and hooks for state management (useState), side effects (useEffect), references (useRef), memoization (useMemo), and types (FC, ReactNode)
 import React, { useState, useEffect, useRef, useMemo, FC, ReactNode, useCallback, Suspense, lazy } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import { createPortal } from 'react-dom';
 import { KnittingPreloader } from './KnittingPreloader';
 // Import the configured Supabase client for backend database and auth interactions
@@ -156,6 +158,67 @@ const OrgBridge: FC<{ onOrgOwnerChange: (ownerId: string) => void }> = ({ onOrgO
     return null;
 };
 
+// ── URL ↔ Page mapping ────────────────────────────────────────────────────────
+const PAGE_TO_PATH: Record<string, string> = {
+    login: '/login',
+    onboarding: '/onboarding',
+    createPassword: '/create-password',
+    sourcing: '/sourcing',
+    myQuotes: '/my-quotes',
+    crm: '/crm',
+    orderForm: '/order',
+    factoryDetail: '/factory',
+    factoryCatalog: '/factory/catalog',
+    factoryTools: '/factory/tools',
+    factorySuggestions: '/factories',
+    quoteDetail: '/quote',
+    quoteRequest: '/quote/new',
+    trending: '/trending',
+    settings: '/settings',
+    tracking: '/tracking',
+    billing: '/billing',
+    profile: '/profile',
+    teamSettings: '/team',
+    adminDashboard: '/admin',
+    adminUsers: '/admin/users',
+    adminFactories: '/admin/factories',
+    adminCRM: '/admin/crm',
+    adminRFQ: '/admin/rfq',
+    adminTrending: '/admin/trending',
+    adminLoginSettings: '/admin/login-settings',
+    adminUserAnalytics: '/admin/analytics',
+};
+
+const PATH_TO_PAGE: Record<string, string> = Object.fromEntries(
+    Object.entries(PAGE_TO_PATH).map(([page, path]) => [path, page])
+);
+
+const PAGE_SEO: Record<string, { title: string; description?: string }> = {
+    login: { title: 'Login | Garment ERP', description: 'Sign in to your Garment ERP account' },
+    onboarding: { title: 'Get Started | Garment ERP' },
+    sourcing: { title: 'Sourcing | Garment ERP', description: 'Browse and source garment factories' },
+    myQuotes: { title: 'My Quotes | Garment ERP', description: 'View and manage your quote requests' },
+    crm: { title: 'CRM Portal | Garment ERP', description: 'Track your orders and production status' },
+    orderForm: { title: 'Place Order | Garment ERP' },
+    factoryDetail: { title: 'Factory | Garment ERP' },
+    factoryCatalog: { title: 'Factory Catalog | Garment ERP' },
+    trending: { title: 'Trending | Garment ERP', description: 'Explore trending garment styles and materials' },
+    settings: { title: 'Settings | Garment ERP' },
+    tracking: { title: 'Order Tracking | Garment ERP' },
+    billing: { title: 'Billing | Garment ERP' },
+    profile: { title: 'Profile | Garment ERP' },
+    teamSettings: { title: 'Team | Garment ERP' },
+    quoteDetail: { title: 'Quote Detail | Garment ERP' },
+    adminDashboard: { title: 'Dashboard | Admin — Garment ERP' },
+    adminUsers: { title: 'Users | Admin — Garment ERP' },
+    adminFactories: { title: 'Factories | Admin — Garment ERP' },
+    adminCRM: { title: 'CRM | Admin — Garment ERP' },
+    adminRFQ: { title: 'RFQ | Admin — Garment ERP' },
+    adminTrending: { title: 'Trending | Admin — Garment ERP' },
+    adminLoginSettings: { title: 'Login Settings | Admin — Garment ERP' },
+    adminUserAnalytics: { title: 'Analytics | Admin — Garment ERP' },
+};
+
 // --- Main App Component ---
 // This is the root component of the application
 const AppContent: FC = () => {
@@ -163,11 +226,17 @@ const AppContent: FC = () => {
     const { showToast } = useToast();
     // Access addNotification from context
     const { addNotification } = useNotifications();
+    const navigate = useNavigate();
+    const location = useLocation();
 
     // --- State Management ---
-    
-    // State to track which page is currently displayed (default is 'login')
-    const [currentPage, setCurrentPage] = useState<string>(() => localStorage.getItem('garment_erp_last_page') || 'login');
+
+    // State to track which page is currently displayed. Prefer URL path over localStorage.
+    const [currentPage, setCurrentPage] = useState<string>(() => {
+        const pageFromUrl = PATH_TO_PAGE[window.location.pathname];
+        if (pageFromUrl) return pageFromUrl;
+        return localStorage.getItem('garment_erp_last_page') || 'login';
+    });
     const pageEnterTimeRef = useRef<number>(Date.now());
     const trackedPageRef = useRef<string>('');
     // State to store the authenticated user object from Supabase
@@ -243,6 +312,22 @@ const AppContent: FC = () => {
         else document.documentElement.classList.remove('dark');
         localStorage.setItem('garment_erp_dark_mode', String(darkMode));
     }, [darkMode]);
+
+    // Sync URL when currentPage changes
+    useEffect(() => {
+        const path = PAGE_TO_PATH[currentPage];
+        if (path && window.location.pathname !== path) {
+            navigate(path, { replace: window.location.pathname === '/' });
+        }
+    }, [currentPage]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Handle browser back/forward: sync currentPage from URL
+    useEffect(() => {
+        const pageFromUrl = PATH_TO_PAGE[location.pathname];
+        if (pageFromUrl && pageFromUrl !== currentPage) {
+            setCurrentPage(pageFromUrl);
+        }
+    }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Init / teardown the notification service whenever the auth state changes.
     // This drives cross-device real-time sync and browser push notifications.
@@ -4182,31 +4267,40 @@ User message: "${userMsg}"`;
     // --- Page Renderer ---
     // Function to determine which page component to render based on state
     const renderPage = () => {
+        const seo = PAGE_SEO[currentPage] ?? { title: 'Garment ERP' };
+        const helmetEl = (
+            <Helmet>
+                <title>{seo.title}</title>
+                {seo.description && <meta name="description" content={seo.description} />}
+            </Helmet>
+        );
+
         // Show loading spinner if auth is not ready
         if (!isAuthReady) {
-            return <KnittingPreloader fullScreen />;
+            return <>{helmetEl}<KnittingPreloader fullScreen /></>;
         }
 
         // Hard gate: if user is authenticated, has no profile, and is a new signup, show onboarding.
         // Existing users without a profile record are NOT gated — they go straight to the app.
         if (user && userProfile === null && isNewUserSignup && currentPage !== 'login' && currentPage !== 'createPassword') {
-            return <OnboardingPage user={user} onComplete={saveUserProfile} isLoading={isProfileLoading} onThemeChange={setDarkMode} onBeforeComplete={(data) => { setHelloSplash(data); setTimeout(() => setHelloSplash(null), 3000); }} />;
+            return <>{helmetEl}<OnboardingPage user={user} onComplete={saveUserProfile} isLoading={isProfileLoading} onThemeChange={setDarkMode} onBeforeComplete={(data) => { setHelloSplash(data); setTimeout(() => setHelloSplash(null), 3000); }} /></>;
         }
 
         // 1. Check Dynamic Routes from MasterController (Enables Extensibility)
         const DynamicComponent = masterController.getRouteComponent(currentPage);
         if (DynamicComponent) {
-            return <DynamicComponent {...layoutProps} />;
+            return <>{helmetEl}<DynamicComponent {...layoutProps} /></>;
         }
 
-        // Switch statement to render the appropriate component
+        // Switch statement to compute the appropriate page component
+        let pageContent: React.ReactNode;
         switch (currentPage) {
-            case 'login': return <LoginPage showToast={showToast} setAuthError={setAuthError} authError={authError} />;
-            case 'profile': return (userProfile || !isNewUserSignup)
+            case 'login': pageContent = <LoginPage showToast={showToast} setAuthError={setAuthError} authError={authError} />; break;
+            case 'profile': pageContent = (userProfile || !isNewUserSignup)
                 ? <ProfilePage />
-                : <OnboardingPage user={user} onComplete={saveUserProfile} isLoading={isProfileLoading} onThemeChange={setDarkMode} onBeforeComplete={(data) => { setHelloSplash(data); setTimeout(() => setHelloSplash(null), 3000); }} />;
-            case 'createPassword': return <CreatePasswordPage />;
-            case 'sourcing': return <SourcingPage
+                : <OnboardingPage user={user} onComplete={saveUserProfile} isLoading={isProfileLoading} onThemeChange={setDarkMode} onBeforeComplete={(data) => { setHelloSplash(data); setTimeout(() => setHelloSplash(null), 3000); }} />; break;
+            case 'createPassword': pageContent = <CreatePasswordPage />; break;
+            case 'sourcing': pageContent = <SourcingPage
                 {...layoutProps}
                 userProfile={userProfile}
                 handleSelectFactory={handleSelectFactory}
@@ -4214,51 +4308,51 @@ User message: "${userMsg}"`;
                 setSelectedGarmentCategory={setSelectedGarmentCategory}
                 showToast={showToast}
                 quoteRequests={quoteRequests}
-            />;
-            case 'orderForm': return <OrderFormPage
+            />; break;
+            case 'orderForm': pageContent = <OrderFormPage
                 {...layoutProps}
                 handleSubmitOrderForm={handleSubmitOrderForm}
                 handleAddToQuoteRequest={addToQuoteRequest}
                 quoteRequests={quoteRequests}
                 initialLineItems={orderFormInitialLineItems}
                 preSelectedFactory={orderFormPreFactory}
-            />;
-            case 'crm': return (
+            />; break;
+            case 'crm': pageContent = (
                 <MainLayout {...layoutProps}>
                     <CrmDashboard callGeminiAPI={callGeminiAPI} handleSetCurrentPage={handleSetCurrentPage} user={user} darkMode={darkMode} activeCrmOrderKey={activeCrmOrderKey} />
                 </MainLayout>
-            );
-            case 'factorySuggestions': return <FactorySuggestionsPage />;
-            case 'factoryDetail': return <FactoryDetailPage {...layoutProps} selectedFactory={selectedFactory!} suggestedFactories={suggestedFactories} initialTab="overview" onSubmitRFQ={submitQuoteRequest} />;
-            case 'factoryCatalog': return <FactoryDetailPage {...layoutProps} selectedFactory={selectedFactory!} suggestedFactories={suggestedFactories} initialTab="catalog" onSubmitRFQ={submitQuoteRequest} />;
-            case 'factoryTools': return <FactoryToolsPage />;
-            case 'settings': return <SettingsPage />;
-            case 'teamSettings': return (
+            ); break;
+            case 'factorySuggestions': pageContent = <FactorySuggestionsPage />; break;
+            case 'factoryDetail': pageContent = <FactoryDetailPage {...layoutProps} selectedFactory={selectedFactory!} suggestedFactories={suggestedFactories} initialTab="overview" onSubmitRFQ={submitQuoteRequest} />; break;
+            case 'factoryCatalog': pageContent = <FactoryDetailPage {...layoutProps} selectedFactory={selectedFactory!} suggestedFactories={suggestedFactories} initialTab="catalog" onSubmitRFQ={submitQuoteRequest} />; break;
+            case 'factoryTools': pageContent = <FactoryToolsPage />; break;
+            case 'settings': pageContent = <SettingsPage />; break;
+            case 'teamSettings': pageContent = (
                 <MainLayout {...layoutProps}>
                     <TeamSettingsPage user={user} showToast={showToast} darkMode={darkMode} />
                 </MainLayout>
-            );
-            case 'tracking': return <OrderTrackingPage />;
-            case 'trending': return <TrendingPageComponent {...layoutProps} />;
-            case 'myQuotes': return <MyQuotesPage quoteRequests={quoteRequests} handleSetCurrentPage={handleSetCurrentPage} layoutProps={layoutProps} isLoading={isQuotesLoading} onRefresh={fetchUserQuotes} initialFilterStatus={myQuotesFilter} crmOrdersByQuoteId={crmOrdersByQuoteId} />;
-            case 'quoteRequest': return <QuoteRequestPage />;
-            case 'quoteDetail': return <QuoteDetailPage 
-                selectedQuote={selectedQuote} 
-                handleSetCurrentPage={handleSetCurrentPage} 
+            ); break;
+            case 'tracking': pageContent = <OrderTrackingPage />; break;
+            case 'trending': pageContent = <TrendingPageComponent {...layoutProps} />; break;
+            case 'myQuotes': pageContent = <MyQuotesPage quoteRequests={quoteRequests} handleSetCurrentPage={handleSetCurrentPage} layoutProps={layoutProps} isLoading={isQuotesLoading} onRefresh={fetchUserQuotes} initialFilterStatus={myQuotesFilter} crmOrdersByQuoteId={crmOrdersByQuoteId} />; break;
+            case 'quoteRequest': pageContent = <QuoteRequestPage />; break;
+            case 'quoteDetail': pageContent = <QuoteDetailPage
+                selectedQuote={selectedQuote}
+                handleSetCurrentPage={handleSetCurrentPage}
                 updateQuoteStatus={updateQuoteStatus}
                 createCrmOrder={createCrmOrder}
-                layoutProps={layoutProps} 
-            />;
-            case 'billing': return <BillingPage />;
-            case 'adminDashboard': return <AdminDashboardPage {...layoutProps} />;
-            case 'adminUsers': return <AdminUsersPage {...layoutProps} />;
-            case 'adminFactories': return <AdminFactoriesPage {...layoutProps} />;
-            case 'adminCRM': return <AdminCRMPage {...layoutProps} initialOrderId={adminCRMInitialId} />;
-            case 'adminTrending': return <AdminTrendingPage {...layoutProps} />;
-            case 'adminRFQ': return <AdminRFQPage {...layoutProps} initialQuoteId={adminRFQInitialId} />;
-            case 'adminLoginSettings': return <AdminLoginSettingsPage {...layoutProps} />;
-            case 'adminUserAnalytics': return <AdminUserAnalyticsPage {...layoutProps} handleSetCurrentPage={handleSetCurrentPage} />;
-            default: return <SourcingPage
+                layoutProps={layoutProps}
+            />; break;
+            case 'billing': pageContent = <BillingPage />; break;
+            case 'adminDashboard': pageContent = <AdminDashboardPage {...layoutProps} />; break;
+            case 'adminUsers': pageContent = <AdminUsersPage {...layoutProps} />; break;
+            case 'adminFactories': pageContent = <AdminFactoriesPage {...layoutProps} />; break;
+            case 'adminCRM': pageContent = <AdminCRMPage {...layoutProps} initialOrderId={adminCRMInitialId} />; break;
+            case 'adminTrending': pageContent = <AdminTrendingPage {...layoutProps} />; break;
+            case 'adminRFQ': pageContent = <AdminRFQPage {...layoutProps} initialQuoteId={adminRFQInitialId} />; break;
+            case 'adminLoginSettings': pageContent = <AdminLoginSettingsPage {...layoutProps} />; break;
+            case 'adminUserAnalytics': pageContent = <AdminUserAnalyticsPage {...layoutProps} handleSetCurrentPage={handleSetCurrentPage} />; break;
+            default: pageContent = <SourcingPage
                 {...layoutProps}
                 userProfile={userProfile}
                 handleSelectFactory={handleSelectFactory}
@@ -4268,6 +4362,7 @@ User message: "${userMsg}"`;
                 quoteRequests={quoteRequests}
             />;
         }
+        return <>{helmetEl}{pageContent}</>;
     };
 
     // Component to create a new quote request

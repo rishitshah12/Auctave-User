@@ -32,7 +32,9 @@
     "prop-types": "^15.8.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-helmet-async": "^3.0.0",
     "react-is": "^18.3.1",
+    "react-router-dom": "^7.14.2",
     "react-simple-maps": "^3.0.0",
     "recharts": "^3.1.0"
   },
