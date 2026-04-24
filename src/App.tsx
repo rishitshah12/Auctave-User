@@ -370,6 +370,8 @@ const AppContent: FC = () => {
     });
     // State to track which order is currently active in the CRM view
     const [activeCrmOrderKey, setActiveCrmOrderKey] = useState<string | null>(null);
+    // Map of quote ID -> CRM order ID for accepted quotes that have been converted
+    const [crmOrdersByQuoteId, setCrmOrdersByQuoteId] = useState<Record<string, string>>({});
 
     // Function to add a new order to the CRM state
     const addNewOrderToCrm = (orderId: string, orderData: CrmOrder) => {
@@ -866,6 +868,20 @@ const AppContent: FC = () => {
                     console.log('[App.tsx] Transformed quotes files:', transformedQuotes.map(q => ({ id: q.id, files: q.files })));
                     setQuoteRequests(transformedQuotes);
                     sessionStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify(transformedQuotes));
+
+                    // Fetch CRM order mapping for accepted quotes
+                    if (!signal.aborted) {
+                        const { data: crmMappingData } = await supabase
+                            .from('crm_orders')
+                            .select('id, source_quote_id')
+                            .eq('client_id', fetchId)
+                            .not('source_quote_id', 'is', null);
+                        if (!signal.aborted && crmMappingData) {
+                            const map: Record<string, string> = {};
+                            (crmMappingData as any[]).forEach(o => { if (o.source_quote_id) map[o.source_quote_id] = o.id; });
+                            setCrmOrdersByQuoteId(map);
+                        }
+                    }
                 }
             } catch (error: any) {
                 if (error.name === 'AbortError' || signal.aborted) return;
@@ -4204,7 +4220,7 @@ User message: "${userMsg}"`;
             );
             case 'tracking': return <OrderTrackingPage />;
             case 'trending': return <TrendingPageComponent {...layoutProps} />;
-            case 'myQuotes': return <MyQuotesPage quoteRequests={quoteRequests} handleSetCurrentPage={handleSetCurrentPage} layoutProps={layoutProps} isLoading={isQuotesLoading} onRefresh={fetchUserQuotes} initialFilterStatus={myQuotesFilter} />;
+            case 'myQuotes': return <MyQuotesPage quoteRequests={quoteRequests} handleSetCurrentPage={handleSetCurrentPage} layoutProps={layoutProps} isLoading={isQuotesLoading} onRefresh={fetchUserQuotes} initialFilterStatus={myQuotesFilter} crmOrdersByQuoteId={crmOrdersByQuoteId} />;
             case 'quoteRequest': return <QuoteRequestPage />;
             case 'quoteDetail': return <QuoteDetailPage 
                 selectedQuote={selectedQuote} 
@@ -4355,6 +4371,7 @@ User message: "${userMsg}"`;
             product_name: productName,
             factory_id: factory?.id || null,
             status: 'Pending',
+            source_quote_id: quote.id,
             products,
             tasks: [
                 { id: Date.now(), name: 'Order Confirmation', status: 'COMPLETE', plannedStartDate: new Date().toISOString().split('T')[0], plannedEndDate: new Date().toISOString().split('T')[0], responsible: 'Admin', actualStartDate: new Date().toISOString().split('T')[0], actualEndDate: new Date().toISOString().split('T')[0], productId: firstProductId },
@@ -4363,9 +4380,11 @@ User message: "${userMsg}"`;
             documents
         };
 
-        const { error } = await crmService.create(payload);
+        const { data: createdOrder, error } = await crmService.create(payload);
         if (error) {
             console.error('Failed to create CRM order:', error);
+        } else if (createdOrder?.id) {
+            setCrmOrdersByQuoteId(prev => ({ ...prev, [quote.id]: createdOrder.id }));
         }
 
         // Also update local state for immediate UI feedback

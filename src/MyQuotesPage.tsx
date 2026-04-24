@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { MainLayout } from './MainLayout';
 import { QuoteRequest } from './types';
 import {
-    Plus, MapPin, Globe, Shirt, Package, Clock, ChevronRight, FileQuestion, RefreshCw, MessageSquare, Bell, Calendar, DollarSign, CheckCircle, Check, CheckCheck, FileText, Trash2, AlertCircle, Filter, Search, Eye, X, ChevronDown, ClipboardList, Inbox, Archive, CheckSquare, Pencil, Circle, MailOpen, Mail, Square, Truck, FlaskConical
+    Plus, MapPin, Globe, Shirt, Package, Clock, ChevronRight, FileQuestion, RefreshCw, MessageSquare, Bell, Calendar, DollarSign, CheckCircle, Check, CheckCheck, FileText, Trash2, AlertCircle, Filter, Search, Eye, X, ChevronDown, ClipboardList, Inbox, Archive, CheckSquare, Pencil, Circle, MailOpen, Mail, Square, Truck, FlaskConical, ExternalLink
 } from 'lucide-react';
 import { formatFriendlyDate, getStatusColor, getStatusGradientBorder, getStatusHoverShadow } from './utils';
 import { useToast } from './ToastContext';
@@ -16,6 +16,7 @@ interface MyQuotesPageProps {
     isLoading: boolean;
     onRefresh: () => void;
     initialFilterStatus?: string;
+    crmOrdersByQuoteId?: Record<string, string>;
 }
 
 const EmptyState: FC<{ filterStatus: string; searchTerm?: string; onClearFilter: () => void; onRequestQuote: () => void; }> = ({ filterStatus, searchTerm, onClearFilter, onRequestQuote }) => {
@@ -175,7 +176,7 @@ const getProgressStep = (status: string): number => {
     return map[status] ?? 0;
 };
 
-export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCurrentPage, layoutProps, isLoading, onRefresh, initialFilterStatus }) => {
+export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCurrentPage, layoutProps, isLoading, onRefresh, initialFilterStatus, crmOrdersByQuoteId }) => {
     const { can } = useOrgPermissions();
     const canEdit = can('sourcing', 'edit');
     const [filterStatus, setFilterStatus] = useState(initialFilterStatus || 'All');
@@ -797,6 +798,19 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                                         <MailOpen size={15} />
                                     </button>
                                 )
+                            )}
+                            {quote.status === 'Accepted' && crmOrdersByQuoteId?.[quote.id] && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleSetCurrentPage('crm', { orderId: crmOrdersByQuoteId![quote.id] });
+                                    }}
+                                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors border border-emerald-200/60 dark:border-emerald-700/40"
+                                    title="View CRM Order"
+                                >
+                                    <ExternalLink size={13} />
+                                    View Order
+                                </button>
                             )}
                             {quote.status !== 'Draft' && (() => {
                                 const chatUnread = (() => {

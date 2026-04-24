@@ -327,6 +327,8 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
     const [isStatusUpdateOpen, setIsStatusUpdateOpen] = useState(false);
     const [showBulkAcceptModal, setShowBulkAcceptModal] = useState(false);
     const invoicePreviewRef = useRef<HTMLDivElement>(null);
+    // Map of quote ID -> CRM order ID for accepted quotes
+    const [crmOrdersByQuoteId, setCrmOrdersByQuoteId] = useState<Record<string, string>>({});
     const { showToast } = useToast();
 
     const toggleExpand = (index: number) => {
@@ -415,6 +417,20 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
 
                 setQuotes(transformedQuotes);
                 sessionStorage.setItem(CACHE_KEY, JSON.stringify(transformedQuotes));
+
+                // Fetch CRM order mapping for accepted quotes
+                if (!signal.aborted) {
+                    const { data: crmMappingData } = await props.supabase
+                        .from('crm_orders')
+                        .select('id, source_quote_id')
+                        .not('source_quote_id', 'is', null);
+                    if (!signal.aborted && crmMappingData) {
+                        const map: Record<string, string> = {};
+                        (crmMappingData as any[]).forEach((o: any) => { if (o.source_quote_id) map[o.source_quote_id] = o.id; });
+                        setCrmOrdersByQuoteId(map);
+                    }
+                }
+
                 setIsLoading(false);
                 return;
             } catch (err: any) {
@@ -649,6 +665,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
             product_name: productName,
             factory_id: quote.factory?.id || null,
             status: 'Pending',
+            source_quote_id: quote.id,
             products,
             tasks: [
                 { id: Date.now(), name: 'Order Confirmation', status: 'COMPLETE', plannedStartDate: new Date().toISOString().split('T')[0], plannedEndDate: new Date().toISOString().split('T')[0], responsible: 'Admin', actualStartDate: new Date().toISOString().split('T')[0], actualEndDate: new Date().toISOString().split('T')[0], productId: firstProductId },
@@ -657,12 +674,15 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
             documents: documents
         };
 
-        const { error } = await crmService.create(payload);
+        const { data: createdOrder, error } = await crmService.create(payload);
         if (error) {
             console.error('Failed to create CRM order:', error);
             showToast('Quote accepted, but failed to create CRM order automatically.', 'error');
         } else {
             showToast('CRM Order created automatically.');
+            if (createdOrder?.id) {
+                setCrmOrdersByQuoteId(prev => ({ ...prev, [quote.id]: createdOrder.id }));
+            }
         }
     };
 
@@ -4263,6 +4283,19 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                         })();
                         return (
                             <div className="flex items-center gap-1 ml-auto flex-shrink-0">
+                                {quote.status === 'Accepted' && crmOrdersByQuoteId[quote.id] && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            props.handleSetCurrentPage('adminCRM', { orderId: crmOrdersByQuoteId[quote.id] });
+                                        }}
+                                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors border border-emerald-200/60 dark:border-emerald-700/40"
+                                        title="View CRM Order"
+                                    >
+                                        <ExternalLink size={13} />
+                                        View Order
+                                    </button>
+                                )}
                                 {isUnread ? (
                                     <button onClick={(e) => manualMarkAsRead(e, quote)} className="p-1.5 text-blue-400 hover:text-blue-600 hover:bg-blue-50/80 dark:hover:bg-blue-900/20 rounded-lg transition-colors" title="Mark as read">
                                         <Mail size={15} />
