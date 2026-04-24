@@ -253,6 +253,7 @@ export interface CrmOrder {
     riskScore?: 'green' | 'amber' | 'red';
     riskScoreUpdatedAt?: string;
     deliveryDate?: string;
+    source_quote_id?: string;
 }
 
 

@@ -124,6 +124,7 @@ export function normalizeOrder(raw: any): CrmOrder {
         products,
         custom_factory_name: raw.custom_factory_name || '',
         custom_factory_location: raw.custom_factory_location || '',
+        source_quote_id: raw.source_quote_id || undefined,
     };
 }
 

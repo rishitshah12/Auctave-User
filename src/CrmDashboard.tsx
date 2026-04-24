@@ -486,6 +486,7 @@ export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user
                                 destinationCountry: normalized.destinationCountry || matchedQuote?.order_details?.shippingCountry || '',
                                 shippingPort: normalized.shippingPort || matchedQuote?.order_details?.shippingPort || '',
                                 portOfDischarge: normalized.portOfDischarge || matchedQuote?.admin_response?.commercialData?.portOfDischarge || '',
+                                source_quote_id: order.source_quote_id || undefined,
                             };
                         });
                         // Always persist to cache even when navigated away so next mount reads fresh data.
