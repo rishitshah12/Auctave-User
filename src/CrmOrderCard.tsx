@@ -101,7 +101,25 @@ export default function CrmOrderCard({ orderId, order, factory, index, onClick, 
 
     const status = order.status || 'In Production';
     const cfg = STATUS_CONFIG[status] || DEFAULT_CFG;
-    const ordRef = `ORD-${orderId.slice(0, 6).toUpperCase()}`;
+
+    const ordRef = useMemo(() => {
+        const date = order.createdAt ? new Date(order.createdAt) : new Date();
+        const yy = String(date.getFullYear()).slice(-2);
+        const mm = String(date.getMonth() + 1).padStart(2, '0');
+        const p = (order.product || '').toLowerCase();
+        let cat = 'GN';
+        if (p.includes('tee') || p.includes('t-shirt') || p.includes('tshirt') || p.includes('shirt')) cat = 'TS';
+        else if (p.includes('hoodie') || p.includes('hood') || p.includes('sweatshirt')) cat = 'HD';
+        else if (p.includes('jacket') || p.includes('coat') || p.includes('blazer')) cat = 'JK';
+        else if (p.includes('pant') || p.includes('trouser') || p.includes('jeans') || p.includes('denim')) cat = 'PT';
+        else if (p.includes('polo')) cat = 'PL';
+        else if (p.includes('dress') || p.includes('skirt')) cat = 'DR';
+        else if (p.includes('shorts') || p.includes('short')) cat = 'SH';
+        const hex = orderId.replace(/-/g, '');
+        const serial = (parseInt(hex.slice(0, 8), 16) % 900) + 100;
+        return `ORD-${yy}${mm}-${cat}${serial}`;
+    }, [orderId, order.createdAt, order.product]);
+
     const rfqRef = order.source_quote_id ? `RFQ-${order.source_quote_id.slice(0, 6).toUpperCase()}` : null;
     const hasActiveTasks = stats.inProgress > 0;
 
@@ -142,14 +160,17 @@ export default function CrmOrderCard({ orderId, order, factory, index, onClick, 
                 <div className="px-6 pt-5 pb-5">
                     {/* Row 1: ORD ref + RFQ ref + status badge */}
                     <div className="flex items-center gap-2 mb-4 flex-wrap">
-                        {/* ORD badge */}
-                        <span className="font-mono text-[11px] font-black tracking-widest text-white bg-gray-800/80 dark:bg-gray-900/90 px-2.5 py-1 rounded-lg border border-gray-700/30 dark:border-white/10 shadow-inner">
+                        {/* ORD badge — light, status-colored border */}
+                        <span
+                            className="font-mono text-[11px] font-black tracking-widest px-2.5 py-1 rounded-lg border bg-white dark:bg-gray-900/60 shadow-sm"
+                            style={{ color: cfg.ring, borderColor: `${cfg.ring}55` }}
+                        >
                             {ordRef}
                         </span>
-                        {/* RFQ source badge */}
+                        {/* RFQ source badge — linked quote */}
                         {rfqRef && (
-                            <span className="flex items-center gap-1 font-mono text-[10px] font-bold tracking-wider text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800/70 px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-700/50">
-                                <Link2 size={9} className="flex-shrink-0" />
+                            <span className="flex items-center gap-1 font-mono text-[10px] font-bold tracking-wider text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-800/60 px-2 py-1 rounded-lg border border-gray-200/80 dark:border-gray-700/50">
+                                <Link2 size={9} className="flex-shrink-0 text-gray-400" />
                                 {rfqRef}
                             </span>
                         )}
