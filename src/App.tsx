@@ -3343,7 +3343,7 @@ const AppContent: FC = () => {
         const fetchMyQuotes = useCallback(async () => {
             if (!user?.id) return;
             setQuotesLoading(true);
-            const { data } = await quoteService.getQuotesByUser(user.id);
+            const { data } = await quoteService.getQuotesByUser(activeOrgOwnerId ?? user.id);
             if (data) {
                 const transformed = (data as any[]).map(q => ({
                     id: q.id,
