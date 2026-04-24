@@ -4082,11 +4082,11 @@ User message: "${userMsg}"`;
                                         )}
 
                                         {/* Input */}
-                                        {canSend ? (
                                         <div className="border-t border-gray-100 dark:border-white/10 px-3 py-2.5 flex-shrink-0 flex items-end gap-2 bg-white dark:bg-gray-900">
-                                            <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileSelect} />
+                                            <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileSelect} disabled={!canSend} />
                                             <button onClick={() => fileInputRef.current?.click()}
-                                                className="p-2 text-gray-400 hover:text-[#c20c0b] transition-colors flex-shrink-0 relative" title="Attach files">
+                                                disabled={!canSend}
+                                                className="p-2 text-gray-400 hover:text-[#c20c0b] transition-colors flex-shrink-0 relative disabled:opacity-40 disabled:cursor-not-allowed" title={!canSend ? 'View-only access' : 'Attach files'}>
                                                 <Paperclip size={18} />
                                                 {attachFiles.length > 0 && (
                                                     <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-0.5 bg-[#c20c0b] text-white text-[9px] font-bold rounded-full flex items-center justify-center">
@@ -4099,24 +4099,21 @@ User message: "${userMsg}"`;
                                                 value={quotesMessage}
                                                 onChange={e => setQuotesMessage(e.target.value)}
                                                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleQuotesSend(); } }}
-                                                placeholder="Type a message… (Enter to send)"
+                                                placeholder={canSend ? "Type a message… (Enter to send)" : "View-only access"}
                                                 rows={1}
-                                                className="flex-1 bg-gray-100 dark:bg-gray-800 text-sm text-gray-800 dark:text-white rounded-xl px-3 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-[#c20c0b]/30 max-h-28 placeholder-gray-400"
+                                                disabled={!canSend}
+                                                className="flex-1 bg-gray-100 dark:bg-gray-800 text-sm text-gray-800 dark:text-white rounded-xl px-3 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-[#c20c0b]/30 max-h-28 placeholder-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
                                                 style={{ fieldSizing: 'content' } as any}
                                             />
                                             <button
                                                 onClick={handleQuotesSend}
-                                                disabled={(!quotesMessage.trim() && !attachFiles.length) || quotesSending}
+                                                disabled={!canSend || (!quotesMessage.trim() && !attachFiles.length) || quotesSending}
+                                                title={!canSend ? 'View-only access' : undefined}
                                                 className="p-2.5 bg-[#c20c0b] text-white rounded-xl hover:bg-[#a50a09] disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-95 flex-shrink-0"
                                             >
                                                 {quotesSending ? <RefreshCw size={17} className="animate-spin" /> : <Send size={17} />}
                                             </button>
                                         </div>
-                                        ) : (
-                                        <div className="border-t border-gray-100 dark:border-white/10 px-3 py-2.5 flex-shrink-0 bg-white dark:bg-gray-900">
-                                            <p className="text-xs text-center text-gray-400 dark:text-gray-500 italic">View-only access — messaging is disabled</p>
-                                        </div>
-                                        )}
                                     </div>
                                 )}
                             </>
