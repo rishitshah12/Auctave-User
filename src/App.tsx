@@ -596,6 +596,16 @@ const AppContent: FC = () => {
                             }
 
                             // Map database fields to UserProfile interface
+                            // Ensure customer_id is stored — generate + save if missing
+                            let customerId: string = data.customer_id || '';
+                            if (!customerId) {
+                                const date = new Date(session.user.created_at);
+                                const yy = String(date.getFullYear()).slice(-2);
+                                const mm = String(date.getMonth() + 1).padStart(2, '0');
+                                const hex = session.user.id.replace(/-/g, '').slice(0, 4).toUpperCase();
+                                customerId = `CLT-${yy}${mm}-${hex}`;
+                                supabase.from('clients').update({ customer_id: customerId }).eq('id', session.user.id).then(() => {});
+                            }
                             currentProfile = {
                                 name: data.name,
                                 companyName: data.company_name,
@@ -606,6 +616,7 @@ const AppContent: FC = () => {
                                 categorySpecialization: data.category_specialization,
                                 yearlyEstRevenue: data.yearly_est_revenue,
                                 avatarUrl: data.avatar_url || '',
+                                customerId,
                                 website: data.website || '',
                                 vatNumber: data.vat_number || '',
                                 businessRegNumber: data.business_reg_number || '',
@@ -2288,11 +2299,18 @@ const AppContent: FC = () => {
 
                             {/* Account ID row */}
                             <div className="px-6 py-3 border-b border-gray-100 dark:border-white/8 flex items-center gap-3">
-                                <span className="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 w-24 flex-shrink-0">Account ID</span>
+                                <span className="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 w-24 flex-shrink-0">Client ID</span>
                                 <span className="font-mono text-sm font-bold text-gray-700 dark:text-gray-200 select-all tracking-widest">
-                                    {user?.id ? formatClientId(user.id) : '—'}
+                                    {userProfile?.customerId || (user?.id ? formatClientId(user.id, user.created_at) : '—')}
                                 </span>
-                                <span className="text-xs text-gray-400 dark:text-gray-500 hidden sm:block">({user?.id})</span>
+                                <button
+                                    type="button"
+                                    title="Copy Client ID"
+                                    onClick={() => { navigator.clipboard.writeText(userProfile?.customerId || ''); }}
+                                    className="p-1 rounded text-gray-300 hover:text-gray-600 dark:hover:text-gray-200 transition"
+                                >
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                                </button>
                             </div>
 
                             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-5">

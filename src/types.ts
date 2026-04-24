@@ -8,6 +8,7 @@ export interface UserProfile {
     categorySpecialization: string;
     yearlyEstRevenue: string;
     avatarUrl?: string;
+    customerId?: string;
     // KYC / global trade fields
     website?: string;
     vatNumber?: string;
