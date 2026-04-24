@@ -328,6 +328,8 @@ const AppContent: FC = () => {
     const [selectedGarmentCategory, setSelectedGarmentCategory] = useState<string>('All');
     // State to store the list of quote requests made by the user
     const QUOTES_CACHE_KEY = 'garment_erp_my_quotes';
+    const PROFILE_CACHE_KEY = 'garment_erp_profile_v1';
+    const PROFILE_CACHE_TTL = 60 * 60 * 1000; // 1 hour — like any ecommerce platform
     const [quoteRequests, setQuoteRequests] = useState<QuoteRequest[]>(() => {
         const cached = sessionStorage.getItem(QUOTES_CACHE_KEY);
         return cached ? JSON.parse(cached) : [];
@@ -535,7 +537,21 @@ const AppContent: FC = () => {
                     let currentProfile: UserProfile | null = null;
                     let profileFetchFailed = false; // Track if fetch failed due to network/timeout
 
+                    // Use cached profile (localStorage, 1h TTL) — avoids DB round-trip on every auth event
                     try {
+                        const cachedProfileRaw = localStorage.getItem(PROFILE_CACHE_KEY);
+                        if (cachedProfileRaw) {
+                            const cached = JSON.parse(cachedProfileRaw);
+                            if (cached._userId === session.user.id && Date.now() - (cached._ts || 0) < PROFILE_CACHE_TTL) {
+                                const { _userId, _ts, ...profile } = cached;
+                                currentProfile = profile as UserProfile;
+                                setUserProfile(currentProfile);
+                                console.log('Profile loaded from cache (skip DB fetch)');
+                            }
+                        }
+                    } catch { /* corrupt cache — will re-fetch below */ }
+
+                    if (!currentProfile) try {
                         // Fetch profile from Supabase (admins or clients table) with timeout
                         const tableName = isUserAdmin ? 'admins' : 'clients';
 
@@ -643,7 +659,8 @@ const AppContent: FC = () => {
                                 })(),
                             };
                             setUserProfile(currentProfile);
-                            console.log('Profile loaded successfully');
+                            try { localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify({ ...currentProfile, _userId: session.user.id, _ts: Date.now() })); } catch {}
+                            console.log('Profile loaded from DB and cached');
                         } else if (error) {
                             // Check if profile truly doesn't exist (PGRST116) vs other errors
                             if (error.code === 'PGRST116') {
@@ -800,6 +817,8 @@ const AppContent: FC = () => {
                     setUserProfile(null);
                     setIsAdmin(false);
                     localStorage.removeItem('garment_erp_last_page');
+                    localStorage.removeItem(PROFILE_CACHE_KEY);
+                    sessionStorage.removeItem(QUOTES_CACHE_KEY);
                     setCurrentPage('login');
                 } else {
                     // If no session, go to login
@@ -927,7 +946,7 @@ const AppContent: FC = () => {
 
     useEffect(() => {
         if (user && !isAdmin) {
-            sessionStorage.removeItem(QUOTES_CACHE_KEY);
+            // Don't clear the cache — serve it immediately, fetch in background to update
             fetchUserQuotes();
         }
         return () => {
@@ -936,7 +955,8 @@ const AppContent: FC = () => {
     }, [user, isAdmin, activeOrgOwnerId]);
 
     useEffect(() => {
-        if (user && !isAdmin && currentPage === 'myQuotes') {
+        // Only refetch on page visit if we have no data — cache serves subsequent visits instantly
+        if (user && !isAdmin && currentPage === 'myQuotes' && quoteRequests.length === 0) {
             fetchUserQuotes();
         }
     }, [currentPage]);
