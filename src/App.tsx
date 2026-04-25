@@ -312,7 +312,9 @@ const AppContent: FC = () => {
     // Sync URL and document title when currentPage changes
     useEffect(() => {
         const path = PAGE_TO_PATH[currentPage];
-        if (path && window.location.pathname !== path) {
+        // Never overwrite OAuth callback params — Supabase needs ?code= or #access_token= to exchange for a session
+        const hasAuthParams = window.location.search.includes('code=') || window.location.hash.includes('access_token=');
+        if (path && window.location.pathname !== path && !hasAuthParams) {
             window.history.pushState(null, '', path);
         }
         const seo = PAGE_SEO[currentPage];
