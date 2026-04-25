@@ -1,7 +1,6 @@
 // Import React library and hooks for state management (useState), side effects (useEffect), references (useRef), memoization (useMemo), and types (FC, ReactNode)
 import React, { useState, useEffect, useRef, useMemo, FC, ReactNode, useCallback, Suspense, lazy } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Helmet } from 'react-helmet-async';
 import { createPortal } from 'react-dom';
 import { KnittingPreloader } from './KnittingPreloader';
 // Import the configured Supabase client for backend database and auth interactions
@@ -313,12 +312,14 @@ const AppContent: FC = () => {
         localStorage.setItem('garment_erp_dark_mode', String(darkMode));
     }, [darkMode]);
 
-    // Sync URL when currentPage changes
+    // Sync URL and document title when currentPage changes
     useEffect(() => {
         const path = PAGE_TO_PATH[currentPage];
         if (path && location.pathname !== path) {
             navigate(path, { replace: location.pathname === '/' });
         }
+        const seo = PAGE_SEO[currentPage];
+        if (seo) document.title = seo.title;
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentPage]);
 
@@ -4260,29 +4261,21 @@ User message: "${userMsg}"`;
     // --- Page Renderer ---
     // Function to determine which page component to render based on state
     const renderPage = () => {
-        const seo = PAGE_SEO[currentPage] ?? { title: 'Garment ERP' };
-        const helmetEl = (
-            <Helmet>
-                <title>{seo.title}</title>
-                {seo.description && <meta name="description" content={seo.description} />}
-            </Helmet>
-        );
-
         // Show loading spinner if auth is not ready
         if (!isAuthReady) {
-            return <>{helmetEl}<KnittingPreloader fullScreen /></>;
+            return <KnittingPreloader fullScreen />;
         }
 
         // Hard gate: if user is authenticated, has no profile, and is a new signup, show onboarding.
         // Existing users without a profile record are NOT gated — they go straight to the app.
         if (user && userProfile === null && isNewUserSignup && currentPage !== 'login' && currentPage !== 'createPassword') {
-            return <>{helmetEl}<OnboardingPage user={user} onComplete={saveUserProfile} isLoading={isProfileLoading} onThemeChange={setDarkMode} onBeforeComplete={(data) => { setHelloSplash(data); setTimeout(() => setHelloSplash(null), 3000); }} /></>;
+            return <OnboardingPage user={user} onComplete={saveUserProfile} isLoading={isProfileLoading} onThemeChange={setDarkMode} onBeforeComplete={(data) => { setHelloSplash(data); setTimeout(() => setHelloSplash(null), 3000); }} />;
         }
 
         // 1. Check Dynamic Routes from MasterController (Enables Extensibility)
         const DynamicComponent = masterController.getRouteComponent(currentPage);
         if (DynamicComponent) {
-            return <>{helmetEl}<DynamicComponent {...layoutProps} /></>;
+            return <DynamicComponent {...layoutProps} />;
         }
 
         // Switch statement to compute the appropriate page component
@@ -4355,7 +4348,7 @@ User message: "${userMsg}"`;
                 quoteRequests={quoteRequests}
             />;
         }
-        return <>{helmetEl}{pageContent}</>;
+        return <>{pageContent}</>;
     };
 
     // Component to create a new quote request
