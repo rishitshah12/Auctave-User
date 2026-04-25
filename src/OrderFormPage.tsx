@@ -82,11 +82,36 @@ const WEAVE_TYPES: Record<string, string[]> = {
     Crocheted: ['Basic Crochet', 'Lace', 'Open Weave', 'Jacquard Crochet', 'Tapestry Crochet'],
 };
 
-const FABRIC_PRINT_TECHNIQUES = ['Screen Print', 'Digital Print', 'Discharge Print', 'Reactive Print', 'Pigment Print', 'Sublimation', 'Rotary Print', 'None / Solid'];
+const FABRIC_PRINT_TECHNIQUES_BY_TYPE: Record<string, string[]> = {
+    Knitted: ['Sublimation', 'Screen Print', 'Digital Print', 'Reactive Dye', 'Pigment Print', 'Discharge Print', 'All Over Print (AOP)', 'None / Solid'],
+    Woven: ['Reactive Print', 'Pigment Print', 'Discharge Print', 'Rotary Print', 'Digital Print', 'Screen Print', 'Yarn Dyed / Jacquard', 'None / Solid'],
+    Crocheted: ['Yarn Dyed', 'Hand Dyed', 'Tie-Dye / Space Dye', 'Digital Print', 'Screen Print', 'None / Natural'],
+};
+
+const FABRIC_COUNT_LABEL: Record<string, string> = {
+    Knitted: 'Gauge (needles/inch)',
+    Woven: 'Thread Count',
+    Crocheted: 'Hook Size (mm)',
+};
+
+const FABRIC_COUNT_PLACEHOLDER: Record<string, string> = {
+    Knitted: 'e.g., 28',
+    Woven: 'e.g., 200',
+    Crocheted: 'e.g., 4.0',
+};
 
 const FABRIC_STRETCH_OPTIONS = ['No Stretch', '2-Way Stretch', '4-Way Stretch', 'High Stretch (>50%)'];
 
 const FABRIC_FINISH_OPTIONS = ['Raw / Unfinished', 'Peach Finish', 'Stone Washed', 'Enzyme Washed', 'Anti-pilling', 'Water Repellent (DWR)', 'Flame Retardant', 'Moisture Wicking', 'Mercerized', 'Sanforized'];
+
+const FABRIC_PACKAGING_OPTIONS = [
+    { id: 'Roll (Paper Core)', label: 'Roll', image: 'https://images.unsplash.com/photo-1558769132-cb1aea458c5e?auto=format&fit=crop&w=300&q=80' },
+    { id: 'Bolt / Flat Fold', label: 'Bolt / Flat Fold', image: 'https://images.unsplash.com/photo-1586495777744-4e6232bf2e66?auto=format&fit=crop&w=300&q=80' },
+    { id: 'Tube / Circular Beam', label: 'Tube / Beam', image: 'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?auto=format&fit=crop&w=300&q=80' },
+    { id: 'Polybag (per roll)', label: 'Polybag', image: 'https://5.imimg.com/data5/GG/PB/MY-45570512/t-shirts-packing-bags-500x500.jpg' },
+    { id: 'Carton / Export Box', label: 'Carton', image: 'https://www.packingsupply.in/web/templates/images/products/1523101691-Rectangle-corrugated-boxes-cartons.jpg' },
+    { id: 'Eco Packaging', label: 'Eco-Friendly', image: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQhu7csV4WhSkWpYNLizVqx0M6MlOieScyPCA&s' },
+];
 
 const FABRIC_WEIGHT_UOMS = ['GSM', 'KG/m²', 'oz/yd²', 'GLM'];
 const FABRIC_WIDTH_UOMS = ['inches', 'cm'];
@@ -2077,11 +2102,11 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                                     </FormField>
                                                 </div>
 
-                                                {/* Print Technique */}
+                                                {/* Print Technique — per fabric type */}
                                                 <div>
                                                     <label className="block text-sm font-bold uppercase tracking-wider mb-2 text-gray-500 dark:text-gray-400">Print Technique</label>
                                                     <div className="flex flex-wrap gap-2">
-                                                        {FABRIC_PRINT_TECHNIQUES.map(pt => (
+                                                        {((activeItem as any).fabricType ? FABRIC_PRINT_TECHNIQUES_BY_TYPE[(activeItem as any).fabricType] : []).map((pt: string) => (
                                                             <button key={pt} type="button"
                                                                 onClick={() => {
                                                                     setFormState(prev => {
@@ -2094,6 +2119,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                                                 {pt}
                                                             </button>
                                                         ))}
+                                                        {!(activeItem as any).fabricType && <p className="text-xs text-gray-400 italic">Select a fabric construction above first</p>}
                                                     </div>
                                                 </div>
 
@@ -2141,12 +2167,12 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                                     </div>
                                                 )}
 
-                                                {/* Thread Count (Woven) */}
-                                                {(activeItem as any).fabricType === 'Woven' && (
+                                                {/* Count / Construction field — all fabric types, label varies */}
+                                                {(activeItem as any).fabricType && (
                                                     <div>
-                                                        <FormField label="Thread Count (optional)" icon={<Ruler className="h-5 w-5 text-gray-400" />}>
-                                                            <input type="number" min="0" name="fabricThreadCount" value={(activeItem as any).fabricThreadCount || ''} onChange={handleFormChange}
-                                                                placeholder="e.g., 200" className={getInputClass()} />
+                                                        <FormField label={`${FABRIC_COUNT_LABEL[(activeItem as any).fabricType] || 'Count'} (optional)`} icon={<Ruler className="h-5 w-5 text-gray-400" />}>
+                                                            <input type="number" min="0" step="0.1" name="fabricThreadCount" value={(activeItem as any).fabricThreadCount || ''} onChange={handleFormChange}
+                                                                placeholder={FABRIC_COUNT_PLACEHOLDER[(activeItem as any).fabricType] || 'e.g., 200'} className={getInputClass()} />
                                                         </FormField>
                                                     </div>
                                                 )}
@@ -2295,30 +2321,69 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                         {/* ── FABRIC QUANTITY ── */}
                                         {isFabric && (
                                         <div className="mt-6 bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                                            <label className="block text-sm font-bold text-gray-700 dark:text-white mb-4">
-                                                Quantity <span className="text-red-500">*</span>
-                                            </label>
-                                            <div className="flex gap-3">
-                                                <div className="relative flex-1">
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3">
+                                                <label className="block text-sm font-bold text-gray-700 dark:text-white">
+                                                    Total Quantity <span className="text-red-500">*</span>
+                                                </label>
+                                                <div className="flex p-1 bg-gray-100 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 shadow-sm">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setQuantityType('units')}
+                                                        className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${activeItem.quantityType === 'units' ? 'bg-[#c20c0b] text-white shadow-sm' : 'text-gray-500 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'}`}
+                                                    >
+                                                        By Quantity
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setQuantityType('container')}
+                                                        className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${activeItem.quantityType === 'container' ? 'bg-[#c20c0b] text-white shadow-sm' : 'text-gray-500 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'}`}
+                                                    >
+                                                        By Container
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            {activeItem.quantityType === 'units' ? (
+                                                <div className="flex gap-3">
+                                                    <div className="relative flex-1">
+                                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                                                            <Package className="h-5 w-5" />
+                                                        </div>
+                                                        <input
+                                                            id={`lineItems[${activeItemIndex}].qty`}
+                                                            type="number"
+                                                            min="0"
+                                                            name="qty"
+                                                            value={activeItem.qty || ''}
+                                                            onChange={handleFormChange}
+                                                            placeholder="e.g., 500"
+                                                            className={getInputClass(errors[`lineItems[${activeItemIndex}].qty`])}
+                                                        />
+                                                    </div>
+                                                    <select name="fabricQtyUOM" value={(activeItem as any).fabricQtyUOM || 'meters'} onChange={handleFormChange}
+                                                        className="px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#c20c0b] appearance-none min-w-[100px]">
+                                                        {FABRIC_QTY_UOMS.map(u => <option key={u} value={u}>{u}</option>)}
+                                                    </select>
+                                                </div>
+                                            ) : (
+                                                <div className="relative">
                                                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
                                                         <Package className="h-5 w-5" />
                                                     </div>
-                                                    <input
+                                                    <select
                                                         id={`lineItems[${activeItemIndex}].qty`}
-                                                        type="number"
-                                                        min="0"
-                                                        name="qty"
-                                                        value={activeItem.qty || ''}
+                                                        name="containerType"
+                                                        value={activeItem.containerType || ''}
                                                         onChange={handleFormChange}
-                                                        placeholder="e.g., 500"
-                                                        className={getInputClass(errors[`lineItems[${activeItemIndex}].qty`])}
-                                                    />
+                                                        className={`${getInputClass(errors[`lineItems[${activeItemIndex}].qty`])} appearance-none`}
+                                                    >
+                                                        <option value="">Select Container Type</option>
+                                                        {containerOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                                    </select>
+                                                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-gray-400">
+                                                        <ChevronDown size={16} />
+                                                    </div>
                                                 </div>
-                                                <select name="fabricQtyUOM" value={(activeItem as any).fabricQtyUOM || 'meters'} onChange={handleFormChange}
-                                                    className="px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#c20c0b] appearance-none min-w-[100px]">
-                                                    {FABRIC_QTY_UOMS.map(u => <option key={u} value={u}>{u}</option>)}
-                                                </select>
-                                            </div>
+                                            )}
                                             {errors[`lineItems[${activeItemIndex}].qty`] && <p className="mt-1 text-xs text-red-600 dark:text-red-400 animate-fade-in">{errors[`lineItems[${activeItemIndex}].qty`]}</p>}
                                         </div>
                                         )}
@@ -2533,7 +2598,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                             <div>
                                                 <label className="block text-sm font-bold uppercase tracking-wider mb-3 text-gray-500 dark:text-gray-400">Packaging Preference <span className="text-red-500">*</span></label>
                                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 mb-3">
-                                                    {PACKAGING_OPTIONS.map((pkg) => (
+                                                    {(isFabric ? FABRIC_PACKAGING_OPTIONS : PACKAGING_OPTIONS).map((pkg) => (
                                                         <button
                                                             key={pkg.id}
                                                             type="button"
@@ -2554,20 +2619,20 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                                         </button>
                                                     ))}
                                                 </div>
-                                                <input 
-                                                    id={`lineItems[${activeItemIndex}].packagingReqs`} 
-                                                    type="text" 
-                                                    name="packagingReqs" 
-                                                    value={activeItem.packagingReqs} 
-                                                    onChange={handleFormChange} 
-                                                    placeholder="Or type custom packaging requirements..." 
-                                                    className={`${getInputClass(errors[`lineItems[${activeItemIndex}].packagingReqs`])} text-sm`} 
+                                                <input
+                                                    id={`lineItems[${activeItemIndex}].packagingReqs`}
+                                                    type="text"
+                                                    name="packagingReqs"
+                                                    value={activeItem.packagingReqs}
+                                                    onChange={handleFormChange}
+                                                    placeholder={isFabric ? 'Or type custom fabric packaging...' : 'Or type custom packaging requirements...'}
+                                                    className={`${getInputClass(errors[`lineItems[${activeItemIndex}].packagingReqs`])} text-sm`}
                                                 />
                                             </div>
 
-                                            {/* 5. Trims & Accessories */}
-                                            <FormField label="Trims & Accessories" icon={<Scissors className="h-5 w-5 text-gray-400" />} error={errors[`lineItems[${activeItemIndex}].trimsAndAccessories`]}>
-                                                <input id={`lineItems[${activeItemIndex}].trimsAndAccessories`} type="text" name="trimsAndAccessories" value={activeItem.trimsAndAccessories} onChange={handleFormChange} placeholder="e.g., YKK Zippers, Metal Buttons" className={getInputClass(errors[`lineItems[${activeItemIndex}].trimsAndAccessories`])} />
+                                            {/* 5. Trims & Accessories (garment) / Additional Notes (fabric) */}
+                                            <FormField label={isFabric ? 'Additional Notes' : 'Trims & Accessories'} icon={<Scissors className="h-5 w-5 text-gray-400" />} error={errors[`lineItems[${activeItemIndex}].trimsAndAccessories`]}>
+                                                <input id={`lineItems[${activeItemIndex}].trimsAndAccessories`} type="text" name="trimsAndAccessories" value={activeItem.trimsAndAccessories} onChange={handleFormChange} placeholder={isFabric ? 'e.g., OEKO-TEX certified, Specific dye lot requirements...' : 'e.g., YKK Zippers, Metal Buttons'} className={getInputClass(errors[`lineItems[${activeItemIndex}].trimsAndAccessories`])} />
                                             </FormField>
                                         </div>
                                     </div>
