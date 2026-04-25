@@ -2607,10 +2607,13 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                                                         <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
                                                             <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-3 py-2">
-                                                                <p className="text-xs text-white uppercase font-bold tracking-wider">Fabric</p>
+                                                                <p className="text-xs text-white uppercase font-bold tracking-wider">{item.category === 'Fabrics' ? 'Construction' : 'Fabric'}</p>
                                                             </div>
                                                             <div className="p-3 bg-white dark:bg-gray-800">
-                                                                <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.fabricQuality}</p>
+                                                                <p className="font-semibold text-gray-900 dark:text-white text-sm">
+                                                                    {item.category === 'Fabrics' ? ((item as any).fabricType || '—') : item.fabricQuality}
+                                                                </p>
+                                                                {item.category === 'Fabrics' && item.fabricQuality && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{item.fabricQuality}</p>}
                                                             </div>
                                                         </div>
                                                         <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
@@ -2618,7 +2621,9 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                                                 <p className="text-xs text-white uppercase font-bold tracking-wider">Weight</p>
                                                             </div>
                                                             <div className="p-3 bg-white dark:bg-gray-800">
-                                                                <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.weightGSM} GSM</p>
+                                                                <p className="font-semibold text-gray-900 dark:text-white text-sm">
+                                                                    {item.weightGSM ? `${item.weightGSM} ${item.category === 'Fabrics' ? ((item as any).fabricWeightUOM || 'GSM') : 'GSM'}` : '—'}
+                                                                </p>
                                                             </div>
                                                         </div>
                                                         <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
@@ -2626,7 +2631,11 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                                                 <p className="text-xs text-white uppercase font-bold tracking-wider">Quantity</p>
                                                             </div>
                                                             <div className="p-3 bg-white dark:bg-gray-800">
-                                                                <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.quantityType === 'container' ? item.containerType : `${item.qty} units`}</p>
+                                                                <p className="font-semibold text-gray-900 dark:text-white text-sm">
+                                                                    {item.category === 'Fabrics'
+                                                                        ? `${item.qty} ${(item as any).fabricQtyUOM || 'meters'}`
+                                                                        : item.quantityType === 'container' ? item.containerType : `${item.qty} units`}
+                                                                </p>
                                                             </div>
                                                         </div>
                                                         <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
@@ -2649,7 +2658,8 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                                         </div>
                                                     )}
 
-                                                    {/* Size Breakdown */}
+                                                    {/* Size Breakdown — garment only */}
+                                                    {item.category !== 'Fabrics' && (
                                                     <div className="mb-6">
                                                         <p className="text-xs text-gray-500 dark:text-gray-200 uppercase font-bold tracking-wider mb-3">Size Breakdown</p>
                                                         {Object.keys(item.sizeRatio).length > 0 ? (
@@ -2672,6 +2682,64 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                                             </div>
                                                         )}
                                                     </div>
+                                                    )}
+
+                                                    {/* Fabric-specific specs */}
+                                                    {item.category === 'Fabrics' && (
+                                                    <div className="mb-6 grid grid-cols-2 md:grid-cols-4 gap-3">
+                                                        {(item as any).fabricWeaveType && (
+                                                            <div className="rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden">
+                                                                <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-3 py-2"><p className="text-xs text-white uppercase font-bold tracking-wider">Weave / Knit</p></div>
+                                                                <div className="p-3 bg-white dark:bg-gray-800"><p className="font-semibold text-gray-900 dark:text-white text-sm">{(item as any).fabricWeaveType}</p></div>
+                                                            </div>
+                                                        )}
+                                                        {(item as any).fabricWidth && (
+                                                            <div className="rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden">
+                                                                <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-3 py-2"><p className="text-xs text-white uppercase font-bold tracking-wider">Width</p></div>
+                                                                <div className="p-3 bg-white dark:bg-gray-800"><p className="font-semibold text-gray-900 dark:text-white text-sm">{(item as any).fabricWidth} {(item as any).fabricWidthUOM || 'inches'}</p></div>
+                                                            </div>
+                                                        )}
+                                                        {(item as any).fabricPrintTechnique && (
+                                                            <div className="rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden">
+                                                                <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-3 py-2"><p className="text-xs text-white uppercase font-bold tracking-wider">Print</p></div>
+                                                                <div className="p-3 bg-white dark:bg-gray-800"><p className="font-semibold text-gray-900 dark:text-white text-sm">{(item as any).fabricPrintTechnique}</p></div>
+                                                            </div>
+                                                        )}
+                                                        {(item as any).fabricOrderType && (
+                                                            <div className="rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden">
+                                                                <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-3 py-2"><p className="text-xs text-white uppercase font-bold tracking-wider">Order Type</p></div>
+                                                                <div className="p-3 bg-white dark:bg-gray-800">
+                                                                    <p className="font-semibold text-gray-900 dark:text-white text-sm">{(item as any).fabricOrderType}</p>
+                                                                    {(item as any).fabricOrderType === 'Custom' && (item as any).fabricOrderTypeCustom && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{(item as any).fabricOrderTypeCustom}</p>}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        {(item as any).fabricStretch && (
+                                                            <div className="rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden">
+                                                                <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-3 py-2"><p className="text-xs text-white uppercase font-bold tracking-wider">Stretch</p></div>
+                                                                <div className="p-3 bg-white dark:bg-gray-800"><p className="font-semibold text-gray-900 dark:text-white text-sm">{(item as any).fabricStretch}</p></div>
+                                                            </div>
+                                                        )}
+                                                        {(item as any).fabricFinish && (
+                                                            <div className="rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden">
+                                                                <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-3 py-2"><p className="text-xs text-white uppercase font-bold tracking-wider">Finish</p></div>
+                                                                <div className="p-3 bg-white dark:bg-gray-800"><p className="font-semibold text-gray-900 dark:text-white text-sm">{(item as any).fabricFinish}</p></div>
+                                                            </div>
+                                                        )}
+                                                        {(item as any).fabricColor && (
+                                                            <div className="rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden">
+                                                                <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-3 py-2"><p className="text-xs text-white uppercase font-bold tracking-wider">Color / Pattern</p></div>
+                                                                <div className="p-3 bg-white dark:bg-gray-800"><p className="font-semibold text-gray-900 dark:text-white text-sm">{(item as any).fabricColor}</p></div>
+                                                            </div>
+                                                        )}
+                                                        {(item as any).fabricThreadCount && (
+                                                            <div className="rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden">
+                                                                <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-3 py-2"><p className="text-xs text-white uppercase font-bold tracking-wider">Thread Count</p></div>
+                                                                <div className="p-3 bg-white dark:bg-gray-800"><p className="font-semibold text-gray-900 dark:text-white text-sm">{(item as any).fabricThreadCount}</p></div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    )}
 
                                                     {/* Price Comparison Card — only shown while negotiating, not after agreement */}
                                                     {itemResponse?.price && !showAgreedPrice && (
@@ -2749,18 +2817,20 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                                                                 {item.labelingReqs && <div className="flex justify-between items-start"><span className="text-gray-500 dark:text-gray-200">Labeling:</span> <span className="font-medium text-gray-900 dark:text-white text-right ml-4">{item.labelingReqs}</span></div>}
                                                             </div>
                                                         </div>
-                                                        {(item.trimsAndAccessories || item.specialInstructions || item.sleeveOption || item.styleOption || item.printOption || (item as any).fitType || (item as any).washType) && (
+                                                        {(item.trimsAndAccessories || item.specialInstructions || (item.category !== 'Fabrics' && (item.sleeveOption || item.styleOption || item.printOption || (item as any).fitType || (item as any).washType))) && (
                                                             <div className="rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
                                                                 <div className="bg-gradient-to-r from-[#c20c0b] to-pink-600 px-5 py-3">
                                                                     <p className="text-xs text-white uppercase font-bold tracking-wider">Additional Details</p>
                                                                 </div>
                                                                 <div className="p-5 bg-white dark:bg-gray-800 space-y-3 text-sm">
-                                                                    {item.styleOption && <div><span className="text-gray-500 dark:text-gray-200 block mb-1">Style:</span> <span className="font-medium text-gray-900 dark:text-white">{item.styleOption}</span></div>}
-                                                                    {item.sleeveOption && <div><span className="text-gray-500 dark:text-gray-200 block mb-1">Sleeve:</span> <span className="font-medium text-gray-900 dark:text-white">{item.sleeveOption}</span></div>}
-                                                                    {item.printOption && <div><span className="text-gray-500 dark:text-gray-200 block mb-1">Print:</span> <span className="font-medium text-gray-900 dark:text-white">{item.printOption}</span></div>}
-                                                                    {(item as any).fitType && <div><span className="text-gray-500 dark:text-gray-200 block mb-1">Fit:</span> <span className="font-medium text-gray-900 dark:text-white">{(item as any).fitType}</span></div>}
-                                                                    {(item as any).washType && <div><span className="text-gray-500 dark:text-gray-200 block mb-1">Wash:</span> <span className="font-medium text-gray-900 dark:text-white">{(item as any).washType}</span></div>}
-                                                                    {item.trimsAndAccessories && <div><span className="text-gray-500 dark:text-gray-200 block mb-1">Trims:</span> <span className="font-medium text-gray-900 dark:text-white">{item.trimsAndAccessories}</span></div>}
+                                                                    {item.category !== 'Fabrics' && <>
+                                                                        {item.styleOption && <div><span className="text-gray-500 dark:text-gray-200 block mb-1">Style:</span> <span className="font-medium text-gray-900 dark:text-white">{item.styleOption}</span></div>}
+                                                                        {item.sleeveOption && <div><span className="text-gray-500 dark:text-gray-200 block mb-1">Sleeve:</span> <span className="font-medium text-gray-900 dark:text-white">{item.sleeveOption}</span></div>}
+                                                                        {item.printOption && <div><span className="text-gray-500 dark:text-gray-200 block mb-1">Print:</span> <span className="font-medium text-gray-900 dark:text-white">{item.printOption}</span></div>}
+                                                                        {(item as any).fitType && <div><span className="text-gray-500 dark:text-gray-200 block mb-1">Fit:</span> <span className="font-medium text-gray-900 dark:text-white">{(item as any).fitType}</span></div>}
+                                                                        {(item as any).washType && <div><span className="text-gray-500 dark:text-gray-200 block mb-1">Wash:</span> <span className="font-medium text-gray-900 dark:text-white">{(item as any).washType}</span></div>}
+                                                                    </>}
+                                                                    {item.trimsAndAccessories && <div><span className="text-gray-500 dark:text-gray-200 block mb-1">Trims / Notes:</span> <span className="font-medium text-gray-900 dark:text-white">{item.trimsAndAccessories}</span></div>}
                                                                     {item.specialInstructions && <div><span className="text-gray-500 dark:text-gray-200 block mb-1">Instructions:</span> <span className="font-medium text-gray-900 dark:text-white bg-yellow-50 dark:bg-yellow-900/30 px-2 py-1 rounded border border-yellow-100 dark:border-yellow-800 inline-block w-full">{item.specialInstructions}</span></div>}
                                                                 </div>
                                                             </div>

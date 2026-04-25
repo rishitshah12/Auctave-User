@@ -67,7 +67,62 @@ const CATEGORY_OPTIONS = [
     { id: 'Shirts', label: 'Formal Shirts', image: 'https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?auto=format&fit=crop&w=400&q=80' },
     { id: 'Casual Shirts', label: 'Casual Shirts', image: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=400&q=80' },
     { id: 'Trousers', label: 'Trousers', image: 'https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?auto=format&fit=crop&w=400&q=80' },
+    { id: 'Fabrics', label: 'Fabrics', image: 'https://images.unsplash.com/photo-1558769132-cb1aea458c5e?auto=format&fit=crop&w=400&q=80' },
 ];
+
+const FABRIC_TYPE_OPTIONS = [
+    { id: 'Knitted', label: 'Knitted', description: 'Loops of yarn interlocked together', emoji: '🧶' },
+    { id: 'Woven', label: 'Woven', description: 'Yarn interlaced at right angles', emoji: '🪡' },
+    { id: 'Crocheted', label: 'Crocheted', description: 'Yarn formed into interlocking loops with a hook', emoji: '🧵' },
+];
+
+const WEAVE_TYPES: Record<string, string[]> = {
+    Knitted: ['Single Jersey', 'Double Jersey', 'Rib (1x1)', 'Rib (2x2)', 'Interlock', 'Pique', 'French Terry', 'Fleece', 'Velour', 'Pointelle', 'Waffle Knit'],
+    Woven: ['Plain Weave', 'Twill', 'Satin', 'Oxford', 'Canvas', 'Poplin', 'Chambray', 'Herringbone', 'Dobby', 'Jacquard', 'Ripstop'],
+    Crocheted: ['Basic Crochet', 'Lace', 'Open Weave', 'Jacquard Crochet', 'Tapestry Crochet'],
+};
+
+const FABRIC_PRINT_TECHNIQUES = ['Screen Print', 'Digital Print', 'Discharge Print', 'Reactive Print', 'Pigment Print', 'Sublimation', 'Rotary Print', 'None / Solid'];
+
+const FABRIC_STRETCH_OPTIONS = ['No Stretch', '2-Way Stretch', '4-Way Stretch', 'High Stretch (>50%)'];
+
+const FABRIC_FINISH_OPTIONS = ['Raw / Unfinished', 'Peach Finish', 'Stone Washed', 'Enzyme Washed', 'Anti-pilling', 'Water Repellent (DWR)', 'Flame Retardant', 'Moisture Wicking', 'Mercerized', 'Sanforized'];
+
+const FABRIC_WEIGHT_UOMS = ['GSM', 'KG/m²', 'oz/yd²', 'GLM'];
+const FABRIC_WIDTH_UOMS = ['inches', 'cm'];
+const FABRIC_QTY_UOMS = ['meters', 'yards', 'kg'];
+
+const DEFAULT_LINE_ITEM_FIELDS = {
+    qty: 0,
+    containerType: '',
+    fabricQuality: '',
+    weightGSM: '',
+    targetPrice: '',
+    packagingReqs: '',
+    labelingReqs: '',
+    styleOption: '',
+    sizeRange: [] as string[],
+    customSize: '',
+    sizeRatio: {} as Record<string, string>,
+    sleeveOption: '',
+    printOption: '',
+    trimsAndAccessories: '',
+    specialInstructions: '',
+    quantityType: 'units' as const,
+    fabricType: undefined as 'Knitted' | 'Woven' | 'Crocheted' | undefined,
+    fabricWidth: '',
+    fabricWidthUOM: 'inches' as 'inches' | 'cm',
+    fabricWeightUOM: 'GSM' as 'GSM' | 'KG/m²' | 'oz/yd²' | 'GLM',
+    fabricWeaveType: '',
+    fabricPrintTechnique: '',
+    fabricOrderType: undefined as 'Ready' | 'Make To Order' | 'Custom' | undefined,
+    fabricOrderTypeCustom: '',
+    fabricStretch: '',
+    fabricFinish: '',
+    fabricQtyUOM: 'meters' as 'meters' | 'yards' | 'kg',
+    fabricColor: '',
+    fabricThreadCount: '',
+};
 
 const FABRIC_SUGGESTIONS = [
     "100% Cotton", "100% Organic Cotton", "Polyester", "Cotton/Poly Blend", "French Terry", "Denim", "Linen", "Bamboo"
@@ -739,26 +794,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
             }
         }
         return {
-            lineItems: [{
-                id: generateId(),
-                category: 'T-shirt',
-                qty: 0,
-                containerType: '',
-                fabricQuality: '',
-                weightGSM: '',
-                targetPrice: '',
-                packagingReqs: '',
-                labelingReqs: '',
-                styleOption: '',
-                sizeRange: [],
-                customSize: '',
-                sizeRatio: {},
-                sleeveOption: '',
-                printOption: '',
-                trimsAndAccessories: '',
-                specialInstructions: '',
-                quantityType: 'units'
-            }],
+            lineItems: [{ id: generateId(), category: 'T-shirt', ...DEFAULT_LINE_ITEM_FIELDS }],
             shippingCountry: '',
             shippingPort: ''
         };
@@ -872,26 +908,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
         setOriginalLineItems([]);
         // Reset form to default state
         setFormState({
-            lineItems: [{
-                id: generateId(),
-                category: 'T-shirt',
-                qty: 0,
-                containerType: '',
-                fabricQuality: '',
-                weightGSM: '',
-                targetPrice: '',
-                packagingReqs: '',
-                labelingReqs: '',
-                styleOption: '',
-                sizeRange: [],
-                customSize: '',
-                sizeRatio: {},
-                sleeveOption: '',
-                printOption: '',
-                trimsAndAccessories: '',
-                specialInstructions: '',
-                quantityType: 'units'
-            }],
+            lineItems: [{ id: generateId(), category: 'T-shirt', ...DEFAULT_LINE_ITEM_FIELDS }],
             shippingCountry: '',
             shippingPort: ''
         });
@@ -934,12 +951,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
 
             const lineItemsForForm = existingItems.length > 0
                 ? existingItems
-                : [{
-                    id: generateId(),
-                    category: 'T-shirt', qty: 0, containerType: '',
-                    fabricQuality: '', weightGSM: '', targetPrice: '', packagingReqs: '', labelingReqs: '', styleOption: '', printOption: '',
-                    sizeRange: [] as string[], customSize: '', sizeRatio: {} as Record<string, string>, sleeveOption: '', trimsAndAccessories: '', specialInstructions: '', quantityType: 'units' as const
-                }];
+                : [{ id: generateId(), category: 'T-shirt', ...DEFAULT_LINE_ITEM_FIELDS }];
 
             setFormState({
                 lineItems: lineItemsForForm,
@@ -1020,28 +1032,48 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
         if (step === 1) {
             // Validate Basic Details
             formState.lineItems.forEach((item, index) => {
-                ['category', 'qty', 'weightGSM', 'fabricQuality'].forEach(key => {
-                    const val = (item as any)[key];
-                    if (key === 'qty') {
-                        if (item.quantityType === 'units' && (val === 0 || !val)) {
-                            newErrors[`lineItems[${index}].qty`] = 'Quantity is required';
-                            if (!firstErrorId) firstErrorId = `lineItems[${index}].qty`;
-                        }
-                    } else if (!val || (typeof val === 'string' && val.trim() === '')) {
-                        newErrors[`lineItems[${index}].${key}`] = 'This field is required';
-                        if (!firstErrorId) firstErrorId = `lineItems[${index}].${key}`;
+                const isFabricItem = item.category === 'Fabrics';
+                if (isFabricItem) {
+                    // Fabric-specific required fields
+                    if (!item.fabricType) {
+                        newErrors[`lineItems[${index}].fabricType`] = 'Fabric type is required';
+                        if (!firstErrorId) firstErrorId = `lineItems[${index}].fabricType`;
                     }
-                });
+                    if (!item.fabricQuality || item.fabricQuality.trim() === '') {
+                        newErrors[`lineItems[${index}].fabricQuality`] = 'This field is required';
+                        if (!firstErrorId) firstErrorId = `lineItems[${index}].fabricQuality`;
+                    }
+                    if (item.quantityType === 'units' && (item.qty === 0 || !item.qty)) {
+                        newErrors[`lineItems[${index}].qty`] = 'Quantity is required';
+                        if (!firstErrorId) firstErrorId = `lineItems[${index}].qty`;
+                    }
+                } else {
+                    ['category', 'qty', 'weightGSM', 'fabricQuality'].forEach(key => {
+                        const val = (item as any)[key];
+                        if (key === 'qty') {
+                            if (item.quantityType === 'units' && (val === 0 || !val)) {
+                                newErrors[`lineItems[${index}].qty`] = 'Quantity is required';
+                                if (!firstErrorId) firstErrorId = `lineItems[${index}].qty`;
+                            }
+                        } else if (!val || (typeof val === 'string' && val.trim() === '')) {
+                            newErrors[`lineItems[${index}].${key}`] = 'This field is required';
+                            if (!firstErrorId) firstErrorId = `lineItems[${index}].${key}`;
+                        }
+                    });
+                }
             });
         }
 
         if (step === 2) {
             // Validate Specs
             formState.lineItems.forEach((item, index) => {
-                if (item.sizeRange.length === 0) {
-                    const key = `lineItems[${index}].sizeRange`;
-                    newErrors[key] = 'Size Range is required';
-                    if (!firstErrorId) firstErrorId = key;
+                const isFabricItem = item.category === 'Fabrics';
+                if (!isFabricItem) {
+                    if (item.sizeRange.length === 0) {
+                        const key = `lineItems[${index}].sizeRange`;
+                        newErrors[key] = 'Size Range is required';
+                        if (!firstErrorId) firstErrorId = key;
+                    }
                 }
                 if (!item.packagingReqs) {
                      const key = `lineItems[${index}].packagingReqs`;
@@ -1088,26 +1120,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
         const newIndex = formState.lineItems.length;
         setFormState(prev => ({
             ...prev,
-            lineItems: [...prev.lineItems, {
-                id: generateId(),
-                category: 'T-shirt',
-                qty: 0,
-                containerType: '',
-                fabricQuality: '',
-                weightGSM: '',
-                targetPrice: '',
-                packagingReqs: '',
-                labelingReqs: '',
-                styleOption: '',
-                sizeRange: [],
-                customSize: '',
-                sizeRatio: {},
-                sleeveOption: '',
-                printOption: '',
-                trimsAndAccessories: '',
-                specialInstructions: '',
-                quantityType: 'units'
-            }]
+            lineItems: [...prev.lineItems, { id: generateId(), category: 'T-shirt', ...DEFAULT_LINE_ITEM_FIELDS }]
         }));
         // Initialize new product at Step 1 and switch to it
         setProductSteps(prev => ({ ...prev, [newIndex]: 1 }));
@@ -1413,26 +1426,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
 
     const confirmReset = () => {
         setFormState({
-            lineItems: [{
-                id: generateId(),
-                category: '',
-                qty: 0,
-                containerType: '',
-                fabricQuality: '',
-                weightGSM: '',
-                targetPrice: '',
-                packagingReqs: '',
-                labelingReqs: '',
-                styleOption: '',
-                sizeRange: [],
-                customSize: '',
-                sizeRatio: {},
-                sleeveOption: '',
-                printOption: '',
-                trimsAndAccessories: '',
-                specialInstructions: '',
-                quantityType: 'units'
-            }],
+            lineItems: [{ id: generateId(), category: '', ...DEFAULT_LINE_ITEM_FIELDS }],
             shippingCountry: '',
             shippingPort: ''
         });
@@ -1451,6 +1445,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
     };
 
     const activeItem = formState.lineItems[activeItemIndex];
+    const isFabric = activeItem.category === 'Fabrics';
     const isUpperBody = ['T-shirt', 'Polo Shirt', 'Hoodies', 'Jackets', 'Shirts', 'Casual Shirts'].includes(activeItem.category);
 
     const isJeans = activeItem.category === 'Jeans';
@@ -1964,6 +1959,227 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                             ))}
                                         </div>
 
+                                        {/* ── FABRIC-SPECIFIC STEP 1 ── */}
+                                        {isFabric && (
+                                        <div className="space-y-6">
+                                            {/* Fabric Type Selector */}
+                                            <div>
+                                                <label className={`block text-sm font-bold uppercase tracking-wider mb-3 ${errors[`lineItems[${activeItemIndex}].fabricType`] ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}`}>
+                                                    Fabric Construction <span className="text-red-500">*</span>
+                                                </label>
+                                                <div className="grid grid-cols-3 gap-4">
+                                                    {FABRIC_TYPE_OPTIONS.map(opt => (
+                                                        <button
+                                                            key={opt.id}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                handleChipSelect('fabricType', opt.id);
+                                                                setFormState(prev => {
+                                                                    const newItems = [...prev.lineItems];
+                                                                    newItems[activeItemIndex] = { ...newItems[activeItemIndex], fabricWeaveType: '', fabricStretch: '' };
+                                                                    return { ...prev, lineItems: newItems };
+                                                                });
+                                                            }}
+                                                            className={`relative rounded-2xl border-2 p-5 transition-all duration-200 flex flex-col items-center gap-2 text-center ${
+                                                                (activeItem as any).fabricType === opt.id
+                                                                    ? 'border-[#c20c0b] bg-red-50 dark:bg-red-900/20 shadow-md scale-105'
+                                                                    : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-gray-300 shadow-sm hover:-translate-y-0.5'
+                                                            }`}
+                                                        >
+                                                            <span className="text-3xl">{opt.emoji}</span>
+                                                            <span className={`font-bold text-sm ${(activeItem as any).fabricType === opt.id ? 'text-[#c20c0b]' : 'text-gray-700 dark:text-gray-200'}`}>{opt.label}</span>
+                                                            <span className="text-[10px] text-gray-400 dark:text-gray-500 leading-tight">{opt.description}</span>
+                                                            {(activeItem as any).fabricType === opt.id && <div className="absolute top-2 right-2 bg-[#c20c0b] text-white rounded-full p-0.5"><Check size={12} /></div>}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                                {errors[`lineItems[${activeItemIndex}].fabricType`] && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors[`lineItems[${activeItemIndex}].fabricType`]}</p>}
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                {/* Fiber Composition */}
+                                                <div>
+                                                    <FormField label="Fiber Composition / Quality" icon={<Award className="h-5 w-5 text-gray-400" />} required error={errors[`lineItems[${activeItemIndex}].fabricQuality`]}>
+                                                        <input id={`lineItems[${activeItemIndex}].fabricQuality`} type="text" name="fabricQuality" value={activeItem.fabricQuality} onChange={handleFormChange} placeholder="e.g., 100% Cotton, 80/20 Cotton-Poly" className={getInputClass(errors[`lineItems[${activeItemIndex}].fabricQuality`])} />
+                                                    </FormField>
+                                                    <div className="mt-2 flex flex-wrap gap-2">
+                                                        {FABRIC_SUGGESTIONS.map(f => (
+                                                            <button key={f} type="button" onClick={() => handleChipSelect('fabricQuality', f)}
+                                                                className={`text-xs px-3 py-1 rounded-full border transition-colors ${activeItem.fabricQuality === f ? 'bg-gray-800 text-white border-gray-800 dark:bg-white dark:text-black' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-gray-400 shadow-sm'}`}>
+                                                                {f}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                {/* Weave Type */}
+                                                <div>
+                                                    <label className="block text-sm font-bold uppercase tracking-wider mb-3 text-gray-500 dark:text-gray-400">
+                                                        {(activeItem as any).fabricType === 'Knitted' ? 'Knit Structure' : (activeItem as any).fabricType === 'Crocheted' ? 'Crochet Pattern' : 'Weave Type'}
+                                                    </label>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {((activeItem as any).fabricType ? WEAVE_TYPES[(activeItem as any).fabricType] : []).map((w: string) => (
+                                                            <button key={w} type="button"
+                                                                onClick={() => {
+                                                                    setFormState(prev => {
+                                                                        const newItems = [...prev.lineItems];
+                                                                        newItems[activeItemIndex] = { ...newItems[activeItemIndex], fabricWeaveType: w };
+                                                                        return { ...prev, lineItems: newItems };
+                                                                    });
+                                                                }}
+                                                                className={`text-xs px-3 py-1.5 rounded-xl border-2 transition-all ${(activeItem as any).fabricWeaveType === w ? 'border-[#c20c0b] bg-red-50 dark:bg-red-900/20 text-[#c20c0b] font-bold' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:border-gray-300'}`}>
+                                                                {w}
+                                                            </button>
+                                                        ))}
+                                                        {!(activeItem as any).fabricType && <p className="text-xs text-gray-400 italic">Select a fabric construction above first</p>}
+                                                    </div>
+                                                    <input type="text" name="fabricWeaveType" value={(activeItem as any).fabricWeaveType || ''} onChange={handleFormChange}
+                                                        placeholder="Or type custom weave..." className="mt-2 w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" />
+                                                </div>
+
+                                                {/* Width + UOM */}
+                                                <div>
+                                                    <label className="block text-sm font-bold uppercase tracking-wider mb-2 text-gray-500 dark:text-gray-400">Width</label>
+                                                    <div className="flex gap-2">
+                                                        <div className="relative flex-1">
+                                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400"><Ruler className="h-4 w-4" /></div>
+                                                            <input type="number" min="0" name="fabricWidth" value={(activeItem as any).fabricWidth || ''} onChange={handleFormChange}
+                                                                placeholder="e.g., 60" className="w-full pl-9 pr-3 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" />
+                                                        </div>
+                                                        <select name="fabricWidthUOM" value={(activeItem as any).fabricWidthUOM || 'inches'} onChange={handleFormChange}
+                                                            className="px-3 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#c20c0b] appearance-none min-w-[80px]">
+                                                            {FABRIC_WIDTH_UOMS.map(u => <option key={u} value={u}>{u}</option>)}
+                                                        </select>
+                                                    </div>
+                                                </div>
+
+                                                {/* Weight + UOM */}
+                                                <div>
+                                                    <label className="block text-sm font-bold uppercase tracking-wider mb-2 text-gray-500 dark:text-gray-400">Weight</label>
+                                                    <div className="flex gap-2">
+                                                        <div className="relative flex-1">
+                                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400"><Weight className="h-4 w-4" /></div>
+                                                            <input type="number" min="0" name="weightGSM" value={activeItem.weightGSM} onChange={handleFormChange}
+                                                                placeholder="e.g., 180" className="w-full pl-9 pr-3 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" />
+                                                        </div>
+                                                        <select name="fabricWeightUOM" value={(activeItem as any).fabricWeightUOM || 'GSM'} onChange={handleFormChange}
+                                                            className="px-3 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#c20c0b] appearance-none min-w-[90px]">
+                                                            {FABRIC_WEIGHT_UOMS.map(u => <option key={u} value={u}>{u}</option>)}
+                                                        </select>
+                                                    </div>
+                                                </div>
+
+                                                {/* Color / Pattern */}
+                                                <div>
+                                                    <FormField label="Color / Pattern" icon={<Palette className="h-5 w-5 text-gray-400" />}>
+                                                        <input type="text" name="fabricColor" value={(activeItem as any).fabricColor || ''} onChange={handleFormChange}
+                                                            placeholder="e.g., Solid White, Navy Stripe, Camo Print" className={getInputClass()} />
+                                                    </FormField>
+                                                </div>
+
+                                                {/* Print Technique */}
+                                                <div>
+                                                    <label className="block text-sm font-bold uppercase tracking-wider mb-2 text-gray-500 dark:text-gray-400">Print Technique</label>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {FABRIC_PRINT_TECHNIQUES.map(pt => (
+                                                            <button key={pt} type="button"
+                                                                onClick={() => {
+                                                                    setFormState(prev => {
+                                                                        const newItems = [...prev.lineItems];
+                                                                        newItems[activeItemIndex] = { ...newItems[activeItemIndex], fabricPrintTechnique: pt };
+                                                                        return { ...prev, lineItems: newItems };
+                                                                    });
+                                                                }}
+                                                                className={`text-xs px-3 py-1.5 rounded-xl border-2 transition-all ${(activeItem as any).fabricPrintTechnique === pt ? 'border-[#c20c0b] bg-red-50 dark:bg-red-900/20 text-[#c20c0b] font-bold' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:border-gray-300'}`}>
+                                                                {pt}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                {/* Stretch (Knitted only) */}
+                                                {(activeItem as any).fabricType === 'Knitted' && (
+                                                    <div>
+                                                        <label className="block text-sm font-bold uppercase tracking-wider mb-2 text-gray-500 dark:text-gray-400">Stretch</label>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {FABRIC_STRETCH_OPTIONS.map(s => (
+                                                                <button key={s} type="button"
+                                                                    onClick={() => {
+                                                                        setFormState(prev => {
+                                                                            const newItems = [...prev.lineItems];
+                                                                            newItems[activeItemIndex] = { ...newItems[activeItemIndex], fabricStretch: s };
+                                                                            return { ...prev, lineItems: newItems };
+                                                                        });
+                                                                    }}
+                                                                    className={`text-xs px-3 py-1.5 rounded-xl border-2 transition-all ${(activeItem as any).fabricStretch === s ? 'border-[#c20c0b] bg-red-50 dark:bg-red-900/20 text-[#c20c0b] font-bold' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:border-gray-300'}`}>
+                                                                    {s}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Surface Finish (Woven / Crocheted) */}
+                                                {((activeItem as any).fabricType === 'Woven' || (activeItem as any).fabricType === 'Crocheted') && (
+                                                    <div>
+                                                        <label className="block text-sm font-bold uppercase tracking-wider mb-2 text-gray-500 dark:text-gray-400">Surface Finish</label>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {FABRIC_FINISH_OPTIONS.map(f => (
+                                                                <button key={f} type="button"
+                                                                    onClick={() => {
+                                                                        setFormState(prev => {
+                                                                            const newItems = [...prev.lineItems];
+                                                                            newItems[activeItemIndex] = { ...newItems[activeItemIndex], fabricFinish: f };
+                                                                            return { ...prev, lineItems: newItems };
+                                                                        });
+                                                                    }}
+                                                                    className={`text-xs px-3 py-1.5 rounded-xl border-2 transition-all ${(activeItem as any).fabricFinish === f ? 'border-[#c20c0b] bg-red-50 dark:bg-red-900/20 text-[#c20c0b] font-bold' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:border-gray-300'}`}>
+                                                                    {f}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Thread Count (Woven) */}
+                                                {(activeItem as any).fabricType === 'Woven' && (
+                                                    <div>
+                                                        <FormField label="Thread Count (optional)" icon={<Ruler className="h-5 w-5 text-gray-400" />}>
+                                                            <input type="number" min="0" name="fabricThreadCount" value={(activeItem as any).fabricThreadCount || ''} onChange={handleFormChange}
+                                                                placeholder="e.g., 200" className={getInputClass()} />
+                                                        </FormField>
+                                                    </div>
+                                                )}
+
+                                                {/* Order Type */}
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-sm font-bold uppercase tracking-wider mb-3 text-gray-500 dark:text-gray-400">Order Type</label>
+                                                    <div className="flex flex-wrap gap-3">
+                                                        {(['Ready', 'Make To Order', 'Custom'] as const).map(ot => (
+                                                            <button key={ot} type="button"
+                                                                onClick={() => {
+                                                                    setFormState(prev => {
+                                                                        const newItems = [...prev.lineItems];
+                                                                        newItems[activeItemIndex] = { ...newItems[activeItemIndex], fabricOrderType: ot, fabricOrderTypeCustom: '' };
+                                                                        return { ...prev, lineItems: newItems };
+                                                                    });
+                                                                }}
+                                                                className={`text-sm px-5 py-2.5 rounded-xl border-2 font-medium transition-all ${(activeItem as any).fabricOrderType === ot ? 'border-[#c20c0b] bg-red-50 dark:bg-red-900/20 text-[#c20c0b] shadow-sm' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:border-gray-300'}`}>
+                                                                {ot}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                    {(activeItem as any).fabricOrderType === 'Custom' && (
+                                                        <input type="text" name="fabricOrderTypeCustom" value={(activeItem as any).fabricOrderTypeCustom || ''} onChange={handleFormChange}
+                                                            placeholder="Describe custom order requirements..." className="mt-3 w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#c20c0b]" />
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        )}
+
+                                        {/* ── GARMENT-SPECIFIC STEP 1 ── */}
+                                        {!isFabric && (
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                             {/* Fabric Quality Input */}
                                             <div>
@@ -2074,6 +2290,38 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                                 {errors[`lineItems[${activeItemIndex}].qty`] && <p className="mt-1 text-xs text-red-600 dark:text-red-400 animate-fade-in">{errors[`lineItems[${activeItemIndex}].qty`]}</p>}
                                             </div>
                                         </div>
+                                        )}
+
+                                        {/* ── FABRIC QUANTITY ── */}
+                                        {isFabric && (
+                                        <div className="mt-6 bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                                            <label className="block text-sm font-bold text-gray-700 dark:text-white mb-4">
+                                                Quantity <span className="text-red-500">*</span>
+                                            </label>
+                                            <div className="flex gap-3">
+                                                <div className="relative flex-1">
+                                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                                                        <Package className="h-5 w-5" />
+                                                    </div>
+                                                    <input
+                                                        id={`lineItems[${activeItemIndex}].qty`}
+                                                        type="number"
+                                                        min="0"
+                                                        name="qty"
+                                                        value={activeItem.qty || ''}
+                                                        onChange={handleFormChange}
+                                                        placeholder="e.g., 500"
+                                                        className={getInputClass(errors[`lineItems[${activeItemIndex}].qty`])}
+                                                    />
+                                                </div>
+                                                <select name="fabricQtyUOM" value={(activeItem as any).fabricQtyUOM || 'meters'} onChange={handleFormChange}
+                                                    className="px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#c20c0b] appearance-none min-w-[100px]">
+                                                    {FABRIC_QTY_UOMS.map(u => <option key={u} value={u}>{u}</option>)}
+                                                </select>
+                                            </div>
+                                            {errors[`lineItems[${activeItemIndex}].qty`] && <p className="mt-1 text-xs text-red-600 dark:text-red-400 animate-fade-in">{errors[`lineItems[${activeItemIndex}].qty`]}</p>}
+                                        </div>
+                                        )}
                                     </div>
                                     )}
 
@@ -2081,31 +2329,32 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                     {currentStep === 2 && (
                                     <div className="animate-slide-in">
                                         <div className="text-center mb-8">
-                                            <h3 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">Let's size it up</h3>
-                                            <p className="text-gray-500 dark:text-gray-400">Define your size range and packaging needs.</p>
+                                            <h3 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">{isFabric ? 'Finishing & Packaging' : "Let's size it up"}</h3>
+                                            <p className="text-gray-500 dark:text-gray-400">{isFabric ? 'Set packaging and any additional requirements.' : 'Define your size range and packaging needs.'}</p>
                                         </div>
                                         <div className="space-y-6">
-                                            {/* 1. Size Range */}
+                                            {/* Garment-only: Size Range, Size Ratio, Fit, Style, Sleeve, Wash */}
+                                            {!isFabric && (<>
                                             <div>
                                                 <label id={`lineItems[${activeItemIndex}].sizeRange`} className={`block text-sm font-bold uppercase tracking-wider mb-3 ${errors[`lineItems[${activeItemIndex}].sizeRange`] ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}`}>Size Range <span className="text-red-500">*</span></label>
                                                 <div className="flex flex-wrap gap-3">
                                                     {currentSizeOptions.map(size => (
                                                         <label key={size} className={`inline-flex items-center px-4 py-2.5 rounded-xl border-2 cursor-pointer transition-all ${activeItem.sizeRange.includes(size) ? 'border-[#c20c0b] bg-red-50 dark:bg-red-900/20 text-[#c20c0b] font-bold shadow-sm' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:border-gray-300 shadow-sm'}`}>
-                                                            <input 
-                                                                type="checkbox" 
-                                                                checked={activeItem.sizeRange.includes(size)} 
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={activeItem.sizeRange.includes(size)}
                                                                 onChange={() => handleSizeCheckbox(size)}
-                                                                className="hidden" 
+                                                                className="hidden"
                                                             />
                                                             <span>{size}</span>
                                                         </label>
                                                     ))}
                                                     <label className={`inline-flex items-center px-4 py-2.5 rounded-xl border-2 cursor-pointer transition-all ${activeItem.sizeRange.includes('Custom') ? 'border-[#c20c0b] bg-red-50 dark:bg-red-900/20 text-[#c20c0b] font-bold shadow-sm' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:border-gray-300 shadow-sm'}`}>
-                                                        <input 
-                                                            type="checkbox" 
-                                                            checked={activeItem.sizeRange.includes('Custom')} 
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={activeItem.sizeRange.includes('Custom')}
                                                             onChange={() => handleSizeCheckbox('Custom')}
-                                                            className="hidden" 
+                                                            className="hidden"
                                                         />
                                                         <span>Custom</span>
                                                     </label>
@@ -2278,6 +2527,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                                     </div>
                                                 </div>
                                             )}
+                                            </>)}
 
                                             {/* 4. Packaging Option */}
                                             <div>

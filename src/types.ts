@@ -51,6 +51,20 @@ export interface LineItem {
     quantityType?: 'units' | 'container';
     productImageUrl?: string;
     productName?: string;
+    // Fabric-specific fields
+    fabricType?: 'Knitted' | 'Woven' | 'Crocheted';
+    fabricWidth?: string;
+    fabricWidthUOM?: 'inches' | 'cm';
+    fabricWeightUOM?: 'GSM' | 'KG/m²' | 'oz/yd²' | 'GLM';
+    fabricWeaveType?: string;
+    fabricPrintTechnique?: string;
+    fabricOrderType?: 'Ready' | 'Make To Order' | 'Custom';
+    fabricOrderTypeCustom?: string;
+    fabricStretch?: string;
+    fabricFinish?: string;
+    fabricQtyUOM?: 'meters' | 'yards' | 'kg';
+    fabricColor?: string;
+    fabricThreadCount?: string;
 }
 
 export interface OrderFormData {
