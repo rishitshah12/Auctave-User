@@ -1,6 +1,5 @@
 // Import React library and hooks for state management (useState), side effects (useEffect), references (useRef), memoization (useMemo), and types (FC, ReactNode)
 import React, { useState, useEffect, useRef, useMemo, FC, ReactNode, useCallback, Suspense, lazy } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { KnittingPreloader } from './KnittingPreloader';
 // Import the configured Supabase client for backend database and auth interactions
@@ -225,8 +224,6 @@ const AppContent: FC = () => {
     const { showToast } = useToast();
     // Access addNotification from context
     const { addNotification } = useNotifications();
-    const navigate = useNavigate();
-    const location = useLocation();
 
     // --- State Management ---
 
@@ -315,8 +312,8 @@ const AppContent: FC = () => {
     // Sync URL and document title when currentPage changes
     useEffect(() => {
         const path = PAGE_TO_PATH[currentPage];
-        if (path && location.pathname !== path) {
-            navigate(path, { replace: location.pathname === '/' });
+        if (path && window.location.pathname !== path) {
+            window.history.pushState(null, '', path);
         }
         const seo = PAGE_SEO[currentPage];
         if (seo) document.title = seo.title;
