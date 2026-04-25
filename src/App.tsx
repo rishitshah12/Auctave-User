@@ -316,12 +316,11 @@ const AppContent: FC = () => {
     // Sync URL when currentPage changes
     useEffect(() => {
         const path = PAGE_TO_PATH[currentPage];
-        if (!path) return;
-        const isReplace = location.pathname === '/' || location.pathname === path;
-        if (location.pathname !== path) {
-            navigate(path, { replace: isReplace });
+        if (path && location.pathname !== path) {
+            navigate(path, { replace: location.pathname === '/' });
         }
-    }, [currentPage, navigate, location.pathname]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentPage]);
 
     // Init / teardown the notification service whenever the auth state changes.
     // This drives cross-device real-time sync and browser push notifications.
