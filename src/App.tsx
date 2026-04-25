@@ -231,7 +231,7 @@ const AppContent: FC = () => {
     const [currentPage, setCurrentPage] = useState<string>(() => {
         const pageFromUrl = PATH_TO_PAGE[window.location.pathname];
         if (pageFromUrl) return pageFromUrl;
-        return localStorage.getItem('garment_erp_last_page') || 'login';
+        return 'login'; // Auth callback handles redirect; avoids cross-tab localStorage bleed
     });
     const pageEnterTimeRef = useRef<number>(Date.now());
     const trackedPageRef = useRef<string>('');
@@ -851,24 +851,40 @@ const AppContent: FC = () => {
                             // Write to localStorage so the safety setTimeout doesn't override this redirect
                             localStorage.setItem('garment_erp_last_page', redirectRoute);
                         } else {
-                            // If it's INITIAL_SESSION or SIGNED_IN (refresh), try to keep current page if valid
-                            if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
+                            if (event === 'INITIAL_SESSION') {
+                                // Existing session (page load / new tab) — honour the URL so each tab is independent
+                                const pageFromUrl = PATH_TO_PAGE[window.location.pathname];
+                                const targetPage = (pageFromUrl && pageFromUrl !== 'login')
+                                    ? pageFromUrl
+                                    : (isUserAdmin ? 'adminDashboard' : 'sourcing');
+                                console.log(`INITIAL_SESSION: navigating to ${targetPage}`);
+                                setCurrentPage(targetPage);
+                            } else if (event === 'SIGNED_IN') {
+                                // Fresh login — restore last visited page from localStorage
                                 const lastPage = localStorage.getItem('garment_erp_last_page');
                                 const targetPage = (lastPage && lastPage !== 'login')
                                     ? lastPage
                                     : (isUserAdmin ? 'adminDashboard' : 'sourcing');
-                                console.log(`No onboarding needed, redirecting to ${targetPage}`);
+                                console.log(`SIGNED_IN: navigating to ${targetPage}`);
                                 setCurrentPage(targetPage);
                             }
                         }
                     } else if (profileFetchFailed && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN')) {
-                        // If profile fetch failed but user is authenticated, keep them logged in
-                        const lastPage = localStorage.getItem('garment_erp_last_page');
-                        const targetPage = (lastPage && lastPage !== 'login')
-                            ? lastPage
-                            : (isUserAdmin ? 'adminDashboard' : 'sourcing');
-                        console.log(`Profile fetch failed, but keeping user logged in at ${targetPage}`);
-                        setCurrentPage(targetPage);
+                        // Profile fetch failed but user is authenticated — keep them logged in
+                        if (event === 'INITIAL_SESSION') {
+                            const pageFromUrl = PATH_TO_PAGE[window.location.pathname];
+                            const targetPage = (pageFromUrl && pageFromUrl !== 'login')
+                                ? pageFromUrl
+                                : (isUserAdmin ? 'adminDashboard' : 'sourcing');
+                            setCurrentPage(targetPage);
+                        } else {
+                            const lastPage = localStorage.getItem('garment_erp_last_page');
+                            const targetPage = (lastPage && lastPage !== 'login')
+                                ? lastPage
+                                : (isUserAdmin ? 'adminDashboard' : 'sourcing');
+                            setCurrentPage(targetPage);
+                        }
+                        console.log('Profile fetch failed, keeping user logged in');
                     }
 
                     // Force redirect away from login if still on login page after 2 seconds.
@@ -880,8 +896,8 @@ const AppContent: FC = () => {
                         setTimeout(async () => {
                             const { data: { session: liveSession } } = await supabase.auth.getSession();
                             if (!liveSession?.user) return; // User has since signed out — abort redirect
-                            const currentSavedPage = localStorage.getItem('garment_erp_last_page');
-                            if (!currentSavedPage || currentSavedPage === 'login') {
+                            const currentUrlPage = PATH_TO_PAGE[window.location.pathname];
+                            if (!currentUrlPage || currentUrlPage === 'login') {
                                 console.warn('Still on login page after auth - forcing redirect');
                                 const liveIsAdmin = liveSession.user.email?.toLowerCase().endsWith('@auctaveexports.com') ?? false;
                                 const forcedPage = liveIsAdmin ? 'adminDashboard' : 'sourcing';
