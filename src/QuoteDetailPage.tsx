@@ -3163,17 +3163,17 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                     </button>
                     <div className="flex-1 flex gap-2 justify-end">
                         {(status === 'Responded' || status === 'In Negotiation' || status === 'Admin Accepted') && (
-                            <button onClick={() => setIsNegotiationModalOpen(true)} disabled={!canEdit} className="px-4 py-2 text-gray-700 dark:text-white font-medium border border-gray-200 dark:border-gray-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed" title={!canEdit ? 'View-only access' : undefined}>
+                            <button data-testid="negotiate-button" onClick={() => setIsNegotiationModalOpen(true)} disabled={!canEdit} className="px-4 py-2 text-gray-700 dark:text-white font-medium border border-gray-200 dark:border-gray-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed" title={!canEdit ? 'View-only access' : undefined}>
                                 Negotiate
                             </button>
                         )}
                         {(status === 'Responded' || status === 'In Negotiation') && (
-                            <button onClick={handleAcceptQuote} disabled={!canEdit} className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed" title={!canEdit ? 'View-only access' : undefined}>
+                            <button data-testid="accept-quote-button" onClick={handleAcceptQuote} disabled={!canEdit} className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed" title={!canEdit ? 'View-only access' : undefined}>
                                 <Check size={16} /> Accept
                             </button>
                         )}
                         {status === 'Admin Accepted' && (
-                            <button onClick={handleAcceptQuote} disabled={!canEdit} className="px-4 py-2 bg-[#c20c0b] text-white font-medium rounded-lg flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed" title={!canEdit ? 'View-only access' : undefined}>
+                            <button data-testid="accept-quote-button" onClick={handleAcceptQuote} disabled={!canEdit} className="px-4 py-2 bg-[#c20c0b] text-white font-medium rounded-lg flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed" title={!canEdit ? 'View-only access' : undefined}>
                                 <CheckCheck size={16} /> Finalize
                             </button>
                         )}

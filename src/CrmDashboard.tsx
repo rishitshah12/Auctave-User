@@ -673,6 +673,7 @@ export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user
                     <div className="relative w-full sm:w-72">
                         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                         <input
+                            data-testid="crm-search-input"
                             type="text"
                             placeholder="Search orders..."
                             value={searchQuery}
@@ -688,6 +689,7 @@ export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user
                 {tabs.map(tab => (
                     <button
                         key={tab.key}
+                        data-testid={`crm-tab-${tab.key}`}
                         onClick={() => { setTopTab(tab.key); analyticsService.track('crm_tab_view', { tab: tab.key }); }}
                         className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all whitespace-nowrap ${
                             topTab === tab.key
@@ -736,8 +738,8 @@ export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     {filteredOrders.map(([orderId, order], index) => (
+                        <div key={orderId} data-testid={`crm-order-card-${orderId}`}>
                         <CrmOrderCard
-                            key={orderId}
                             orderId={orderId}
                             order={order}
                             factory={factoryMap.get(order.factoryId)}
@@ -745,6 +747,7 @@ export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user
                             onClick={() => { setSelectedOrderKey(orderId); analyticsService.track('crm_order_view', { order_id: orderId }); }}
                             onAISummary={() => setSelectedOrderKey(orderId)}
                         />
+                        </div>
                     ))}
                 </div>
             )}

@@ -480,6 +480,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
         return (
             <div
                 key={quote.id}
+                data-testid={`quote-card-${quote.id}`}
                 onClick={() => {
                     if (isSelectMode && quote.status !== 'Draft') { toggleSelectId(quote.id); return; }
                     quote.status === 'Draft' ? handleResumeDraft(quote) : handleCardClick(quote);
@@ -519,6 +520,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                             <div className="flex items-center gap-2.5 min-w-0 flex-1">
                                 {isSelectMode && quote.status !== 'Draft' && (
                                     <input
+                                        data-testid={`quote-checkbox-${quote.id}`}
                                         type="checkbox"
                                         checked={isSelected}
                                         onChange={() => toggleSelectId(quote.id)}
@@ -559,7 +561,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                                 </div>
                             </div>
                             {/* Status badge */}
-                            <span className={`px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide rounded-lg border ${getStatusColor(quote.status)} flex items-center gap-1 flex-shrink-0`}>
+                            <span data-testid={`quote-status-${quote.id}`} className={`px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide rounded-lg border ${getStatusColor(quote.status)} flex items-center gap-1 flex-shrink-0`}>
                                 {quote.status === 'Accepted' && <CheckCheck size={11} />}
                                 {(quote.status === 'Admin Accepted' || quote.status === 'Client Accepted') && <Check size={11} />}
                                 {displayStatus}

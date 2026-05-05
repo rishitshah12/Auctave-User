@@ -1281,7 +1281,32 @@ const AppContent: FC = () => {
         return () => { supabase.removeChannel(channel); };
     }, [user, isAdmin, activeOrgOwnerId, addNotification]);
 
+    // Pre-seed admin diff maps so change-detection works from the very first realtime event
+    useEffect(() => {
+        if (!user || !isAdmin) return;
+
+        supabase.from('quotes').select('id, status, negotiation_details').then(({ data }) => {
+            if (!data) return;
+            data.forEach((q: any) => {
+                const history = q.negotiation_details?.history || [];
+                prevAdminQuoteMap.current.set(q.id, { status: q.status, historyLen: history.length });
+            });
+        });
+
+        supabase.from('crm_orders').select('id, tasks, risk_score').then(({ data }) => {
+            if (!data) return;
+            data.forEach((o: any) => {
+                prevAdminCrmRef.current.set(o.id, {
+                    tasksJson: JSON.stringify(o.tasks || []),
+                    riskScore: o.risk_score,
+                });
+            });
+        });
+    }, [user, isAdmin]);
+
     // Effect to listen for new RFQ submissions (admin only)
+    // Notification is delivered server-side by trg_notify_admin_on_quote_insert;
+    // this subscription just fires the in-app toast for immediate feedback.
     useEffect(() => {
         if (!user || !isAdmin) return;
 
@@ -1292,16 +1317,9 @@ const AppContent: FC = () => {
                 table: 'quotes',
             }, (payload) => {
                 const newQuote = payload.new as any;
-                // Keep polling ref in sync so the poll fallback doesn't double-fire
                 if (newQuote.created_at > lastAdminRFQAtRef.current) {
                     lastAdminRFQAtRef.current = newQuote.created_at;
                 }
-                addNotification({
-                    category: 'rfq',
-                    title: 'New RFQ Submitted',
-                    message: `A new quote request has been submitted${newQuote.factory_data?.name ? ` for ${newQuote.factory_data.name}` : ''}.`,
-                    action: { page: 'adminRFQ' },
-                });
                 showToast('New RFQ request received!');
             })
             .subscribe();
@@ -1309,7 +1327,10 @@ const AppContent: FC = () => {
         return () => { supabase.removeChannel(channel); };
     }, [user, isAdmin]);
 
-    // ── Admin: quote UPDATE subscription — detect client chat + client-side status actions ──
+    // ── Admin: quote UPDATE subscription — keep diff map in sync ──────────────
+    // Persistent notifications are delivered server-side by trg_notify_admin_on_quote_update.
+    // This subscription only keeps prevAdminQuoteMap current so the AdminRFQPage
+    // unread-detection logic can diff correctly.
     useEffect(() => {
         if (!user || !isAdmin) return;
 
@@ -1320,53 +1341,20 @@ const AppContent: FC = () => {
                 table: 'quotes',
             }, (payload) => {
                 const raw = payload.new as any;
-                const prev = prevAdminQuoteMap.current.get(raw.id);
                 const history: any[] = raw.negotiation_details?.history || [];
-                const historyLen = history.length;
-                const clientName = raw.client_name || raw.company_name || 'A client';
-                const factoryName = raw.factory_data?.name || 'factory';
-
-                // New chat message from client
-                if (prev && historyLen > prev.historyLen) {
-                    const latest = history[historyLen - 1];
-                    if (latest?.sender === 'client') {
-                        addNotification({
-                            category: 'chat',
-                            title: `New Message from ${clientName}`,
-                            message: latest.message ? latest.message.slice(0, 120) : '📎 Sent an attachment',
-                            meta: factoryName,
-                            action: { page: 'adminRFQ', data: { rfqId: raw.id } },
-                        });
-                    }
-                }
-
-                // Client took a status action (counter-offer / accept / decline)
-                if (prev && raw.status !== prev.status) {
-                    const actionMap: Record<string, { category: 'order' | 'rfq'; title: string; message: string }> = {
-                        'Client Accepted':  { category: 'order', title: 'Client Accepted a Quote',    message: `${clientName} accepted the quote for ${factoryName}.` },
-                        'Declined':         { category: 'rfq',   title: 'Client Declined a Quote',    message: `${clientName} declined the quote from ${factoryName}.` },
-                        'In Negotiation':   { category: 'rfq',   title: 'Client Sent Counter-Offer',  message: `${clientName} sent a counter-offer on ${factoryName}.` },
-                    };
-                    const copy = actionMap[raw.status];
-                    if (copy) {
-                        addNotification({
-                            ...copy,
-                            meta: factoryName,
-                            action: { page: 'adminRFQ', data: { rfqId: raw.id } },
-                        });
-                    }
-                }
-
-                prevAdminQuoteMap.current.set(raw.id, { status: raw.status, historyLen });
+                prevAdminQuoteMap.current.set(raw.id, { status: raw.status, historyLen: history.length });
             })
             .subscribe((status, err) => {
                 if (err) console.error('[Realtime] admin-quote channel error:', err);
             });
 
         return () => { supabase.removeChannel(channel); };
-    }, [user, isAdmin, addNotification]);
+    }, [user, isAdmin]);
 
-    // ── Admin: CRM order UPDATE subscription — buyer actions + risk alerts ────
+    // ── Admin: CRM order UPDATE subscription — risk alerts only ─────────────
+    // Buyer confirmed/disputed notifications are handled by the DB trigger
+    // (trg_notify_admin_on_crm_action). This subscription only handles risk
+    // score escalation (no DB trigger for that) and keeps prevAdminCrmRef in sync.
     useEffect(() => {
         if (!user || !isAdmin) return;
 
@@ -1381,7 +1369,7 @@ const AppContent: FC = () => {
                 const newTasksJson = JSON.stringify(updated.tasks || []);
                 const orderLabel = updated.order_name || updated.product_name || 'an order';
 
-                // Risk score escalation
+                // Risk score escalation — not in DB trigger, keep here
                 const newRiskScore = updated.risk_score;
                 if (newRiskScore && newRiskScore !== prev?.riskScore) {
                     if (newRiskScore === 'red') {
@@ -1396,38 +1384,6 @@ const AppContent: FC = () => {
                             category: 'crm',
                             title: 'Risk Alert: Timeline Slipping',
                             message: `"${orderLabel}" has a schedule risk. Review milestones.`,
-                            action: { page: 'adminCRM', data: { orderId: updated.id } },
-                        });
-                    }
-                }
-
-                // Buyer confirmed or disputed a milestone
-                if (prev?.tasksJson && newTasksJson !== prev.tasksJson) {
-                    const oldTasks = JSON.parse(prev.tasksJson) as any[];
-                    const newTasks = (updated.tasks || []) as any[];
-
-                    const confirmedTask = newTasks.find((t: any) => {
-                        const old = oldTasks.find((o: any) => o.id === t.id);
-                        return old && !old.buyerConfirmedAt && t.buyerConfirmedAt;
-                    });
-                    const disputedTask = newTasks.find((t: any) => {
-                        const old = oldTasks.find((o: any) => o.id === t.id);
-                        return old && !old.buyerDisputed && t.buyerDisputed;
-                    });
-
-                    if (confirmedTask) {
-                        addNotification({
-                            category: 'approval',
-                            title: 'Milestone Confirmed by Client',
-                            message: `"${confirmedTask.name}" was confirmed on "${orderLabel}".`,
-                            action: { page: 'adminCRM', data: { orderId: updated.id } },
-                        });
-                    }
-                    if (disputedTask) {
-                        addNotification({
-                            category: 'task',
-                            title: 'Milestone Disputed by Client',
-                            message: `"${disputedTask.name}" disputed on "${orderLabel}": ${disputedTask.disputeReason || 'No reason given'}.`,
                             action: { page: 'adminCRM', data: { orderId: updated.id } },
                         });
                     }

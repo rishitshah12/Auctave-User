@@ -954,6 +954,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
                         {(['user', 'admin'] as const).map((t) => (
                             <button
                                 key={t}
+                                data-testid={`login-type-${t}-toggle`}
                                 onClick={() => switchLoginType(t)}
                                 style={{
                                     flex: 1, padding: '10px 0', fontSize: 13, fontWeight: 600,
@@ -1023,6 +1024,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
                         <>
                             {/* Google button */}
                             <button
+                                data-testid="google-signin-button"
                                 onClick={handleGoogleSignIn}
                                 disabled={loading}
                                 style={{
@@ -1064,10 +1066,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
                                 border: '1px solid rgba(255,255,255,0.07)',
                                 borderRadius: 12, marginBottom: 18,
                             }}>
-                                <button onClick={() => { setMethod('email'); setIsOtpSent(false); setAuthError(''); }} style={subToggleStyle(method === 'email')}>
+                                <button data-testid="method-email-button" onClick={() => { setMethod('email'); setIsOtpSent(false); setAuthError(''); }} style={subToggleStyle(method === 'email')}>
                                     <Mail size={12} /> Email Link
                                 </button>
-                                <button onClick={() => { setMethod('phone'); setIsOtpSent(false); setAuthError(''); }} style={subToggleStyle(method === 'phone')}>
+                                <button data-testid="method-phone-button" onClick={() => { setMethod('phone'); setIsOtpSent(false); setAuthError(''); }} style={subToggleStyle(method === 'phone')}>
                                     <Phone size={12} /> Mobile OTP
                                 </button>
                             </div>
@@ -1079,11 +1081,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
                                         <label style={labelStyle}>Email Address</label>
                                         <div style={{ position: 'relative' }}>
                                             <Mail size={16} style={iconStyle} />
-                                            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+                                            <input data-testid="login-email-input" type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
                                                 className="gi" style={glassInputStyle} placeholder="you@company.com" />
                                         </div>
                                     </div>
-                                    <button type="submit" disabled={loading} style={submitBtn(loading)}>
+                                    <button data-testid="send-verification-link-button" type="submit" disabled={loading} style={submitBtn(loading)}>
                                         {loading ? <RefreshCw size={17} className="animate-spin" /> : <>Send Verification Link <ArrowRight size={16} /></>}
                                     </button>
                                     <p style={{ textAlign: 'center', fontSize: 11.5, color: 'rgba(255,255,255,0.38)', marginTop: -4 }}>
@@ -1101,7 +1103,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
                                                 <label style={labelStyle}>Mobile Number</label>
                                                 <div style={{ display: 'flex', gap: 8 }}>
                                                     <div style={{ position: 'relative', width: 120 }}>
-                                                        <select value={countryCode} onChange={(e) => setCountryCode(e.target.value)}
+                                                        <select data-testid="country-code-select" value={countryCode} onChange={(e) => setCountryCode(e.target.value)}
                                                             disabled={isOtpSent} className="gs"
                                                             style={{ width: '100%', appearance: 'none', padding: '11px 28px 11px 12px', borderRadius: 12, fontSize: 16, boxSizing: 'border-box' as const }}>
                                                             {countryCodes.map((c) => <option key={c.code} value={c.code}>{c.code} {c.label}</option>)}
@@ -1110,12 +1112,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
                                                     </div>
                                                     <div style={{ position: 'relative', flex: 1 }}>
                                                         <Phone size={16} style={iconStyle} />
-                                                        <input type="tel" required value={phone} onChange={(e) => setPhone(e.target.value)}
+                                                        <input data-testid="phone-input" type="tel" required value={phone} onChange={(e) => setPhone(e.target.value)}
                                                             className="gi" style={glassInputStyle} placeholder="98765 43210" />
                                                     </div>
                                                 </div>
                                             </div>
-                                            <button type="submit" disabled={loading} style={submitBtn(loading)}>
+                                            <button data-testid="send-otp-button" type="submit" disabled={loading} style={submitBtn(loading)}>
                                                 {loading ? <RefreshCw size={17} className="animate-spin" /> : <>Send OTP <ArrowRight size={16} /></>}
                                             </button>
                                         </form>
@@ -1136,12 +1138,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
                                                 <label style={labelStyle}>Verification Code</label>
                                                 <div style={{ position: 'relative' }}>
                                                     <Lock size={16} style={iconStyle} />
-                                                    <input type="text" required value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                                                    <input data-testid="otp-input" type="text" required value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
                                                         className="gi" placeholder="000000" maxLength={6} inputMode="numeric"
                                                         style={{ ...glassInputStyle, textAlign: 'center', letterSpacing: '0.4em', fontSize: 18, fontFamily: 'monospace' }} />
                                                 </div>
                                             </div>
-                                            <button type="submit" disabled={loading || otp.length !== 6} style={submitBtn(loading || otp.length !== 6)}>
+                                            <button data-testid="verify-otp-button" type="submit" disabled={loading || otp.length !== 6} style={submitBtn(loading || otp.length !== 6)}>
                                                 {loading ? <RefreshCw size={17} className="animate-spin" /> : <>Verify & Sign In <ArrowRight size={16} /></>}
                                             </button>
                                         </form>
@@ -1254,9 +1256,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
                                                 <label style={labelStyle}>Password</label>
                                                 <div style={{ position: 'relative' }}>
                                                     <Key size={16} style={iconStyle} />
-                                                    <input type={showPassword ? 'text' : 'password'} required value={password} onChange={(e) => setPassword(e.target.value)}
+                                                    <input data-testid="admin-password-input" type={showPassword ? 'text' : 'password'} required value={password} onChange={(e) => setPassword(e.target.value)}
                                                         className="gi" style={{ ...glassInputStyle, paddingRight: 44 }} placeholder="••••••••" />
-                                                    <button type="button" onClick={() => setShowPassword((p) => !p)} tabIndex={-1}
+                                                    <button data-testid="toggle-password-visibility-button" type="button" onClick={() => setShowPassword((p) => !p)} tabIndex={-1}
                                                         style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.28)', padding: 2 }}>
                                                         {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                                                     </button>
@@ -1264,7 +1266,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
                                             </div>
                                         )}
 
-                                        <button type="submit" disabled={loading} style={submitBtn(loading)}>
+                                        <button data-testid="admin-signin-button" type="submit" disabled={loading} style={submitBtn(loading)}>
                                             {loading ? <RefreshCw size={17} className="animate-spin" /> : adminSignInMethod === 'password' ? <>Sign In <ArrowRight size={16} /></> : <>Send Verification Link <ArrowRight size={16} /></>}
                                         </button>
                                     </form>

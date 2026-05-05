@@ -232,6 +232,7 @@ export const NotificationPanel: FC<NotificationPanelProps> = ({ isOpen, onClose,
                     <div className="flex items-center gap-1">
                         {unreadCount > 0 && (
                             <button
+                                data-testid="mark-all-notifications-read-button"
                                 onClick={markAllAsRead}
                                 title="Mark all as read"
                                 className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-colors text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
@@ -241,6 +242,7 @@ export const NotificationPanel: FC<NotificationPanelProps> = ({ isOpen, onClose,
                         )}
                         {notifications.length > 0 && (
                             <button
+                                data-testid="clear-all-notifications-button"
                                 onClick={clearAll}
                                 title="Clear all"
                                 className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-gray-400 hover:text-red-500 dark:hover:text-red-400"
@@ -249,6 +251,7 @@ export const NotificationPanel: FC<NotificationPanelProps> = ({ isOpen, onClose,
                             </button>
                         )}
                         <button
+                            data-testid="close-notification-panel-button"
                             onClick={onClose}
                             className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
                         >
@@ -265,6 +268,7 @@ export const NotificationPanel: FC<NotificationPanelProps> = ({ isOpen, onClose,
                             Enable desktop alerts to stay notified even when the app isn't open.
                         </p>
                         <button
+                            data-testid="enable-push-notifications-button"
                             onClick={handleEnablePush}
                             className="text-[11px] font-bold text-[var(--color-primary)] whitespace-nowrap hover:underline"
                         >
@@ -301,6 +305,7 @@ export const NotificationPanel: FC<NotificationPanelProps> = ({ isOpen, onClose,
                             return (
                                 <button
                                     key={tab.key}
+                                    data-testid={`notification-filter-${tab.key}`}
                                     onClick={() => setActiveFilter(tab.key)}
                                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${activeFilter === tab.key
                                         ? 'bg-[var(--color-primary)] text-white shadow-sm'
@@ -526,6 +531,7 @@ export const NotificationBellButton: FC<{
 
     return (
         <button
+            data-testid="notification-bell-button"
             onClick={onClick}
             className="relative w-full flex flex-col items-center gap-[5px] py-[9px] px-1 rounded-xl hover:bg-white/[0.12] transition-all duration-150 group"
         >

@@ -20,11 +20,17 @@ dist-ssr
 # Environment Variables (IMPORTANT)
 *.local
 .env
+.env.test
 .env.development.local
 .env.test.local
 .env.production.local
 .env.local
 .dev.vars
+
+# Playwright
+tests/fixtures/.auth/
+tests/playwright-report/
+test-results/
 
 # System Files
 .DS_Store

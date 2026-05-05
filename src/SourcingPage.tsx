@@ -594,14 +594,14 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
         };
         return (
             <div className="relative">
-                <button onClick={() => scroll('left')} className="hidden sm:block absolute left-0 z-10 p-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-full shadow-md top-1/2 -translate-y-1/2 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white dark:hover:bg-gray-700 transition-all">
+                <button data-testid="scroll-categories-left" onClick={() => scroll('left')} className="hidden sm:block absolute left-0 z-10 p-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-full shadow-md top-1/2 -translate-y-1/2 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white dark:hover:bg-gray-700 transition-all">
                     <ChevronLeft className="w-6 h-6 text-gray-700 dark:text-gray-200" />
                 </button>
                 <div ref={scrollRef} className="flex items-center space-x-3 sm:space-x-4 overflow-x-auto pb-3 px-2 sm:px-12 scrollbar-hide">
                     {displayCategories.map(cat => {
                         const isSelected = selectedGarmentCategory === cat.name;
                         return (
-                            <button key={cat.name} onClick={() => setSelectedGarmentCategory(cat.name)} className="flex-shrink-0 flex flex-col items-center justify-start space-y-1.5 p-1 transition-transform active:scale-95 group w-[80px] sm:w-24 text-center">
+                            <button key={cat.name} data-testid={`category-${cat.name}-button`} onClick={() => setSelectedGarmentCategory(cat.name)} className="flex-shrink-0 flex flex-col items-center justify-start space-y-1.5 p-1 transition-transform active:scale-95 group w-[80px] sm:w-24 text-center">
                                 <div className={`w-[72px] h-[72px] sm:w-20 sm:h-20 rounded-full flex items-center justify-center transition-all duration-300 shadow-md group-hover:shadow-[0_0_15px_rgba(194,12,11,0.5)] ${isSelected ? 'p-[3px] bg-gradient-to-br from-red-500 to-pink-700' : 'bg-transparent'}`}>
                                     <div className={`w-full h-full rounded-full bg-white dark:bg-gray-800 flex items-center justify-center ${!isSelected ? 'ring-1 ring-gray-200 dark:ring-white/10' : ''}`}>
                                         {cat.imageUrl ? <img src={cat.imageUrl} alt={cat.name} loading="lazy" decoding="async" className="w-full h-full object-cover rounded-full" onError={(e) => { (e.target as HTMLImageElement).onerror = null; (e.target as HTMLImageElement).src=`https://placehold.co/80x80/e9d5ff/4c1d95?text=${cat.name}`; }} /> : <div className="text-gray-600 scale-75 sm:scale-100">{cat.icon}</div>}
@@ -612,7 +612,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                         );
                     })}
                 </div>
-                <button onClick={() => scroll('right')} className="hidden sm:block absolute right-0 z-10 p-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-full shadow-md top-1/2 -translate-y-1/2 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white dark:hover:bg-gray-700 transition-all">
+                <button data-testid="scroll-categories-right" onClick={() => scroll('right')} className="hidden sm:block absolute right-0 z-10 p-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-full shadow-md top-1/2 -translate-y-1/2 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white dark:hover:bg-gray-700 transition-all">
                     <ChevronRight className="w-6 h-6 text-gray-700 dark:text-gray-200" />
                 </button>
             </div>
@@ -680,8 +680,8 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                             <input type="text" id="location" value={filters.location} onChange={e => setFilters(f => ({ ...f, location: e.target.value }))} placeholder="e.g., Dhaka, Bangladesh" className="mt-1 w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
                         </div>
                          <div className="pt-6 border-t dark:border-gray-700 grid grid-cols-2 gap-4">
-                            <button onClick={clearFilters} className="w-full flex items-center justify-center gap-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white py-3 rounded-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition-all"><Trash2 size={16} /> Clear All</button>
-                            <button onClick={() => setShowFilterPanel(false)} className="w-full bg-[#c20c0b] text-white py-3 rounded-lg font-semibold hover:bg-[#a50a09] transition-all shadow-md">Apply Filters</button>
+                            <button data-testid="clear-all-filters-button" onClick={clearFilters} className="w-full flex items-center justify-center gap-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white py-3 rounded-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition-all"><Trash2 size={16} /> Clear All</button>
+                            <button data-testid="apply-filters-button" onClick={() => setShowFilterPanel(false)} className="w-full bg-[#c20c0b] text-white py-3 rounded-lg font-semibold hover:bg-[#a50a09] transition-all shadow-md">Apply Filters</button>
                         </div>
                     </div>
                 </div>
@@ -743,6 +743,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
             <div className="relative group">
                 <Search className="h-5 w-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#c20c0b] transition-colors z-10" />
                 <input
+                    data-testid="factory-search-input"
                     type="text"
                     placeholder="Search factory, location, product..."
                     value={searchTerm}
@@ -751,7 +752,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                     className={`w-full pl-11 pr-10 py-3.5 border border-gray-200 dark:border-gray-700 ${showSearchDropdown && searchSuggestions.length > 0 ? 'rounded-t-2xl rounded-b-none border-b-0' : 'rounded-2xl'} focus:outline-none focus:ring-2 focus:ring-[#c20c0b] focus:border-transparent shadow-sm bg-white dark:bg-gray-900/80 dark:backdrop-blur-md dark:text-white text-gray-900 text-sm`}
                 />
                 {searchTerm && (
-                    <button onClick={() => { setSearchTerm(''); setShowSearchDropdown(false); }} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors z-10">
+                    <button data-testid="clear-search-button" onClick={() => { setSearchTerm(''); setShowSearchDropdown(false); }} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors z-10">
                         <X size={16} className="text-gray-400" />
                     </button>
                 )}
@@ -868,10 +869,10 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                                 {userProfile?.companyName ? `${userProfile.companyName} · ` : ''}Discover top factories, get instant quotes, and scale production.
                             </p>
                             <div className="flex gap-3 mt-5">
-                                <button onClick={() => handleSetCurrentPage('orderForm')} disabled={!canEdit} className="px-5 py-2.5 bg-gradient-to-r from-[#c20c0b] to-red-600 text-white rounded-xl font-semibold text-sm shadow-lg shadow-red-500/25 hover:shadow-red-500/40 transition-all duration-300 hover:scale-[1.03] flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-red-500/25" title={!canEdit ? 'View-only access' : undefined}>
+                                <button data-testid="place-order-button" onClick={() => handleSetCurrentPage('orderForm')} disabled={!canEdit} className="px-5 py-2.5 bg-gradient-to-r from-[#c20c0b] to-red-600 text-white rounded-xl font-semibold text-sm shadow-lg shadow-red-500/25 hover:shadow-red-500/40 transition-all duration-300 hover:scale-[1.03] flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-red-500/25" title={!canEdit ? 'View-only access' : undefined}>
                                     <Zap size={15} /> Place Order
                                 </button>
-                                <button onClick={() => handleSetCurrentPage('myQuotes')} className="px-5 py-2.5 bg-white/10 backdrop-blur-sm text-white rounded-xl font-semibold text-sm border border-white/20 hover:bg-white/20 transition-all duration-300 flex items-center gap-2">
+                                <button data-testid="my-quotes-button" onClick={() => handleSetCurrentPage('myQuotes')} className="px-5 py-2.5 bg-white/10 backdrop-blur-sm text-white rounded-xl font-semibold text-sm border border-white/20 hover:bg-white/20 transition-all duration-300 flex items-center gap-2">
                                     My Quotes <ArrowRight size={15} />
                                 </button>
                             </div>
@@ -958,7 +959,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                     <button onClick={() => setShowFilterPanel(true)} className="flex-shrink-0 px-4 py-2 border rounded-xl text-sm font-semibold transition-all duration-200 bg-white dark:bg-gray-900/50 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-white flex items-center gap-2 hover:scale-[1.03]"><SlidersHorizontal size={16} />Filters</button>
                     {quickFilters.map(filter => {
                         const isActive = isQuickFilterActive(filter.type, filter.value);
-                        return (<button key={filter.name} onClick={() => handleQuickFilter(filter.type, filter.value)} className={`flex-shrink-0 px-4 py-2 border rounded-xl text-sm font-semibold transition-all duration-200 hover:scale-[1.03] ${isActive ? 'bg-[#c20c0b] text-white border-[#c20c0b] shadow-md shadow-red-500/20' : 'bg-white dark:bg-gray-900/50 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-white'}`}>{filter.name}</button>)
+                        return (<button key={filter.name} data-testid={`quick-filter-${filter.name}`} onClick={() => handleQuickFilter(filter.type, filter.value)} className={`flex-shrink-0 px-4 py-2 border rounded-xl text-sm font-semibold transition-all duration-200 hover:scale-[1.03] ${isActive ? 'bg-[#c20c0b] text-white border-[#c20c0b] shadow-md shadow-red-500/20' : 'bg-white dark:bg-gray-900/50 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-white'}`}>{filter.name}</button>)
                     })}
                 </div>
             </section>
@@ -980,7 +981,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                         Array.from({ length: 6 }).map((_, index) => <SkeletonCard key={index} />)
                     ) : filteredFactories.length > 0 ? (
                         filteredFactories.map((factory, index) => (
-                            <FactoryCard key={factory.id} factory={factory} onSelect={() => handleSelectFactory(factory)} onPrefetch={() => prefetchFactoryDetail(factory.id)} style={{ animationDelay: `${Math.min(index * 30, 300)}ms` }} onHover={handleFactoryHover} />
+                            <FactoryCard key={factory.id} data-testid={`factory-card-${factory.id}`} factory={factory} onSelect={() => handleSelectFactory(factory)} onPrefetch={() => prefetchFactoryDetail(factory.id)} style={{ animationDelay: `${Math.min(index * 30, 300)}ms` }} onHover={handleFactoryHover} />
                         ))
                     ) : (
                         <div className="col-span-full text-center py-16 bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-sm border border-gray-200 dark:border-white/10">

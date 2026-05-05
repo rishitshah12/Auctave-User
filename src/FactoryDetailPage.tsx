@@ -460,12 +460,14 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                     {/* ── Tab toggle ── */}
                     <div className="flex bg-gray-100 dark:bg-white/8 rounded-2xl p-1 mb-5">
                         <button
+                            data-testid="overview-tab"
                             onClick={() => setActiveTab('overview')}
                             className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'overview' ? 'bg-white dark:bg-[#2a2930] text-gray-900 dark:text-white shadow' : 'text-gray-500 dark:text-gray-400'}`}
                         >
                             Overview
                         </button>
                         <button
+                            data-testid="catalog-tab"
                             onClick={() => setActiveTab('catalog')}
                             className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'catalog' ? 'bg-white dark:bg-[#2a2930] text-gray-900 dark:text-white shadow' : 'text-gray-500 dark:text-gray-400'}`}
                         >
@@ -573,6 +575,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                     style={{ bottom: 'calc(env(safe-area-inset-bottom) + 82px)' }}
                 >
                     <button
+                        data-testid="request-quote-button"
                         onClick={() => setShowProductSelector(true)}
                         className="w-full py-3.5 rounded-2xl bg-[#c20c0b] font-bold text-sm text-white flex items-center justify-center gap-1.5 active:scale-95 transition-transform"
                         style={{ boxShadow: '0 4px 20px rgba(194,12,11,0.4)' }}
@@ -637,8 +640,8 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                     {/* Tabs */}
                     <div className="border-b border-gray-200 dark:border-white/10 px-6 md:px-8">
                         <div className="flex space-x-8">
-                            <button onClick={() => setActiveTab('overview')} className={`py-4 text-sm font-bold border-b-2 transition-colors cursor-pointer ${activeTab === 'overview' ? 'border-[#c20c0b] text-[#c20c0b]' : 'border-transparent text-gray-500 dark:text-gray-200 hover:text-gray-700 dark:hover:text-white'}`}>Overview</button>
-                            <button onClick={() => setActiveTab('catalog')} className={`py-4 text-sm font-bold border-b-2 transition-colors cursor-pointer ${activeTab === 'catalog' ? 'border-[#c20c0b] text-[#c20c0b]' : 'border-transparent text-gray-500 dark:text-gray-200 hover:text-gray-700 dark:hover:text-white'}`}>Product Catalog</button>
+                            <button data-testid="overview-tab" onClick={() => setActiveTab('overview')} className={`py-4 text-sm font-bold border-b-2 transition-colors cursor-pointer ${activeTab === 'overview' ? 'border-[#c20c0b] text-[#c20c0b]' : 'border-transparent text-gray-500 dark:text-gray-200 hover:text-gray-700 dark:hover:text-white'}`}>Overview</button>
+                            <button data-testid="catalog-tab" onClick={() => setActiveTab('catalog')} className={`py-4 text-sm font-bold border-b-2 transition-colors cursor-pointer ${activeTab === 'catalog' ? 'border-[#c20c0b] text-[#c20c0b]' : 'border-transparent text-gray-500 dark:text-gray-200 hover:text-gray-700 dark:hover:text-white'}`}>Product Catalog</button>
                         </div>
                     </div>
 
@@ -724,7 +727,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                                                 {factory.certifications?.map(cert => <CertificationBadge key={cert} cert={cert} />)}
                                             </div>
                                         </div>
-                                        <button onClick={() => setActiveTab('catalog')} className="w-full py-3 px-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-white font-bold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm flex items-center justify-center gap-2 group cursor-pointer">
+                                        <button data-testid="view-catalog-button" onClick={() => setActiveTab('catalog')} className="w-full py-3 px-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-white font-bold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm flex items-center justify-center gap-2 group cursor-pointer">
                                             <BookOpen size={18} className="group-hover:text-[#c20c0b] transition-colors" /> View Product Catalog
                                         </button>
                                     </div>
@@ -757,7 +760,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                                 <h4 className="font-bold text-gray-900 dark:text-white">Interested in this factory?</h4>
                                 <p className="text-sm text-gray-500 dark:text-gray-200">Select products from the catalog and request a quote.</p>
                             </div>
-                            <button onClick={() => setShowProductSelector(true)} className="px-6 py-3 bg-[#c20c0b] text-white font-bold rounded-xl hover:bg-[#a50a09] transition-colors shadow-md flex items-center justify-center gap-2">Request Quote <ChevronRight size={18} /></button>
+                            <button data-testid="request-quote-button" onClick={() => setShowProductSelector(true)} className="px-6 py-3 bg-[#c20c0b] text-white font-bold rounded-xl hover:bg-[#a50a09] transition-colors shadow-md flex items-center justify-center gap-2">Request Quote <ChevronRight size={18} /></button>
                         </div>
                     </div>
                 </div>
@@ -784,6 +787,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                                 <div className="flex items-center gap-2">
                                     {rfqStep === 2 && (
                                         <button
+                                            data-testid="rfq-back-button"
                                             onClick={() => setRfqStep(1)}
                                             className="w-8 h-8 rounded-full bg-gray-100 dark:bg-white/10 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-white/18 transition-all active:scale-90"
                                         >
@@ -798,6 +802,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                                     </div>
                                 </div>
                                 <button
+                                    data-testid="close-rfq-modal-button"
                                     onClick={closeRFQModal}
                                     className="w-9 h-9 rounded-full bg-gray-100 dark:bg-white/10 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-white/18 transition-all active:scale-90 flex-shrink-0"
                                 >
@@ -864,6 +869,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                                                     return (
                                                         <button
                                                             key={product.id}
+                                                            data-testid={`select-product-${product.id}`}
                                                             onClick={() => setSelectedCatalogIds(prev => {
                                                                 const next = new Set(prev);
                                                                 if (next.has(product.id)) {
@@ -934,6 +940,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                                             </p>
                                         )}
                                         <button
+                                            data-testid="rfq-continue-button"
                                             onClick={handleGoToStep2}
                                             disabled={selectedCatalogIds.size === 0}
                                             className="w-full py-4 rounded-2xl bg-[#c20c0b] text-white font-bold text-[15px] disabled:opacity-35 disabled:cursor-not-allowed active:scale-[0.97] transition-all flex items-center justify-center gap-2"
@@ -999,6 +1006,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                                                             </label>
                                                             <div className="relative">
                                                                 <input
+                                                                    data-testid={`rfq-qty-${product.id}`}
                                                                     type="number"
                                                                     min={1}
                                                                     placeholder={product.moq ? `Min. ${product.moq.toLocaleString()} units` : 'Enter quantity'}
@@ -1026,6 +1034,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                                                             <div className="relative">
                                                                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 text-sm font-medium pointer-events-none">$</span>
                                                                 <input
+                                                                    data-testid={`rfq-price-${product.id}`}
                                                                     type="text"
                                                                     placeholder={product.priceRange ? product.priceRange.replace(/[^0-9.-]/g, '') : '0.00'}
                                                                     value={input.targetPrice}
@@ -1043,6 +1052,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                                                                 <span className="text-gray-400 dark:text-gray-500 font-normal text-[10px] ml-1">(optional)</span>
                                                             </label>
                                                             <textarea
+                                                                data-testid={`rfq-comments-${product.id}`}
                                                                 rows={2}
                                                                 placeholder="Any special requirements, fabric preferences, or notes for this product…"
                                                                 value={input.comments}
@@ -1068,6 +1078,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                                         </p>
                                     )}
                                     <button
+                                        data-testid="submit-rfq-button"
                                         onClick={handleSubmitRFQ}
                                         disabled={!isStep2Valid() || isSubmittingRFQ || rfqSubmitted || !onSubmitRFQ}
                                         className={`w-full py-4 rounded-2xl font-bold text-[15px] disabled:cursor-not-allowed active:scale-[0.97] transition-all flex items-center justify-center gap-2 ${

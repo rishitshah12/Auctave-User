@@ -26,9 +26,10 @@ interface FactoryCardProps {
     style: React.CSSProperties;
     onPrefetch?: () => void;
     onHover?: (factory: Factory, duration_ms: number) => void;
+    'data-testid'?: string;
 }
 
-export const FactoryCard: FC<FactoryCardProps> = React.memo(({ factory, onSelect, style, onPrefetch, onHover }) => {
+export const FactoryCard: FC<FactoryCardProps> = React.memo(({ factory, onSelect, style, onPrefetch, onHover, 'data-testid': testId }) => {
     const hoverStartRef = useRef<number | null>(null);
     const tier = factory.trustTier || 'unverified';
     const tierCfg = TRUST_TIER_CONFIG[tier];
@@ -39,6 +40,7 @@ export const FactoryCard: FC<FactoryCardProps> = React.memo(({ factory, onSelect
 
     return (
         <div
+            data-testid={testId}
             onClick={onSelect}
             onPointerEnter={onPrefetch}
             onTouchStart={onPrefetch}

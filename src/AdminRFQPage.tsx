@@ -4110,89 +4110,86 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                 animationDelay: `${index * 50}ms`,
             }}
         >
-            <div className={`h-[3px] w-full bg-gradient-to-r ${getStatusGradientBorder(quote.status)} flex-shrink-0`} />
-            <div className="absolute inset-0 pointer-events-none opacity-60" style={{ background: theme.meshGradient, top: '3px' }} />
+            {/* Status gradient top bar */}
+            <div className={`h-[7px] w-full bg-gradient-to-r ${getStatusGradientBorder(quote.status)} flex-shrink-0`} />
+            <div className="absolute inset-0 pointer-events-none opacity-60" style={{ background: theme.meshGradient, top: '7px' }} />
 
             <div className="flex flex-col flex-grow relative">
 
-                {/* ── SECTION 1: Document header ─────────────────── */}
-                <div className="px-4 pt-4 pb-3 flex items-start justify-between gap-2">
-                    <div className="flex items-start gap-2 min-w-0">
-                        {isSelectionMode && (
-                            <input
-                                type="checkbox"
-                                checked={selectedQuoteIds.includes(quote.id)}
-                                onChange={() => toggleSelectQuote(quote.id)}
-                                onClick={(e) => e.stopPropagation()}
-                                className="rounded text-[#c20c0b] focus:ring-[#c20c0b] h-4 w-4 cursor-pointer flex-shrink-0 mt-1"
-                            />
-                        )}
-                        <div className="min-w-0">
-                            <div className="flex items-center gap-1.5 mb-0.5">
-                                <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500">Request for Quote</span>
-                                {isUnread && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse flex-shrink-0" />}
+                {/* ── SECTION 1: Header — client identity + status ── */}
+                <div className="px-4 pt-4 pb-3">
+                    {/* Top row: client avatar + name + status badge */}
+                    <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            {isSelectionMode && (
+                                <input
+                                    type="checkbox"
+                                    checked={selectedQuoteIds.includes(quote.id)}
+                                    onChange={() => toggleSelectQuote(quote.id)}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="rounded text-[#c20c0b] focus:ring-[#c20c0b] h-4 w-4 cursor-pointer flex-shrink-0"
+                                />
+                            )}
+                            {/* Client avatar with initials */}
+                            <div
+                                className="h-11 w-11 rounded-xl flex items-center justify-center font-bold text-white text-sm shadow-sm flex-shrink-0 relative"
+                                style={{ backgroundColor: theme.progressColor, border: `2px solid ${theme.progressColor}45` }}
+                            >
+                                {initials}
+                                <span
+                                    className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white dark:border-gray-900"
+                                    style={{ backgroundColor: theme.progressColor }}
+                                />
                             </div>
-                            <span className="font-mono text-sm font-bold text-gray-700 dark:text-gray-200 tracking-tight">
-                                #{quote.id.slice(0, 8).toUpperCase()}
-                            </span>
-                            <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 flex items-center gap-1">
-                                <Clock size={9} />
-                                {getDisplayDateInfo(quote).label} · {getDisplayDateInfo(quote).date}
-                            </p>
+                            <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5">
+                                    <p className="text-sm font-bold text-gray-900 dark:text-white truncate leading-tight group-hover:text-[#c20c0b] transition-colors">
+                                        {quote.clientName || 'Unknown Client'}
+                                    </p>
+                                    {isUnread && <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse flex-shrink-0" />}
+                                </div>
+                                {quote.companyName && (
+                                    <p className="text-[10px] text-gray-400 dark:text-gray-500 flex items-center gap-1 mt-0.5">
+                                        <Building size={8} /> {quote.companyName}
+                                    </p>
+                                )}
+                            </div>
                         </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                        <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                            {isNewQuote && (
-                                <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide rounded-full border border-amber-300/70 dark:border-amber-600/50 bg-amber-50/90 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 flex items-center gap-1">
-                                    <Circle size={6} className="fill-amber-500 text-amber-500" /> New
-                                </span>
-                            )}
-                            {isUpdated && (
-                                <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide rounded-full border border-indigo-300/70 dark:border-indigo-600/50 bg-indigo-50/90 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
-                                    <Activity size={9} /> Updated
-                                </span>
-                            )}
-                        </div>
-                        <span className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide rounded-md border ${getStatusColor(quote.status)} flex items-center gap-1`}>
+                        {/* Status badge */}
+                        <span className={`px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide rounded-lg border ${getStatusColor(quote.status)} flex items-center gap-1 flex-shrink-0`}>
                             {quote.status === 'Accepted' && <CheckCheck size={11} />}
                             {(quote.status === 'Admin Accepted' || quote.status === 'Client Accepted') && <Check size={11} />}
                             {displayStatus}
                         </span>
-                        {(quote.modification_count || 0) > 0 && (
-                            <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide rounded-md border border-amber-300 dark:border-amber-600/60 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 flex items-center gap-1">
-                                <Pencil size={10} /> Modified ×{quote.modification_count}
+                    </div>
+                    {/* Second row: RFQ reference + badges + date */}
+                    <div className="flex items-center gap-2 mt-2.5 flex-wrap">
+                        <span className="font-mono text-[10px] font-bold bg-gray-100/90 dark:bg-gray-800/70 text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded-md tracking-wider border border-gray-200/60 dark:border-gray-700/50">
+                            RFQ-{quote.id.slice(0, 6).toUpperCase()}
+                        </span>
+                        {isNewQuote && (
+                            <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-md border border-amber-300 dark:border-amber-600/60 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                                <Circle size={6} className="fill-amber-500 text-amber-500" /> New
                             </span>
                         )}
+                        {isUpdated && (
+                            <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-md border border-indigo-300 dark:border-indigo-600/60 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
+                                <Activity size={9} /> Updated
+                            </span>
+                        )}
+                        {(quote.modification_count || 0) > 0 && (
+                            <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-md border border-amber-300 dark:border-amber-600/60 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                                <Pencil size={9} /> ×{quote.modification_count}
+                            </span>
+                        )}
+                        <span className="text-[10px] text-gray-400 dark:text-gray-500 flex items-center gap-1 ml-auto">
+                            <Clock size={9} />
+                            {getDisplayDateInfo(quote).label} · {getDisplayDateInfo(quote).date}
+                        </span>
                     </div>
                 </div>
 
-                {/* ── SECTION 2: FROM — Client ────────────────────── */}
-                <div className="px-4 pb-3">
-                    <div className="flex items-center gap-2.5 bg-white/50 dark:bg-gray-800/30 rounded-xl px-3 py-2.5 border border-white/80 dark:border-gray-700/40">
-                        <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 flex-shrink-0">From</span>
-                        <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 flex-shrink-0" />
-                        <div
-                            className="h-8 w-8 rounded-lg flex items-center justify-center font-bold text-white text-xs shadow-sm flex-shrink-0 relative"
-                            style={{ backgroundColor: theme.progressColor }}
-                        >
-                            {initials}
-                            {isUnread && (
-                                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-500 rounded-full border-2 border-white dark:border-gray-900" />
-                            )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                            <p className="text-sm font-bold text-gray-900 dark:text-white truncate group-hover:text-[#c20c0b] transition-colors leading-tight">
-                                {quote.clientName || 'Unknown Client'}
-                            </p>
-                            <p className="text-[10px] text-gray-400 dark:text-gray-500 flex items-center gap-1 mt-0.5">
-                                <Building size={8} /> {quote.companyName || 'Unknown Company'}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* ── SECTION 3: Items Requested ─────────────────── */}
+                {/* ── SECTION 2: Items Requested ─────────────────── */}
                 <div className="px-4 pb-3">
                     <div className="border-t border-dashed border-gray-200 dark:border-gray-700/50 mb-3" />
                     <div className="flex items-center justify-between mb-2">
@@ -4211,9 +4208,9 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                         {displayedItems.map((item: any, i: number) => (
                             <div key={i} className="flex items-center gap-2 bg-white/60 dark:bg-gray-800/40 rounded-lg px-3 py-2 border border-gray-100/80 dark:border-gray-700/40">
                                 <div className="min-w-0 flex-1">
-                                    <p className="text-xs font-semibold text-gray-800 dark:text-gray-100 truncate">{item.category || 'Product'}</p>
-                                    {item.fabricQuality && (
-                                        <p className="text-[9px] text-gray-400 dark:text-gray-500 truncate">{item.fabricQuality}</p>
+                                    <p className="text-xs font-semibold text-gray-800 dark:text-gray-100 truncate">{item.productName || item.category || 'Product'}</p>
+                                    {(item.productName ? item.category : item.fabricQuality) && (
+                                        <p className="text-[9px] text-gray-400 dark:text-gray-500 truncate">{item.productName ? item.category : item.fabricQuality}</p>
                                     )}
                                 </div>
                                 <div className="flex items-center gap-2 flex-shrink-0">
@@ -4281,28 +4278,40 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                 {quote.status !== 'Trashed' && (
                     <div className="px-4 pb-3">
                         <div className="border-t border-dashed border-gray-200 dark:border-gray-700/50 mb-3" />
-                        <div className="flex items-center">
+                        <div className="flex items-start">
                             {QUOTE_PROGRESS_STEPS.map((step, i) => {
                                 const isCompleted = progressStep > i;
                                 const isCurrent = progressStep === i;
                                 return (
                                     <React.Fragment key={step.label}>
-                                        <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                                        <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
                                             <div
-                                                className="rounded-full transition-all duration-300"
+                                                className="rounded-full transition-all duration-300 flex items-center justify-center"
                                                 style={{
-                                                    width: isCurrent ? 10 : 7,
-                                                    height: isCurrent ? 10 : 7,
-                                                    backgroundColor: (isCompleted || isCurrent) ? theme.progressColor : '#d1d5db',
-                                                    boxShadow: isCurrent ? `0 0 0 2.5px white, 0 0 0 4px ${theme.progressColor}` : 'none',
+                                                    width: isCurrent ? 14 : 9,
+                                                    height: isCurrent ? 14 : 9,
+                                                    backgroundColor: (isCompleted || isCurrent) ? theme.progressColor : '#e5e7eb',
+                                                    boxShadow: isCurrent ? `0 0 0 3px white, 0 0 0 5px ${theme.progressColor}60` : 'none',
                                                 }}
-                                            />
-                                            <span className="text-[8px] font-semibold leading-none" style={{ color: (isCompleted || isCurrent) ? theme.progressColor : '#9ca3af', opacity: (isCompleted || isCurrent) ? 1 : 0.6 }}>
+                                            >
+                                                {isCompleted && (
+                                                    <svg width="6" height="6" viewBox="0 0 6 6" fill="none">
+                                                        <path d="M1 3L2.5 4.5L5 1.5" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                                                    </svg>
+                                                )}
+                                            </div>
+                                            <span
+                                                className="text-[9px] font-semibold leading-none text-center"
+                                                style={{ color: (isCompleted || isCurrent) ? theme.progressColor : '#9ca3af' }}
+                                            >
                                                 {step.short}
                                             </span>
                                         </div>
                                         {i < QUOTE_PROGRESS_STEPS.length - 1 && (
-                                            <div className="flex-1 h-[2px] mx-1 rounded-full transition-all duration-500" style={{ backgroundColor: progressStep > i ? theme.progressColor : '#e5e7eb', opacity: progressStep > i ? 0.7 : 1 }} />
+                                            <div
+                                                className="flex-1 h-[2px] mx-1 rounded-full transition-all duration-500 mt-[5px]"
+                                                style={{ backgroundColor: progressStep > i ? theme.progressColor : '#e5e7eb' }}
+                                            />
                                         )}
                                     </React.Fragment>
                                 );
