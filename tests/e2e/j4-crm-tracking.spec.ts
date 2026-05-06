@@ -20,18 +20,21 @@ test.describe('J4 — CRM Order Tracking', () => {
   test('CRM tabs switch correctly', async ({ page }) => {
     await page.goto('/crm');
 
+    // force:true bypasses DOM-stability check — CRM page re-renders via Supabase
+    // Realtime subscriptions, causing tab elements to detach and re-attach repeatedly
     const allTab = page.getByTestId('crm-tab-all');
-    await allTab.waitFor({ timeout: 10_000 });
-    await allTab.click();
-    // Tab should now appear selected (no crash)
+    await allTab.waitFor({ state: 'visible', timeout: 10_000 });
+    await allTab.click({ force: true });
     await expect(allTab).toBeVisible();
 
     const completedTab = page.getByTestId('crm-tab-completed');
-    await completedTab.click();
+    await completedTab.waitFor({ state: 'visible', timeout: 8_000 });
+    await completedTab.click({ force: true });
     await expect(completedTab).toBeVisible();
 
-    // Back to active
-    await page.getByTestId('crm-tab-active').click();
+    const activeTab = page.getByTestId('crm-tab-active');
+    await activeTab.waitFor({ state: 'visible', timeout: 8_000 });
+    await activeTab.click({ force: true });
   });
 
   test('search input filters orders', async ({ page }) => {

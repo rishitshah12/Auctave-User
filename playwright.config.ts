@@ -26,12 +26,31 @@ export default defineConfig({
       testMatch: '**/auth.setup.ts',
     },
     {
+      name: 'admin-setup',
+      testMatch: '**/auth.admin.setup.ts',
+    },
+    {
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
         storageState: 'tests/fixtures/.auth/user.json',
       },
       dependencies: ['setup'],
+    },
+    {
+      name: 'admin',
+      testMatch: [
+        '**/j5-*.spec.ts',
+        '**/j6-*.spec.ts',
+        '**/j7-*.spec.ts',
+        '**/j9-*.spec.ts',
+        '**/j10-*.spec.ts',
+      ],
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: 'tests/fixtures/.auth/admin.json',
+      },
+      dependencies: ['admin-setup'],
     },
     // Mobile tests are intentionally excluded from the default run.
     // The current test suite is written for desktop layout (sm: breakpoints).

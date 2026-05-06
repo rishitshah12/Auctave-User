@@ -612,7 +612,7 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
 
     return (
         <MainLayout {...props}>
-            <div className="space-y-6">
+            <div className="space-y-6" data-testid="admin-users-page">
 
                 {/* ── Header ── */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -661,6 +661,7 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                         <div className="relative flex-1">
                             <Search size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                             <input
+                                data-testid="admin-users-search"
                                 type="text"
                                 placeholder="Search name, email, company, ID, tags, country…"
                                 value={searchQuery}
@@ -901,6 +902,7 @@ export const AdminUsersPage: FC<AdminUsersPageProps> = (props) => {
                             return (
                                 <div
                                     key={client.id}
+                                    data-testid={`admin-user-card-${client.id}`}
                                     className="group bg-white dark:bg-gray-900/40 backdrop-blur-sm rounded-2xl border border-gray-100 dark:border-white/10 shadow-sm hover:shadow-md hover:border-purple-200 dark:hover:border-purple-500/30 transition-all duration-200 overflow-hidden cursor-pointer flex flex-col"
                                     onClick={() => openDrawer(client)}
                                 >

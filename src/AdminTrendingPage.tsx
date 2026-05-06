@@ -3059,13 +3059,14 @@ export const AdminTrendingPage: FC<AdminTrendingPageProps> = (props) => {
 
     return (
         <MainLayout {...props}>
+            <div data-testid="admin-trending-page" className="contents">
             {/* Header */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Trending CMS</h1>
                     <p className="text-gray-500 dark:text-gray-400 mt-1">Manage banners, products, blogs, and fashion shorts</p>
                 </div>
-                <button onClick={openAdd} disabled={isSaving} className="bg-[#c20c0b] text-white px-5 py-2.5 rounded-lg flex items-center gap-2 hover:bg-[#a50a09] transition-colors shadow-lg shadow-red-200 dark:shadow-none disabled:opacity-50 disabled:cursor-not-allowed">
+                <button data-testid="admin-trending-add-btn" onClick={openAdd} disabled={isSaving} className="bg-[#c20c0b] text-white px-5 py-2.5 rounded-lg flex items-center gap-2 hover:bg-[#a50a09] transition-colors shadow-lg shadow-red-200 dark:shadow-none disabled:opacity-50 disabled:cursor-not-allowed">
                     <Plus size={18} /> Add New
                 </button>
             </div>
@@ -3217,6 +3218,7 @@ export const AdminTrendingPage: FC<AdminTrendingPageProps> = (props) => {
                     </div>
                 </div>
             )}
+            </div>
         </MainLayout>
     );
 };

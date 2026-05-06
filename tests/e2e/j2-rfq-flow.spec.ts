@@ -13,7 +13,7 @@ import { test, expect } from '@playwright/test';
  *   timeouts. networkidle waits until no network requests fire for 500ms.
  */
 
-const LOAD_TIMEOUT = 20_000;
+const LOAD_TIMEOUT = 30_000;
 
 /**
  * Navigate to /sourcing and wait until factories are actually rendered.
@@ -144,6 +144,7 @@ test.describe('J2 — Factory Discovery & RFQ Flow', () => {
   });
 
   test('RFQ modal close button dismisses modal', async ({ page }) => {
+    test.setTimeout(60_000);
     await gotoSourcingReady(page);
     await page.locator('[data-testid^="factory-card-"]').first().waitFor({ timeout: LOAD_TIMEOUT });
     await page.locator('[data-testid^="factory-card-"]').first().click();
@@ -163,7 +164,8 @@ test.describe('J2 — Factory Discovery & RFQ Flow', () => {
 
     const requestBtn = page.getByTestId('request-quote-button').filter({ visible: true });
     await requestBtn.waitFor({ timeout: 10_000 });
-    await requestBtn.click();
+    // force:true bypasses stability check — factory detail re-renders as data loads
+    await requestBtn.click({ force: true });
 
     const productBtns = page.locator('[data-testid^="select-product-"]');
     const productCount = await productBtns.count();

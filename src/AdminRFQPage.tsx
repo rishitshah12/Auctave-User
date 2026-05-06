@@ -4090,6 +4090,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
         return (
         <div
             key={quote.id}
+            data-testid={`admin-quote-card-${quote.id}`}
             onClick={() => {
                 if (isSelectionMode) { toggleSelectQuote(quote.id); return; }
                 scheduleMarkAsRead(quote.id);
@@ -4156,7 +4157,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                             </div>
                         </div>
                         {/* Status badge */}
-                        <span className={`px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide rounded-lg border ${getStatusColor(quote.status)} flex items-center gap-1 flex-shrink-0`}>
+                        <span data-testid={`admin-quote-status-${quote.id}`} className={`px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide rounded-lg border ${getStatusColor(quote.status)} flex items-center gap-1 flex-shrink-0`}>
                             {quote.status === 'Accepted' && <CheckCheck size={11} />}
                             {(quote.status === 'Admin Accepted' || quote.status === 'Client Accepted') && <Check size={11} />}
                             {displayStatus}
@@ -4417,6 +4418,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
 
     return (
         <MainLayout {...props}>
+            <div data-testid="admin-rfq-page" className="contents">
             {/* Undo Banner */}
             {undoState && (
                 <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-gray-900 dark:bg-gray-800 text-white px-5 py-3 rounded-2xl shadow-2xl border border-white/10 animate-fade-in">
@@ -4470,6 +4472,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                     <div className="flex items-center gap-2 bg-white dark:bg-gray-900/40 border border-gray-200 dark:border-white/10 rounded-xl px-3 py-2 shadow-sm hover:border-gray-300 dark:hover:border-white/20 transition-colors">
                         <Search size={14} className="text-gray-500 dark:text-gray-400 flex-shrink-0" />
                         <input
+                            data-testid="admin-rfq-search"
                             type="text"
                             placeholder="Search..."
                             value={searchTerm}
@@ -4484,6 +4487,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                     <div className="flex items-center gap-1.5 bg-white dark:bg-gray-900/40 border border-gray-200 dark:border-white/10 rounded-xl px-3 py-2 shadow-sm hover:border-gray-300 dark:hover:border-white/20 transition-colors">
                         <Filter size={14} className="text-gray-500 dark:text-gray-400 flex-shrink-0" />
                         <select
+                            data-testid="admin-rfq-status-filter"
                             value={filterStatus}
                             onChange={(e) => setFilterStatus(e.target.value)}
                             className="appearance-none bg-transparent border-none text-sm font-semibold text-gray-800 dark:text-white focus:ring-0 cursor-pointer pr-4 outline-none max-w-[110px] sm:max-w-none dark:bg-transparent"
@@ -4780,6 +4784,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                     <h3 className="mt-4 text-lg font-semibold text-gray-800 dark:text-white">No Quotes Found</h3>
                 </div>
             )}
+            </div>
         </MainLayout>
     );
 };

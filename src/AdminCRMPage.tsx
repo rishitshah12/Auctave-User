@@ -2679,6 +2679,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
     // ── render ─────────────────────────────────────────────────────────────────
     return (
         <MainLayout {...props}>
+            <div data-testid="admin-crm-page" className="contents">
             {/* ── Header ── */}
             {/* Mobile: compact title row */}
             <div className="sm:hidden mb-4 flex items-center justify-between gap-2">
@@ -2730,6 +2731,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                     <input
                         ref={inputRef}
                         type="text"
+                        data-testid="admin-crm-client-search"
                         value={searchQuery}
                         onChange={e => {
                             setSearchQuery(e.target.value);
@@ -2875,7 +2877,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                             const normalized = normalizeOrder(order);
                                             const factory = factories.find(f => f.id === order.factory_id);
                                             return (
-                                                <div key={order.id} className="relative">
+                                                <div key={order.id} data-testid={`admin-crm-order-card-${order.id}`} className="relative">
                                                     <CrmOrderCard
                                                         orderId={order.id}
                                                         order={{ ...normalized, customer: selectedClient?.name || '' }}
@@ -3678,6 +3680,7 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                 document.body
             )}
 
+            </div>
         </MainLayout>
     );
 };

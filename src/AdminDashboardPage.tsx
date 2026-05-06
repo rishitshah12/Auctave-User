@@ -503,7 +503,7 @@ export const AdminDashboardPage: FC<AdminDashboardPageProps> = (props) => {
 
     return (
         <MainLayout {...props}>
-            <div className="space-y-8">
+            <div className="space-y-8" data-testid="admin-dashboard-page">
                 {/* Header */}
                 <div>
                     <h1 className="text-xl sm:text-3xl font-bold text-gray-800 dark:text-white">Admin Dashboard</h1>
@@ -511,9 +511,9 @@ export const AdminDashboardPage: FC<AdminDashboardPageProps> = (props) => {
                 </div>
 
                 {/* Platform KPI cards */}
-                <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
+                <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6" data-testid="admin-kpi-cards">
                     {platformCards.map((stat, index) => (
-                        <div key={index} className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-3 sm:p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10 flex items-center justify-between hover:scale-105 transition-transform">
+                        <div key={index} data-testid={`admin-kpi-${stat.title.toLowerCase().replace(/\s+/g, '-')}`} className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md p-3 sm:p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10 flex items-center justify-between hover:scale-105 transition-transform">
                             <div className="min-w-0">
                                 <p className="text-[10px] sm:text-sm font-medium text-gray-500 dark:text-gray-200 truncate">{stat.title}</p>
                                 <p className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-white mt-0.5 sm:mt-1">{isLoading ? '...' : stat.value}</p>

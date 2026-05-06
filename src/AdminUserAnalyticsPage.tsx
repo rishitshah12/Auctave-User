@@ -904,7 +904,7 @@ export const AdminUserAnalyticsPage: FC<AdminUserAnalyticsPageProps> = (props) =
       handleSetCurrentPage={handleSetCurrentPage}
       isAdmin
     >
-      <div className="min-h-screen bg-gray-50 dark:bg-[#0a0a0c] p-4 sm:p-6 space-y-6">
+      <div data-testid="admin-analytics-page" className="min-h-screen bg-gray-50 dark:bg-[#0a0a0c] p-4 sm:p-6 space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>

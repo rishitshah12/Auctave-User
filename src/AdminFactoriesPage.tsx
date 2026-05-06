@@ -836,6 +836,7 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
 
     return (
         <MainLayout {...props}>
+            <div data-testid="admin-factories-page" className="contents">
             {/* Header */}
             <div className="flex justify-between items-center mb-4 sm:mb-6 gap-2">
                 <div className="min-w-0">
@@ -877,7 +878,7 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                     {displayedFactories.map((f: any) => (
-                        <div key={f.id} className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden flex flex-col transition-all hover:shadow-xl group hover:-translate-y-1 duration-300">
+                        <div key={f.id} data-testid={`admin-factory-card-${f.id}`} className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden flex flex-col transition-all hover:shadow-xl group hover:-translate-y-1 duration-300">
                             <div className="relative h-48">
                                 {f.imageUrl ? (
                                     <img src={f.imageUrl} alt={f.name} className="w-full h-full object-cover"
@@ -1607,6 +1608,7 @@ export const AdminFactoriesPage: FC<AdminFactoriesPageProps> = (props) => {
                         </div>
                 </div>
             )}
+            </div>
         </MainLayout>
     );
 };

@@ -1,29 +1,25 @@
 import { test as setup, expect, request } from '@playwright/test';
 
-const authFile = 'tests/fixtures/.auth/user.json';
+const authFile = 'tests/fixtures/.auth/admin.json';
 
 /**
- * Auth setup fixture — runs once before the test suite.
- * Refreshes the Supabase token before injecting so every downstream test
- * starts with a guaranteed-fresh session (avoids "refresh_token_already_used"
- * cascade when multiple tests all start from the same stale token).
+ * Admin auth setup fixture — runs once before all admin tests.
+ * Refreshes the token before injecting so all admin tests start with a
+ * guaranteed-fresh session.
  *
- * Provide these env vars (in .env.test):
- *   TEST_USER_EMAIL   — the test user's email
- *   TEST_USER_TOKEN   — a valid Supabase access_token for that user
- *   TEST_USER_REFRESH — the matching refresh_token
+ * Required env vars (in .env.test):
+ *   TEST_ADMIN_EMAIL   — admin account email (@auctaveexports.com)
+ *   TEST_ADMIN_TOKEN   — valid Supabase access_token for that admin
+ *   TEST_ADMIN_REFRESH — matching refresh_token
  */
-setup('authenticate as test user', async ({ page }) => {
-  const email = process.env.TEST_USER_EMAIL ?? 'test@example.com';
-  let accessToken = process.env.TEST_USER_TOKEN ?? '';
-  let refreshToken = process.env.TEST_USER_REFRESH ?? '';
+setup('authenticate as admin', async ({ page }) => {
+  const email = process.env.TEST_ADMIN_EMAIL ?? '';
+  let accessToken = process.env.TEST_ADMIN_TOKEN ?? '';
+  let refreshToken = process.env.TEST_ADMIN_REFRESH ?? '';
 
   const SUPABASE_URL = 'https://nhvbnfpzykdokqcnljth.supabase.co';
   const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? '';
 
-  // Refresh the token before injecting so all tests start with a fresh session.
-  // This prevents "refresh_token_already_used" errors when the saved token is
-  // close to expiry and multiple tests trigger a concurrent refresh cycle.
   if (refreshToken && ANON_KEY) {
     try {
       const api = await request.newContext();
@@ -43,13 +39,13 @@ setup('authenticate as test user', async ({ page }) => {
       }
       await api.dispose();
     } catch {
-      // Refresh failed — proceed with existing token, hope it's still valid
+      // Refresh failed — proceed with existing token
     }
   }
 
   if (!accessToken) {
     await page.goto('/login');
-    await page.waitForURL(/\/(sourcing|crm|my-quotes)/, { timeout: 120_000 });
+    await page.waitForURL(/\/admin/, { timeout: 120_000 });
   } else {
     await page.goto('/login');
     await page.evaluate(
@@ -67,8 +63,8 @@ setup('authenticate as test user', async ({ page }) => {
       },
       { token: accessToken, refresh: refreshToken, email },
     );
-    await page.goto('/sourcing');
-    await expect(page).toHaveURL(/\/sourcing/, { timeout: 15_000 });
+    await page.goto('/admin');
+    await expect(page).toHaveURL(/\/admin/, { timeout: 15_000 });
   }
 
   await page.context().storageState({ path: authFile });
