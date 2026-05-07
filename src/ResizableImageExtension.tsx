@@ -198,7 +198,7 @@ export const ResizableImageComponent: React.FC<NodeViewProps> = ({ node, updateA
                                 <Divider />
                                 <ToolbarBtn
                                     title="Delete Image"
-                                    onClick={() => { if (window.confirm('Delete this image?')) deleteNode(); }}
+                                    onClick={() => deleteNode()}
                                     danger
                                 >
                                     <Trash2 size={14} />

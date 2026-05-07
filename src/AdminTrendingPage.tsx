@@ -1,5 +1,5 @@
 import React, { useState, useEffect, FC, useRef, useCallback } from 'react';
-import { Plus, Minus, Trash2, Edit, Image, ShoppingBag, FileText, Video, X, GripVertical, Eye, EyeOff, ChevronUp, ChevronDown, Bold, Italic, Heading1, Heading2, List, ListOrdered, Link, ImageIcon, Quote, Code, Undo2, Redo2, AlignLeft, AlignCenter, AlignRight, Type, Maximize2, Minimize2, Move, ZoomIn, ZoomOut, Monitor, Smartphone, Crosshair, ArrowRight, PlayCircle, Sparkles, TrendingUp, Clock, User, Tag, Upload, Palette, Layers, ChevronLeft, ChevronRight, RotateCcw, Volume2, VolumeX, PanelLeftClose, PanelLeftOpen, Timer, Pause, Play, MousePointer, Youtube, Square, RectangleHorizontal, LayoutTemplate, Smartphone as MobileIcon, Monitor as DesktopIcon, Crop, Highlighter, Indent as IndentIcon, Outdent, Baseline, Underline, ArrowUpDown, ArrowLeftRight } from 'lucide-react';
+import { Plus, Minus, Trash2, Edit, Image, ShoppingBag, FileText, Video, X, GripVertical, Eye, EyeOff, ChevronUp, ChevronDown, Bold, Italic, Heading1, Heading2, List, ListOrdered, Link, ImageIcon, Quote, Code, Undo2, Redo2, AlignLeft, AlignCenter, AlignRight, Type, Maximize2, Minimize2, Move, ZoomIn, ZoomOut, Monitor, Smartphone, Crosshair, ArrowRight, PlayCircle, Sparkles, TrendingUp, Clock, User, Tag, Upload, Palette, Layers, ChevronLeft, ChevronRight, RotateCcw, Volume2, VolumeX, PanelLeftClose, PanelLeftOpen, Timer, Pause, Play, MousePointer, Youtube, Square, RectangleHorizontal, LayoutTemplate, Smartphone as MobileIcon, Monitor as DesktopIcon, Crop, Highlighter, Indent as IndentIcon, Outdent, Baseline, Underline, ArrowUpDown, ArrowLeftRight, Strikethrough, Unlink, AlertTriangle } from 'lucide-react';
 import { useEditor, EditorContent, NodeViewProps } from '@tiptap/react';
 import { Editor, Extension, Mark, mergeAttributes } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
@@ -374,6 +374,7 @@ const LetterSpacing = Extension.create({
 
 // ─── Rich Text Blog Editor (TipTap) ─────────────────────────────────
 const BlogEditor: FC<{ value: string; onChange: (v: string) => void; className?: string }> = ({ value, onChange, className }) => {
+    const { showToast } = useToast();
     const [showLinkModal, setShowLinkModal] = useState(false);
     const [linkUrl, setLinkUrl] = useState('');
     const [showImageModal, setShowImageModal] = useState(false);
@@ -454,6 +455,8 @@ const BlogEditor: FC<{ value: string; onChange: (v: string) => void; className?:
     const isBold = editor?.isActive('bold') ?? false;
     const isItalic = editor?.isActive('italic') ?? false;
     const isUnderlineActive = editor?.isActive('underline') ?? false;
+    const isStrike = editor?.isActive('strike') ?? false;
+    const isLink = editor?.isActive('link') ?? false;
     const isUL = editor?.isActive('bulletList') ?? false;
     const isOL = editor?.isActive('orderedList') ?? false;
     const currentAlign = editor?.isActive({ textAlign: 'center' }) ? 'center' : editor?.isActive({ textAlign: 'right' }) ? 'right' : 'left';
@@ -476,9 +479,9 @@ const BlogEditor: FC<{ value: string; onChange: (v: string) => void; className?:
                     attrs: { src: data.publicUrl, alignment: 'center' },
                 }).run();
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error('Upload failed:', err);
-            alert('Failed to upload image');
+            showToast('Failed to upload image: ' + (err?.message || 'Unknown error'), 'error');
         } finally {
             setIsUploading(false);
             setShowImageModal(false);
@@ -508,6 +511,7 @@ const BlogEditor: FC<{ value: string; onChange: (v: string) => void; className?:
             case 'bold': editor.chain().focus().toggleBold().run(); break;
             case 'italic': editor.chain().focus().toggleItalic().run(); break;
             case 'underline': editor.chain().focus().toggleUnderline().run(); break;
+            case 'strike': editor.chain().focus().toggleStrike().run(); break;
             case 'justifyLeft': editor.chain().focus().setTextAlign('left').run(); break;
             case 'justifyCenter': editor.chain().focus().setTextAlign('center').run(); break;
             case 'justifyRight': editor.chain().focus().setTextAlign('right').run(); break;
@@ -549,7 +553,12 @@ const BlogEditor: FC<{ value: string; onChange: (v: string) => void; className?:
     const handleFontFamilyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const font = e.target.value;
         setCurrentFontFamily(font);
-        if (editor) editor.chain().focus().setFontFamily(font).run();
+        if (!editor) return;
+        if (font) {
+            editor.chain().focus().setFontFamily(font).run();
+        } else {
+            editor.chain().focus().unsetFontFamily().run();
+        }
     };
 
     const handleColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -563,9 +572,20 @@ const BlogEditor: FC<{ value: string; onChange: (v: string) => void; className?:
     };
 
     const insertLink = () => {
-        if (linkUrl) exec('createLink', linkUrl);
+        if (!linkUrl.trim()) { setShowLinkModal(false); return; }
+        let url = linkUrl.trim();
+        if (!/^https?:\/\//i.test(url) && !url.startsWith('mailto:') && !url.startsWith('/')) {
+            url = 'https://' + url;
+        }
+        exec('createLink', url);
         setLinkUrl('');
         setShowLinkModal(false);
+    };
+
+    const openLinkModal = () => {
+        const existingHref = editor?.getAttributes('link').href || '';
+        setLinkUrl(existingHref);
+        setShowLinkModal(true);
     };
 
     // ─── Sync toolbar state from editor on every selection/transaction ───
@@ -614,7 +634,7 @@ const BlogEditor: FC<{ value: string; onChange: (v: string) => void; className?:
             if (color) setCurrentColor(color);
             
             const { fontFamily } = editor.getAttributes('textStyle');
-            if (fontFamily) setCurrentFontFamily(fontFamily);
+            setCurrentFontFamily(fontFamily || '');
 
             const { letterSpacing } = editor.getAttributes('textStyle');
             if (letterSpacing) setCurrentLetterSpacing(letterSpacing);
@@ -659,6 +679,7 @@ const BlogEditor: FC<{ value: string; onChange: (v: string) => void; className?:
                 <ToolBtn onClick={() => editor?.chain().focus().redo().run()} title="Redo (Ctrl+Shift+Z)" disabled={!editor?.can().redo()}><Redo2 size={16} /></ToolBtn>
 
                 <select value={currentFontFamily} onChange={handleFontFamilyChange} className="p-1.5 text-xs rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 focus:ring-0 focus:border-[#c20c0b] outline-none w-32" style={{ fontFamily: currentFontFamily || 'inherit' }}>
+                    <option value="">Default</option>
                     {currentFontFamily && !FONT_FAMILIES.includes(currentFontFamily) && (
                         <option key={currentFontFamily} value={currentFontFamily}>{currentFontFamily}</option>
                     )}
@@ -777,9 +798,10 @@ const BlogEditor: FC<{ value: string; onChange: (v: string) => void; className?:
                     <option value="pre">Code</option>
                 </select>
                 <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
-                <ToolBtn onClick={() => exec('bold')} title="Bold" active={isBold}><Bold size={16} /></ToolBtn>
-                <ToolBtn onClick={() => exec('italic')} title="Italic" active={isItalic}><Italic size={16} /></ToolBtn>
-                <ToolBtn onClick={() => exec('underline')} title="Underline" active={isUnderlineActive}><Underline size={16} /></ToolBtn>
+                <ToolBtn onClick={() => exec('bold')} title="Bold (Ctrl+B)" active={isBold}><Bold size={16} /></ToolBtn>
+                <ToolBtn onClick={() => exec('italic')} title="Italic (Ctrl+I)" active={isItalic}><Italic size={16} /></ToolBtn>
+                <ToolBtn onClick={() => exec('underline')} title="Underline (Ctrl+U)" active={isUnderlineActive}><Underline size={16} /></ToolBtn>
+                <ToolBtn onClick={() => exec('strike')} title="Strikethrough" active={isStrike}><Strikethrough size={16} /></ToolBtn>
                 <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
                 <ToolBtn onClick={() => exec('justifyLeft')} title="Align Left" active={currentAlign === 'left'}><AlignLeft size={16} /></ToolBtn>
                 <ToolBtn onClick={() => exec('justifyCenter')} title="Align Center" active={currentAlign === 'center'}><AlignCenter size={16} /></ToolBtn>
@@ -788,7 +810,8 @@ const BlogEditor: FC<{ value: string; onChange: (v: string) => void; className?:
                 <ToolBtn onClick={() => exec('insertUnorderedList')} title="Bullet List (Ctrl+Shift+8)" active={isUL}><List size={16} /></ToolBtn>
                 <ToolBtn onClick={() => exec('insertOrderedList')} title="Numbered List (Ctrl+Shift+7)" active={isOL}><ListOrdered size={16} /></ToolBtn>
                 <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
-                <ToolBtn onClick={() => setShowLinkModal(true)} title="Insert Link"><Link size={16} /></ToolBtn>
+                <ToolBtn onClick={openLinkModal} title={isLink ? 'Edit Link' : 'Insert Link'} active={isLink}><Link size={16} /></ToolBtn>
+                {isLink && <ToolBtn onClick={() => editor?.chain().focus().unsetLink().run()} title="Remove Link"><Unlink size={16} /></ToolBtn>}
                 <ToolBtn onClick={() => setShowImageModal(true)} title="Insert Image"><ImageIcon size={16} /></ToolBtn>
             </div>
 
@@ -831,20 +854,35 @@ const BlogEditor: FC<{ value: string; onChange: (v: string) => void; className?:
 
             {/* Link Modal */}
             {showLinkModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]" onKeyDown={e => { if (e.key === 'Escape') { setShowLinkModal(false); setLinkUrl(''); } }}>
                     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl w-96">
-                        <h3 className="font-semibold mb-3 text-gray-900 dark:text-white">Insert Link</h3>
-                        <input type="url" placeholder="https://..." value={linkUrl} onChange={e => setLinkUrl(e.target.value)} className="w-full p-2 border dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white mb-3" autoFocus />
-                        <div className="flex justify-end gap-2">
-                            <button type="button" onClick={() => setShowLinkModal(false)} className="px-3 py-1.5 text-sm bg-gray-200 dark:bg-gray-700 rounded">Cancel</button>
-                            <button type="button" onClick={insertLink} className="px-3 py-1.5 text-sm bg-[#c20c0b] text-white rounded">Insert</button>
+                        <h3 className="font-semibold mb-3 text-gray-900 dark:text-white">{editor?.getAttributes('link').href ? 'Edit Link' : 'Insert Link'}</h3>
+                        <input
+                            type="url"
+                            placeholder="https://example.com"
+                            value={linkUrl}
+                            onChange={e => setLinkUrl(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); insertLink(); } if (e.key === 'Escape') { setShowLinkModal(false); setLinkUrl(''); } }}
+                            className="w-full p-2 border dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white mb-3"
+                            autoFocus
+                        />
+                        <div className="flex justify-between items-center">
+                            {editor?.getAttributes('link').href && (
+                                <button type="button" onClick={() => { editor?.chain().focus().unsetLink().run(); setShowLinkModal(false); setLinkUrl(''); }} className="flex items-center gap-1 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors">
+                                    <Unlink size={14} /> Remove Link
+                                </button>
+                            )}
+                            <div className="flex gap-2 ml-auto">
+                                <button type="button" onClick={() => { setShowLinkModal(false); setLinkUrl(''); }} className="px-3 py-1.5 text-sm bg-gray-200 dark:bg-gray-700 rounded">Cancel</button>
+                                <button type="button" onClick={insertLink} className="px-3 py-1.5 text-sm bg-[#c20c0b] text-white rounded">{editor?.getAttributes('link').href ? 'Update' : 'Insert'}</button>
+                            </div>
                         </div>
                     </div>
                 </div>
             )}
             {/* Image Modal */}
             {showImageModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]" onKeyDown={e => { if (e.key === 'Escape') { setShowImageModal(false); setImageUrl(''); } }}>
                     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl w-96">
                         <h3 className="font-semibold mb-3 text-gray-900 dark:text-white">Insert Image</h3>
 
@@ -854,19 +892,33 @@ const BlogEditor: FC<{ value: string; onChange: (v: string) => void; className?:
                         </div>
 
                         {imageUploadTab === 'url' ? (
-                            <input type="url" placeholder="Image URL..." value={imageUrl} onChange={e => setImageUrl(e.target.value)} className="w-full p-2 border dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white mb-3" autoFocus />
+                            <input
+                                type="url"
+                                placeholder="https://example.com/image.jpg"
+                                value={imageUrl}
+                                onChange={e => setImageUrl(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter' && imageUrl) { e.preventDefault(); insertImageFromUrl(imageUrl); } }}
+                                className="w-full p-2 border dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white mb-3"
+                                autoFocus
+                            />
                         ) : (
                             <div className="mb-3">
                                 <label className="block w-full p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-center cursor-pointer hover:border-[#c20c0b] transition-colors">
                                     <span className="text-sm text-gray-500 dark:text-gray-400">{isUploading ? 'Uploading...' : 'Click to upload or drag & drop'}</span>
-                                    <input type="file" accept="image/*" className="hidden" onChange={handleFileInputChange} disabled={isUploading} />
+                                    <input type="file" accept="image/*" multiple className="hidden" onChange={handleFileInputChange} disabled={isUploading} />
                                 </label>
+                                {isUploading && (
+                                    <div className="flex items-center justify-center gap-2 mt-2">
+                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#c20c0b]" />
+                                        <span className="text-xs text-gray-500">Uploading...</span>
+                                    </div>
+                                )}
                             </div>
                         )}
 
                         <div className="flex justify-end gap-2 mt-2">
-                            <button type="button" onClick={() => setShowImageModal(false)} className="px-3 py-1.5 text-sm bg-gray-200 dark:bg-gray-700 rounded">Cancel</button>
-                            {imageUploadTab === 'url' && <button type="button" onClick={() => insertImageFromUrl(imageUrl)} className="px-3 py-1.5 text-sm bg-[#c20c0b] text-white rounded">Insert</button>}
+                            <button type="button" onClick={() => { setShowImageModal(false); setImageUrl(''); }} className="px-3 py-1.5 text-sm bg-gray-200 dark:bg-gray-700 rounded">Cancel</button>
+                            {imageUploadTab === 'url' && <button type="button" onClick={() => insertImageFromUrl(imageUrl)} disabled={!imageUrl.trim()} className="px-3 py-1.5 text-sm bg-[#c20c0b] text-white rounded disabled:opacity-50 disabled:cursor-not-allowed">Insert</button>}
                         </div>
                     </div>
                 </div>
@@ -1835,7 +1887,13 @@ const BannerBuilder: FC<{
                             <label className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5"><Layers size={12} /> Slideshow Mode</label>
                             <button type="button" onClick={() => {
                                 if (!isSlideshow && item.image_url) {
-                                    setMulti({ is_slideshow: true, slides: [{ type: 'image', url: item.image_url, selected: true }, ...slides] });
+                                    // Only add image_url as first slide if not already present
+                                    const alreadyIn = slides.some(s => s.url === item.image_url);
+                                    if (!alreadyIn) {
+                                        setMulti({ is_slideshow: true, slides: [{ type: 'image', url: item.image_url, selected: true }, ...slides] });
+                                    } else {
+                                        set('is_slideshow', true);
+                                    }
                                 } else {
                                     set('is_slideshow', !isSlideshow);
                                 }
@@ -1907,10 +1965,20 @@ const BannerBuilder: FC<{
                                             </div>
                                             <span className="text-[10px] text-gray-500 flex-1 truncate">{slide.title || (slide.is_youtube ? 'YouTube' : slide.type === 'video' ? 'Video' : 'Image')} {idx + 1}</span>
                                             <button type="button" onClick={() => setPreviewSlideIdx(idx)} className={`transition-colors ${idx === previewSlideIdx % slides.length ? 'text-[#c20c0b]' : 'text-gray-400 hover:text-[#c20c0b]'}`}><Eye size={12} /></button>
-                                            {idx > 0 && <button type="button" onClick={() => {
+                                            {idx > 0 && <button type="button" title="Move up" onClick={() => {
                                                 const n = [...slides]; [n[idx - 1], n[idx]] = [n[idx], n[idx - 1]]; set('slides', n);
+                                                if (previewSlideIdx === idx) setPreviewSlideIdx(idx - 1);
+                                                else if (previewSlideIdx === idx - 1) setPreviewSlideIdx(idx);
                                             }} className="text-gray-400 hover:text-gray-600"><ChevronUp size={12} /></button>}
-                                            <button type="button" onClick={() => set('slides', slides.filter((_, i) => i !== idx))} className="text-gray-400 hover:text-red-500 transition-colors"><Trash2 size={12} /></button>
+                                            {idx < slides.length - 1 && <button type="button" title="Move down" onClick={() => {
+                                                const n = [...slides]; [n[idx], n[idx + 1]] = [n[idx + 1], n[idx]]; set('slides', n);
+                                                if (previewSlideIdx === idx) setPreviewSlideIdx(idx + 1);
+                                                else if (previewSlideIdx === idx + 1) setPreviewSlideIdx(idx);
+                                            }} className="text-gray-400 hover:text-gray-600"><ChevronDown size={12} /></button>}
+                                            <button type="button" onClick={() => {
+                                                set('slides', slides.filter((_, i) => i !== idx));
+                                                if (previewSlideIdx >= idx && previewSlideIdx > 0) setPreviewSlideIdx(prev => prev - 1);
+                                            }} className="text-gray-400 hover:text-red-500 transition-colors"><Trash2 size={12} /></button>
                                         </div>
                                     ))}
                                 </div>
@@ -2692,6 +2760,7 @@ export const AdminTrendingPage: FC<AdminTrendingPageProps> = (props) => {
     const [isLoading, setIsLoading] = useState(false);
     const [previewBlog, setPreviewBlog] = useState<any>(null);
     const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+    const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; label: string } | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const pendingSaveEvent = useRef<React.FormEvent | null>(null);
     const { showToast } = useToast();
@@ -2812,11 +2881,16 @@ export const AdminTrendingPage: FC<AdminTrendingPageProps> = (props) => {
         }
     };
 
-    const handleDelete = async (id: string) => {
-        if (!confirm('Delete this item?')) return;
-        const { error } = await getService(activeTab).delete(id);
+    const handleDelete = (id: string, label?: string) => {
+        setDeleteConfirm({ id, label: label || 'this item' });
+    };
+
+    const confirmDelete = async () => {
+        if (!deleteConfirm) return;
+        const { error } = await getService(activeTab).delete(deleteConfirm.id);
+        setDeleteConfirm(null);
         if (error) showToast(error.message, 'error');
-        else { showToast('Deleted'); fetchAll(); }
+        else { showToast('Deleted successfully'); fetchAll(); }
     };
 
     const handleToggleActive = async (item: any, field: string = 'is_active') => {
@@ -2932,15 +3006,30 @@ export const AdminTrendingPage: FC<AdminTrendingPageProps> = (props) => {
     };
 
     // ─── Card Renderers ─────────────────────────────────────────────
-    const renderBannerCard = (item: any) => (
+    const renderBannerCard = (item: any) => {
+        const slides: SlideItem[] = item.slides || [];
+        const thumbSlide = slides.find(s => s.selected !== false);
+        const thumbUrl = item.image_url || (thumbSlide?.is_youtube && thumbSlide?.youtube_id ? getYouTubeThumbnail(thumbSlide.youtube_id, 'mqdefault') : thumbSlide?.type === 'image' ? thumbSlide?.url : null);
+        return (
         <div key={item.id} className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden group">
             <div className="relative h-40">
-                <img src={item.image_url} alt={item.title} className="w-full h-full object-cover" />
+                {thumbUrl ? (
+                    <img src={thumbUrl} alt={item.title} className="w-full h-full object-cover" />
+                ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center">
+                        {slides.some(s => s.type === 'video') ? <Video size={32} className="text-gray-400" /> : <Image size={32} className="text-gray-400" />}
+                    </div>
+                )}
+                {item.is_slideshow && slides.length > 0 && (
+                    <span className="absolute top-2 left-2 bg-black/60 text-white text-[10px] font-medium px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <Layers size={10} /> {slides.length} slides
+                    </span>
+                )}
                 {!item.is_active && <div className="absolute inset-0 bg-black/50 flex items-center justify-center"><span className="text-white font-semibold text-sm bg-red-600 px-3 py-1 rounded-full">Inactive</span></div>}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
                 <div className="absolute bottom-0 left-0 p-4 text-white">
-                    <h3 className="font-bold text-lg">{item.title}</h3>
-                    {item.subtitle && <p className="text-sm opacity-80">{item.subtitle}</p>}
+                    <h3 className="font-bold text-lg drop-shadow">{item.title || 'Untitled'}</h3>
+                    {item.subtitle && <p className="text-sm opacity-80 drop-shadow">{item.subtitle}</p>}
                 </div>
             </div>
             <div className="p-4 flex items-center justify-between">
@@ -2951,11 +3040,12 @@ export const AdminTrendingPage: FC<AdminTrendingPageProps> = (props) => {
                 <div className="flex gap-2">
                     <button onClick={() => handleToggleActive(item)} disabled={isSaving} className={`transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${item.is_active ? 'text-green-600 hover:text-green-800' : 'text-gray-400 hover:text-gray-600'}`}>{item.is_active ? <Eye size={18} /> : <EyeOff size={18} />}</button>
                     <button onClick={() => openEdit(item)} disabled={isSaving} className="text-blue-600 hover:text-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"><Edit size={18} /></button>
-                    <button onClick={() => handleDelete(item.id)} disabled={isSaving} className="text-red-600 hover:text-red-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"><Trash2 size={18} /></button>
+                    <button onClick={() => handleDelete(item.id, item.title || 'this banner')} disabled={isSaving} className="text-red-600 hover:text-red-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"><Trash2 size={18} /></button>
                 </div>
             </div>
         </div>
-    );
+        );
+    };
 
     const renderProductCard = (item: any) => (
         <div key={item.id} className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden group">
@@ -2985,7 +3075,7 @@ export const AdminTrendingPage: FC<AdminTrendingPageProps> = (props) => {
                     <button onClick={() => handleToggleActive(item)} disabled={isSaving} className={`transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${item.is_active ? 'text-green-600 hover:text-green-800' : 'text-gray-400 hover:text-gray-600'}`}>{item.is_active ? <Eye size={18} /> : <EyeOff size={18} />}</button>
                     <button onClick={() => handleToggleActive(item, 'is_featured')} disabled={isSaving} className={`transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${item.is_featured ? 'text-yellow-500 hover:text-yellow-600' : 'text-gray-400 hover:text-gray-600'}`}>★</button>
                     <button onClick={() => openEdit(item)} disabled={isSaving} className="text-blue-600 hover:text-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"><Edit size={18} /></button>
-                    <button onClick={() => handleDelete(item.id)} disabled={isSaving} className="text-red-600 hover:text-red-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"><Trash2 size={18} /></button>
+                    <button onClick={() => handleDelete(item.id, item.name)} disabled={isSaving} className="text-red-600 hover:text-red-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"><Trash2 size={18} /></button>
                 </div>
             </div>
         </div>
@@ -3006,7 +3096,7 @@ export const AdminTrendingPage: FC<AdminTrendingPageProps> = (props) => {
                     <button onClick={() => setPreviewBlog(item)} disabled={isSaving} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"><Eye size={18} /></button>
                     <button onClick={() => handleToggleActive(item, 'is_published')} disabled={isSaving} className={`transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${item.is_published ? 'text-green-600 hover:text-green-800' : 'text-gray-400 hover:text-gray-600'}`}>{item.is_published ? <Eye size={18} /> : <EyeOff size={18} />}</button>
                     <button onClick={() => openEdit(item)} disabled={isSaving} className="text-blue-600 hover:text-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"><Edit size={18} /></button>
-                    <button onClick={() => handleDelete(item.id)} disabled={isSaving} className="text-red-600 hover:text-red-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"><Trash2 size={18} /></button>
+                    <button onClick={() => handleDelete(item.id, item.title)} disabled={isSaving} className="text-red-600 hover:text-red-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"><Trash2 size={18} /></button>
                 </div>
             </div>
         </div>
@@ -3031,7 +3121,7 @@ export const AdminTrendingPage: FC<AdminTrendingPageProps> = (props) => {
             <div className="p-3 flex justify-end gap-2">
                 <button onClick={() => handleToggleActive(item)} disabled={isSaving} className={`transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${item.is_active ? 'text-green-600 hover:text-green-800' : 'text-gray-400 hover:text-gray-600'}`}>{item.is_active ? <Eye size={18} /> : <EyeOff size={18} />}</button>
                 <button onClick={() => openEdit(item)} disabled={isSaving} className="text-blue-600 hover:text-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"><Edit size={18} /></button>
-                <button onClick={() => handleDelete(item.id)} disabled={isSaving} className="text-red-600 hover:text-red-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"><Trash2 size={18} /></button>
+                <button onClick={() => handleDelete(item.id, item.title || item.creator)} disabled={isSaving} className="text-red-600 hover:text-red-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"><Trash2 size={18} /></button>
             </div>
         </div>
     );
@@ -3076,7 +3166,7 @@ export const AdminTrendingPage: FC<AdminTrendingPageProps> = (props) => {
                 {tabs.map(tab => (
                     <button
                         key={tab.key}
-                        onClick={() => setActiveTab(tab.key)}
+                        onClick={() => { if (isModalOpen) setIsModalOpen(false); setActiveTab(tab.key); }}
                         disabled={isSaving}
                         className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                             activeTab === tab.key
@@ -3213,6 +3303,31 @@ export const AdminTrendingPage: FC<AdminTrendingPageProps> = (props) => {
                                 ) : (
                                     `Yes, ${editingItem.id ? 'Update' : 'Create'}`
                                 )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Confirmation Dialog */}
+            {deleteConfirm && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
+                    <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-sm mx-4 border border-gray-200 dark:border-white/10 overflow-hidden">
+                        <div className="p-6 text-center">
+                            <div className="mx-auto w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mb-4">
+                                <AlertTriangle size={24} className="text-red-600" />
+                            </div>
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Delete Item?</h3>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                Are you sure you want to delete <span className="font-medium text-gray-700 dark:text-gray-200">"{deleteConfirm.label}"</span>? This action cannot be undone.
+                            </p>
+                        </div>
+                        <div className="flex border-t border-gray-200 dark:border-gray-700">
+                            <button onClick={() => setDeleteConfirm(null)} className="flex-1 px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                Cancel
+                            </button>
+                            <button onClick={confirmDelete} className="flex-1 px-4 py-3 text-sm font-medium text-white bg-red-600 hover:bg-red-700 transition-colors">
+                                Delete
                             </button>
                         </div>
                     </div>
