@@ -1,6 +1,6 @@
 import React, { useState, useEffect, FC, useRef, useCallback } from 'react';
 import { Plus, Minus, Trash2, Edit, Image, ShoppingBag, FileText, Video, X, GripVertical, Eye, EyeOff, ChevronUp, ChevronDown, Bold, Italic, Heading1, Heading2, List, ListOrdered, Link, ImageIcon, Quote, Code, Undo2, Redo2, AlignLeft, AlignCenter, AlignRight, Type, Maximize2, Minimize2, Move, ZoomIn, ZoomOut, Monitor, Smartphone, Crosshair, ArrowRight, PlayCircle, Sparkles, TrendingUp, Clock, User, Tag, Upload, Palette, Layers, ChevronLeft, ChevronRight, RotateCcw, Volume2, VolumeX, PanelLeftClose, PanelLeftOpen, Timer, Pause, Play, MousePointer, Youtube, Square, RectangleHorizontal, LayoutTemplate, Smartphone as MobileIcon, Monitor as DesktopIcon, Crop, Highlighter, Indent as IndentIcon, Outdent, Baseline, Underline, ArrowUpDown, ArrowLeftRight, Strikethrough, Unlink, AlertTriangle } from 'lucide-react';
-import { useEditor, EditorContent, NodeViewProps } from '@tiptap/react';
+import { useEditor, EditorContent } from '@tiptap/react';
 import { Editor, Extension, Mark, mergeAttributes } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import TextAlign from '@tiptap/extension-text-align';
@@ -12,6 +12,9 @@ import Highlight from '@tiptap/extension-highlight';
 import FontFamily from '@tiptap/extension-font-family';
 import Placeholder from '@tiptap/extension-placeholder';
 import Dropcursor from '@tiptap/extension-dropcursor';
+import TaskList from '@tiptap/extension-task-list';
+import TaskItem from '@tiptap/extension-task-item';
+import CharacterCount from '@tiptap/extension-character-count';
 import { ResizableImage, ResizableImageComponent } from './ResizableImageExtension';
 import { MainLayout } from './MainLayout';
 import { bannerService, trendingProductService, blogService, shortsService } from './trending.service';
@@ -28,34 +31,198 @@ const GOOGLE_FONTS = [
 ];
 
 const BLOG_STYLES = `
-/* Minimal blog editor styles used by BlogBuilder / BlogEditor */
+/* ─── Premium Blog Editor — Medium-inspired Typography ─── */
+
 .blog-rich-editor {
-  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
-  color: #000000;
-  line-height: 1.6;
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  font-size: 18px;
+  line-height: 1.85;
+  color: #1a1a1a;
+  caret-color: #c20c0b;
+  -webkit-font-smoothing: antialiased;
+}
+.blog-rich-editor .ProseMirror { outline: none; }
+
+/* Headings */
+.blog-rich-editor h1 {
+  font-size: 2.25rem; font-weight: 800; letter-spacing: -0.03em;
+  line-height: 1.15; margin: 2rem 0 0.75rem; color: #111;
+}
+.blog-rich-editor h2 {
+  font-size: 1.625rem; font-weight: 700; letter-spacing: -0.02em;
+  line-height: 1.25; margin: 1.75rem 0 0.6rem; color: #111;
+}
+.blog-rich-editor h3 {
+  font-size: 1.25rem; font-weight: 600; letter-spacing: -0.01em;
+  line-height: 1.35; margin: 1.5rem 0 0.4rem; color: #111;
+}
+.blog-rich-editor h4, .blog-rich-editor h5, .blog-rich-editor h6 {
+  font-size: 1.05rem; font-weight: 600;
+  line-height: 1.4; margin: 1.25rem 0 0.35rem; color: #222;
 }
 
-/* Basic content styling */
-.blog-rich-editor h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 0.5rem; }
-.blog-rich-editor h2 { font-size: 1.75rem; font-weight: 700; margin: 0 0 0.5rem; }
-.blog-rich-editor p { margin: 0 0 1rem; }
-.blog-rich-editor img { max-width: 100%; height: auto; border-radius: 0.5rem; }
-.blog-rich-editor blockquote { border-left: 4px solid #c20c0b; padding: 0.5rem 1rem; color: rgba(0,0,0,0.65); background: rgba(0,0,0,0.02); margin: 0 0 1rem; font-style: italic; }
-.blog-rich-editor pre { background: #0f172a; color: #e6eef8; padding: 1rem; border-radius: 0.5rem; overflow: auto; margin: 0 0 1rem; }
-.blog-rich-editor code { background: rgba(0,0,0,0.04); padding: 0.15rem 0.3rem; border-radius: 0.25rem; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace; }
+/* Paragraph */
+.blog-rich-editor p { margin: 0 0 1.3em; }
+.blog-rich-editor p:last-child { margin-bottom: 0; }
 
-/* Light/dark support hooks used elsewhere in the app */
-.dark .blog-rich-editor {
-  color: #ffffff;
+/* Links */
+.blog-rich-editor a {
+  color: #c20c0b; text-decoration: underline;
+  text-decoration-thickness: 1px; text-underline-offset: 2px;
+  transition: opacity 0.15s;
 }
-.dark .blog-rich-editor blockquote {
-  background: rgba(255,255,255,0.02);
-  color: rgba(255,255,255,0.85);
-  border-left-color: #c20c0b;
+.blog-rich-editor a:hover { opacity: 0.7; }
+
+/* Inline marks */
+.blog-rich-editor strong { font-weight: 700; }
+.blog-rich-editor em { font-style: italic; }
+.blog-rich-editor s { text-decoration: line-through; color: #888; }
+.blog-rich-editor code:not(pre code) {
+  background: rgba(0,0,0,0.06); padding: 0.15em 0.4em;
+  border-radius: 4px; font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,monospace;
+  font-size: 0.87em; color: #c20c0b;
 }
-.dark .blog-rich-editor pre {
-  background: #0b1220;
+
+/* Code block */
+.blog-rich-editor pre {
+  background: #0f172a; color: #e2e8f0;
+  padding: 1.25rem 1.5rem; border-radius: 8px;
+  overflow-x: auto; margin: 1.75em 0;
+  font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,monospace;
+  font-size: 0.875em; line-height: 1.7;
 }
+.blog-rich-editor pre code { background: none; padding: 0; color: inherit; font-size: inherit; }
+
+/* Blockquote */
+.blog-rich-editor blockquote {
+  border-left: 3px solid #c20c0b; padding: 0.25rem 1.25rem;
+  margin: 1.75em 0; color: #555; font-size: 1.05em;
+  font-style: italic; background: transparent;
+}
+
+/* Horizontal Rule */
+.blog-rich-editor hr {
+  border: none; border-top: 1px solid #e5e7eb; margin: 2.5em 0;
+}
+
+/* Lists */
+.blog-rich-editor ul { padding-left: 1.5em; margin: 0 0 1.3em; list-style: disc; }
+.blog-rich-editor ol { padding-left: 1.5em; margin: 0 0 1.3em; list-style: decimal; }
+.blog-rich-editor li { margin-bottom: 0.35em; }
+.blog-rich-editor li > p { margin-bottom: 0.35em; }
+
+/* Task / Checklist */
+.blog-rich-editor ul[data-type="taskList"] { list-style: none; padding-left: 0; margin: 0 0 1.3em; }
+.blog-rich-editor ul[data-type="taskList"] li {
+  display: flex; align-items: flex-start; gap: 0.6em; padding: 0.1em 0;
+}
+.blog-rich-editor ul[data-type="taskList"] li > label { flex-shrink: 0; margin-top: 0.25em; cursor: pointer; }
+.blog-rich-editor ul[data-type="taskList"] li > label input[type="checkbox"] {
+  width: 1em; height: 1em; accent-color: #c20c0b; cursor: pointer;
+}
+.blog-rich-editor ul[data-type="taskList"] li[data-checked="true"] > div {
+  text-decoration: line-through; color: #9ca3af;
+}
+.blog-rich-editor ul[data-type="taskList"] li > div { flex: 1; }
+
+/* Images */
+.blog-rich-editor img {
+  max-width: 100%; height: auto; border-radius: 6px;
+  display: block; margin: 1.75em auto;
+}
+
+/* Dark mode */
+.dark .blog-rich-editor { color: #e2e2e2; caret-color: #ef4444; }
+.dark .blog-rich-editor h1, .dark .blog-rich-editor h2,
+.dark .blog-rich-editor h3, .dark .blog-rich-editor h4 { color: #f1f1f1; }
+.dark .blog-rich-editor blockquote { color: rgba(255,255,255,0.62); border-left-color: #ef4444; }
+.dark .blog-rich-editor pre { background: #0b1220; }
+.dark .blog-rich-editor code:not(pre code) { background: rgba(255,255,255,0.08); color: #f87171; }
+.dark .blog-rich-editor hr { border-top-color: rgba(255,255,255,0.1); }
+.dark .blog-rich-editor a { color: #f87171; }
+.dark .blog-rich-editor ul[data-type="taskList"] li[data-checked="true"] > div { color: #6b7280; }
+
+/* Selection highlight */
+.blog-rich-editor .ProseMirror ::selection { background: rgba(194,12,11,0.12); }
+
+/* Placeholder – shown on every empty line via TipTap Placeholder extension */
+.blog-rich-editor .ProseMirror .is-empty::before {
+  content: attr(data-placeholder);
+  float: left; color: #c0c0c0; pointer-events: none; height: 0;
+  font-weight: 400; font-style: normal;
+}
+.dark .blog-rich-editor .ProseMirror .is-empty::before { color: #555; }
+
+/* ─── Floating bubble menu ─── */
+.blog-bubble-menu {
+  display: flex; align-items: center; gap: 1px;
+  background: #18181b; border-radius: 9px;
+  padding: 5px 7px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.25), 0 2px 8px rgba(0,0,0,0.12);
+  animation: bubble-appear 0.14s cubic-bezier(0.32,0.72,0,1);
+  white-space: nowrap;
+}
+@keyframes bubble-appear {
+  from { opacity: 0; transform: translateY(5px) scale(0.95); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.blog-bubble-menu .bb-sep {
+  width: 1px; height: 16px; background: rgba(255,255,255,0.15);
+  margin: 0 4px; flex-shrink: 0;
+}
+.blog-bubble-menu .bb-btn {
+  padding: 4px 6px; border-radius: 5px; border: none;
+  background: transparent; cursor: pointer;
+  color: rgba(255,255,255,0.75); font-size: 12px;
+  line-height: 1; transition: background 0.1s, color 0.1s;
+  display: flex; align-items: center; justify-content: center; min-width: 26px;
+}
+.blog-bubble-menu .bb-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
+.blog-bubble-menu .bb-btn.active { background: rgba(255,255,255,0.18); color: #fff; }
+.blog-bubble-menu .bb-btn.link-active { color: #f87171; }
+
+/* ─── Slash command menu ─── */
+.slash-menu-outer {
+  position: absolute; z-index: 100;
+  background: #fff; border: 1px solid #e5e7eb;
+  border-radius: 10px; padding: 6px 0;
+  min-width: 252px; max-height: 320px; overflow-y: auto;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06);
+  animation: slash-appear 0.12s cubic-bezier(0.32,0.72,0,1);
+}
+@keyframes slash-appear {
+  from { opacity: 0; transform: translateY(-5px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.dark .slash-menu-outer {
+  background: #1e2433; border-color: rgba(255,255,255,0.1);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+}
+.slash-menu-outer .slash-category {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.07em;
+  text-transform: uppercase; color: #9ca3af;
+  padding: 8px 12px 3px; user-select: none;
+}
+.slash-menu-outer .slash-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 12px; cursor: pointer; border: none;
+  background: transparent; width: 100%; text-align: left;
+  transition: background 0.08s;
+}
+.slash-menu-outer .slash-item:hover,
+.slash-menu-outer .slash-item.selected { background: #f3f4f6; }
+.dark .slash-menu-outer .slash-item:hover,
+.dark .slash-menu-outer .slash-item.selected { background: rgba(255,255,255,0.06); }
+.slash-menu-outer .slash-icon {
+  width: 32px; height: 32px; border-radius: 6px; flex-shrink: 0;
+  background: #f3f4f6; border: 1px solid #e5e7eb;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 600; color: #374151;
+}
+.dark .slash-menu-outer .slash-icon { background: #374151; border-color: rgba(255,255,255,0.1); color: #e5e7eb; }
+.slash-menu-outer .slash-title { font-size: 13px; font-weight: 500; color: #111827; }
+.dark .slash-menu-outer .slash-title { color: #f3f4f6; }
+.slash-menu-outer .slash-desc { font-size: 11px; color: #9ca3af; margin-top: 1px; }
 `;
 
 interface AdminTrendingPageProps {
@@ -372,6 +539,32 @@ const LetterSpacing = Extension.create({
 });
 // --- End Indent Extension ---
 
+// ─── Slash Command Data ───────────────────────────────────────────────
+interface SlashCmd { id: string; category: string; title: string; desc: string; iconText: string; keywords: string[]; }
+
+const SLASH_COMMANDS: SlashCmd[] = [
+    { id: 'text',      category: 'Text',   title: 'Text',          desc: 'Plain paragraph text',    iconText: '¶',   keywords: ['text','paragraph','p'] },
+    { id: 'h1',        category: 'Text',   title: 'Heading 1',     desc: 'Large section heading',   iconText: 'H1',  keywords: ['h1','heading','title'] },
+    { id: 'h2',        category: 'Text',   title: 'Heading 2',     desc: 'Medium sub-heading',      iconText: 'H2',  keywords: ['h2','heading'] },
+    { id: 'h3',        category: 'Text',   title: 'Heading 3',     desc: 'Small sub-section',       iconText: 'H3',  keywords: ['h3','heading'] },
+    { id: 'quote',     category: 'Blocks', title: 'Quote',         desc: 'Pull quote or citation',  iconText: '"',   keywords: ['quote','blockquote','cite'] },
+    { id: 'checklist', category: 'Blocks', title: 'Checklist',     desc: 'Todo list with checkboxes', iconText: '✓', keywords: ['check','todo','task'] },
+    { id: 'bullet',    category: 'Blocks', title: 'Bullet List',   desc: 'Unordered list',          iconText: '•',   keywords: ['bullet','list','ul'] },
+    { id: 'numbered',  category: 'Blocks', title: 'Numbered List', desc: 'Ordered list',            iconText: '1.',  keywords: ['number','list','ol','ordered'] },
+    { id: 'code',      category: 'Blocks', title: 'Code Block',    desc: 'Syntax highlighted code', iconText: '</>',  keywords: ['code','pre','syntax'] },
+    { id: 'divider',   category: 'Blocks', title: 'Divider',       desc: 'Horizontal separator',    iconText: '—',   keywords: ['divider','hr','rule','line'] },
+    { id: 'image',     category: 'Media',  title: 'Image',         desc: 'Upload or embed an image',iconText: '🖼',   keywords: ['image','photo','picture','upload'] },
+];
+
+const filterSlashCmds = (q: string) => {
+    if (!q) return SLASH_COMMANDS;
+    const lq = q.toLowerCase();
+    return SLASH_COMMANDS.filter(c =>
+        c.title.toLowerCase().includes(lq) ||
+        c.keywords.some(k => k.includes(lq))
+    );
+};
+
 // ─── Rich Text Blog Editor (TipTap) ─────────────────────────────────
 const BlogEditor: FC<{ value: string; onChange: (v: string) => void; className?: string }> = ({ value, onChange, className }) => {
     const { showToast } = useToast();
@@ -391,6 +584,9 @@ const BlogEditor: FC<{ value: string; onChange: (v: string) => void; className?:
     const [isFontSizeMixed, setIsFontSizeMixed] = useState(false);
     const [currentColor, setCurrentColor] = useState('#000000');
     const [currentHighlight, setCurrentHighlight] = useState('#ffffff');
+    const [isToolbarVisible, setIsToolbarVisible] = useState(false);
+    const [slashMenu, setSlashMenu] = useState<{ query: string; top: number; left: number; selectedIdx: number } | null>(null);
+    const [bubblePos, setBubblePos] = useState<{ top: number; left: number } | null>(null);
     const editorWrapperRef = useRef<HTMLDivElement>(null);
     const fontSizeInputFocusedRef = useRef(false);
 
@@ -409,18 +605,27 @@ const BlogEditor: FC<{ value: string; onChange: (v: string) => void; className?:
             StarterKit.configure({ dropcursor: false }),
             TextAlign.configure({ types: ['heading', 'paragraph'] }),
             UnderlineExt,
-            LinkExt.configure({ openOnClick: false }),
+            LinkExt.configure({ openOnClick: false, autolink: true }),
             TextStyle,
             Color,
             Highlight.configure({ multicolor: true }),
             FontFamily,
             FontSize,
-            Placeholder.configure({ placeholder: 'Start writing your blog post...' }),
+            Placeholder.configure({
+                placeholder: ({ node }) => {
+                    if (node.type.name === 'heading') return 'Heading…';
+                    return "Type '/' for commands, or start writing…";
+                },
+                showOnlyCurrent: false,
+            }),
             Dropcursor.configure({ color: '#c20c0b', width: 2 }),
             ResizableImage,
             Indent,
             LetterSpacing,
             LineHeight,
+            TaskList,
+            TaskItem.configure({ nested: true }),
+            CharacterCount,
         ],
         content: value || '',
         onUpdate: ({ editor: ed }) => {
@@ -643,6 +848,49 @@ const BlogEditor: FC<{ value: string; onChange: (v: string) => void; className?:
             const lh = editor.getAttributes('paragraph').lineHeight || editor.getAttributes('heading').lineHeight;
             if (lh) setCurrentLineHeight(lh);
             else setCurrentLineHeight('1.6');
+
+            // ── Bubble menu position ──
+            const { selection } = editor.state;
+            if (!selection.empty) {
+                try {
+                    const { from, to } = selection;
+                    const startCoords = editor.view.coordsAtPos(from);
+                    const endCoords = editor.view.coordsAtPos(to);
+                    setBubblePos({
+                        top: Math.min(startCoords.top, endCoords.top) - 8,
+                        left: (startCoords.left + endCoords.right) / 2,
+                    });
+                } catch { setBubblePos(null); }
+            } else {
+                setBubblePos(null);
+            }
+
+            // ── Slash command detection ──
+            if (selection.empty) {
+                const { $from } = selection;
+                try {
+                    const lineStart = $from.start($from.depth);
+                    const currentLineText = editor.state.doc.textBetween(lineStart, $from.pos);
+                    if (currentLineText.startsWith('/') && currentLineText.length <= 32 && !currentLineText.includes(' ')) {
+                        const query = currentLineText.slice(1);
+                        const coords = editor.view.coordsAtPos($from.pos);
+                        const wrapper = editorWrapperRef.current;
+                        if (wrapper) {
+                            const rect = wrapper.getBoundingClientRect();
+                            setSlashMenu(prev => ({
+                                query,
+                                top: coords.bottom - rect.top + 6,
+                                left: Math.max(0, coords.left - rect.left),
+                                selectedIdx: prev?.query === query ? (prev?.selectedIdx ?? 0) : 0,
+                            }));
+                        }
+                    } else {
+                        setSlashMenu(null);
+                    }
+                } catch { setSlashMenu(null); }
+            } else {
+                setSlashMenu(null);
+            }
         };
         editor.on('selectionUpdate', syncState);
         editor.on('transaction', syncState);
@@ -651,6 +899,52 @@ const BlogEditor: FC<{ value: string; onChange: (v: string) => void; className?:
             editor.off('transaction', syncState);
         };
     }, [editor]);
+
+    // ── Execute slash command ──
+    const executeSlashCommand = useCallback((cmd: SlashCmd) => {
+        if (!editor) return;
+        const { $from } = editor.state.selection;
+        const lineStart = $from.start($from.depth);
+        editor.chain().focus().deleteRange({ from: lineStart, to: $from.pos }).run();
+        setSlashMenu(null);
+
+        if (cmd.id === 'image') { setShowImageModal(true); return; }
+        switch (cmd.id) {
+            case 'text':      editor.chain().focus().setParagraph().run(); break;
+            case 'h1':        editor.chain().focus().toggleHeading({ level: 1 }).run(); break;
+            case 'h2':        editor.chain().focus().toggleHeading({ level: 2 }).run(); break;
+            case 'h3':        editor.chain().focus().toggleHeading({ level: 3 }).run(); break;
+            case 'quote':     editor.chain().focus().toggleBlockquote().run(); break;
+            case 'checklist': (editor.chain().focus() as any).toggleTaskList().run(); break;
+            case 'bullet':    editor.chain().focus().toggleBulletList().run(); break;
+            case 'numbered':  editor.chain().focus().toggleOrderedList().run(); break;
+            case 'code':      editor.chain().focus().toggleCodeBlock().run(); break;
+            case 'divider':   editor.chain().focus().setHorizontalRule().run(); break;
+        }
+    }, [editor]);
+
+    // ── Slash command keyboard navigation ──
+    useEffect(() => {
+        if (!slashMenu) return;
+        const handleKeyDown = (e: KeyboardEvent) => {
+            const items = filterSlashCmds(slashMenu.query);
+            if (e.key === 'ArrowDown') {
+                e.preventDefault(); e.stopPropagation();
+                setSlashMenu(prev => prev ? { ...prev, selectedIdx: (prev.selectedIdx + 1) % Math.max(items.length, 1) } : null);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault(); e.stopPropagation();
+                setSlashMenu(prev => prev ? { ...prev, selectedIdx: (prev.selectedIdx - 1 + Math.max(items.length, 1)) % Math.max(items.length, 1) } : null);
+            } else if (e.key === 'Enter') {
+                const item = items[slashMenu.selectedIdx];
+                if (item) { e.preventDefault(); e.stopPropagation(); executeSlashCommand(item); }
+            } else if (e.key === 'Escape') {
+                e.preventDefault(); e.stopPropagation();
+                setSlashMenu(null); editor?.chain().focus().run();
+            }
+        };
+        document.addEventListener('keydown', handleKeyDown, true);
+        return () => document.removeEventListener('keydown', handleKeyDown, true);
+    }, [slashMenu, editor, executeSlashCommand]);
 
     // Listen for crop requests from the image node view
     useEffect(() => {
@@ -671,12 +965,82 @@ const BlogEditor: FC<{ value: string; onChange: (v: string) => void; className?:
         </button>
     );
 
+    // Word count from CharacterCount extension
+    const wordCount = (editor as any)?.storage?.characterCount?.words?.() ?? 0;
+
     return (
-        <div ref={editorWrapperRef} className="border border-gray-300 dark:border-gray-600 rounded-lg relative">
-            {/* Toolbar */}
-            <div className="sticky top-0 z-30 flex flex-wrap items-center gap-0.5 p-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-600 rounded-t-lg" onMouseDown={(e) => { if ((e.target as HTMLElement).tagName !== 'INPUT' && (e.target as HTMLElement).tagName !== 'SELECT') e.preventDefault(); }}>
-                <ToolBtn onClick={() => editor?.chain().focus().undo().run()} title="Undo (Ctrl+Z)" disabled={!editor?.can().undo()}><Undo2 size={16} /></ToolBtn>
-                <ToolBtn onClick={() => editor?.chain().focus().redo().run()} title="Redo (Ctrl+Shift+Z)" disabled={!editor?.can().redo()}><Redo2 size={16} /></ToolBtn>
+        <div ref={editorWrapperRef} className="border border-gray-200 dark:border-gray-700 rounded-xl relative overflow-visible bg-white dark:bg-gray-900">
+
+            {/* ── Floating Bubble Menu (portal – fixed positioning over selection) ── */}
+            {bubblePos && editor && (
+                <div
+                    className="blog-bubble-menu"
+                    style={{ position: 'fixed', top: bubblePos.top, left: bubblePos.left, transform: 'translate(-50%, -100%)', zIndex: 9999, pointerEvents: 'auto' }}
+                    onMouseDown={(e) => e.preventDefault()}
+                >
+                    {/* Undo / Redo */}
+                    <button type="button" className="bb-btn" title="Undo (Ctrl+Z)" onClick={() => editor.chain().focus().undo().run()}><Undo2 size={13} /></button>
+                    <button type="button" className="bb-btn" title="Redo (Ctrl+Y)" onClick={() => editor.chain().focus().redo().run()}><Redo2 size={13} /></button>
+                    <div className="bb-sep" />
+                    {/* Inline marks */}
+                    <button type="button" className={`bb-btn${isBold ? ' active' : ''}`} title="Bold" onClick={() => exec('bold')}><Bold size={13} /></button>
+                    <button type="button" className={`bb-btn${isItalic ? ' active' : ''}`} title="Italic" onClick={() => exec('italic')}><Italic size={13} /></button>
+                    <button type="button" className={`bb-btn${isUnderlineActive ? ' active' : ''}`} title="Underline" onClick={() => exec('underline')}><Underline size={13} /></button>
+                    <button type="button" className={`bb-btn${isStrike ? ' active' : ''}`} title="Strikethrough" onClick={() => exec('strike')}><Strikethrough size={13} /></button>
+                    <button type="button" className={`bb-btn${editor.isActive('code') ? ' active' : ''}`} title="Inline Code" onClick={() => editor.chain().focus().toggleCode().run()}><Code size={13} /></button>
+                    <div className="bb-sep" />
+                    {/* Link */}
+                    <button type="button" className={`bb-btn${isLink ? ' active link-active' : ''}`} title="Link (Ctrl+K)" onClick={openLinkModal}><Link size={13} /></button>
+                    {isLink && <button type="button" className="bb-btn" title="Remove Link" onClick={() => editor.chain().focus().unsetLink().run()}><Unlink size={13} /></button>}
+                    <div className="bb-sep" />
+                    {/* Block type */}
+                    <button type="button" className={`bb-btn${currentHeading === 'h1' ? ' active' : ''}`} title="Heading 1" onClick={() => exec('formatBlock', 'h1')} style={{ fontSize: 11, fontWeight: 700, minWidth: 20 }}>H1</button>
+                    <button type="button" className={`bb-btn${currentHeading === 'h2' ? ' active' : ''}`} title="Heading 2" onClick={() => exec('formatBlock', 'h2')} style={{ fontSize: 11, fontWeight: 700, minWidth: 20 }}>H2</button>
+                    <button type="button" className={`bb-btn${currentHeading === 'h3' ? ' active' : ''}`} title="Heading 3" onClick={() => exec('formatBlock', 'h3')} style={{ fontSize: 11, fontWeight: 700, minWidth: 20 }}>H3</button>
+                    <button type="button" className={`bb-btn${isBlockquote ? ' active' : ''}`} title="Quote" onClick={() => exec('formatBlock', 'blockquote')}><Quote size={13} /></button>
+                    <div className="bb-sep" />
+                    {/* Lists */}
+                    <button type="button" className={`bb-btn${isUL ? ' active' : ''}`} title="Bullet List" onClick={() => exec('insertUnorderedList')}><List size={13} /></button>
+                    <button type="button" className={`bb-btn${isOL ? ' active' : ''}`} title="Numbered List" onClick={() => exec('insertOrderedList')}><ListOrdered size={13} /></button>
+                    <div className="bb-sep" />
+                    {/* Color pickers */}
+                    <label title="Text Color" className="bb-btn" style={{ position: 'relative', cursor: 'pointer' }}>
+                        <Palette size={13} />
+                        <input type="color" value={currentColor} onChange={handleColorChange} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%' }} />
+                    </label>
+                    <label title="Highlight" className="bb-btn" style={{ position: 'relative', cursor: 'pointer' }}>
+                        <Highlighter size={13} />
+                        <input type="color" value={currentHighlight} onChange={handleHighlightChange} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%' }} />
+                    </label>
+                </div>
+            )}
+
+            {/* ── Minimal always-visible bar ── */}
+            <div className="flex items-center justify-between px-3 py-2 bg-gray-50/80 dark:bg-gray-800/60 border-b border-gray-100 dark:border-gray-700/60 rounded-t-xl"
+                onMouseDown={(e) => { if ((e.target as HTMLElement).tagName !== 'INPUT') e.preventDefault(); }}>
+                <div className="flex items-center gap-0.5">
+                    <ToolBtn onClick={() => editor?.chain().focus().undo().run()} title="Undo (Ctrl+Z)" disabled={!editor?.can().undo()}><Undo2 size={14} /></ToolBtn>
+                    <ToolBtn onClick={() => editor?.chain().focus().redo().run()} title="Redo (Ctrl+Y)" disabled={!editor?.can().redo()}><Redo2 size={14} /></ToolBtn>
+                </div>
+                <div className="flex items-center gap-3">
+                    {wordCount > 0 && <span className="text-xs text-gray-400 dark:text-gray-500 tabular-nums">{wordCount} words</span>}
+                    <span className="text-[10px] text-gray-400 dark:text-gray-500 hidden sm:block">Select text for formatting · Type <kbd className="bg-gray-200 dark:bg-gray-700 text-gray-500 rounded px-1">/</kbd> for blocks</span>
+                    <button
+                        type="button"
+                        onClick={() => setIsToolbarVisible(v => !v)}
+                        className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border transition-colors ${isToolbarVisible ? 'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-[#c20c0b]' : 'bg-transparent border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
+                    >
+                        <Type size={12} />
+                        <span>Format</span>
+                        <ChevronDown size={10} className={`transition-transform duration-200 ${isToolbarVisible ? 'rotate-180' : ''}`} />
+                    </button>
+                </div>
+            </div>
+
+            {/* ── Full collapsible toolbar ── */}
+            {isToolbarVisible && (
+            <div className="flex flex-wrap items-center gap-0.5 p-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700"
+                onMouseDown={(e) => { if ((e.target as HTMLElement).tagName !== 'INPUT' && (e.target as HTMLElement).tagName !== 'SELECT') e.preventDefault(); }}>
 
                 <select value={currentFontFamily} onChange={handleFontFamilyChange} className="p-1.5 text-xs rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 focus:ring-0 focus:border-[#c20c0b] outline-none w-32" style={{ fontFamily: currentFontFamily || 'inherit' }}>
                     <option value="">Default</option>
@@ -814,6 +1178,7 @@ const BlogEditor: FC<{ value: string; onChange: (v: string) => void; className?:
                 {isLink && <ToolBtn onClick={() => editor?.chain().focus().unsetLink().run()} title="Remove Link"><Unlink size={16} /></ToolBtn>}
                 <ToolBtn onClick={() => setShowImageModal(true)} title="Insert Image"><ImageIcon size={16} /></ToolBtn>
             </div>
+            )}
 
             {/* TipTap Editor */}
             <div
@@ -822,14 +1187,57 @@ const BlogEditor: FC<{ value: string; onChange: (v: string) => void; className?:
                 onDragLeave={(e) => { if (!editorWrapperRef.current?.contains(e.relatedTarget as Node)) setIsDraggingOver(false); }}
                 className={`relative ${className || ''}`}
             >
-                <EditorContent editor={editor} className={`blog-rich-editor min-h-[300px] p-8 bg-white dark:bg-gray-900 focus:outline-none max-w-none rounded-b-lg`} />
+                <EditorContent editor={editor} className={`blog-rich-editor min-h-[500px] px-10 py-8 bg-white dark:bg-gray-900 rounded-b-xl`} />
                 {isDraggingOver && (
-                    <div className="absolute inset-0 bg-red-500/10 border-4 border-dashed border-red-500/50 rounded-lg flex flex-col items-center justify-center pointer-events-none z-30">
-                        <Upload size={48} className="text-red-500/70 mb-4" />
-                        <p className="font-bold text-red-500/90">Drop images to upload</p>
+                    <div className="absolute inset-0 bg-red-500/10 border-4 border-dashed border-red-500/50 rounded-b-xl flex flex-col items-center justify-center pointer-events-none z-30">
+                        <Upload size={40} className="text-red-500/60 mb-3" />
+                        <p className="font-semibold text-red-500/80 text-sm">Drop images to insert</p>
                     </div>
                 )}
             </div>
+
+            {/* ── Slash Command Menu ── */}
+            {slashMenu && (() => {
+                const items = filterSlashCmds(slashMenu.query);
+                if (items.length === 0) return null;
+                const categories = [...new Set(items.map(i => i.category))];
+                return (
+                    <div
+                        className="slash-menu-outer"
+                        style={{ top: slashMenu.top, left: Math.min(slashMenu.left, (editorWrapperRef.current?.offsetWidth ?? 400) - 270) }}
+                        onMouseDown={(e) => e.preventDefault()}
+                    >
+                        {slashMenu.query === '' && (
+                            <div className="px-3 py-1.5 text-xs text-gray-400 dark:text-gray-500 border-b border-gray-100 dark:border-gray-700/60">
+                                Type to filter blocks…
+                            </div>
+                        )}
+                        {categories.map(cat => (
+                            <div key={cat}>
+                                <div className="slash-category">{cat}</div>
+                                {items.filter(i => i.category === cat).map((cmd) => {
+                                    const flatIdx = items.indexOf(cmd);
+                                    return (
+                                        <button
+                                            key={cmd.id}
+                                            type="button"
+                                            className={`slash-item ${flatIdx === slashMenu.selectedIdx ? 'selected' : ''}`}
+                                            onMouseEnter={() => setSlashMenu(prev => prev ? { ...prev, selectedIdx: flatIdx } : null)}
+                                            onClick={() => executeSlashCommand(cmd)}
+                                        >
+                                            <span className="slash-icon">{cmd.iconText}</span>
+                                            <span>
+                                                <div className="slash-title">{cmd.title}</div>
+                                                <div className="slash-desc">{cmd.desc}</div>
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        ))}
+                    </div>
+                );
+            })()}
 
             {/* Crop Modal */}
             {showCropModal && cropImageSrc && (
@@ -936,48 +1344,106 @@ const BlogBuilder: FC<{
     onClose: () => void;
     isSaving?: boolean;
 }> = ({ item, onChange, onSave, onClose, isSaving }) => {
-    // Load Google Fonts for the editor and preview
+    // Load Google Fonts
     useEffect(() => {
         const link = document.createElement('link');
         link.href = `https://fonts.googleapis.com/css2?family=${GOOGLE_FONTS.join('&family=').replace(/ /g, '+')}&display=swap`;
         link.rel = 'stylesheet';
         document.head.appendChild(link);
-        return () => {
-            document.head.removeChild(link);
-        };
+        return () => { document.head.removeChild(link); };
     }, []);
 
     const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit');
     const [isPanelHidden, setIsPanelHidden] = useState(false);
+    const [autosaveStatus, setAutosaveStatus] = useState<'idle' | 'unsaved' | 'saving' | 'saved'>('idle');
+    const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Word count + reading time from HTML content
+    const wordCount = React.useMemo(() => {
+        if (!item.content) return 0;
+        const text = item.content.replace(/<[^>]*>/g, ' ').replace(/&[^;]+;/g, ' ').replace(/\s+/g, ' ').trim();
+        return text ? text.split(' ').filter((w: string) => w.length > 0).length : 0;
+    }, [item.content]);
+    const readingMins = Math.max(1, Math.ceil(wordCount / 200));
+
+    // Autosave to localStorage on content change
+    useEffect(() => {
+        if (!item.content && autosaveStatus === 'idle') return;
+        setAutosaveStatus('unsaved');
+        if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+        autosaveTimer.current = setTimeout(() => {
+            setAutosaveStatus('saving');
+            try {
+                localStorage.setItem(`blog_draft_${item.id || 'new'}`, JSON.stringify({ ...item, _savedAt: Date.now() }));
+                setAutosaveStatus('saved');
+                setTimeout(() => setAutosaveStatus('idle'), 2500);
+            } catch { setAutosaveStatus('unsaved'); }
+        }, 3000);
+        return () => { if (autosaveTimer.current) clearTimeout(autosaveTimer.current); };
+    }, [item.content]);
 
     const set = (key: string, val: any) => onChange({ ...item, [key]: val });
+
+    const AutosaveIndicator = () => {
+        if (autosaveStatus === 'idle') return null;
+        if (autosaveStatus === 'saving') return (
+            <span className="flex items-center gap-1 text-xs text-gray-400">
+                <div className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" /> Saving draft…
+            </span>
+        );
+        if (autosaveStatus === 'saved') return (
+            <span className="flex items-center gap-1 text-xs text-gray-400">
+                <div className="h-1.5 w-1.5 rounded-full bg-green-400" /> Draft saved
+            </span>
+        );
+        return (
+            <span className="flex items-center gap-1 text-xs text-gray-400">
+                <div className="h-1.5 w-1.5 rounded-full bg-gray-300" /> Unsaved
+            </span>
+        );
+    };
 
     return (
         <>
             <style>{BLOG_STYLES}</style>
-        <div className="fixed inset-0 bg-gray-100 dark:bg-gray-950 z-50 flex flex-col">
+        <div className="fixed inset-0 bg-gray-50 dark:bg-gray-950 z-50 flex flex-col">
             {/* Top Bar */}
-            <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shadow-sm z-20">
-                <div className="flex items-center gap-3">
-                    <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-1"><X size={20} /></button>
-                    <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
-                    <h2 className="font-semibold text-gray-800 dark:text-white text-sm">{item.id ? 'Edit Blog Post' : 'New Blog Post'}</h2>
-                    {item.title && <span className="text-xs text-gray-400 dark:text-gray-500 hidden sm:inline">— {item.title}</span>}
-                </div>
-                <div className="flex items-center gap-3">
-                    <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5">
-                        <button type="button" onClick={() => setViewMode('edit')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${viewMode === 'edit' ? 'bg-white dark:bg-gray-700 shadow-sm text-[#c20c0b]' : 'text-gray-500'}`}>Edit</button>
-                        <button type="button" onClick={() => setViewMode('preview')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${viewMode === 'preview' ? 'bg-white dark:bg-gray-700 shadow-sm text-[#c20c0b]' : 'text-gray-500'}`}>Preview</button>
+            <div className="flex items-center justify-between px-4 py-2.5 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 z-20">
+                {/* Left */}
+                <div className="flex items-center gap-2 min-w-0">
+                    <button onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex-shrink-0">
+                        <X size={18} />
+                    </button>
+                    <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 flex-shrink-0" />
+                    <div className="flex items-center gap-2 min-w-0">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${item.is_published ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'}`}>
+                            {item.is_published ? 'Published' : 'Draft'}
+                        </span>
+                        {item.title && <span className="text-sm text-gray-500 dark:text-gray-400 truncate hidden md:block">{item.title}</span>}
                     </div>
-                    <div className="w-px h-5 bg-gray-300 dark:bg-gray-600" />
-                    <button type="button" onClick={onSave} disabled={isSaving} className="px-5 py-2 text-sm bg-[#c20c0b] text-white rounded-lg hover:bg-[#a50a09] transition-colors shadow-md font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                </div>
+                {/* Center — stats */}
+                <div className="flex items-center gap-4 text-xs text-gray-400 dark:text-gray-500 absolute left-1/2 -translate-x-1/2">
+                    {wordCount > 0 && (
+                        <>
+                            <span className="tabular-nums">{wordCount.toLocaleString()} words</span>
+                            <span className="hidden sm:inline">·</span>
+                            <span className="hidden sm:inline">{readingMins} min read</span>
+                        </>
+                    )}
+                    <AutosaveIndicator />
+                </div>
+                {/* Right */}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5">
+                        <button type="button" onClick={() => setViewMode('edit')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${viewMode === 'edit' ? 'bg-white dark:bg-gray-700 shadow-sm text-[#c20c0b]' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}>Edit</button>
+                        <button type="button" onClick={() => setViewMode('preview')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${viewMode === 'preview' ? 'bg-white dark:bg-gray-700 shadow-sm text-[#c20c0b]' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}>Preview</button>
+                    </div>
+                    <button type="button" onClick={onSave} disabled={isSaving} className="px-4 py-1.5 text-sm bg-[#c20c0b] text-white rounded-lg hover:bg-[#a50a09] transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
                         {isSaving ? (
-                            <>
-                                <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-                                Saving...
-                            </>
+                            <><svg className="animate-spin h-3.5 w-3.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Saving…</>
                         ) : (
-                            item.id ? 'Update & Publish' : 'Publish'
+                            item.id ? 'Publish' : 'Publish'
                         )}
                     </button>
                 </div>
@@ -1009,35 +1475,57 @@ const BlogBuilder: FC<{
                 {/* Main Content Area */}
                 <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950 relative">
                     {viewMode === 'edit' && (
-                        <button onClick={() => setIsPanelHidden(!isPanelHidden)} className="absolute top-4 left-4 z-20 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-[#c20c0b] transition-colors">
-                            {isPanelHidden ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+                        <button onClick={() => setIsPanelHidden(!isPanelHidden)} className="absolute top-4 left-4 z-20 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 text-gray-400 hover:text-[#c20c0b] transition-colors">
+                            {isPanelHidden ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
                         </button>
                     )}
-                    
-                    <div className="max-w-4xl mx-auto min-h-full bg-white dark:bg-gray-900 shadow-xl my-8 rounded-xl">
-                        {viewMode === 'edit' ? (
-                            <BlogEditor value={item.content || ''} onChange={v => set('content', v)} className="min-h-[800px]" />
-                        ) : (
-                            <div className="p-12">
-                                {/* Preview Header */}
-                                <div className="mb-8 text-center">
-                                    {item.category && <span className="text-xs font-bold text-[#c20c0b] uppercase tracking-wider mb-2 block">{item.category}</span>}
-                                    <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4 leading-tight">{item.title || 'Untitled Post'}</h1>
-                                    <div className="flex items-center justify-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                                        <span>By {item.author || 'Unknown'}</span>
-                                        <span>•</span>
-                                        <span>{new Date().toLocaleDateString()}</span>
+
+                    {viewMode === 'edit' ? (
+                        /* ── Edit mode: 720px centered like Medium ── */
+                        <div className="max-w-[760px] mx-auto w-full bg-white dark:bg-gray-900 shadow-sm rounded-xl my-8 border border-gray-100 dark:border-gray-800 overflow-hidden">
+                            {/* Inline title editing above the rich editor */}
+                            <div className="px-10 pt-10 pb-2">
+                                <input
+                                    type="text"
+                                    placeholder="Post title…"
+                                    value={item.title || ''}
+                                    onChange={e => set('title', e.target.value)}
+                                    className="w-full text-3xl font-extrabold text-gray-900 dark:text-white bg-transparent border-none outline-none placeholder-gray-300 dark:placeholder-gray-600 leading-tight"
+                                    style={{ letterSpacing: '-0.02em' }}
+                                />
+                                {(item.author || item.category) && (
+                                    <div className="flex items-center gap-3 mt-3 text-sm text-gray-400">
+                                        {item.category && <span className="font-semibold text-[#c20c0b] text-xs uppercase tracking-wider">{item.category}</span>}
+                                        {item.category && item.author && <span>·</span>}
+                                        {item.author && <span>{item.author}</span>}
+                                    </div>
+                                )}
+                            </div>
+                            <BlogEditor value={item.content || ''} onChange={v => set('content', v)} className="min-h-[600px]" />
+                        </div>
+                    ) : (
+                        /* ── Preview mode ── */
+                        <div className="max-w-[760px] mx-auto w-full bg-white dark:bg-gray-900 shadow-sm rounded-xl my-8 border border-gray-100 dark:border-gray-800">
+                            <div className="px-12 py-12">
+                                <div className="mb-8">
+                                    {item.category && <span className="text-xs font-bold text-[#c20c0b] uppercase tracking-wider mb-3 block">{item.category}</span>}
+                                    <h1 className="text-4xl font-extrabold text-gray-900 dark:text-white mb-4 leading-tight" style={{ letterSpacing: '-0.03em' }}>{item.title || 'Untitled Post'}</h1>
+                                    <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
+                                        {item.author && <span>{item.author}</span>}
+                                        {item.author && <span>·</span>}
+                                        <span>{new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                                        {wordCount > 0 && <><span>·</span><span>{readingMins} min read</span></>}
                                     </div>
                                 </div>
                                 {item.cover_image_url && (
-                                    <div className="mb-10 rounded-2xl overflow-hidden shadow-lg">
-                                        <img src={item.cover_image_url} alt={item.title || ''} className="w-full h-[400px] object-cover" />
+                                    <div className="mb-10 rounded-xl overflow-hidden">
+                                        <img src={item.cover_image_url} alt={item.title || ''} className="w-full h-[360px] object-cover" />
                                     </div>
                                 )}
-                                <div className="blog-rich-editor max-w-none mx-auto" dangerouslySetInnerHTML={{ __html: item.content || '<p class="text-gray-400 italic text-center">Start writing to see content here...</p>' }} />
+                                <div className="blog-rich-editor" dangerouslySetInnerHTML={{ __html: item.content || '<p style="color:#9ca3af;font-style:italic;text-align:center">Start writing to see a preview here…</p>' }} />
                             </div>
-                        )}
-                    </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
@@ -1136,10 +1624,6 @@ const getYouTubeEmbedUrl = (url: string): string | null => {
     return id ? `https://www.youtube.com/embed/${id}?autoplay=1&mute=1&loop=1&playlist=${id}&controls=0&modestbranding=1` : null;
 };
 
-const extractVimeoId = (url: string): string | null => {
-    const m = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
-    return m ? m[1] : null;
-};
 
 // ─── Slide animation options ────────────────────────────────────────
 const SLIDE_ANIMATIONS = [
@@ -2780,15 +3264,6 @@ export const AdminTrendingPage: FC<AdminTrendingPageProps> = (props) => {
             case 'products': return products;
             case 'blogs': return blogs;
             case 'shorts': return shorts;
-        }
-    };
-
-    const setItems = (tab: TabKey, data: any[]) => {
-        switch (tab) {
-            case 'banners': setBanners(data); break;
-            case 'products': setProducts(data); break;
-            case 'blogs': setBlogs(data); break;
-            case 'shorts': setShorts(data); break;
         }
     };
 
