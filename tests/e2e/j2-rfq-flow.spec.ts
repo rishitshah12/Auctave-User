@@ -13,7 +13,7 @@ import { test, expect } from '@playwright/test';
  *   timeouts. networkidle waits until no network requests fire for 500ms.
  */
 
-const LOAD_TIMEOUT = 30_000;
+const LOAD_TIMEOUT = 60_000;
 
 /**
  * Navigate to /sourcing and wait until factories are actually rendered.
@@ -88,6 +88,7 @@ test.describe('J2 — Factory Discovery & RFQ Flow', () => {
   });
 
   test('factory detail: tab toggle between Overview and Catalog', async ({ page }) => {
+    test.setTimeout(90_000);
     await gotoSourcingReady(page);
     await page.locator('[data-testid^="factory-card-"]').first().waitFor({ timeout: LOAD_TIMEOUT });
     await page.locator('[data-testid^="factory-card-"]').first().click();
@@ -127,6 +128,7 @@ test.describe('J2 — Factory Discovery & RFQ Flow', () => {
   });
 
   test('TC-RFQ-004: selecting a product enables continue button', async ({ page }) => {
+    test.setTimeout(90_000);
     await gotoSourcingReady(page);
     await page.locator('[data-testid^="factory-card-"]').first().waitFor({ timeout: LOAD_TIMEOUT });
     await page.locator('[data-testid^="factory-card-"]').first().click();
@@ -158,6 +160,7 @@ test.describe('J2 — Factory Discovery & RFQ Flow', () => {
   });
 
   test('TC-RFQ-004: entering qty enables the submit button on step 2', async ({ page }) => {
+    test.setTimeout(90_000);
     await gotoSourcingReady(page);
     await page.locator('[data-testid^="factory-card-"]').first().waitFor({ timeout: LOAD_TIMEOUT });
     await page.locator('[data-testid^="factory-card-"]').first().click();

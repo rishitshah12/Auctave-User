@@ -317,8 +317,16 @@ export const TeamSettingsPage: FC<Props> = ({ user, showToast, darkMode: _darkMo
     if (!org) {
         return (
             <div className="max-w-3xl mx-auto px-4 py-12 text-center">
-                <AlertCircle size={40} className="mx-auto text-gray-300 dark:text-gray-600 mb-3" />
-                <p className="text-gray-500 dark:text-gray-400">Organization not found. Please refresh or contact support.</p>
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-50 dark:bg-indigo-900/20 mb-4">
+                    <Building2 size={32} className="text-indigo-400" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-2">No Team Yet</h2>
+                <p className="text-gray-500 dark:text-gray-400 max-w-sm mx-auto mb-1">
+                    Your team workspace is created automatically when you send your first invitation.
+                </p>
+                <p className="text-sm text-gray-400 dark:text-gray-500">
+                    Use the <strong>Invite Member</strong> button below to get started.
+                </p>
             </div>
         );
     }

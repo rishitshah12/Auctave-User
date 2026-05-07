@@ -4466,7 +4466,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
             </div>
 
             {/* ── Filter Bar — horizontally scrollable on mobile ──── */}
-            <div className="flex items-center gap-2 mb-4 sm:mb-6 overflow-x-auto pb-1 scrollbar-hide -mx-3 px-3 sm:mx-0 sm:px-0">
+            <div className="flex items-center gap-2 mb-4 sm:mb-6 overflow-x-auto pb-1 scrollbar-hide">
                 {/* Search */}
                 <div className="relative flex-shrink-0">
                     <div className="flex items-center gap-2 bg-white dark:bg-gray-900/40 border border-gray-200 dark:border-white/10 rounded-xl px-3 py-2 shadow-sm hover:border-gray-300 dark:hover:border-white/20 transition-colors">
@@ -4589,7 +4589,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
             </div>
 
             {/* ── Status filter pill tabs — scrollable on mobile ────── */}
-            <div className="flex items-center gap-2 mb-4 sm:mb-6 overflow-x-auto pb-1 scrollbar-hide -mx-3 px-3 sm:mx-0 sm:px-0">
+            <div className="flex items-center gap-2 mb-4 sm:mb-6 overflow-x-auto pb-1 scrollbar-hide">
                 {filterOptions.map(status => (
                     <button
                         key={status}

@@ -31,6 +31,16 @@ export default defineConfig({
     },
     {
       name: 'chromium',
+      // Admin specs (j5-j10) are excluded — they require admin auth and run under the [admin] project.
+      // ui-review.spec.ts is also excluded from regular test runs (it's a separate screenshot audit).
+      testIgnore: [
+        '**/j5-*.spec.ts',
+        '**/j6-*.spec.ts',
+        '**/j7-*.spec.ts',
+        '**/j9-*.spec.ts',
+        '**/j10-*.spec.ts',
+        '**/ui-review.spec.ts',
+      ],
       use: {
         ...devices['Desktop Chrome'],
         storageState: 'tests/fixtures/.auth/user.json',

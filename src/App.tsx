@@ -239,8 +239,21 @@ const AppContent: FC = () => {
     const [user, setUser] = useState<any>(null);
     // State to store the user's extended profile data (name, company, etc.)
     const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-    // State to indicate if the authentication check has completed
-    const [isAuthReady, setIsAuthReady] = useState<boolean>(false);
+    // State to indicate if the authentication check has completed.
+    // Initialized synchronously from localStorage: if no valid session is stored,
+    // we skip the loading spinner entirely and show the login form immediately.
+    const [isAuthReady, setIsAuthReady] = useState<boolean>(() => {
+        try {
+            const raw = localStorage.getItem('sb-nhvbnfpzykdokqcnljth-auth-token');
+            if (!raw) return true; // No session → show login immediately
+            const session = JSON.parse(raw);
+            const expiresAt = session?.expires_at ?? 0;
+            if (expiresAt < Math.floor(Date.now() / 1000)) return true; // Expired → show login
+            return false; // Valid session → wait for Supabase to confirm
+        } catch {
+            return true; // Parse error → show login immediately
+        }
+    });
     // State to show loading indicator when saving profile
     const [isProfileLoading, setIsProfileLoading] = useState<boolean>(false);
     // Active org owner's user ID — set by OrgBridge when the active org changes.
@@ -999,7 +1012,9 @@ const AppContent: FC = () => {
             } catch (error: any) {
                 if (error.name === 'AbortError' || signal.aborted) return;
                 console.error("Error fetching quotes:", error);
-                showToast("Failed to load quotes: " + error.message, "error");
+                // Background fetches never surface raw errors as toasts — JWT expiry,
+                // network hiccups, and RLS denials are all expected and handled silently.
+                // Only user-initiated actions (submit, save, delete) show error toasts.
             }
             
             if (!signal.aborted) setIsQuotesLoading(false);
@@ -1437,6 +1452,17 @@ const AppContent: FC = () => {
     }, [user, isAdmin, addNotification]);
 
     // ── Polling fallback: quote state sync (client, every 45 s) ─────────────
+    // Route guard: redirect non-admin users away from admin pages.
+    // Runs as a side-effect so it never calls setState during render.
+    useEffect(() => {
+        if (!isAuthReady || !user) return;
+        const adminRoutes = ['adminDashboard', 'adminUsers', 'adminFactories', 'adminRFQ',
+            'adminCRM', 'adminTrending', 'adminLoginSettings', 'adminUserAnalytics'];
+        if (!isAdmin && adminRoutes.includes(currentPage)) {
+            handleSetCurrentPage('sourcing');
+        }
+    }, [isAuthReady, user, isAdmin, currentPage]);
+
     // Keeps local quote state fresh when realtime misses events.
     // Notifications are now handled server-side by trg_notify_quote_update.
     useEffect(() => {

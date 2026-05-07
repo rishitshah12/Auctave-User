@@ -445,8 +445,8 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'> & { onOpenNotif
         { label: 'CRM',        shortLabel: 'CRM',       page: 'adminCRM',           icon: <List className="h-[22px] w-[22px]" /> },
         { label: 'RFQ',        shortLabel: 'RFQ',       page: 'adminRFQ',           icon: <FileQuestion className="h-[22px] w-[22px]" /> },
         { label: 'Trending',   shortLabel: 'Trending',  page: 'adminTrending',      icon: <Flame className="h-[22px] w-[22px]" /> },
-        { label: 'Analytics',  shortLabel: 'Analytics', page: 'adminUserAnalytics', icon: <BarChart2 className="h-[22px] w-[22px]" /> },
-        { label: 'Factories',  shortLabel: 'Factories', page: 'adminFactories',     icon: <Building className="h-[22px] w-[22px]" /> },
+        { label: 'Analytics',  shortLabel: 'Stats',     page: 'adminUserAnalytics', icon: <BarChart2 className="h-[22px] w-[22px]" /> },
+        { label: 'Factories',  shortLabel: 'Factory',   page: 'adminFactories',     icon: <Building className="h-[22px] w-[22px]" /> },
         { label: 'Login Imgs', shortLabel: 'Login',     page: 'adminLoginSettings', icon: <ImageIcon className="h-[22px] w-[22px]" /> },
     ];
 

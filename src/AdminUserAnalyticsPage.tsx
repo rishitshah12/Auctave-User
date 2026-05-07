@@ -623,45 +623,49 @@ export const AdminUserAnalyticsPage: FC<AdminUserAnalyticsPageProps> = (props) =
 
   const fetchData = async () => {
     setIsLoading(true);
-    const { days } = DATE_RANGES[dateRangeIdx];
-    let eventsQuery = supabase
-      .from('user_events')
-      .select('*')
-      .order('created_at', { ascending: false });
+    try {
+      const { days } = DATE_RANGES[dateRangeIdx];
+      let eventsQuery = supabase
+        .from('user_events')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    if (days > 0) {
-      const since = new Date(Date.now() - days * 86400000).toISOString();
-      eventsQuery = eventsQuery.gte('created_at', since);
-    }
-
-    const [eventsResult, clientsResult, orgResult] = await Promise.all([
-      eventsQuery.limit(10000),
-      supabase.from('clients').select('id, name, email, company_name, customer_id'),
-      supabase.rpc('admin_get_all_org_memberships'),
-    ]);
-
-    setEvents((eventsResult.data as RawEvent[]) ?? []);
-
-    const clientRows = (clientsResult.data as ClientRow[]) ?? [];
-    setClients(clientRows);
-
-    // Build org member map: invitee userId → { orgName, ownerName }
-    if (orgResult.data) {
-      const clientLookup: Record<string, string> = {};
-      clientRows.forEach(c => { clientLookup[c.id] = c.name || c.email; });
-      const map: Record<string, { orgName: string; ownerName: string }> = {};
-      for (const row of orgResult.data as any[]) {
-        if (row.member_user_id !== row.owner_id) {
-          map[row.member_user_id] = {
-            orgName: row.org_name,
-            ownerName: clientLookup[row.owner_id] || 'Org owner',
-          };
-        }
+      if (days > 0) {
+        const since = new Date(Date.now() - days * 86400000).toISOString();
+        eventsQuery = eventsQuery.gte('created_at', since);
       }
-      setOrgMemberMap(map);
-    }
 
-    setIsLoading(false);
+      const [eventsResult, clientsResult, orgResult] = await Promise.all([
+        eventsQuery.limit(10000),
+        supabase.from('clients').select('id, name, email, company_name, customer_id'),
+        supabase.rpc('admin_get_all_org_memberships'),
+      ]);
+
+      setEvents((eventsResult.data as RawEvent[]) ?? []);
+
+      const clientRows = (clientsResult.data as ClientRow[]) ?? [];
+      setClients(clientRows);
+
+      // Build org member map: invitee userId → { orgName, ownerName }
+      if (orgResult.data) {
+        const clientLookup: Record<string, string> = {};
+        clientRows.forEach(c => { clientLookup[c.id] = c.name || c.email; });
+        const map: Record<string, { orgName: string; ownerName: string }> = {};
+        for (const row of orgResult.data as any[]) {
+          if (row.member_user_id !== row.owner_id) {
+            map[row.member_user_id] = {
+              orgName: row.org_name,
+              ownerName: clientLookup[row.owner_id] || 'Org owner',
+            };
+          }
+        }
+        setOrgMemberMap(map);
+      }
+    } catch (err) {
+      console.error('[Analytics] fetchData error:', err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => { fetchData(); }, [dateRangeIdx]);
