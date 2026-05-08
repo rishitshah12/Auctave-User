@@ -1,6 +1,6 @@
 // Import React library and hooks for state management (useState), side effects (useEffect), references (useRef), memoization (useMemo), and types (FC, ReactNode)
 import React, { useState, useEffect, useRef, useMemo, FC, ReactNode, useCallback, Suspense, lazy } from 'react';
-import { useNavigate, useLocation, Navigate, Routes, Route } from 'react-router-dom';
+import { useNavigate, Navigate, Routes, Route } from 'react-router-dom';
 import { ROUTE_MAP, PageName } from './routes/config';
 import { ProtectedRoute } from './routes/ProtectedRoute';
 import { createPortal } from 'react-dom';
@@ -228,7 +228,6 @@ const AppContent: FC = () => {
     const { addNotification } = useNotifications();
     // React Router — replaces manual window.history.pushState calls
     const navigate = useNavigate();
-    const location = useLocation();
 
     // --- State Management ---
 
@@ -270,6 +269,9 @@ const AppContent: FC = () => {
     const [isNewUserSignup, setIsNewUserSignup] = useState<boolean>(false);
     // State to store authentication error messages
     const [authError, setAuthError] = useState<string>('');
+    // True while a login form submission is in-flight. Shows the preloader instead
+    // of the login page so the user sees progress rather than a frozen form.
+    const [isAuthenticating, setIsAuthenticating] = useState(false);
     // State to manage the visibility of the mobile menu
     const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
     // State to manage if the sidebar is collapsed or expanded
@@ -351,15 +353,18 @@ const AppContent: FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentPage]);
 
-    // Sync currentPage when the user navigates with browser back/forward.
-    // React Router updates location whenever the URL changes; we mirror that into currentPage state.
+    // Sync currentPage when the user navigates with browser back/forward buttons.
+    // Using popstate instead of useLocation() so AppContent does NOT re-render on
+    // every programmatic navigate() call — that was causing all inner page components
+    // (closures with new references each render) to remount and flicker.
     useEffect(() => {
-        const pageFromPath = PATH_TO_PAGE[location.pathname];
-        if (pageFromPath && pageFromPath !== currentPage) {
-            setCurrentPage(pageFromPath);
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [location.pathname]);
+        const handlePopState = () => {
+            const pageFromPath = PATH_TO_PAGE[window.location.pathname];
+            if (pageFromPath) setCurrentPage(pageFromPath);
+        };
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, []);
 
     // Init / teardown the notification service whenever the auth state changes.
     // This drives cross-device real-time sync and browser push notifications.
@@ -624,9 +629,16 @@ const AppContent: FC = () => {
             setIsAuthReady(true);
         }, 5000);
 
+        // Tracks whether a navigation decision has already been made in this effect
+        // mount. In React StrictMode the effect runs twice; without this guard both
+        // the SIGNED_IN callback (first mount) and the INITIAL_SESSION callback
+        // (second mount) call setCurrentPage, causing back-to-back navigations.
+        let navigationHandled = false;
+
         // Subscribe to Supabase auth changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
             setAuthCallbackFired(true);
+            if (session?.user) setIsAuthenticating(false); // clear login-in-progress overlay
             try {
                 // Update user state
                 setUser(session?.user ?? null);
@@ -883,13 +895,15 @@ const AppContent: FC = () => {
                         });
 
                         if (redirectRoute) {
-                            console.log(`Redirecting to ${redirectRoute} for onboarding`);
-                            setCurrentPage(redirectRoute);
-                            // Write to localStorage so the safety setTimeout doesn't override this redirect
-                            localStorage.setItem('garment_erp_last_page', redirectRoute);
-                        } else {
+                            if (!navigationHandled) {
+                                navigationHandled = true;
+                                console.log(`Redirecting to ${redirectRoute} for onboarding`);
+                                setCurrentPage(redirectRoute);
+                                localStorage.setItem('garment_erp_last_page', redirectRoute);
+                            }
+                        } else if (!navigationHandled) {
+                            navigationHandled = true;
                             if (event === 'INITIAL_SESSION') {
-                                // Existing session (page load / new tab) — honour the URL so each tab is independent
                                 const pageFromUrl = PATH_TO_PAGE[window.location.pathname];
                                 const targetPage = (pageFromUrl && pageFromUrl !== 'login')
                                     ? pageFromUrl
@@ -897,7 +911,6 @@ const AppContent: FC = () => {
                                 console.log(`INITIAL_SESSION: navigating to ${targetPage}`);
                                 setCurrentPage(targetPage);
                             } else if (event === 'SIGNED_IN') {
-                                // Fresh login — restore last visited page from localStorage
                                 const lastPage = localStorage.getItem('garment_erp_last_page');
                                 const targetPage = (lastPage && lastPage !== 'login')
                                     ? lastPage
@@ -906,8 +919,8 @@ const AppContent: FC = () => {
                                 setCurrentPage(targetPage);
                             }
                         }
-                    } else if (profileFetchFailed && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN')) {
-                        // Profile fetch failed but user is authenticated — keep them logged in
+                    } else if (profileFetchFailed && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') && !navigationHandled) {
+                        navigationHandled = true;
                         if (event === 'INITIAL_SESSION') {
                             const pageFromUrl = PATH_TO_PAGE[window.location.pathname];
                             const targetPage = (pageFromUrl && pageFromUrl !== 'login')
@@ -934,7 +947,11 @@ const AppContent: FC = () => {
                             const { data: { session: liveSession } } = await supabase.auth.getSession();
                             if (!liveSession?.user) return; // User has since signed out — abort redirect
                             const currentUrlPage = PATH_TO_PAGE[window.location.pathname];
-                            if (!currentUrlPage || currentUrlPage === 'login') {
+                            // Dynamic routes like /quote/:id are not in PATH_TO_PAGE — don't
+                            // treat them as "stuck on login".
+                            const isKnownNonLoginPage = currentUrlPage && currentUrlPage !== 'login';
+                            const isDynamicRoute = !currentUrlPage && window.location.pathname !== '/' && window.location.pathname !== '/login';
+                            if (!isKnownNonLoginPage && !isDynamicRoute) {
                                 console.warn('Still on login page after auth - forcing redirect');
                                 const liveIsAdmin = liveSession.user.email?.toLowerCase().endsWith('@auctaveexports.com') ?? false;
                                 const forcedPage = liveIsAdmin ? 'adminDashboard' : 'sourcing';
@@ -4258,7 +4275,7 @@ User message: "${userMsg}"`;
         // isAuthReady alone is not sufficient: the 5s safety timer can set it true before
         // onAuthStateChange runs, which would cause the route guard below to fire a
         // <Navigate to="/login"> for a legitimately signed-in user (safety-timer race).
-        if (!isAuthReady || !authCallbackFired) {
+        if (!isAuthReady || !authCallbackFired || isAuthenticating) {
             return <KnittingPreloader fullScreen />;
         }
 
@@ -4287,7 +4304,7 @@ User message: "${userMsg}"`;
         // Switch statement to compute the appropriate page component
         let pageContent: React.ReactNode;
         switch (currentPage) {
-            case 'login': pageContent = <LoginPage showToast={showToast} setAuthError={setAuthError} authError={authError} />; break;
+            case 'login': pageContent = <LoginPage showToast={showToast} setAuthError={setAuthError} authError={authError} onAuthStart={() => setIsAuthenticating(true)} onAuthError={() => setIsAuthenticating(false)} />; break;
             // 'profile' is now handled by <Route path="/profile"> — see render below
             case 'createPassword': pageContent = <CreatePasswordPage />; break;
             case 'sourcing': pageContent = <SourcingPage

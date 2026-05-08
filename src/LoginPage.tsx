@@ -12,6 +12,8 @@ interface LoginPageProps {
     setAuthError: (error: string) => void;
     authError: string;
     onLoginSuccess?: (session?: any) => void | Promise<void>;
+    onAuthStart?: () => void;   // called when a credential submission begins
+    onAuthError?: () => void;   // called if that submission fails
 }
 
 const GoogleIcon = () => (
@@ -224,7 +226,7 @@ const GlobeViz: React.FC = () => {
     );
 };
 
-export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, authError, onLoginSuccess }) => {
+export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, authError, onLoginSuccess, onAuthStart, onAuthError }) => {
     const [loginType, setLoginType] = useState<'user' | 'admin'>('user');
     const [adminMode, setAdminMode] = useState<'signin' | 'signup'>('signin');
     const [method, setMethod] = useState<'email' | 'phone'>('email');

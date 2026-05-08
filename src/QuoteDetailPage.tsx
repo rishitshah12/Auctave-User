@@ -709,6 +709,68 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         }
     };
 
+    // ── Hooks that reference quote data must live BEFORE any early return ──────
+    // Moving them here avoids React error #310 ("rendered more hooks than previous
+    // render") which fires when quote transitions from null → non-null.
+    const negotiationHistory = React.useMemo(() => {
+        if (!quote) return [];
+        if (quote.negotiation_details?.history && quote.negotiation_details.history.length > 0) {
+            return quote.negotiation_details.history;
+        }
+        const history: any[] = [];
+        if (quote.response_details && (quote.status === 'Responded' || quote.status === 'Accepted' || quote.status === 'Declined' || quote.status === 'In Negotiation' || quote.status === 'Admin Accepted' || quote.status === 'Client Accepted')) {
+            history.push({
+                id: 'initial-response',
+                sender: 'factory',
+                timestamp: quote.response_details.respondedAt || quote.submittedAt,
+                type: 'counter',
+                response_details: quote.response_details,
+            });
+        }
+        return history;
+    }, [quote]);
+
+    const unreadChatCount = useMemo(() => {
+        if (!quote?.negotiation_details?.history) return 0;
+        const dbLastRead = quote.negotiation_details.clientLastRead || '';
+        const effectiveLastRead = dbLastRead > lastReadTime ? dbLastRead : lastReadTime;
+        return quote.negotiation_details.history.filter(
+            h => h.sender === 'factory' && h.timestamp > effectiveLastRead
+        ).length;
+    }, [quote, lastReadTime]);
+
+    const productConversations = useMemo(() => {
+        if (!quote?.order?.lineItems) return [];
+        return quote.order.lineItems.map(item => ({
+            item,
+            messages: getLineItemHistory(item.id),
+            hasUnread: getLineItemHistory(item.id).some(h => h.sender === 'factory')
+        }));
+    }, [quote]);
+
+    // Auto-scroll chat to bottom when messages change
+    useEffect(() => {
+        if (chatMessagesEndRef.current && isChatPanelOpen) {
+            chatMessagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [quote?.negotiation_details?.history, isChatPanelOpen, activeChatItemId]);
+
+    // Close chat panel when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (chatPanelRef.current && !chatPanelRef.current.contains(event.target as Node)) {
+                const floatingBtn = document.getElementById('floating-chat-btn');
+                if (floatingBtn && floatingBtn.contains(event.target as Node)) return;
+                setIsChatPanelOpen(false);
+            }
+        };
+        if (isChatPanelOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [isChatPanelOpen]);
+    // ── End pre-return hooks ──────────────────────────────────────────────────
+
     if (!quote) {
         return (
             <MainLayout {...layoutProps}>
@@ -1228,70 +1290,6 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
             }))
             .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
     };
-
-    const negotiationHistory = React.useMemo(() => {
-        if (quote.negotiation_details?.history && quote.negotiation_details.history.length > 0) {
-            return quote.negotiation_details.history;
-        }
-
-        const history: any[] = [];
-        // If we have response details but no history array, treat it as the first history item
-        if (quote.response_details && (quote.status === 'Responded' || quote.status === 'Accepted' || quote.status === 'Declined' || quote.status === 'In Negotiation' || quote.status === 'Admin Accepted' || quote.status === 'Client Accepted')) {
-             history.push({
-                id: 'initial-response',
-                sender: 'factory',
-                message: quote.response_details.notes,
-                price: quote.response_details.price,
-                timestamp: quote.response_details.respondedAt || quote.submittedAt,
-                action: 'offer'
-            });
-        }
-        return history;
-    }, [quote]);
-
-    // Unread = factory messages newer than last read timestamp
-    // Prefer DB value (clientLastRead) for cross-device accuracy, fall back to localStorage
-    const unreadChatCount = useMemo(() => {
-        if (!quote?.negotiation_details?.history) return 0;
-        const dbLastRead = quote.negotiation_details.clientLastRead || '';
-        const effectiveLastRead = dbLastRead > lastReadTime ? dbLastRead : lastReadTime;
-        return quote.negotiation_details.history.filter(
-            h => h.sender === 'factory' && h.timestamp > effectiveLastRead
-        ).length;
-    }, [quote, lastReadTime]);
-
-    // Get all conversations grouped by product
-    const productConversations = useMemo(() => {
-        if (!quote?.order?.lineItems) return [];
-        return quote.order.lineItems.map(item => ({
-            item,
-            messages: getLineItemHistory(item.id),
-            hasUnread: getLineItemHistory(item.id).some(h => h.sender === 'factory')
-        }));
-    }, [quote]);
-
-    // Auto-scroll chat to bottom when messages change
-    useEffect(() => {
-        if (chatMessagesEndRef.current && isChatPanelOpen) {
-            chatMessagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-        }
-    }, [quote?.negotiation_details?.history, isChatPanelOpen, activeChatItemId]);
-
-    // Close chat panel when clicking outside
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (chatPanelRef.current && !chatPanelRef.current.contains(event.target as Node)) {
-                // Check if click is on the floating button
-                const floatingBtn = document.getElementById('floating-chat-btn');
-                if (floatingBtn && floatingBtn.contains(event.target as Node)) return;
-                setIsChatPanelOpen(false);
-            }
-        };
-        if (isChatPanelOpen) {
-            document.addEventListener('mousedown', handleClickOutside);
-        }
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [isChatPanelOpen]);
 
     const markChatRead = () => {
         if (!quote) return;
