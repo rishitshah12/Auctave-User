@@ -284,7 +284,10 @@ const AppContent: FC = () => {
     // True once the onAuthStateChange callback fires at least once.
     // Guards against the safety-timer race: the 5s timer can set isAuthReady=true
     // before Supabase confirms the session, leaving user=null for a signed-in user.
-    const authCallbackFiredRef = useRef(false);
+    // Must be STATE (not a ref) so that flipping it triggers a re-render — otherwise
+    // the render gate never re-evaluates when there is no stored session and no other
+    // state changes when the INITIAL_SESSION event fires.
+    const [authCallbackFired, setAuthCallbackFired] = useState(false);
     const [myQuotesFilter, setMyQuotesFilter] = useState<string>('All');
     // AI chat state persisted at AppContent level so it survives remounts caused by parent re-renders
     const [aiMessages, setAiMessages] = useState<AIChatMessage[]>([
@@ -605,17 +608,17 @@ const AppContent: FC = () => {
     // Effect to handle authentication state changes
     useEffect(() => {
         // Safety timeout to prevent infinite loading if auth callback hangs.
-        // Must set authCallbackFiredRef too — the render gate requires both; if
+        // Must set authCallbackFired (state) too — the render gate requires both; if
         // onAuthStateChange never fires (network issue / StrictMode double-mount),
         // the spinner would otherwise hang forever.
         const safetyTimer = setTimeout(() => {
-            authCallbackFiredRef.current = true;
+            setAuthCallbackFired(true);
             setIsAuthReady(true);
         }, 5000);
 
         // Subscribe to Supabase auth changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-            authCallbackFiredRef.current = true;
+            setAuthCallbackFired(true);
             try {
                 // Update user state
                 setUser(session?.user ?? null);
@@ -4241,7 +4244,7 @@ User message: "${userMsg}"`;
         // isAuthReady alone is not sufficient: the 5s safety timer can set it true before
         // onAuthStateChange runs, which would cause the route guard below to fire a
         // <Navigate to="/login"> for a legitimately signed-in user (safety-timer race).
-        if (!isAuthReady || !authCallbackFiredRef.current) {
+        if (!isAuthReady || !authCallbackFired) {
             return <KnittingPreloader fullScreen />;
         }
 
@@ -4621,25 +4624,25 @@ User message: "${userMsg}"`;
                 <Routes>
                     {/* ── Migrated pages: proper <Route> with ProtectedRoute guard ── */}
                     <Route path="/settings" element={
-                        <ProtectedRoute isAuthReady={isAuthReady && authCallbackFiredRef.current} user={user}>
+                        <ProtectedRoute isAuthReady={isAuthReady && authCallbackFired} user={user}>
                             <SettingsPage />
                         </ProtectedRoute>
                     } />
 
                     <Route path="/billing" element={
-                        <ProtectedRoute isAuthReady={isAuthReady && authCallbackFiredRef.current} user={user}>
+                        <ProtectedRoute isAuthReady={isAuthReady && authCallbackFired} user={user}>
                             <BillingPage />
                         </ProtectedRoute>
                     } />
 
                     <Route path="/tracking" element={
-                        <ProtectedRoute isAuthReady={isAuthReady && authCallbackFiredRef.current} user={user}>
+                        <ProtectedRoute isAuthReady={isAuthReady && authCallbackFired} user={user}>
                             <OrderTrackingPage />
                         </ProtectedRoute>
                     } />
 
                     <Route path="/profile" element={
-                        <ProtectedRoute isAuthReady={isAuthReady && authCallbackFiredRef.current} user={user}>
+                        <ProtectedRoute isAuthReady={isAuthReady && authCallbackFired} user={user}>
                             {(userProfile || !isNewUserSignup)
                                 ? <ProfilePage />
                                 : <OnboardingPage user={user} onComplete={saveUserProfile} isLoading={isProfileLoading} onThemeChange={setDarkMode} onBeforeComplete={(data) => { setHelloSplash(data); setTimeout(() => setHelloSplash(null), 3000); }} />
@@ -4654,7 +4657,7 @@ User message: "${userMsg}"`;
 
                     {/* ── Direct URL access: /quote/:id ── */}
                     <Route path="/quote/:id" element={
-                        <ProtectedRoute isAuthReady={isAuthReady && authCallbackFiredRef.current} user={user}>
+                        <ProtectedRoute isAuthReady={isAuthReady && authCallbackFired} user={user}>
                             <QuoteDetailPage
                                 selectedQuote={null}
                                 handleSetCurrentPage={handleSetCurrentPage}
