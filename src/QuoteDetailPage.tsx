@@ -526,7 +526,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         };
 
         fetchFreshQuoteData();
-    }, [initialQuote]);
+    }, [initialQuote, effectiveQuoteId]);
 
     // ── Realtime chat subscription ────────────────────────────────────────────
     useEffect(() => {

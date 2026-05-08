@@ -604,8 +604,14 @@ const AppContent: FC = () => {
 
     // Effect to handle authentication state changes
     useEffect(() => {
-        // Safety timeout to prevent infinite loading if auth callback hangs
-        const safetyTimer = setTimeout(() => setIsAuthReady(true), 5000);
+        // Safety timeout to prevent infinite loading if auth callback hangs.
+        // Must set authCallbackFiredRef too — the render gate requires both; if
+        // onAuthStateChange never fires (network issue / StrictMode double-mount),
+        // the spinner would otherwise hang forever.
+        const safetyTimer = setTimeout(() => {
+            authCallbackFiredRef.current = true;
+            setIsAuthReady(true);
+        }, 5000);
 
         // Subscribe to Supabase auth changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
