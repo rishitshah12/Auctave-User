@@ -29,9 +29,10 @@ import confetti from 'canvas-confetti';
 import { formatFriendlyDate, getStatusColor, getStatusGradient } from './utils';
 import { useToast } from './ToastContext';
 import { useOrgPermissions } from './OrgContext';
+import { useParams } from 'react-router-dom';
 
 interface QuoteDetailPageProps {
-    selectedQuote: QuoteRequest | null;
+    selectedQuote?: QuoteRequest | null;
     handleSetCurrentPage: (page: string, data?: any) => void;
     updateQuoteStatus: (id: string, status: string, additionalData?: any) => void;
     createCrmOrder: (quote: QuoteRequest) => void;
@@ -299,8 +300,13 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
 }) => {
     const { can } = useOrgPermissions();
     const canEdit = can('sourcing', 'edit');
+    // Dual-mode ID resolution: route param takes precedence over legacy prop.
+    // In the legacy handleSetCurrentPage flow, routeId is undefined and
+    // effectiveQuoteId === initialQuote?.id — zero behaviour change.
+    const { id: routeId } = useParams<{ id: string }>();
+    const effectiveQuoteId = routeId ?? initialQuote?.id;
     // Use local state for the quote so we can refresh it if needed
-    const [quote, setQuote] = useState<QuoteRequest | null>(initialQuote);
+    const [quote, setQuote] = useState<QuoteRequest | null>(initialQuote ?? null);
     const [isNegotiationModalOpen, setIsNegotiationModalOpen] = useState(false);
     const [isExecutionPlanModalOpen, setIsExecutionPlanModalOpen] = useState(false);
     const [negotiatingItem, setNegotiatingItem] = useState<any | null>(null);
@@ -343,7 +349,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
     // ── Unread chat tracking (factory messages the client hasn't seen) ─────────
     const CHAT_READ_KEY = `chat_read_${quote?.id || ''}`;
     const [lastReadTime, setLastReadTime] = useState<string>(() => {
-        try { return localStorage.getItem(`chat_read_${initialQuote?.id}`) || ''; } catch { return ''; }
+        try { return localStorage.getItem(`chat_read_${effectiveQuoteId}`) || ''; } catch { return ''; }
     });
 
     const toggleExpand = (index: number) => {
@@ -491,22 +497,22 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
 
     useEffect(() => {
         const fetchFreshQuoteData = async () => {
-            if (!initialQuote?.id) {
-                setQuote(initialQuote);
+            if (!effectiveQuoteId) {
+                setQuote(initialQuote ?? null);
                 return;
             }
 
             // If files are already present, no need to fetch
-            if (initialQuote.files && initialQuote.files.length > 0) {
-                setQuote(initialQuote);
+            if (initialQuote?.files && initialQuote.files.length > 0) {
+                setQuote(initialQuote); // TypeScript narrows initialQuote to non-undefined here
                 return;
             }
 
             try {
-                const { data, error } = await quoteService.getQuoteById(initialQuote.id);
+                const { data, error } = await quoteService.getQuoteById(effectiveQuoteId);
                 if (error) {
                     console.error('[QuoteDetailPage] Error fetching quote:', error);
-                    setQuote(initialQuote); // Fallback to initial data on error
+                    setQuote(initialQuote ?? null); // Fallback to initial data on error
                     return;
                 }
                 if (data) {
@@ -515,7 +521,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                 }
             } catch (err) {
                 console.error('[QuoteDetailPage] Exception fetching quote:', err);
-                setQuote(initialQuote); // Fallback on exception
+                setQuote(initialQuote ?? null); // Fallback on exception
             }
         };
 
@@ -524,7 +530,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
 
     // ── Realtime chat subscription ────────────────────────────────────────────
     useEffect(() => {
-        const quoteId = initialQuote?.id;
+        const quoteId = effectiveQuoteId;
         if (!quoteId) return;
 
         const channel = layoutProps.supabase
@@ -557,7 +563,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
             .subscribe();
 
         return () => { layoutProps.supabase.removeChannel(channel); };
-    }, [initialQuote?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [effectiveQuoteId]); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
         if (quote) {

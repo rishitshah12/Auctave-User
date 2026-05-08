@@ -1,5 +1,8 @@
 // Import React library and hooks for state management (useState), side effects (useEffect), references (useRef), memoization (useMemo), and types (FC, ReactNode)
 import React, { useState, useEffect, useRef, useMemo, FC, ReactNode, useCallback, Suspense, lazy } from 'react';
+import { useNavigate, useLocation, Navigate, Routes, Route } from 'react-router-dom';
+import { ROUTE_MAP, PageName } from './routes/config';
+import { ProtectedRoute } from './routes/ProtectedRoute';
 import { createPortal } from 'react-dom';
 import { KnittingPreloader } from './KnittingPreloader';
 // Import the configured Supabase client for backend database and auth interactions
@@ -56,6 +59,7 @@ import { OrgProvider, useOrg, useOrgPermissions } from './OrgContext';
 import { TeamSettingsPage } from './TeamSettingsPage';
 import { notificationService } from './notificationService';
 import { getCache, setCache, getCacheStale, TTL_FACTORIES, TTL_FACTORY_DETAIL } from './sessionCache';
+import { transformRawQuote } from './services/quoteMapper';
 
 // ─── Image resize helper ──────────────────────────────────────────────────────
 function resizeImage(file: File, maxPx = 240): Promise<string> {
@@ -169,7 +173,6 @@ const PAGE_TO_PATH: Record<string, string> = {
     factoryCatalog: '/factory/catalog',
     factoryTools: '/factory/tools',
     factorySuggestions: '/factories',
-    quoteDetail: '/quote',
     quoteRequest: '/quote/new',
     trending: '/trending',
     settings: '/settings',
@@ -206,7 +209,6 @@ const PAGE_SEO: Record<string, { title: string; description?: string }> = {
     billing: { title: 'Billing | Garment ERP' },
     profile: { title: 'Profile | Garment ERP' },
     teamSettings: { title: 'Team | Garment ERP' },
-    quoteDetail: { title: 'Quote Detail | Garment ERP' },
     adminDashboard: { title: 'Dashboard | Admin — Garment ERP' },
     adminUsers: { title: 'Users | Admin — Garment ERP' },
     adminFactories: { title: 'Factories | Admin — Garment ERP' },
@@ -224,6 +226,9 @@ const AppContent: FC = () => {
     const { showToast } = useToast();
     // Access addNotification from context
     const { addNotification } = useNotifications();
+    // React Router — replaces manual window.history.pushState calls
+    const navigate = useNavigate();
+    const location = useLocation();
 
     // --- State Management ---
 
@@ -276,6 +281,10 @@ const AppContent: FC = () => {
     // State to track global loading requests (counter handles concurrent fetches)
     const [loadingCount, setLoadingCount] = useState<number>(0);
     const quotesAbortController = useRef<AbortController | null>(null);
+    // True once the onAuthStateChange callback fires at least once.
+    // Guards against the safety-timer race: the 5s timer can set isAuthReady=true
+    // before Supabase confirms the session, leaving user=null for a signed-in user.
+    const authCallbackFiredRef = useRef(false);
     const [myQuotesFilter, setMyQuotesFilter] = useState<string>('All');
     // AI chat state persisted at AppContent level so it survives remounts caused by parent re-renders
     const [aiMessages, setAiMessages] = useState<AIChatMessage[]>([
@@ -327,13 +336,27 @@ const AppContent: FC = () => {
         const path = PAGE_TO_PATH[currentPage];
         // Never overwrite OAuth callback params — Supabase needs ?code= or #access_token= to exchange for a session
         const hasAuthParams = window.location.search.includes('code=') || window.location.hash.includes('access_token=');
-        if (path && window.location.pathname !== path && !hasAuthParams) {
-            window.history.pushState(null, '', path);
+        // Only sync URL when the current pathname is a known static path.
+        // Dynamic routes like /quote/:id are not in PATH_TO_PAGE — skipping prevents
+        // this effect from clobbering them when currentPage resolves to a stale value.
+        const currentPathIsStatic = !!PATH_TO_PAGE[window.location.pathname];
+        if (path && window.location.pathname !== path && !hasAuthParams && currentPathIsStatic) {
+            navigate(path);
         }
         const seo = PAGE_SEO[currentPage];
         if (seo) document.title = seo.title;
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentPage]);
+
+    // Sync currentPage when the user navigates with browser back/forward.
+    // React Router updates location whenever the URL changes; we mirror that into currentPage state.
+    useEffect(() => {
+        const pageFromPath = PATH_TO_PAGE[location.pathname];
+        if (pageFromPath && pageFromPath !== currentPage) {
+            setCurrentPage(pageFromPath);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [location.pathname]);
 
     // Init / teardown the notification service whenever the auth state changes.
     // This drives cross-device real-time sync and browser push notifications.
@@ -426,7 +449,6 @@ const AppContent: FC = () => {
         return cached ? JSON.parse(cached) : [];
     });
     // State to store the currently selected quote for viewing details
-    const [selectedQuote, setSelectedQuote] = useState<QuoteRequest | null>(null);
     // State for pre-populating OrderFormPage when navigating from a factory catalog
     const [orderFormInitialLineItems, setOrderFormInitialLineItems] = useState<LineItem[] | undefined>(undefined);
     const [orderFormPreFactory, setOrderFormPreFactory] = useState<{ id: string; name: string; imageUrl: string; location: string } | null>(null);
@@ -504,23 +526,7 @@ const AppContent: FC = () => {
         if (page === 'quoteRequest' || page === 'factoryDetail' || page === 'factoryCatalog') {
             setSelectedFactory(data as Factory);
         }
-        if (page === 'quoteDetail') {
-            if (data && typeof data === 'object' && data.id && !data.status) {
-                // Notification action passes only { id } — look up full quote from cache first
-                const found = quoteRequests.find((q: QuoteRequest) => q.id === data.id) ?? null;
-                if (found) {
-                    setSelectedQuote(found);
-                } else {
-                    // Not cached yet — set a stub so QuoteDetailPage can re-fetch by ID
-                    setSelectedQuote({ id: data.id } as QuoteRequest);
-                    quoteService.getQuoteById(data.id).then(({ data: raw }) => {
-                        if (raw) setSelectedQuote(transformRawQuote(raw));
-                    });
-                }
-            } else {
-                setSelectedQuote(data as QuoteRequest);
-            }
-        }
+
         if (page === 'adminRFQ' && (data?.quoteId || data?.rfqId)) {
             setAdminRFQInitialId(data.quoteId ?? data.rfqId);
         } else if (page === 'adminRFQ' && !data?.quoteId && !data?.rfqId) {
@@ -603,6 +609,7 @@ const AppContent: FC = () => {
 
         // Subscribe to Supabase auth changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+            authCallbackFiredRef.current = true;
             try {
                 // Update user state
                 setUser(session?.user ?? null);
@@ -977,20 +984,7 @@ const AppContent: FC = () => {
 
                 if (data && !signal.aborted) {
                     console.log('[App.tsx] Raw quotes from DB:', data.map((q: any) => ({ id: q.id, files: q.files })));
-                    const transformedQuotes: QuoteRequest[] = data.map((q: any) => ({
-                        id: q.id,
-                        factory: q.factory_data,
-                        order: q.order_details,
-                        status: q.status,
-                        submittedAt: q.created_at,
-                        acceptedAt: q.accepted_at || q.response_details?.acceptedAt,
-                        userId: q.user_id,
-                        files: q.files || [],
-                        response_details: q.response_details,
-                        negotiation_details: q.negotiation_details,
-                        modification_count: q.modification_count || 0,
-                        modified_at: q.modified_at
-                    }));
+                    const transformedQuotes: QuoteRequest[] = data.map(transformRawQuote);
                     console.log('[App.tsx] Transformed quotes files:', transformedQuotes.map(q => ({ id: q.id, files: q.files })));
                     setQuoteRequests(transformedQuotes);
                     sessionStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify(transformedQuotes));
@@ -1030,20 +1024,7 @@ const AppContent: FC = () => {
     }, [quoteRequests]);
 
     // Helper: transform a raw DB row into a QuoteRequest object
-    const transformRawQuote = (q: any): QuoteRequest => ({
-        id: q.id,
-        factory: q.factory_data,
-        order: q.order_details,
-        status: q.status,
-        submittedAt: q.created_at,
-        acceptedAt: q.accepted_at || q.response_details?.acceptedAt,
-        userId: q.user_id,
-        files: q.files || [],
-        response_details: q.response_details,
-        negotiation_details: q.negotiation_details,
-        modification_count: q.modification_count || 0,
-        modified_at: q.modified_at,
-    });
+    // transformRawQuote is now imported from ./services/quoteMapper
 
     // Helper: build a short meta string for the quoted price
     const buildQuoteMeta = (responseDetails: any): string | undefined => {
@@ -1152,7 +1133,6 @@ const AppContent: FC = () => {
                     sessionStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify(next));
                     return next;
                 });
-                setSelectedQuote(prev => (prev?.id === tq.id ? tq : prev));
 
                 // Client-side notification fallback (guards against server trigger not running)
                 // Only fire when status changes to an actionable state
@@ -1208,8 +1188,18 @@ const AppContent: FC = () => {
             const { data } = await quoteService.getQuotesByUser(activeOrgOwnerId ?? user.id);
             if (!data) return;
             const transformed = data.map(transformRawQuote);
-            setQuoteRequests(transformed);
-            sessionStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify(transformed));
+            setQuoteRequests(prev => {
+                const prevById = new Map(prev.map(q => [q.id, q]));
+                const next = transformed.map(fresh => {
+                    const local = prevById.get(fresh.id);
+                    if (!local) return fresh;
+                    const localMs = local.modified_at ? new Date(local.modified_at).getTime() : 0;
+                    const freshMs = fresh.modified_at ? new Date(fresh.modified_at).getTime() : 0;
+                    return localMs > freshMs ? local : fresh;
+                });
+                sessionStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify(next));
+                return next;
+            });
         };
 
         const handleVisibility = () =>
@@ -1471,8 +1461,18 @@ const AppContent: FC = () => {
             const { data } = await quoteService.getQuotesByUser(activeOrgOwnerId ?? user.id);
             if (!data) return;
             const transformed = data.map(transformRawQuote);
-            setQuoteRequests(transformed);
-            sessionStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify(transformed));
+            setQuoteRequests(prev => {
+                const prevById = new Map(prev.map(q => [q.id, q]));
+                const next = transformed.map(fresh => {
+                    const local = prevById.get(fresh.id);
+                    if (!local) return fresh;
+                    const localMs = local.modified_at ? new Date(local.modified_at).getTime() : 0;
+                    const freshMs = fresh.modified_at ? new Date(fresh.modified_at).getTime() : 0;
+                    return localMs > freshMs ? local : fresh;
+                });
+                sessionStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify(next));
+                return next;
+            });
         };
         const id = setInterval(poll, 45_000);
         return () => clearInterval(id);
@@ -1836,17 +1836,7 @@ const AppContent: FC = () => {
             if (!createdQuote) throw new Error('No data returned from create');
 
             // Immediately add the new quote to state so it shows up right away
-            const newQuote: QuoteRequest = {
-                id: createdQuote.id,
-                factory: createdQuote.factory_data,
-                order: createdQuote.order_details,
-                status: createdQuote.status,
-                submittedAt: createdQuote.created_at,
-                userId: createdQuote.user_id,
-                files: createdQuote.files || [],
-                response_details: createdQuote.response_details,
-                negotiation_details: createdQuote.negotiation_details
-            };
+            const newQuote: QuoteRequest = transformRawQuote(createdQuote);
 
             // Add to existing quotes and update state immediately
             setQuoteRequests(prevQuotes => {
@@ -3389,8 +3379,6 @@ const AppContent: FC = () => {
 
         // ── My Quotes State ───────────────────────────────────────────────────
         const [quotesView, setQuotesView] = useState<'rfqs' | 'chat'>('rfqs');
-        const [myQuotes, setMyQuotes] = useState<QuoteRequest[]>([]);
-        const [quotesLoading, setQuotesLoading] = useState(false);
         const [quotesSearch, setQuotesSearch] = useState('');
         const [selectedRFQ, setSelectedRFQ] = useState<QuoteRequest | null>(null);
         const [activeLineItemId, setActiveLineItemId] = useState<number | null>(null);
@@ -3469,44 +3457,17 @@ const AppContent: FC = () => {
             return 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300';
         };
 
-        // ── Fetch My Quotes ───────────────────────────────────────────────────
-        const fetchMyQuotes = useCallback(async () => {
-            if (!user?.id) return;
-            setQuotesLoading(true);
-            const { data } = await quoteService.getQuotesByUser(activeOrgOwnerId ?? user.id);
-            if (data) {
-                const transformed = (data as any[]).map(q => ({
-                    id: q.id,
-                    factory: q.factory_data,
-                    order: q.order_details,
-                    status: q.status,
-                    submittedAt: q.created_at,
-                    acceptedAt: q.accepted_at || q.response_details?.acceptedAt,
-                    userId: q.user_id,
-                    files: q.files || [],
-                    response_details: q.response_details,
-                    negotiation_details: q.negotiation_details,
-                    clientName: q.clients?.name || '',
-                    companyName: q.clients?.company_name || '',
-                    clientAvatar: q.clients?.avatar_url || '',
-                    modification_count: q.modification_count || 0,
-                    modified_at: q.modified_at,
-                })) as QuoteRequest[];
-                setMyQuotes(transformed.sort((a, b) => getLatestMessageTime(b).localeCompare(getLatestMessageTime(a))));
-            }
-            setQuotesLoading(false);
-        }, [user?.id]);
-
-        useEffect(() => {
-            if (isOpen && activeTab === 'quotes' && myQuotes.length === 0) fetchMyQuotes();
-        }, [isOpen, activeTab]);
 
         // ── Mark client read ──────────────────────────────────────────────────
         const markClientRead = useCallback((rfq: QuoteRequest): QuoteRequest => {
             const now = new Date().toISOString();
             const updatedNeg = { ...(rfq.negotiation_details || {}), clientLastRead: now };
             const updated = { ...rfq, negotiation_details: updatedNeg };
-            setMyQuotes(prev => prev.map(q => q.id === rfq.id ? updated : q));
+            setQuoteRequests(prev => {
+                const next = prev.map(q => q.id === rfq.id ? updated : q);
+                sessionStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify(next));
+                return next;
+            });
             quoteService.update(rfq.id, { negotiation_details: updatedNeg });
             return updated;
         }, []);
@@ -3567,14 +3528,22 @@ const AppContent: FC = () => {
             const updatedFiles = uploadedPaths.length ? [...(selectedRFQ.files || []), ...uploadedPaths] : selectedRFQ.files || [];
             const optimistic: QuoteRequest = { ...selectedRFQ, files: updatedFiles, negotiation_details: updatedNeg };
             setSelectedRFQ(optimistic);
-            setMyQuotes(prev => prev.map(q => q.id === selectedRFQ.id ? optimistic : q));
+            setQuoteRequests(prev => {
+                const next = prev.map(q => q.id === selectedRFQ.id ? optimistic : q);
+                sessionStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify(next));
+                return next;
+            });
 
             const updatePayload: any = { negotiation_details: updatedNeg };
             if (uploadedPaths.length) updatePayload.files = updatedFiles;
             const { error } = await quoteService.update(selectedRFQ.id, updatePayload);
             if (error) {
                 setSelectedRFQ(selectedRFQ);
-                setMyQuotes(prev => prev.map(q => q.id === selectedRFQ.id ? selectedRFQ : q));
+                setQuoteRequests(prev => {
+                    const next = prev.map(q => q.id === selectedRFQ.id ? selectedRFQ : q);
+                    sessionStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify(next));
+                    return next;
+                });
             }
             setQuotesSending(false);
         };
@@ -3597,7 +3566,7 @@ const AppContent: FC = () => {
         // ── AI send ───────────────────────────────────────────────────────────
         const buildPrompt = (userMsg: string): string => {
             const factories = factoriesRef.current;
-            const orders = myQuotes;
+            const orders = quoteRequests;
             const factoriesCtx = factories.length > 0
                 ? `FACTORIES ON PLATFORM (use IDs exactly as shown):\n${factories.slice(0, 30).map(f =>
                     `ID:${f.id} | ${f.name} | ${f.location} | Rating:${f.rating}/5 | Specialties:${(f.specialties||[]).join(', ')} | MOQ:${f.minimumOrderQuantity} units | Lead time:${f.turnaround}`
@@ -3651,7 +3620,7 @@ User message: "${userMsg}"`;
             const ordersMatch = text.match(/\[ORDERS:([^\]]+)\]/);
             if (ordersMatch) {
                 const ids = ordersMatch[1].split(',').map(s => s.trim()).filter(Boolean);
-                const found = ids.map(id => myQuotes.find(q => q.id === id)).filter(Boolean) as QuoteRequest[];
+                const found = ids.map(id => quoteRequests.find((q: QuoteRequest) => q.id === id)).filter(Boolean) as QuoteRequest[];
                 if (found.length > 0) relatedOrders = found;
                 text = text.replace(ordersMatch[0], '').trim();
             }
@@ -3688,8 +3657,12 @@ User message: "${userMsg}"`;
         };
 
         // ── Derived ───────────────────────────────────────────────────────────
-        const totalQuoteUnread = myQuotes.reduce((s, q) => s + getClientUnread(q), 0);
-        const filteredQuotes = myQuotes.filter(rfq => {
+        const sortedQuoteRequests = useMemo(
+            () => [...quoteRequests].sort((a, b) => getLatestMessageTime(b).localeCompare(getLatestMessageTime(a))),
+            [quoteRequests]
+        );
+        const totalQuoteUnread = sortedQuoteRequests.reduce((s, q) => s + getClientUnread(q), 0);
+        const filteredQuotes = sortedQuoteRequests.filter(rfq => {
             if (!quotesSearch.trim()) return true;
             const s = quotesSearch.toLowerCase();
             return rfq.id.toLowerCase().includes(s) || rfq.status.toLowerCase().includes(s)
@@ -3807,13 +3780,13 @@ User message: "${userMsg}"`;
                                         {activeTab === 'ai' ? 'Auctave Brain' : quotesView === 'chat' ? `RFQ #${selectedRFQ?.id.slice(0, 8).toUpperCase()}` : 'My Quotes'}
                                     </p>
                                     <p className="text-[11px] text-red-100 truncate leading-tight">
-                                        {activeTab === 'ai' ? 'AI sourcing assistant' : quotesView === 'chat' ? (selectedRFQ?.factory?.name || '') : `${myQuotes.length} quote${myQuotes.length !== 1 ? 's' : ''}`}
+                                        {activeTab === 'ai' ? 'AI sourcing assistant' : quotesView === 'chat' ? (selectedRFQ?.factory?.name || '') : `${quoteRequests.length} quote${quoteRequests.length !== 1 ? 's' : ''}`}
                                     </p>
                                 </div>
                                 <div className="flex items-center gap-1 flex-shrink-0">
                                     {activeTab === 'quotes' && quotesView === 'chat' && selectedRFQ && (
                                         <button
-                                            onClick={() => { handleSetCurrentPage('quoteDetail', selectedRFQ); setIsOpen(false); }}
+                                            onClick={() => { navigate('/quote/' + selectedRFQ.id); setIsOpen(false); }}
                                             className="flex items-center gap-1 px-2 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-[11px] font-semibold text-white transition-colors"
                                             title="Open quote detail page"
                                         >
@@ -3821,8 +3794,8 @@ User message: "${userMsg}"`;
                                         </button>
                                     )}
                                     {activeTab === 'quotes' && quotesView === 'rfqs' && (
-                                        <button onClick={fetchMyQuotes} disabled={quotesLoading} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors text-white" title="Refresh">
-                                            <RefreshCw size={14} className={quotesLoading ? 'animate-spin' : ''} />
+                                        <button onClick={fetchUserQuotes} disabled={isQuotesLoading} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors text-white" title="Refresh">
+                                            <RefreshCw size={14} className={isQuotesLoading ? 'animate-spin' : ''} />
                                         </button>
                                     )}
                                     <button onClick={() => setIsOpen(false)} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors text-white"><X size={17} /></button>
@@ -3833,7 +3806,7 @@ User message: "${userMsg}"`;
                                 {(['ai', 'quotes'] as const).map(tab => (
                                     <button
                                         key={tab}
-                                        onClick={() => { setActiveTab(tab); if (tab === 'quotes' && myQuotes.length === 0) fetchMyQuotes(); }}
+                                        onClick={() => { setActiveTab(tab); }}
                                         className={`flex-1 py-2 text-xs font-bold rounded-t-lg transition-all duration-200 relative tracking-wide ${
                                             activeTab === tab
                                                 ? 'bg-white text-red-700 shadow-sm'
@@ -3928,7 +3901,7 @@ User message: "${userMsg}"`;
                                                                         <p className="text-[10px] text-gray-400 mt-0.5">#{order.id.slice(0, 8).toUpperCase()} · {order.submittedAt?.slice(0, 10)}</p>
                                                                     </div>
                                                                     <button
-                                                                        onClick={() => { handleSetCurrentPage('quoteDetail', order); setIsOpen(false); }}
+                                                                        onClick={() => { navigate('/quote/' + order.id); setIsOpen(false); }}
                                                                         className="flex-shrink-0 text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-2.5 py-1.5 rounded-lg transition-colors"
                                                                     >
                                                                         Open
@@ -4045,7 +4018,7 @@ User message: "${userMsg}"`;
                                 {/* ── RFQ LIST ── */}
                                 {quotesView === 'rfqs' && (
                                     <div className="flex-1 overflow-y-auto">
-                                        {quotesLoading ? (
+                                        {isQuotesLoading ? (
                                             <div className="flex flex-col items-center justify-center h-full gap-2 text-gray-400">
                                                 <RefreshCw size={20} className="animate-spin" /><span className="text-sm">Loading…</span>
                                             </div>
@@ -4258,9 +4231,22 @@ User message: "${userMsg}"`;
     // --- Page Renderer ---
     // Function to determine which page component to render based on state
     const renderPage = () => {
-        // Show loading spinner if auth is not ready
-        if (!isAuthReady) {
+        // Show loading spinner until auth is ready AND the Supabase callback has fired.
+        // isAuthReady alone is not sufficient: the 5s safety timer can set it true before
+        // onAuthStateChange runs, which would cause the route guard below to fire a
+        // <Navigate to="/login"> for a legitimately signed-in user (safety-timer race).
+        if (!isAuthReady || !authCallbackFiredRef.current) {
             return <KnittingPreloader fullScreen />;
+        }
+
+        // Route guards: prevent protected pages from flashing for unauthenticated deep links.
+        // ROUTE_MAP misses unknown page names — those fall through to the switch default safely.
+        const routeMeta = ROUTE_MAP.get(currentPage as PageName);
+        if (routeMeta?.protected && !user) {
+            return <Navigate to="/login" replace />;
+        }
+        if (routeMeta?.adminOnly && !isAdmin) {
+            return <Navigate to="/sourcing" replace />;
         }
 
         // Hard gate: if user is authenticated, has no profile, and is a new signup, show onboarding.
@@ -4279,9 +4265,7 @@ User message: "${userMsg}"`;
         let pageContent: React.ReactNode;
         switch (currentPage) {
             case 'login': pageContent = <LoginPage showToast={showToast} setAuthError={setAuthError} authError={authError} />; break;
-            case 'profile': pageContent = (userProfile || !isNewUserSignup)
-                ? <ProfilePage />
-                : <OnboardingPage user={user} onComplete={saveUserProfile} isLoading={isProfileLoading} onThemeChange={setDarkMode} onBeforeComplete={(data) => { setHelloSplash(data); setTimeout(() => setHelloSplash(null), 3000); }} />; break;
+            // 'profile' is now handled by <Route path="/profile"> — see render below
             case 'createPassword': pageContent = <CreatePasswordPage />; break;
             case 'sourcing': pageContent = <SourcingPage
                 {...layoutProps}
@@ -4306,27 +4290,27 @@ User message: "${userMsg}"`;
                 </MainLayout>
             ); break;
             case 'factorySuggestions': pageContent = <FactorySuggestionsPage />; break;
-            case 'factoryDetail': pageContent = <FactoryDetailPage {...layoutProps} selectedFactory={selectedFactory!} suggestedFactories={suggestedFactories} initialTab="overview" onSubmitRFQ={submitQuoteRequest} />; break;
-            case 'factoryCatalog': pageContent = <FactoryDetailPage {...layoutProps} selectedFactory={selectedFactory!} suggestedFactories={suggestedFactories} initialTab="catalog" onSubmitRFQ={submitQuoteRequest} />; break;
+            case 'factoryDetail': pageContent = selectedFactory
+                ? <FactoryDetailPage {...layoutProps} selectedFactory={selectedFactory} suggestedFactories={suggestedFactories} initialTab="overview" onSubmitRFQ={submitQuoteRequest} />
+                : <Navigate to="/sourcing" replace />;
+                break;
+            case 'factoryCatalog': pageContent = selectedFactory
+                ? <FactoryDetailPage {...layoutProps} selectedFactory={selectedFactory} suggestedFactories={suggestedFactories} initialTab="catalog" onSubmitRFQ={submitQuoteRequest} />
+                : <Navigate to="/sourcing" replace />;
+                break;
             case 'factoryTools': pageContent = <FactoryToolsPage />; break;
-            case 'settings': pageContent = <SettingsPage />; break;
+            // 'settings' is now handled by <Route path="/settings"> — see render below
             case 'teamSettings': pageContent = (
                 <MainLayout {...layoutProps}>
                     <TeamSettingsPage user={user} showToast={showToast} darkMode={darkMode} />
                 </MainLayout>
             ); break;
-            case 'tracking': pageContent = <OrderTrackingPage />; break;
+            // 'tracking' is now handled by <Route path="/tracking"> — see render below
             case 'trending': pageContent = <TrendingPageComponent {...layoutProps} />; break;
             case 'myQuotes': pageContent = <MyQuotesPage quoteRequests={quoteRequests} handleSetCurrentPage={handleSetCurrentPage} layoutProps={layoutProps} isLoading={isQuotesLoading} onRefresh={fetchUserQuotes} initialFilterStatus={myQuotesFilter} crmOrdersByQuoteId={crmOrdersByQuoteId} />; break;
             case 'quoteRequest': pageContent = <QuoteRequestPage />; break;
-            case 'quoteDetail': pageContent = <QuoteDetailPage
-                selectedQuote={selectedQuote}
-                handleSetCurrentPage={handleSetCurrentPage}
-                updateQuoteStatus={updateQuoteStatus}
-                createCrmOrder={createCrmOrder}
-                layoutProps={layoutProps}
-            />; break;
-            case 'billing': pageContent = <BillingPage />; break;
+            // 'quoteDetail' is now handled by <Route path="/quote/:id"> — see render below
+            // 'billing' is now handled by <Route path="/billing"> — see render below
             case 'adminDashboard': pageContent = <AdminDashboardPage {...layoutProps} />; break;
             case 'adminUsers': pageContent = <AdminUsersPage {...layoutProps} />; break;
             case 'adminFactories': pageContent = <AdminFactoriesPage {...layoutProps} />; break;
@@ -4351,8 +4335,7 @@ User message: "${userMsg}"`;
     // Component to create a new quote request
     const QuoteRequestPage: FC = () => {
         if (!selectedFactory) {
-            handleSetCurrentPage('sourcing');
-            return null;
+            return <Navigate to="/sourcing" replace />;
         }
         const handleQuoteSubmit = (e: React.FormEvent) => {
             e.preventDefault();
@@ -4431,15 +4414,13 @@ User message: "${userMsg}"`;
 
     const updateQuoteStatus = (id: string, status: string, additionalData?: Partial<QuoteRequest>) => {
         const now = new Date().toISOString();
-        const updatedQuotes = quoteRequests.map(q =>
-            q.id === id ? { ...q, status: status as any, modified_at: now, ...additionalData } : q
-        );
-        setQuoteRequests(updatedQuotes);
-        // Update sessionStorage cache to keep it in sync
-        sessionStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify(updatedQuotes));
-        if (selectedQuote && selectedQuote.id === id) {
-            setSelectedQuote(prev => prev ? { ...prev, status: status as any, modified_at: now, ...additionalData } : null);
-        }
+        setQuoteRequests(prev => {
+            const next = prev.map(q =>
+                q.id === id ? { ...q, status: status as any, modified_at: now, ...additionalData } : q
+            );
+            sessionStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify(next));
+            return next;
+        });
     };
 
     const createCrmOrder = async (quote: QuoteRequest) => {
@@ -4631,7 +4612,56 @@ User message: "${userMsg}"`;
             `}</style>
             {/* Render the current page content */}
             <Suspense fallback={<KnittingPreloader fullScreen />}>
-                {renderPage()}
+                <Routes>
+                    {/* ── Migrated pages: proper <Route> with ProtectedRoute guard ── */}
+                    <Route path="/settings" element={
+                        <ProtectedRoute isAuthReady={isAuthReady && authCallbackFiredRef.current} user={user}>
+                            <SettingsPage />
+                        </ProtectedRoute>
+                    } />
+
+                    <Route path="/billing" element={
+                        <ProtectedRoute isAuthReady={isAuthReady && authCallbackFiredRef.current} user={user}>
+                            <BillingPage />
+                        </ProtectedRoute>
+                    } />
+
+                    <Route path="/tracking" element={
+                        <ProtectedRoute isAuthReady={isAuthReady && authCallbackFiredRef.current} user={user}>
+                            <OrderTrackingPage />
+                        </ProtectedRoute>
+                    } />
+
+                    <Route path="/profile" element={
+                        <ProtectedRoute isAuthReady={isAuthReady && authCallbackFiredRef.current} user={user}>
+                            {(userProfile || !isNewUserSignup)
+                                ? <ProfilePage />
+                                : <OnboardingPage user={user} onComplete={saveUserProfile} isLoading={isProfileLoading} onThemeChange={setDarkMode} onBeforeComplete={(data) => { setHelloSplash(data); setTimeout(() => setHelloSplash(null), 3000); }} />
+                            }
+                        </ProtectedRoute>
+                    } />
+
+                    {/* ── /quote/new must be declared before /quote/:id so the static
+                         segment wins. Without this, React Router matches /quote/new
+                         as { id: 'new' } and QuoteDetailPage fires getQuoteById('new'). ── */}
+                    <Route path="/quote/new" element={<>{renderPage()}</>} />
+
+                    {/* ── Direct URL access: /quote/:id ── */}
+                    <Route path="/quote/:id" element={
+                        <ProtectedRoute isAuthReady={isAuthReady && authCallbackFiredRef.current} user={user}>
+                            <QuoteDetailPage
+                                selectedQuote={null}
+                                handleSetCurrentPage={handleSetCurrentPage}
+                                updateQuoteStatus={updateQuoteStatus}
+                                createCrmOrder={createCrmOrder}
+                                layoutProps={layoutProps}
+                            />
+                        </ProtectedRoute>
+                    } />
+
+                    {/* ── Legacy catch-all: all other pages still use renderPage() switch ── */}
+                    <Route path="*" element={<>{renderPage()}</>} />
+                </Routes>
             </Suspense>
             {/* Render AI Chat Support for non-admin users */}
             {user && userProfile && !isAdmin && <AIChatSupport />}

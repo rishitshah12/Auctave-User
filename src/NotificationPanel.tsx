@@ -1,4 +1,5 @@
 import React, { FC, useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import ReactDOM from 'react-dom';
 import {
     Bell, X, CheckCheck, Trash2, Package, Settings,
@@ -139,6 +140,7 @@ interface NotificationPanelProps {
 // ─── Main panel ───────────────────────────────────────────────────────────────
 
 export const NotificationPanel: FC<NotificationPanelProps> = ({ isOpen, onClose, onNavigate }) => {
+    const navigate = useNavigate();
     const { notifications, unreadCount, markAllAsRead, removeNotification, clearAll, markAsRead, requestPushPermission } = useNotifications();
     const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
     const tabsRef = useRef<HTMLDivElement>(null);
@@ -180,7 +182,13 @@ export const NotificationPanel: FC<NotificationPanelProps> = ({ isOpen, onClose,
             if (notif.category === 'chat' && notif.action.page === 'quoteDetail') {
                 localStorage.setItem('quote_detail_auto_open_chat', '1');
             }
-            onNavigate(notif.action.page, notif.action.data);
+            // Route-based navigation for quote detail; fall back to legacy handler for all else.
+            // Defensive: fall through to onNavigate if action.data.id is absent (malformed payload).
+            if (notif.action.page === 'quoteDetail' && notif.action.data?.id) {
+                navigate('/quote/' + notif.action.data.id);
+            } else {
+                onNavigate(notif.action.page, notif.action.data);
+            }
         }
         onClose();
     };

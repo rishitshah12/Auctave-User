@@ -1,4 +1,5 @@
 import React, { useState, FC, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { MainLayout } from './MainLayout';
 import { QuoteRequest } from './types';
@@ -177,6 +178,7 @@ const getProgressStep = (status: string): number => {
 };
 
 export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCurrentPage, layoutProps, isLoading, onRefresh, initialFilterStatus, crmOrdersByQuoteId }) => {
+    const navigate = useNavigate();
     const { can } = useOrgPermissions();
     const canEdit = can('sourcing', 'edit');
     const [filterStatus, setFilterStatus] = useState(initialFilterStatus || 'All');
@@ -373,7 +375,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
             handleSetCurrentPage('orderForm');
             return;
         }
-        handleSetCurrentPage('quoteDetail', quote);
+        navigate('/quote/' + quote.id);
         // Mark as read after 1 second — prevents accidental-click false-positives
         scheduleMarkAsRead(quote);
     };

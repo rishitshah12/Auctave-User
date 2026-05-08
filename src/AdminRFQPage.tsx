@@ -11,6 +11,7 @@ import html2canvas from 'html2canvas';
 import confetti from 'canvas-confetti';
 import { formatFriendlyDate, getStatusColor, getStatusGradient, getStatusGradientBorder, getStatusHoverShadow } from './utils';
 import { useToast } from './ToastContext';
+import { transformRawQuote } from './services/quoteMapper';
 
 interface AdminRFQPageProps {
     pageKey: number;
@@ -357,10 +358,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                 if (signal.aborted) return;
 
                 // Step 1: fetch quotes (no FK join — avoids relationship ambiguity errors)
-                const { data: quotesData, error: quotesError } = await props.supabase
-                    .from('quotes')
-                    .select('*')
-                    .order('created_at', { ascending: false });
+                const { data: quotesData, error: quotesError } = await quoteService.getAllQuotesRaw();
 
                 if (quotesError) {
                     console.error('[AdminRFQPage] quotes fetch error:', quotesError);
@@ -392,16 +390,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                 const transformedQuotes: QuoteRequest[] = (quotesData as any[]).map((q: any) => {
                     const client = clientsMap[q.user_id] ?? null;
                     return {
-                        id: q.id,
-                        factory: q.factory_data,
-                        order: q.order_details,
-                        status: q.status,
-                        submittedAt: q.created_at,
-                        acceptedAt: q.accepted_at || q.response_details?.acceptedAt,
-                        userId: q.user_id,
-                        files: q.files || [],
-                        response_details: q.response_details,
-                        negotiation_details: q.negotiation_details,
+                        ...transformRawQuote(q),
                         clientName: client?.name || 'Unknown',
                         companyName: client?.company_name || 'Unknown',
                         clientEmail: client?.email || 'N/A',
@@ -410,8 +399,6 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
                         clientJobRole: client?.job_role || 'N/A',
                         clientRevenue: client?.yearly_est_revenue || 'N/A',
                         clientSpecialization: client?.category_specialization || 'N/A',
-                        modification_count: q.modification_count || 0,
-                        modified_at: q.modified_at,
                     };
                 });
 
@@ -1161,10 +1148,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
         e?.stopPropagation();
         if (!confirm('Are you sure you want to permanently delete this quote? This action cannot be undone.')) return;
         
-        const { error, count } = await props.supabase
-            .from('quotes')
-            .delete({ count: 'exact' })
-            .eq('id', quoteId);
+        const { error, count } = await quoteService.deleteById(quoteId);
 
         if (error) {
             if (error.code === '42501') {
@@ -1259,10 +1243,7 @@ export const AdminRFQPage: FC<AdminRFQPageProps> = (props) => {
             setQuotes(prev => prev.map(q => selectedQuoteIds.includes(q.id) ? { ...q, status: 'Trashed', negotiation_details: { ...(q.negotiation_details || {}), previousStatus: q.status } } : q));
             setSelectedQuoteIds([]);
         } else if (bulkActionType === 'delete') {
-            const { error, count } = await props.supabase
-                .from('quotes')
-                .delete({ count: 'exact' })
-                .in('id', selectedQuoteIds);
+            const { error, count } = await quoteService.deleteBulk(selectedQuoteIds);
 
             if (error) {
                 showToast('Failed to delete quotes: ' + error.message, 'error');
