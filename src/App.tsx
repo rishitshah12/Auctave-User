@@ -572,6 +572,7 @@ const AppContent: FC = () => {
             } else {
                 setOrderFormInitialLineItems(undefined);
                 setOrderFormPreFactory(null);
+                setSelectedFactory(null);
             }
         }
 
@@ -579,6 +580,13 @@ const AppContent: FC = () => {
         setCurrentPage(page);
         if (page !== 'login') {
             localStorage.setItem('garment_erp_last_page', page);
+        }
+
+        // Immediately push the URL so route-based pages (settings, billing, tracking,
+        // profile) render via their <Route> element rather than the switch default case.
+        const targetPath = PAGE_TO_PATH[page];
+        if (targetPath && window.location.pathname !== targetPath) {
+            navigate(targetPath);
         }
     };
 
@@ -2824,7 +2832,13 @@ const AppContent: FC = () => {
         };
 
         const pwStrength = getPasswordStrength(pwForm.newPassword);
-        const settingsOptions = [
+        const settingsOptions = isAdmin ? [
+            { title: "My Profile", description: "Update your admin account information", icon: <Edit size={20} />, action: () => handleSetCurrentPage('profile'), buttonLabel: "Edit Profile" },
+            { title: "Admin Dashboard", description: "View platform overview and key metrics", icon: <LayoutDashboard size={20} />, action: () => handleSetCurrentPage('adminDashboard'), buttonLabel: "Go to Dashboard" },
+            { title: "Manage Users", description: "View and manage all client accounts", icon: <Users size={20} />, action: () => handleSetCurrentPage('adminUsers'), buttonLabel: "Manage Users" },
+            { title: "Login Page Settings", description: "Customise the login page content and images", icon: <Sparkles size={20} />, action: () => handleSetCurrentPage('adminLoginSettings'), buttonLabel: "Edit Login Page" },
+            { title: "Order Management", description: "View and manage all client orders and RFQs", icon: <History size={20} />, action: () => handleSetCurrentPage('adminCRM'), buttonLabel: "View Orders" },
+        ] : [
             { title: "My Profile", description: "Update your personal and company information", icon: <Edit size={20} />, action: () => handleSetCurrentPage('profile'), buttonLabel: "Edit Profile" },
             { title: "Team Members", description: "Invite colleagues and manage their access", icon: <Users size={20} />, action: () => handleSetCurrentPage('teamSettings'), buttonLabel: "Manage Team" },
             { title: "Contact Customer Care", description: "Get help with your account or any issue", icon: <LifeBuoy size={20} />, action: () => { window.location.href = 'mailto:support@auctave.com'; }, buttonLabel: "Email Support" },

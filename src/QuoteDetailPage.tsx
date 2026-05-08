@@ -30,6 +30,7 @@ import { formatFriendlyDate, getStatusColor, getStatusGradient } from './utils';
 import { useToast } from './ToastContext';
 import { useOrgPermissions } from './OrgContext';
 import { useParams } from 'react-router-dom';
+import { transformRawQuote } from './services/quoteMapper';
 
 interface QuoteDetailPageProps {
     selectedQuote?: QuoteRequest | null;
@@ -516,8 +517,10 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                     return;
                 }
                 if (data) {
-                    // Combine initial data with freshly fetched data to ensure everything is up-to-date
-                    setQuote({ ...initialQuote, ...data });
+                    // Transform raw DB row → domain shape, then overlay onto any
+                    // pre-existing initialQuote (e.g. to pick up extra client fields).
+                    const transformed = transformRawQuote(data);
+                    setQuote(initialQuote ? { ...initialQuote, ...transformed } : transformed);
                 }
             } catch (err) {
                 console.error('[QuoteDetailPage] Exception fetching quote:', err);

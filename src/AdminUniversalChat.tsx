@@ -250,8 +250,29 @@ export const AdminUniversalChat: React.FC<AdminUniversalChatProps> = ({ onNaviga
     // ── Fetch ─────────────────────────────────────────────────────────────────
     const fetchQuotes = useCallback(async () => {
         setLoading(true);
-        const { data } = await quoteService.getAllQuotes();
-        if (data) setQuotes((data as any[]).map(transformRaw));
+        const { data } = await quoteService.getAllQuotesRaw();
+        if (data) {
+            const uniqueUserIds = [...new Set((data as any[]).map((q: any) => q.user_id).filter(Boolean))];
+            let clientsMap: Record<string, any> = {};
+            if (uniqueUserIds.length > 0) {
+                const { data: clientsData } = await supabase
+                    .from('clients')
+                    .select('id, name, company_name, avatar_url')
+                    .in('id', uniqueUserIds);
+                if (clientsData) {
+                    clientsMap = Object.fromEntries((clientsData as any[]).map((c: any) => [c.id, c]));
+                }
+            }
+            setQuotes((data as any[]).map((q: any) => {
+                const client = clientsMap[q.user_id] ?? null;
+                return {
+                    ...transformRaw(q),
+                    clientName: client?.name || 'Unknown',
+                    companyName: client?.company_name || '',
+                    clientAvatar: client?.avatar_url || '',
+                };
+            }));
+        }
         setLoading(false);
     }, []);
     useEffect(() => { fetchQuotes(); }, [fetchQuotes]);
