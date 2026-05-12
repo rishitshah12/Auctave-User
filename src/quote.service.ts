@@ -32,14 +32,16 @@ export class QuoteService extends BaseService<any> {
         try {
             // Always stamp modified_at so timestamps reflect the latest activity
             const payload = { ...updates, modified_at: new Date().toISOString() };
-            const { data, error } = await supabase
+            // No .select() — we don't need the returned row and omitting it means
+            // the UPDATE only needs an UPDATE RLS policy, not a SELECT policy.
+            // Chaining .select().single() would fail silently for clients whose
+            // SELECT policy differs from their UPDATE policy (e.g., reverts chat sends).
+            const { error } = await supabase
                 .from(this.config.tableName)
                 .update(payload)
-                .eq('id', id)
-                .select()
-                .single();
+                .eq('id', id);
             if (error) throw error;
-            return { data, error: null };
+            return { data: null, error: null };
         } catch (err: any) {
             return { data: null, error: this.handleError(err) };
         }

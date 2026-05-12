@@ -1010,7 +1010,7 @@ const AppContent: FC = () => {
             }
 
             try {
-                if (signal.aborted) return;
+                if (signal.aborted) { setIsQuotesLoading(false); setGlobalLoading(false); return; }
                 const fetchId = activeOrgOwnerId ?? user.id;
                 const { data, error } = await quoteService.getQuotesByUser(fetchId);
 
@@ -1038,15 +1038,19 @@ const AppContent: FC = () => {
                     }
                 }
             } catch (error: any) {
+                // Always clear loading so the spinner doesn't get stuck — even on abort.
+                setIsQuotesLoading(false);
+                setGlobalLoading(false);
                 if (error.name === 'AbortError' || signal.aborted) return;
                 console.error("Error fetching quotes:", error);
                 // Background fetches never surface raw errors as toasts — JWT expiry,
                 // network hiccups, and RLS denials are all expected and handled silently.
                 // Only user-initiated actions (submit, save, delete) show error toasts.
+                return;
             }
-            
-            if (!signal.aborted) setIsQuotesLoading(false);
-            if (!signal.aborted) setGlobalLoading(false);
+
+            setIsQuotesLoading(false);
+            setGlobalLoading(false);
         }
     }, [user, isAdmin, activeOrgOwnerId, showToast, setGlobalLoading]);
 
@@ -4271,11 +4275,14 @@ User message: "${userMsg}"`;
     // --- Page Renderer ---
     // Function to determine which page component to render based on state
     const renderPage = () => {
-        // Show loading spinner until auth is ready AND the Supabase callback has fired.
-        // isAuthReady alone is not sufficient: the 5s safety timer can set it true before
-        // onAuthStateChange runs, which would cause the route guard below to fire a
-        // <Navigate to="/login"> for a legitimately signed-in user (safety-timer race).
-        if (!isAuthReady || !authCallbackFired || isAuthenticating) {
+        // isAuthReady initialises to true when there is no stored session (login page
+        // must appear instantly) and to false when a stored session exists (wait for
+        // Supabase to confirm it). isAuthenticating covers the in-flight period after
+        // the user submits credentials. authCallbackFired is intentionally excluded
+        // here — it is only needed by ProtectedRoute where it prevents premature
+        // redirects; adding it to this gate caused an unnecessary preloader flash for
+        // users who have no stored session.
+        if (!isAuthReady || isAuthenticating) {
             return <KnittingPreloader fullScreen />;
         }
 

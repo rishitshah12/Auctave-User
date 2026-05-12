@@ -274,10 +274,13 @@ export const OrgProvider: FC<{ user: any | null; children: ReactNode }> = ({ use
     }, [invitations, org, refreshInvitations]);
 
     const can = useCallback((module: keyof OrgPermissions, level: PermissionLevel): boolean => {
+        // Solo users (no org) and org owners always have full permissions.
+        if (!org) return true;
+        if (org.ownerId === user?.id) return true;
         if (!currentMember) return false;
         const granted = currentMember.permissions[module] ?? 'none';
         return PERMISSION_RANK[granted] >= PERMISSION_RANK[level];
-    }, [currentMember]);
+    }, [org, currentMember, user?.id]);
 
     const prevUserIdRef = useRef<string | null>(null);
 

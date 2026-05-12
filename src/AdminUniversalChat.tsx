@@ -286,16 +286,37 @@ export const AdminUniversalChat: React.FC<AdminUniversalChatProps> = ({ onNaviga
                 schema: 'public',
                 table: 'quotes',
             }, (payload) => {
-                const updated = transformRaw(payload.new);
+                // Merge raw update with existing quote so clientName/companyName are preserved.
                 setQuotes(prev => {
-                    const exists = prev.some(q => q.id === updated.id);
-                    if (!exists) return prev;
+                    const existing = prev.find(q => q.id === payload.new.id);
+                    if (!existing) return prev;
+                    const updated: QuoteRequest = {
+                        ...transformRaw(payload.new),
+                        clientName: existing.clientName,
+                        companyName: existing.companyName,
+                        clientAvatar: existing.clientAvatar,
+                    };
                     return prev.map(q => q.id === updated.id ? updated : q);
                 });
-                setSelectedRFQ(prev => prev?.id === updated.id ? updated : prev);
+                setSelectedRFQ(prev => {
+                    if (!prev || prev.id !== payload.new.id) return prev;
+                    return {
+                        ...transformRaw(payload.new),
+                        clientName: prev.clientName,
+                        companyName: prev.companyName,
+                        clientAvatar: prev.clientAvatar,
+                    };
+                });
                 setSelectedClient(prev => {
                     if (!prev) return prev;
-                    if (!prev.rfqs.some(r => r.id === updated.id)) return prev;
+                    const match = prev.rfqs.find(r => r.id === payload.new.id);
+                    if (!match) return prev;
+                    const updated: QuoteRequest = {
+                        ...transformRaw(payload.new),
+                        clientName: match.clientName,
+                        companyName: match.companyName,
+                        clientAvatar: match.clientAvatar,
+                    };
                     return { ...prev, rfqs: prev.rfqs.map(r => r.id === updated.id ? updated : r) };
                 });
             })
