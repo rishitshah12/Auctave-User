@@ -360,6 +360,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
     };
     const fileLinksAbortController = useRef<AbortController | null>(null);
     const [isLoadingFiles, setIsLoadingFiles] = useState(false);
+    const [isQuoteLoading, setIsQuoteLoading] = useState(!initialQuote && !!effectiveQuoteId);
 
     // Lightbox state
     const [isLightboxOpen, setIsLightboxOpen] = useState(false);
@@ -500,15 +501,18 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         const fetchFreshQuoteData = async () => {
             if (!effectiveQuoteId) {
                 setQuote(initialQuote ?? null);
+                setIsQuoteLoading(false);
                 return;
             }
 
             // If files are already present, no need to fetch
             if (initialQuote?.files && initialQuote.files.length > 0) {
                 setQuote(initialQuote); // TypeScript narrows initialQuote to non-undefined here
+                setIsQuoteLoading(false);
                 return;
             }
 
+            setIsQuoteLoading(true);
             try {
                 const { data, error } = await quoteService.getQuoteById(effectiveQuoteId);
                 if (error) {
@@ -525,6 +529,8 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
             } catch (err) {
                 console.error('[QuoteDetailPage] Exception fetching quote:', err);
                 setQuote(initialQuote ?? null); // Fallback on exception
+            } finally {
+                setIsQuoteLoading(false);
             }
         };
 
@@ -709,6 +715,21 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         }
     };
 
+    // ── Helpers that are used inside pre-return hooks must be defined here ──────
+    // `getLineItemHistory` is referenced inside `productConversations` useMemo.
+    // Defining it after the `if (!quote)` early return would put it in TDZ when
+    // the memo re-runs after setQuote → ReferenceError → blank screen.
+    const getLineItemHistory = (lineItemId: number) => {
+        if (!quote?.negotiation_details?.history) return [];
+        return quote.negotiation_details.history
+            .filter(h => h.lineItemPrices?.some(p => p.lineItemId === lineItemId) || h.relatedLineItemId === lineItemId)
+            .map(h => ({
+                ...h,
+                price: h.lineItemPrices?.find(p => p.lineItemId === lineItemId)?.price
+            }))
+            .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    };
+
     // ── Hooks that reference quote data must live BEFORE any early return ──────
     // Moving them here avoids React error #310 ("rendered more hooks than previous
     // render") which fires when quote transitions from null → non-null.
@@ -775,17 +796,26 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         return (
             <MainLayout {...layoutProps}>
                 <div className="flex flex-col items-center justify-center min-h-[50vh] text-center p-8">
-                    <div className="bg-red-100 dark:bg-red-900/20 p-4 rounded-full mb-4">
-                        <AlertCircle size={48} className="text-red-500 dark:text-red-400" />
-                    </div>
-                    <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">Quote Not Found</h2>
-                    <p className="text-gray-600 dark:text-gray-300 mb-6">The quote details could not be loaded. It may have been deleted or you don't have permission to view it.</p>
-                    <button 
-                        onClick={() => handleSetCurrentPage('myQuotes')}
-                        className="px-6 py-2 bg-[#c20c0b] text-white font-semibold rounded-lg hover:bg-[#a50a09] transition shadow-md"
-                    >
-                        Back to My Quotes
-                    </button>
+                    {isQuoteLoading ? (
+                        <div className="flex flex-col items-center gap-4">
+                            <div className="w-12 h-12 border-4 border-[#c20c0b] border-t-transparent rounded-full animate-spin" />
+                            <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">Loading quote...</p>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="bg-red-100 dark:bg-red-900/20 p-4 rounded-full mb-4">
+                                <AlertCircle size={48} className="text-red-500 dark:text-red-400" />
+                            </div>
+                            <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">Quote Not Found</h2>
+                            <p className="text-gray-600 dark:text-gray-300 mb-6">The quote details could not be loaded. It may have been deleted or you don't have permission to view it.</p>
+                            <button
+                                onClick={() => handleSetCurrentPage('myQuotes')}
+                                className="px-6 py-2 bg-[#c20c0b] text-white font-semibold rounded-lg hover:bg-[#a50a09] transition shadow-md"
+                            >
+                                Back to My Quotes
+                            </button>
+                        </>
+                    )}
                 </div>
             </MainLayout>
         );
@@ -1278,17 +1308,6 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                 Target: ${target}
             </div>
         );
-    };
-
-    const getLineItemHistory = (lineItemId: number) => {
-        if (!quote?.negotiation_details?.history) return [];
-        return quote.negotiation_details.history
-            .filter(h => h.lineItemPrices?.some(p => p.lineItemId === lineItemId) || h.relatedLineItemId === lineItemId)
-            .map(h => ({
-                ...h,
-                price: h.lineItemPrices?.find(p => p.lineItemId === lineItemId)?.price
-            }))
-            .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
     };
 
     const markChatRead = () => {

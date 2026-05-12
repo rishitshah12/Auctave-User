@@ -322,6 +322,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
                     setAuthError(error.message);
                 }
                 showToast(error.message, 'error');
+                onAuthError?.();
+            } else {
+                // Redirect to Google is in progress — show preloader
+                onAuthStart?.();
             }
         } finally {
             clearTimeout(safetyTimeoutId);
@@ -378,6 +382,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
                 const loginPromise = supabase.auth.signInWithPassword({ email: normalizedEmail, password });
                 const { data, error } = await Promise.race([loginPromise, loginTimeoutPromise]) as any;
                 if (error) throw error;
+                onAuthStart?.();
                 showToast('Signed in successfully!', 'success');
                 await new Promise(resolve => setTimeout(resolve, 500));
                 if (onLoginSuccess) await onLoginSuccess(data.session);
@@ -393,6 +398,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
                 showToast('Verification link has been sent to your admin email!', 'success');
             }
         } catch (error: any) {
+            onAuthError?.();
             setAuthError(error.message || 'An error occurred during sign-in');
             showToast(error.message || 'Sign-in failed', 'error');
         } finally {
@@ -483,9 +489,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
                 session = localData.session;
             }
             if (!session) throw new Error('Could not establish a session after OTP verification.');
+            onAuthStart?.();
             showToast('Verified successfully!', 'success');
             if (onLoginSuccess) await onLoginSuccess(session);
         } catch (error: any) {
+            onAuthError?.();
             setAuthError(error.message);
             showToast(error.message, 'error');
         } finally {
@@ -545,9 +553,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ showToast, setAuthError, a
                 const { data: localData } = await supabase.auth.getSession();
                 session = localData.session;
             }
+            onAuthStart?.();
             showToast('Phone verified successfully!', 'success');
             if (onLoginSuccess) onLoginSuccess(session);
         } catch (error: any) {
+            onAuthError?.();
             setAuthError(error.message);
             showToast(error.message, 'error');
         } finally {
