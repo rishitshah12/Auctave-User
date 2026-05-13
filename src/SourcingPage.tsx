@@ -713,6 +713,13 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
     const greeting = getGreeting();
     const firstName = userProfile?.name ? userProfile.name.split(' ')[0] : 'User';
 
+    const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+    useEffect(() => {
+        const obs = new MutationObserver(() => setIsDark(document.documentElement.classList.contains('dark')));
+        obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+        return () => obs.disconnect();
+    }, []);
+
     const promoBanners = [
         {
             title: 'Verified Factories',
@@ -863,16 +870,20 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                     }
                 `}</style>
                 <div className="relative overflow-hidden rounded-3xl p-8 shadow-2xl" style={{
-                    background: '#130e0e',
-                    border: '1px solid rgba(194,12,11,0.12)',
-                    boxShadow: '0 20px 60px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,80,40,0.07)',
+                    background: isDark ? '#130e0e' : '#fffaf7',
+                    border: isDark ? '1px solid rgba(194,12,11,0.12)' : '1px solid rgba(194,12,11,0.10)',
+                    boxShadow: isDark
+                        ? '0 20px 60px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,80,40,0.07)'
+                        : '0 8px 40px rgba(194,12,11,0.08), 0 2px 12px rgba(0,0,0,0.06)',
                 }}>
                     {/* Blob 1 — top-left crimson, partially off-canvas */}
                     <div className="absolute pointer-events-none" style={{
                         top: '-25%', left: '-15%',
                         width: 650, height: 650,
                         borderRadius: '50%',
-                        background: 'radial-gradient(ellipse, rgba(194,12,11,0.22) 0%, transparent 70%)',
+                        background: isDark
+                            ? 'radial-gradient(ellipse, rgba(194,12,11,0.22) 0%, transparent 70%)'
+                            : 'radial-gradient(ellipse, rgba(194,12,11,0.09) 0%, transparent 70%)',
                         filter: 'blur(90px)',
                     }} />
                     {/* Blob 2 — top-right ember orange, partially off-canvas */}
@@ -880,7 +891,9 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                         top: '-20%', right: '-8%',
                         width: 550, height: 500,
                         borderRadius: '50%',
-                        background: 'radial-gradient(ellipse, rgba(220,70,15,0.18) 0%, transparent 70%)',
+                        background: isDark
+                            ? 'radial-gradient(ellipse, rgba(220,70,15,0.18) 0%, transparent 70%)'
+                            : 'radial-gradient(ellipse, rgba(220,70,15,0.08) 0%, transparent 70%)',
                         filter: 'blur(80px)',
                     }} />
                     {/* Blob 3 — bottom-center amber, sitting below */}
@@ -888,12 +901,14 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                         bottom: '-30%', left: '30%',
                         width: 480, height: 380,
                         borderRadius: '50%',
-                        background: 'radial-gradient(ellipse, rgba(200,130,30,0.13) 0%, transparent 70%)',
+                        background: isDark
+                            ? 'radial-gradient(ellipse, rgba(200,130,30,0.13) 0%, transparent 70%)'
+                            : 'radial-gradient(ellipse, rgba(200,130,30,0.07) 0%, transparent 70%)',
                         filter: 'blur(70px)',
                     }} />
                     {/* Grain texture for tactile depth */}
                     <div className="absolute inset-0 pointer-events-none" style={{
-                        opacity: 0.04,
+                        opacity: isDark ? 0.04 : 0.025,
                         backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noise\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noise)\'/%3E%3C/svg%3E")',
                         backgroundSize: '160px',
                     }} />
@@ -903,8 +918,8 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                         <div className="flex-1 min-w-0">
                             {/* Greeting chip */}
                             <div className="inline-flex items-center gap-2 mb-4 px-3 py-1.5 rounded-full" style={{
-                                background: 'rgba(194,12,11,0.12)',
-                                border: '1px solid rgba(194,12,11,0.22)',
+                                background: isDark ? 'rgba(194,12,11,0.12)' : 'rgba(194,12,11,0.07)',
+                                border: isDark ? '1px solid rgba(194,12,11,0.22)' : '1px solid rgba(194,12,11,0.15)',
                                 backdropFilter: 'blur(8px)',
                             }}>
                                 <span style={{
@@ -913,13 +928,17 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                                     display: 'inline-block',
                                     animation: 'heroPulseDot 2.4s ease-in-out infinite',
                                 }} />
-                                <span className="text-xs font-semibold tracking-[0.15em] uppercase" style={{ color: 'rgba(255,200,180,0.75)' }}>
+                                <span className="text-xs font-semibold tracking-[0.15em] uppercase" style={{
+                                    color: isDark ? 'rgba(255,200,180,0.75)' : 'rgba(140,30,10,0.7)',
+                                }}>
                                     {greeting.emoji} {greeting.text}
                                 </span>
                             </div>
 
                             {/* Main heading */}
-                            <h1 className="text-4xl lg:text-5xl font-bold text-white leading-tight tracking-tight">
+                            <h1 className="text-4xl lg:text-5xl font-bold leading-tight tracking-tight" style={{
+                                color: isDark ? '#ffffff' : '#1a1210',
+                            }}>
                                 Welcome,{' '}
                                 <span style={{
                                     background: 'linear-gradient(120deg, #fbbf78 0%, #f97316 28%, #dc2626 55%, #f97316 78%, #fbbf78 100%)',
@@ -939,7 +958,9 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                             }} />
 
                             {/* Tagline */}
-                            <p className="text-sm max-w-md leading-relaxed" style={{ color: 'rgba(255,220,190,0.45)' }}>
+                            <p className="text-sm max-w-md leading-relaxed" style={{
+                                color: isDark ? 'rgba(255,220,190,0.45)' : 'rgba(100,50,30,0.55)',
+                            }}>
                                 {userProfile?.companyName ? `${userProfile.companyName} · ` : ''}Discover top factories, get instant quotes, and scale production.
                             </p>
 
@@ -961,14 +982,15 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                                 <button
                                     data-testid="my-quotes-button"
                                     onClick={() => handleSetCurrentPage('myQuotes')}
-                                    className="px-5 py-2.5 rounded-xl font-semibold text-sm text-white/75 flex items-center gap-2 transition-all duration-300 hover:text-white"
+                                    className="px-5 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 transition-all duration-300 hover:scale-[1.02]"
                                     style={{
-                                        background: 'rgba(255,255,255,0.04)',
-                                        border: '1px solid rgba(255,255,255,0.1)',
+                                        background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
+                                        border: isDark ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.1)',
+                                        color: isDark ? 'rgba(255,255,255,0.75)' : 'rgba(80,30,20,0.8)',
                                         backdropFilter: 'blur(8px)',
                                     }}
-                                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
-                                    onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.04)')}
+                                    onMouseEnter={e => (e.currentTarget.style.background = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)')}
+                                    onMouseLeave={e => (e.currentTarget.style.background = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)')}
                                 >
                                     My Quotes <ArrowRight size={15} />
                                 </button>
@@ -982,7 +1004,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                     </div>
                 </div>
                 {/* Floating search */}
-                <div className="relative -mt-5 mx-8 flex gap-2" style={{ filter: 'drop-shadow(0 8px 24px rgba(80,10,10,0.25))' }}>
+                <div className="relative -mt-5 mx-8 flex gap-2" style={{ filter: isDark ? 'drop-shadow(0 8px 24px rgba(80,10,10,0.25))' : 'drop-shadow(0 8px 24px rgba(194,12,11,0.08))' }}>
                     {makeSearchInput(searchContainerRef)}
                     <button onClick={() => setShowFilterPanel(true)} className="flex-shrink-0 px-5 py-3.5 bg-white dark:bg-gray-900/80 dark:backdrop-blur-md border border-gray-200 dark:border-gray-700 rounded-2xl flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800 font-semibold shadow-lg text-gray-700 dark:text-white text-sm transition-all">
                         <SlidersHorizontal size={16} /> Filters
