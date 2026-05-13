@@ -849,41 +849,188 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                 </div>
             </header>
 
-            {/* ── DESKTOP HERO: dark gradient + floating search ─────── */}
+            {/* ── DESKTOP HERO: premium warm dark ─────── */}
             <header className="hidden sm:block mb-8 relative">
-                <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 p-8 shadow-2xl border border-white/5">
-                    <div className="absolute top-0 left-0 w-72 h-72 bg-pink-500/30 rounded-full filter blur-3xl animate-blob"></div>
-                    <div className="absolute top-10 right-10 w-64 h-64 bg-purple-500/30 rounded-full filter blur-3xl animate-blob-delay-2"></div>
-                    <div className="absolute -bottom-10 left-1/3 w-56 h-56 bg-cyan-500/30 rounded-full filter blur-3xl animate-blob-delay-4"></div>
-                    <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '24px 24px' }}></div>
-                    <div className="relative z-10 flex items-start justify-between gap-4">
-                        <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                                <span className="text-2xl">{greeting.emoji}</span>
-                                <p className="text-gray-300 text-sm font-medium tracking-wide uppercase">{greeting.text}</p>
+                <style>{`
+                    @keyframes heroNameShimmer {
+                        0% { background-position: 0% center; }
+                        50% { background-position: 100% center; }
+                        100% { background-position: 0% center; }
+                    }
+                    @keyframes heroPulseDot {
+                        0%, 100% { opacity: 0.4; transform: scale(1); }
+                        50% { opacity: 1; transform: scale(1.3); }
+                    }
+                `}</style>
+                <div className="relative overflow-hidden rounded-3xl p-8 shadow-2xl" style={{
+                    background: 'linear-gradient(135deg, #110808 0%, #1a0b08 45%, #100a14 100%)',
+                    border: '1px solid rgba(194,12,11,0.18)',
+                    boxShadow: '0 24px 64px rgba(0,0,0,0.55), inset 0 1px 0 rgba(194,12,11,0.2)',
+                }}>
+                    {/* Ambient orb — top-left brand red (large, dominant) */}
+                    <div className="absolute pointer-events-none" style={{
+                        top: '-20%', left: '-8%',
+                        width: 520, height: 520,
+                        borderRadius: '50%',
+                        background: 'radial-gradient(ellipse, rgba(194,12,11,0.22) 0%, rgba(194,12,11,0.1) 35%, transparent 70%)',
+                    }} />
+                    {/* Inner core of top-left orb */}
+                    <div className="absolute pointer-events-none" style={{
+                        top: '-8%', left: '-2%',
+                        width: 240, height: 240,
+                        borderRadius: '50%',
+                        background: 'radial-gradient(ellipse, rgba(194,12,11,0.32) 0%, transparent 65%)',
+                    }} />
+                    {/* Ambient orb — top-right ember/orange */}
+                    <div className="absolute pointer-events-none" style={{
+                        top: '-15%', right: '-6%',
+                        width: 380, height: 380,
+                        borderRadius: '50%',
+                        background: 'radial-gradient(ellipse, rgba(220,80,20,0.12) 0%, rgba(200,60,10,0.06) 40%, transparent 70%)',
+                    }} />
+                    {/* Inner core of top-right orb */}
+                    <div className="absolute pointer-events-none" style={{
+                        top: '-5%', right: '2%',
+                        width: 160, height: 160,
+                        borderRadius: '50%',
+                        background: 'radial-gradient(ellipse, rgba(220,80,20,0.2) 0%, transparent 65%)',
+                    }} />
+                    {/* Ambient orb — bottom-center warm amber/gold */}
+                    <div className="absolute pointer-events-none" style={{
+                        bottom: '-30%', left: '30%',
+                        width: 440, height: 440,
+                        borderRadius: '50%',
+                        background: 'radial-gradient(ellipse, rgba(201,165,78,0.09) 0%, rgba(180,120,40,0.04) 45%, transparent 70%)',
+                    }} />
+                    {/* Grain texture for tactile depth */}
+                    <div className="absolute inset-0 pointer-events-none" style={{
+                        opacity: 0.038,
+                        backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noise\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noise)\'/%3E%3C/svg%3E")',
+                        backgroundSize: '160px',
+                    }} />
+
+                    <div className="relative z-10 flex items-start justify-between gap-6">
+                        {/* Left: text content */}
+                        <div className="flex-1 min-w-0">
+                            {/* Greeting chip */}
+                            <div className="inline-flex items-center gap-2 mb-4 px-3 py-1.5 rounded-full" style={{
+                                background: 'rgba(194,12,11,0.12)',
+                                border: '1px solid rgba(194,12,11,0.22)',
+                                backdropFilter: 'blur(8px)',
+                            }}>
+                                <span style={{
+                                    width: 6, height: 6, borderRadius: '50%',
+                                    background: '#c20c0b',
+                                    display: 'inline-block',
+                                    animation: 'heroPulseDot 2.4s ease-in-out infinite',
+                                }} />
+                                <span className="text-xs font-semibold tracking-[0.15em] uppercase" style={{ color: 'rgba(255,200,180,0.75)' }}>
+                                    {greeting.emoji} {greeting.text}
+                                </span>
                             </div>
-                            <h1 className="text-4xl lg:text-5xl font-extrabold text-white leading-tight">
-                                Welcome, <span className="bg-gradient-to-r from-blue-400 via-sky-300 to-cyan-300 bg-clip-text text-transparent font-black">{firstName}</span>
+
+                            {/* Main heading */}
+                            <h1 className="text-4xl lg:text-5xl font-bold text-white leading-tight tracking-tight">
+                                Welcome,{' '}
+                                <span style={{
+                                    background: 'linear-gradient(120deg, #fbbf78 0%, #f97316 28%, #dc2626 55%, #f97316 78%, #fbbf78 100%)',
+                                    backgroundSize: '250% auto',
+                                    WebkitBackgroundClip: 'text',
+                                    WebkitTextFillColor: 'transparent',
+                                    backgroundClip: 'text',
+                                    animation: 'heroNameShimmer 5s ease-in-out infinite',
+                                    display: 'inline',
+                                }}>{firstName}</span>
                             </h1>
-                            <p className="text-gray-400 mt-1.5 text-base max-w-xl">
+
+                            {/* Gold hairline accent */}
+                            <div className="mt-3 mb-3" style={{
+                                width: 48, height: 1,
+                                background: 'linear-gradient(to right, rgba(201,165,78,0.7), rgba(201,165,78,0.1))',
+                            }} />
+
+                            {/* Tagline */}
+                            <p className="text-sm max-w-md leading-relaxed" style={{ color: 'rgba(255,220,190,0.45)' }}>
                                 {userProfile?.companyName ? `${userProfile.companyName} · ` : ''}Discover top factories, get instant quotes, and scale production.
                             </p>
-                            <div className="flex gap-3 mt-5">
-                                <button data-testid="place-order-button" onClick={() => handleSetCurrentPage('orderForm')} disabled={!canEdit} className="px-5 py-2.5 bg-gradient-to-r from-[#c20c0b] to-red-600 text-white rounded-xl font-semibold text-sm shadow-lg shadow-red-500/25 hover:shadow-red-500/40 transition-all duration-300 hover:scale-[1.03] flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-red-500/25" title={!canEdit ? 'View-only access' : undefined}>
+
+                            {/* Quick stats row */}
+                            <div className="flex items-center gap-4 mt-3 mb-5">
+                                {allFactories.length > 0 && (
+                                    <span className="text-xs font-medium" style={{ color: 'rgba(255,180,140,0.5)' }}>
+                                        <span className="font-semibold" style={{ color: 'rgba(255,180,140,0.8)' }}>{allFactories.length}</span> factories
+                                    </span>
+                                )}
+                                {quoteRequests.length > 0 && (
+                                    <>
+                                        <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'rgba(194,12,11,0.5)', display: 'inline-block' }} />
+                                        <span className="text-xs font-medium" style={{ color: 'rgba(255,180,140,0.5)' }}>
+                                            <span className="font-semibold" style={{ color: 'rgba(255,180,140,0.8)' }}>{quoteRequests.filter(q => q.status === 'Accepted').length}</span> active orders
+                                        </span>
+                                        <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'rgba(194,12,11,0.5)', display: 'inline-block' }} />
+                                        <span className="text-xs font-medium" style={{ color: 'rgba(255,180,140,0.5)' }}>
+                                            <span className="font-semibold" style={{ color: 'rgba(255,180,140,0.8)' }}>{quoteRequests.length}</span> quotes
+                                        </span>
+                                    </>
+                                )}
+                            </div>
+
+                            {/* CTAs */}
+                            <div className="flex gap-3">
+                                <button
+                                    data-testid="place-order-button"
+                                    onClick={() => handleSetCurrentPage('orderForm')}
+                                    disabled={!canEdit}
+                                    title={!canEdit ? 'View-only access' : undefined}
+                                    className="px-5 py-2.5 rounded-xl font-semibold text-sm text-white flex items-center gap-2 transition-all duration-300 hover:scale-[1.03] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                                    style={{
+                                        background: 'linear-gradient(135deg, #c20c0b 0%, #8b0000 100%)',
+                                        boxShadow: '0 4px 20px rgba(194,12,11,0.4), inset 0 1px 0 rgba(255,255,255,0.1)',
+                                    }}
+                                >
                                     <Zap size={15} /> Place Order
                                 </button>
-                                <button data-testid="my-quotes-button" onClick={() => handleSetCurrentPage('myQuotes')} className="px-5 py-2.5 bg-white/10 backdrop-blur-sm text-white rounded-xl font-semibold text-sm border border-white/20 hover:bg-white/20 transition-all duration-300 flex items-center gap-2">
+                                <button
+                                    data-testid="my-quotes-button"
+                                    onClick={() => handleSetCurrentPage('myQuotes')}
+                                    className="px-5 py-2.5 rounded-xl font-semibold text-sm text-white/75 flex items-center gap-2 transition-all duration-300 hover:text-white"
+                                    style={{
+                                        background: 'rgba(255,255,255,0.04)',
+                                        border: '1px solid rgba(255,255,255,0.1)',
+                                        backdropFilter: 'blur(8px)',
+                                    }}
+                                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
+                                    onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.04)')}
+                                >
                                     My Quotes <ArrowRight size={15} />
                                 </button>
                             </div>
                         </div>
-                        <div className="flex items-center self-center">
+
+                        {/* Right: profile + subtle stat card */}
+                        <div className="flex flex-col items-end gap-4 shrink-0">
                             <ProfileDropdown />
+                            {/* Decorative stat accent */}
+                            {quoteRequests.filter(q => q.status === 'Pending').length > 0 && (
+                                <div className="text-right px-3 py-2 rounded-xl" style={{
+                                    background: 'rgba(194,12,11,0.08)',
+                                    border: '1px solid rgba(194,12,11,0.15)',
+                                }}>
+                                    <p className="text-[10px] font-semibold tracking-[0.12em] uppercase mb-0.5" style={{ color: 'rgba(255,180,140,0.45)' }}>Pending Review</p>
+                                    <p className="text-xl font-bold" style={{
+                                        background: 'linear-gradient(120deg, #f97316, #c20c0b)',
+                                        WebkitBackgroundClip: 'text',
+                                        WebkitTextFillColor: 'transparent',
+                                        backgroundClip: 'text',
+                                    }}>{quoteRequests.filter(q => q.status === 'Pending').length}</p>
+                                    <p className="text-[10px]" style={{ color: 'rgba(255,180,140,0.35)' }}>quote{quoteRequests.filter(q => q.status === 'Pending').length !== 1 ? 's' : ''}</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
                 {/* Floating search */}
-                <div className="relative -mt-5 mx-8 flex gap-2">
+                <div className="relative -mt-5 mx-8 flex gap-2" style={{ filter: 'drop-shadow(0 8px 24px rgba(80,10,10,0.25))' }}>
                     {makeSearchInput(searchContainerRef)}
                     <button onClick={() => setShowFilterPanel(true)} className="flex-shrink-0 px-5 py-3.5 bg-white dark:bg-gray-900/80 dark:backdrop-blur-md border border-gray-200 dark:border-gray-700 rounded-2xl flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800 font-semibold shadow-lg text-gray-700 dark:text-white text-sm transition-all">
                         <SlidersHorizontal size={16} /> Filters
