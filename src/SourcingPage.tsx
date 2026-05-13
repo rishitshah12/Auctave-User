@@ -863,16 +863,37 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                     }
                 `}</style>
                 <div className="relative overflow-hidden rounded-3xl p-8 shadow-2xl" style={{
-                    background: [
-                        'radial-gradient(ellipse at 8% 55%, rgba(194,12,11,0.09) 0%, transparent 48%)',
-                        'linear-gradient(140deg, #1f1513 0%, #161522 55%, #101018 100%)',
-                    ].join(', '),
-                    border: '1px solid rgba(255,255,255,0.07)',
-                    boxShadow: '0 20px 56px rgba(0,0,0,0.4)',
+                    background: '#130e0e',
+                    border: '1px solid rgba(194,12,11,0.12)',
+                    boxShadow: '0 20px 60px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,80,40,0.07)',
                 }}>
+                    {/* Blob 1 — top-left crimson, partially off-canvas */}
+                    <div className="absolute pointer-events-none" style={{
+                        top: '-25%', left: '-15%',
+                        width: 650, height: 650,
+                        borderRadius: '50%',
+                        background: 'radial-gradient(ellipse, rgba(194,12,11,0.22) 0%, transparent 70%)',
+                        filter: 'blur(90px)',
+                    }} />
+                    {/* Blob 2 — top-right ember orange, partially off-canvas */}
+                    <div className="absolute pointer-events-none" style={{
+                        top: '-20%', right: '-8%',
+                        width: 550, height: 500,
+                        borderRadius: '50%',
+                        background: 'radial-gradient(ellipse, rgba(220,70,15,0.18) 0%, transparent 70%)',
+                        filter: 'blur(80px)',
+                    }} />
+                    {/* Blob 3 — bottom-center amber, sitting below */}
+                    <div className="absolute pointer-events-none" style={{
+                        bottom: '-30%', left: '30%',
+                        width: 480, height: 380,
+                        borderRadius: '50%',
+                        background: 'radial-gradient(ellipse, rgba(200,130,30,0.13) 0%, transparent 70%)',
+                        filter: 'blur(70px)',
+                    }} />
                     {/* Grain texture for tactile depth */}
                     <div className="absolute inset-0 pointer-events-none" style={{
-                        opacity: 0.038,
+                        opacity: 0.04,
                         backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noise\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noise)\'/%3E%3C/svg%3E")',
                         backgroundSize: '160px',
                     }} />
