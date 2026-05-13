@@ -856,8 +856,8 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                 </div>
             </header>
 
-            {/* ── DESKTOP HERO: premium warm dark ─────── */}
-            <header className="hidden sm:block mb-8 relative">
+            {/* ── DESKTOP HERO: full-section, edge-to-edge ─────── */}
+            <header className="hidden sm:block mb-8 relative -mx-6 lg:-mx-8">
                 <style>{`
                     @keyframes heroNameShimmer {
                         0% { background-position: 0% center; }
@@ -865,148 +865,144 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                         100% { background-position: 0% center; }
                     }
                     @keyframes heroPulseDot {
-                        0%, 100% { opacity: 0.4; transform: scale(1); }
-                        50% { opacity: 1; transform: scale(1.3); }
+                        0%, 100% { opacity: 0.45; transform: scale(1); }
+                        50% { opacity: 1; transform: scale(1.35); }
                     }
                 `}</style>
-                <div className="relative overflow-hidden rounded-3xl p-8 shadow-2xl" style={{
-                    background: isDark ? '#0f0a0a' : '#ffffff',
-                    border: isDark ? '1px solid rgba(194,12,11,0.14)' : '1px solid rgba(194,12,11,0.12)',
-                    boxShadow: isDark
-                        ? '0 24px 64px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,80,40,0.08)'
-                        : '0 8px 48px rgba(194,12,11,0.10), 0 2px 16px rgba(0,0,0,0.05)',
-                }}>
-                    {/* Blob 1 — top-left crimson */}
-                    <div className="absolute pointer-events-none" style={{
-                        top: '-25%', left: '-15%',
-                        width: 650, height: 650,
-                        borderRadius: '50%',
+
+                {/* Background layer — overflow-hidden clips blobs to section bounds */}
+                <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                    <div className="absolute inset-0" style={{ background: isDark ? '#0d0908' : '#ffffff' }} />
+                    {/* Blob 1 — top-left crimson, large and dominant */}
+                    <div style={{
+                        position: 'absolute', top: '-30%', left: '-10%',
+                        width: 720, height: 720, borderRadius: '50%',
                         background: isDark
-                            ? 'radial-gradient(ellipse, rgba(194,12,11,0.28) 0%, rgba(194,12,11,0.10) 45%, transparent 70%)'
-                            : 'radial-gradient(ellipse, rgba(194,12,11,0.18) 0%, rgba(220,60,20,0.08) 45%, transparent 70%)',
-                        filter: 'blur(85px)',
+                            ? 'radial-gradient(ellipse, rgba(194,12,11,0.35) 0%, rgba(180,20,10,0.12) 40%, transparent 68%)'
+                            : 'radial-gradient(ellipse, rgba(194,12,11,0.20) 0%, rgba(220,60,20,0.08) 42%, transparent 68%)',
+                        filter: 'blur(88px)',
                     }} />
                     {/* Blob 2 — top-right ember orange */}
-                    <div className="absolute pointer-events-none" style={{
-                        top: '-20%', right: '-8%',
-                        width: 580, height: 520,
-                        borderRadius: '50%',
+                    <div style={{
+                        position: 'absolute', top: '-25%', right: '-8%',
+                        width: 620, height: 560, borderRadius: '50%',
                         background: isDark
-                            ? 'radial-gradient(ellipse, rgba(220,70,15,0.22) 0%, rgba(200,50,10,0.08) 45%, transparent 70%)'
-                            : 'radial-gradient(ellipse, rgba(234,88,12,0.16) 0%, rgba(220,70,15,0.06) 45%, transparent 70%)',
-                        filter: 'blur(80px)',
+                            ? 'radial-gradient(ellipse, rgba(224,78,14,0.28) 0%, rgba(200,55,10,0.09) 42%, transparent 68%)'
+                            : 'radial-gradient(ellipse, rgba(234,88,12,0.18) 0%, rgba(220,70,15,0.06) 42%, transparent 68%)',
+                        filter: 'blur(82px)',
                     }} />
-                    {/* Blob 3 — bottom-center amber/gold */}
-                    <div className="absolute pointer-events-none" style={{
-                        bottom: '-35%', left: '25%',
-                        width: 560, height: 420,
-                        borderRadius: '50%',
+                    {/* Blob 3 — bottom-center warm amber */}
+                    <div style={{
+                        position: 'absolute', bottom: '-40%', left: '20%',
+                        width: 680, height: 500, borderRadius: '50%',
                         background: isDark
-                            ? 'radial-gradient(ellipse, rgba(200,130,30,0.18) 0%, rgba(180,100,20,0.06) 50%, transparent 70%)'
-                            : 'radial-gradient(ellipse, rgba(217,119,6,0.14) 0%, rgba(200,130,30,0.05) 50%, transparent 70%)',
-                        filter: 'blur(75px)',
+                            ? 'radial-gradient(ellipse, rgba(210,130,20,0.22) 0%, rgba(180,100,15,0.07) 48%, transparent 68%)'
+                            : 'radial-gradient(ellipse, rgba(217,119,6,0.16) 0%, rgba(200,130,30,0.05) 48%, transparent 68%)',
+                        filter: 'blur(78px)',
                     }} />
-                    {/* Grain texture for tactile depth */}
-                    <div className="absolute inset-0 pointer-events-none" style={{
-                        opacity: isDark ? 0.045 : 0.03,
+                    {/* Grain texture */}
+                    <div style={{
+                        position: 'absolute', inset: 0,
+                        opacity: isDark ? 0.045 : 0.028,
                         backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noise\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noise)\'/%3E%3C/svg%3E")',
                         backgroundSize: '160px',
                     }} />
+                    {/* Bottom fade — blends section into page */}
+                    <div style={{
+                        position: 'absolute', bottom: 0, left: 0, right: 0, height: 80,
+                        background: isDark
+                            ? 'linear-gradient(to bottom, transparent, #18171c)'
+                            : 'linear-gradient(to bottom, transparent, #ffffff)',
+                    }} />
+                </div>
 
-                    <div className="relative z-10 flex items-start justify-between gap-6">
-                        {/* Left: text content */}
-                        <div className="flex-1 min-w-0">
-                            {/* Greeting chip */}
-                            <div className="inline-flex items-center gap-2 mb-4 px-3 py-1.5 rounded-full" style={{
-                                background: isDark ? 'rgba(194,12,11,0.12)' : 'rgba(194,12,11,0.07)',
-                                border: isDark ? '1px solid rgba(194,12,11,0.22)' : '1px solid rgba(194,12,11,0.15)',
-                                backdropFilter: 'blur(8px)',
-                            }}>
-                                <span style={{
-                                    width: 6, height: 6, borderRadius: '50%',
-                                    background: '#c20c0b',
-                                    display: 'inline-block',
-                                    animation: 'heroPulseDot 2.4s ease-in-out infinite',
-                                }} />
-                                <span className="text-xs font-semibold tracking-[0.15em] uppercase" style={{
-                                    color: isDark ? 'rgba(255,200,180,0.75)' : 'rgba(140,30,10,0.7)',
-                                }}>
-                                    {greeting.emoji} {greeting.text}
-                                </span>
-                            </div>
-
-                            {/* Main heading */}
-                            <h1 className="text-4xl lg:text-5xl font-bold leading-tight tracking-tight" style={{
-                                color: isDark ? '#ffffff' : '#1a1210',
-                            }}>
-                                Welcome,{' '}
-                                <span style={{
-                                    background: 'linear-gradient(120deg, #fbbf78 0%, #f97316 28%, #dc2626 55%, #f97316 78%, #fbbf78 100%)',
-                                    backgroundSize: '250% auto',
-                                    WebkitBackgroundClip: 'text',
-                                    WebkitTextFillColor: 'transparent',
-                                    backgroundClip: 'text',
-                                    animation: 'heroNameShimmer 5s ease-in-out infinite',
-                                    display: 'inline',
-                                }}>{firstName}</span>
-                            </h1>
-
-                            {/* Gold hairline accent */}
-                            <div className="mt-3 mb-3" style={{
-                                width: 48, height: 1,
-                                background: 'linear-gradient(to right, rgba(201,165,78,0.7), rgba(201,165,78,0.1))',
+                {/* Text content */}
+                <div className="relative z-10 px-6 sm:px-8 lg:px-10 pt-10 pb-4">
+                    {/* Top row: greeting chip + profile */}
+                    <div className="flex items-start justify-between gap-4 mb-5">
+                        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full" style={{
+                            background: isDark ? 'rgba(194,12,11,0.14)' : 'rgba(194,12,11,0.08)',
+                            border: isDark ? '1px solid rgba(194,12,11,0.28)' : '1px solid rgba(194,12,11,0.18)',
+                            backdropFilter: 'blur(8px)',
+                        }}>
+                            <span style={{
+                                width: 6, height: 6, borderRadius: '50%',
+                                background: '#c20c0b', display: 'inline-block',
+                                animation: 'heroPulseDot 2.4s ease-in-out infinite',
                             }} />
-
-                            {/* Tagline */}
-                            <p className="text-sm max-w-md leading-relaxed" style={{
-                                color: isDark ? 'rgba(255,220,190,0.45)' : 'rgba(100,50,30,0.55)',
+                            <span className="text-xs font-semibold tracking-[0.15em] uppercase" style={{
+                                color: isDark ? 'rgba(255,200,180,0.8)' : 'rgba(140,30,10,0.75)',
                             }}>
-                                {userProfile?.companyName ? `${userProfile.companyName} · ` : ''}Discover top factories, get instant quotes, and scale production.
-                            </p>
-
-                            {/* CTAs */}
-                            <div className="flex gap-3 mt-5">
-                                <button
-                                    data-testid="place-order-button"
-                                    onClick={() => handleSetCurrentPage('orderForm')}
-                                    disabled={!canEdit}
-                                    title={!canEdit ? 'View-only access' : undefined}
-                                    className="px-5 py-2.5 rounded-xl font-semibold text-sm text-white flex items-center gap-2 transition-all duration-300 hover:scale-[1.03] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                                    style={{
-                                        background: 'linear-gradient(135deg, #c20c0b 0%, #8b0000 100%)',
-                                        boxShadow: '0 4px 20px rgba(194,12,11,0.4), inset 0 1px 0 rgba(255,255,255,0.1)',
-                                    }}
-                                >
-                                    <Zap size={15} /> Place Order
-                                </button>
-                                <button
-                                    data-testid="my-quotes-button"
-                                    onClick={() => handleSetCurrentPage('myQuotes')}
-                                    className="px-5 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 transition-all duration-300 hover:scale-[1.02]"
-                                    style={{
-                                        background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
-                                        border: isDark ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.1)',
-                                        color: isDark ? 'rgba(255,255,255,0.75)' : 'rgba(80,30,20,0.8)',
-                                        backdropFilter: 'blur(8px)',
-                                    }}
-                                    onMouseEnter={e => (e.currentTarget.style.background = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)')}
-                                    onMouseLeave={e => (e.currentTarget.style.background = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)')}
-                                >
-                                    My Quotes <ArrowRight size={15} />
-                                </button>
-                            </div>
+                                {greeting.emoji} {greeting.text}
+                            </span>
                         </div>
-
-                        {/* Right: profile */}
-                        <div className="flex items-center self-center shrink-0">
+                        <div className="shrink-0">
                             <ProfileDropdown />
                         </div>
                     </div>
+
+                    {/* Main heading */}
+                    <h1 className="text-5xl lg:text-6xl font-black leading-tight tracking-tight mb-2" style={{
+                        color: isDark ? '#ffffff' : '#1a1210',
+                    }}>
+                        Hey,{' '}
+                        <span style={{
+                            background: 'linear-gradient(120deg, #fbbf78 0%, #f97316 25%, #dc2626 52%, #f97316 76%, #fbbf78 100%)',
+                            backgroundSize: '260% auto',
+                            WebkitBackgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent',
+                            backgroundClip: 'text',
+                            animation: 'heroNameShimmer 5s ease-in-out infinite',
+                        }}>{firstName}.</span>
+                    </h1>
+
+                    {/* Tagline */}
+                    <p className="text-base mb-6" style={{
+                        color: isDark ? 'rgba(255,220,190,0.45)' : 'rgba(100,50,30,0.5)',
+                    }}>
+                        {userProfile?.companyName ? `${userProfile.companyName} · ` : ''}Discover top factories, get instant quotes, and scale production.
+                    </p>
+
+                    {/* CTAs */}
+                    <div className="flex gap-3 mb-8">
+                        <button
+                            data-testid="place-order-button"
+                            onClick={() => handleSetCurrentPage('orderForm')}
+                            disabled={!canEdit}
+                            title={!canEdit ? 'View-only access' : undefined}
+                            className="px-5 py-2.5 rounded-xl font-semibold text-sm text-white flex items-center gap-2 transition-all duration-300 hover:scale-[1.03] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                            style={{
+                                background: 'linear-gradient(135deg, #c20c0b 0%, #8b0000 100%)',
+                                boxShadow: '0 4px 20px rgba(194,12,11,0.45), inset 0 1px 0 rgba(255,255,255,0.12)',
+                            }}
+                        >
+                            <Zap size={15} /> Place Order
+                        </button>
+                        <button
+                            data-testid="my-quotes-button"
+                            onClick={() => handleSetCurrentPage('myQuotes')}
+                            className="px-5 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 transition-all duration-300 hover:scale-[1.02]"
+                            style={{
+                                background: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
+                                border: isDark ? '1px solid rgba(255,255,255,0.12)' : '1px solid rgba(0,0,0,0.1)',
+                                color: isDark ? 'rgba(255,255,255,0.8)' : 'rgba(80,30,20,0.8)',
+                                backdropFilter: 'blur(8px)',
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.background = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)')}
+                            onMouseLeave={e => (e.currentTarget.style.background = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)')}
+                        >
+                            My Quotes <ArrowRight size={15} />
+                        </button>
+                    </div>
                 </div>
-                {/* Floating search */}
-                <div className="relative -mt-5 mx-8 flex gap-2" style={{ filter: isDark ? 'drop-shadow(0 8px 24px rgba(80,10,10,0.25))' : 'drop-shadow(0 8px 24px rgba(194,12,11,0.08))' }}>
+
+                {/* Search row — sits at the base of the section, overlaps the bottom fade */}
+                <div className="relative z-20 px-6 sm:px-8 lg:px-10 pb-6 flex gap-3">
                     {makeSearchInput(searchContainerRef)}
-                    <button onClick={() => setShowFilterPanel(true)} className="flex-shrink-0 px-5 py-3.5 bg-white dark:bg-gray-900/80 dark:backdrop-blur-md border border-gray-200 dark:border-gray-700 rounded-2xl flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800 font-semibold shadow-lg text-gray-700 dark:text-white text-sm transition-all">
+                    <button
+                        onClick={() => setShowFilterPanel(true)}
+                        className="flex-shrink-0 px-5 py-3.5 bg-white dark:bg-gray-900/80 dark:backdrop-blur-md border border-gray-200 dark:border-gray-700 rounded-2xl flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800 font-semibold shadow-lg text-gray-700 dark:text-white text-sm transition-all"
+                    >
                         <SlidersHorizontal size={16} /> Filters
                     </button>
                 </div>
