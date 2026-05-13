@@ -297,6 +297,12 @@ const AppContent: FC = () => {
     ]);
     const [aiChatOpen, setAiChatOpen] = useState(false);
     const [aiActiveTab, setAiActiveTab] = useState<'ai' | 'quotes'>('ai');
+    // Quotes-chat state lifted here so AIChatSupport (inline component) survives AppContent re-renders
+    const [aiQuotesView, setAiQuotesView] = useState<'rfqs' | 'chat'>('rfqs');
+    const [aiSelectedRFQ, setAiSelectedRFQ] = useState<QuoteRequest | null>(null);
+    const [aiActiveLineItemId, setAiActiveLineItemId] = useState<number | null>(null);
+    const [aiQuotesMessage, setAiQuotesMessage] = useState('');
+    const [aiQuotesSending, setAiQuotesSending] = useState(false);
     // Tracks last-known status per quote id for visibilitychange change detection
     const prevQuoteStatusesRef = useRef<Map<string, string>>(new Map());
     // Timestamp of when the tab was hidden (for the 30s poll gate)
@@ -341,11 +347,13 @@ const AppContent: FC = () => {
         const path = PAGE_TO_PATH[currentPage];
         // Never overwrite OAuth callback params — Supabase needs ?code= or #access_token= to exchange for a session
         const hasAuthParams = window.location.search.includes('code=') || window.location.hash.includes('access_token=');
-        // Only sync URL when the current pathname is a known static path.
-        // Dynamic routes like /quote/:id are not in PATH_TO_PAGE — skipping prevents
-        // this effect from clobbering them when currentPage resolves to a stale value.
+        // Allow navigation when:
+        //   a) Current path is a known static page (safe to override), OR
+        //   b) Current path is root "/" or "/login" (landing spots — safe to redirect away from)
+        // Never clobber dynamic routes like /quote/:id that are not in PATH_TO_PAGE.
         const currentPathIsStatic = !!PATH_TO_PAGE[window.location.pathname];
-        if (path && window.location.pathname !== path && !hasAuthParams && currentPathIsStatic) {
+        const currentPathIsLanding = ['/', '/login'].includes(window.location.pathname);
+        if (path && window.location.pathname !== path && !hasAuthParams && (currentPathIsStatic || currentPathIsLanding)) {
             navigate(path);
         }
         const seo = PAGE_SEO[currentPage];
@@ -1648,6 +1656,11 @@ const AppContent: FC = () => {
             setAiMessages([{ text: "Hello! I'm Auctave Brain. How can I help you today?\n\nI can help you find factories, check your order status, answer platform questions, or start a new order.", sender: 'ai' }]);
             setAiChatOpen(false);
             setAiActiveTab('ai');
+            setAiQuotesView('rfqs');
+            setAiSelectedRFQ(null);
+            setAiActiveLineItemId(null);
+            setAiQuotesMessage('');
+            setAiQuotesSending(false);
 
             // Navigate to login page
             setCurrentPage('login');
@@ -3421,13 +3434,18 @@ const AppContent: FC = () => {
         }, []);
         const chatEndRef = useRef<HTMLDivElement>(null);
 
-        // ── My Quotes State ───────────────────────────────────────────────────
-        const [quotesView, setQuotesView] = useState<'rfqs' | 'chat'>('rfqs');
+        // ── My Quotes State (lifted to AppContent so re-renders don't reset them) ──
+        const quotesView = aiQuotesView;
+        const setQuotesView = setAiQuotesView;
         const [quotesSearch, setQuotesSearch] = useState('');
-        const [selectedRFQ, setSelectedRFQ] = useState<QuoteRequest | null>(null);
-        const [activeLineItemId, setActiveLineItemId] = useState<number | null>(null);
-        const [quotesMessage, setQuotesMessage] = useState('');
-        const [quotesSending, setQuotesSending] = useState(false);
+        const selectedRFQ = aiSelectedRFQ;
+        const setSelectedRFQ = setAiSelectedRFQ;
+        const activeLineItemId = aiActiveLineItemId;
+        const setActiveLineItemId = setAiActiveLineItemId;
+        const quotesMessage = aiQuotesMessage;
+        const setQuotesMessage = setAiQuotesMessage;
+        const quotesSending = aiQuotesSending;
+        const setQuotesSending = setAiQuotesSending;
         const [attachFiles, setAttachFiles] = useState<File[]>([]);
         const [attachPreviews, setAttachPreviews] = useState<string[]>([]);
         const [orderDetailsExpanded, setOrderDetailsExpanded] = useState(false);
