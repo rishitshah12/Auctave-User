@@ -863,45 +863,14 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                     }
                 `}</style>
                 <div className="relative overflow-hidden rounded-3xl p-8 shadow-2xl" style={{
-                    background: 'linear-gradient(135deg, #110808 0%, #1a0b08 45%, #100a14 100%)',
-                    border: '1px solid rgba(194,12,11,0.18)',
-                    boxShadow: '0 24px 64px rgba(0,0,0,0.55), inset 0 1px 0 rgba(194,12,11,0.2)',
+                    background: [
+                        'radial-gradient(ellipse at 15% 60%, rgba(194,12,11,0.07) 0%, transparent 45%)',
+                        'radial-gradient(ellipse at 90% 90%, rgba(201,165,78,0.05) 0%, transparent 40%)',
+                        'linear-gradient(#0e0c0b, #0e0c0b)',
+                    ].join(', '),
+                    border: '1px solid rgba(255,255,255,0.06)',
+                    boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
                 }}>
-                    {/* Ambient orb — top-left brand red (large, dominant) */}
-                    <div className="absolute pointer-events-none" style={{
-                        top: '-20%', left: '-8%',
-                        width: 520, height: 520,
-                        borderRadius: '50%',
-                        background: 'radial-gradient(ellipse, rgba(194,12,11,0.22) 0%, rgba(194,12,11,0.1) 35%, transparent 70%)',
-                    }} />
-                    {/* Inner core of top-left orb */}
-                    <div className="absolute pointer-events-none" style={{
-                        top: '-8%', left: '-2%',
-                        width: 240, height: 240,
-                        borderRadius: '50%',
-                        background: 'radial-gradient(ellipse, rgba(194,12,11,0.32) 0%, transparent 65%)',
-                    }} />
-                    {/* Ambient orb — top-right ember/orange */}
-                    <div className="absolute pointer-events-none" style={{
-                        top: '-15%', right: '-6%',
-                        width: 380, height: 380,
-                        borderRadius: '50%',
-                        background: 'radial-gradient(ellipse, rgba(220,80,20,0.12) 0%, rgba(200,60,10,0.06) 40%, transparent 70%)',
-                    }} />
-                    {/* Inner core of top-right orb */}
-                    <div className="absolute pointer-events-none" style={{
-                        top: '-5%', right: '2%',
-                        width: 160, height: 160,
-                        borderRadius: '50%',
-                        background: 'radial-gradient(ellipse, rgba(220,80,20,0.2) 0%, transparent 65%)',
-                    }} />
-                    {/* Ambient orb — bottom-center warm amber/gold */}
-                    <div className="absolute pointer-events-none" style={{
-                        bottom: '-30%', left: '30%',
-                        width: 440, height: 440,
-                        borderRadius: '50%',
-                        background: 'radial-gradient(ellipse, rgba(201,165,78,0.09) 0%, rgba(180,120,40,0.04) 45%, transparent 70%)',
-                    }} />
                     {/* Grain texture for tactile depth */}
                     <div className="absolute inset-0 pointer-events-none" style={{
                         opacity: 0.038,
@@ -1007,25 +976,9 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                             </div>
                         </div>
 
-                        {/* Right: profile + subtle stat card */}
-                        <div className="flex flex-col items-end gap-4 shrink-0">
+                        {/* Right: profile */}
+                        <div className="flex items-center self-center shrink-0">
                             <ProfileDropdown />
-                            {/* Decorative stat accent */}
-                            {quoteRequests.filter(q => q.status === 'Pending').length > 0 && (
-                                <div className="text-right px-3 py-2 rounded-xl" style={{
-                                    background: 'rgba(194,12,11,0.08)',
-                                    border: '1px solid rgba(194,12,11,0.15)',
-                                }}>
-                                    <p className="text-[10px] font-semibold tracking-[0.12em] uppercase mb-0.5" style={{ color: 'rgba(255,180,140,0.45)' }}>Pending Review</p>
-                                    <p className="text-xl font-bold" style={{
-                                        background: 'linear-gradient(120deg, #f97316, #c20c0b)',
-                                        WebkitBackgroundClip: 'text',
-                                        WebkitTextFillColor: 'transparent',
-                                        backgroundClip: 'text',
-                                    }}>{quoteRequests.filter(q => q.status === 'Pending').length}</p>
-                                    <p className="text-[10px]" style={{ color: 'rgba(255,180,140,0.35)' }}>quote{quoteRequests.filter(q => q.status === 'Pending').length !== 1 ? 's' : ''}</p>
-                                </div>
-                            )}
                         </div>
                     </div>
                 </div>
