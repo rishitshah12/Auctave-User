@@ -856,155 +856,86 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                 </div>
             </header>
 
-            {/* ── DESKTOP HERO: full-section, edge-to-edge ─────── */}
-            <header className="hidden sm:block mb-8 relative -mx-6 lg:-mx-8">
-                <style>{`
-                    @keyframes heroNameShimmer {
-                        0% { background-position: 0% center; }
-                        50% { background-position: 100% center; }
-                        100% { background-position: 0% center; }
-                    }
-                    @keyframes heroPulseDot {
-                        0%, 100% { opacity: 0.45; transform: scale(1); }
-                        50% { opacity: 1; transform: scale(1.35); }
-                    }
-                `}</style>
-
-                {/* Background layer — overflow-hidden clips blobs to section bounds */}
-                <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                    <div className="absolute inset-0" style={{ background: isDark ? '#0d0908' : '#ffffff' }} />
-                    {/* Blob 1 — top-left crimson, large and dominant */}
+            {/* ── DESKTOP HERO: mobile formula scaled up ─────── */}
+            <header className="hidden sm:block mb-8 relative -mx-6 lg:-mx-8 overflow-hidden">
+                {/* Subtle blobs on the section background — barely there, just warmth */}
+                <div className="absolute inset-0 pointer-events-none">
                     <div style={{
-                        position: 'absolute', top: '-30%', left: '-10%',
-                        width: 720, height: 720, borderRadius: '50%',
+                        position: 'absolute', top: '-40%', left: '-5%',
+                        width: 700, height: 700, borderRadius: '50%',
                         background: isDark
-                            ? 'radial-gradient(ellipse, rgba(194,12,11,0.35) 0%, rgba(180,20,10,0.12) 40%, transparent 68%)'
-                            : 'radial-gradient(ellipse, rgba(194,12,11,0.20) 0%, rgba(220,60,20,0.08) 42%, transparent 68%)',
-                        filter: 'blur(88px)',
+                            ? 'radial-gradient(ellipse, rgba(194,12,11,0.13) 0%, transparent 65%)'
+                            : 'radial-gradient(ellipse, rgba(194,12,11,0.07) 0%, transparent 65%)',
+                        filter: 'blur(100px)',
                     }} />
-                    {/* Blob 2 — top-right ember orange */}
                     <div style={{
-                        position: 'absolute', top: '-25%', right: '-8%',
-                        width: 620, height: 560, borderRadius: '50%',
+                        position: 'absolute', top: '-30%', right: '-5%',
+                        width: 580, height: 580, borderRadius: '50%',
                         background: isDark
-                            ? 'radial-gradient(ellipse, rgba(224,78,14,0.28) 0%, rgba(200,55,10,0.09) 42%, transparent 68%)'
-                            : 'radial-gradient(ellipse, rgba(234,88,12,0.18) 0%, rgba(220,70,15,0.06) 42%, transparent 68%)',
-                        filter: 'blur(82px)',
+                            ? 'radial-gradient(ellipse, rgba(224,78,14,0.10) 0%, transparent 65%)'
+                            : 'radial-gradient(ellipse, rgba(234,88,12,0.06) 0%, transparent 65%)',
+                        filter: 'blur(100px)',
                     }} />
-                    {/* Blob 3 — bottom-center warm amber */}
                     <div style={{
-                        position: 'absolute', bottom: '-40%', left: '20%',
-                        width: 680, height: 500, borderRadius: '50%',
+                        position: 'absolute', bottom: '-40%', left: '30%',
+                        width: 600, height: 480, borderRadius: '50%',
                         background: isDark
-                            ? 'radial-gradient(ellipse, rgba(210,130,20,0.22) 0%, rgba(180,100,15,0.07) 48%, transparent 68%)'
-                            : 'radial-gradient(ellipse, rgba(217,119,6,0.16) 0%, rgba(200,130,30,0.05) 48%, transparent 68%)',
-                        filter: 'blur(78px)',
-                    }} />
-                    {/* Grain texture */}
-                    <div style={{
-                        position: 'absolute', inset: 0,
-                        opacity: isDark ? 0.045 : 0.028,
-                        backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noise\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noise)\'/%3E%3C/svg%3E")',
-                        backgroundSize: '160px',
-                    }} />
-                    {/* Bottom fade — blends section into page */}
-                    <div style={{
-                        position: 'absolute', bottom: 0, left: 0, right: 0, height: 80,
-                        background: isDark
-                            ? 'linear-gradient(to bottom, transparent, #18171c)'
-                            : 'linear-gradient(to bottom, transparent, #ffffff)',
+                            ? 'radial-gradient(ellipse, rgba(210,130,20,0.09) 0%, transparent 65%)'
+                            : 'radial-gradient(ellipse, rgba(217,119,6,0.05) 0%, transparent 65%)',
+                        filter: 'blur(90px)',
                     }} />
                 </div>
 
-                {/* Text content */}
-                <div className="relative z-10 px-6 sm:px-8 lg:px-10 pt-10 pb-4">
-                    {/* Top row: greeting chip + profile */}
-                    <div className="flex items-start justify-between gap-4 mb-5">
-                        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full" style={{
-                            background: isDark ? 'rgba(194,12,11,0.14)' : 'rgba(194,12,11,0.08)',
-                            border: isDark ? '1px solid rgba(194,12,11,0.28)' : '1px solid rgba(194,12,11,0.18)',
-                            backdropFilter: 'blur(8px)',
-                        }}>
-                            <span style={{
-                                width: 6, height: 6, borderRadius: '50%',
-                                background: '#c20c0b', display: 'inline-block',
-                                animation: 'heroPulseDot 2.4s ease-in-out infinite',
-                            }} />
-                            <span className="text-xs font-semibold tracking-[0.15em] uppercase" style={{
-                                color: isDark ? 'rgba(255,200,180,0.8)' : 'rgba(140,30,10,0.75)',
-                            }}>
-                                {greeting.emoji} {greeting.text}
-                            </span>
-                        </div>
-                        <div className="shrink-0">
-                            <ProfileDropdown />
-                        </div>
+                {/* Content — same structure as mobile, just bigger */}
+                <div className="relative z-10 px-6 sm:px-8 lg:px-10 pt-8 pb-6">
+                    {/* Greeting row + profile */}
+                    <div className="flex items-start justify-between mb-3">
+                        <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest flex items-center gap-1.5">
+                            <span>{greeting.emoji}</span>{greeting.text}
+                        </p>
+                        <ProfileDropdown />
                     </div>
 
-                    {/* Main heading */}
-                    <h1 className="text-5xl lg:text-6xl font-black leading-tight tracking-tight mb-2" style={{
-                        color: isDark ? '#ffffff' : '#1a1210',
-                    }}>
-                        Hey,{' '}
-                        <span style={{
-                            background: 'linear-gradient(120deg, #fbbf78 0%, #f97316 25%, #dc2626 52%, #f97316 76%, #fbbf78 100%)',
-                            backgroundSize: '260% auto',
-                            WebkitBackgroundClip: 'text',
-                            WebkitTextFillColor: 'transparent',
-                            backgroundClip: 'text',
-                            animation: 'heroNameShimmer 5s ease-in-out infinite',
-                        }}>{firstName}.</span>
+                    {/* Heading */}
+                    <h1 className="text-5xl lg:text-6xl font-black text-gray-900 dark:text-white leading-tight tracking-tight mb-2">
+                        Hey, <span className="bg-gradient-to-r from-[#c20c0b] to-orange-500 bg-clip-text text-transparent">{firstName}!</span>
                     </h1>
 
-                    {/* Tagline */}
-                    <p className="text-base mb-6" style={{
-                        color: isDark ? 'rgba(255,220,190,0.45)' : 'rgba(100,50,30,0.5)',
-                    }}>
+                    {/* Subtitle */}
+                    <p className="text-base text-gray-500 dark:text-gray-400 mb-6">
                         {userProfile?.companyName ? `${userProfile.companyName} · ` : ''}Discover top factories, get instant quotes, and scale production.
                     </p>
 
                     {/* CTAs */}
-                    <div className="flex gap-3 mb-8">
+                    <div className="flex gap-3 mb-6">
                         <button
                             data-testid="place-order-button"
                             onClick={() => handleSetCurrentPage('orderForm')}
                             disabled={!canEdit}
                             title={!canEdit ? 'View-only access' : undefined}
-                            className="px-5 py-2.5 rounded-xl font-semibold text-sm text-white flex items-center gap-2 transition-all duration-300 hover:scale-[1.03] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                            style={{
-                                background: 'linear-gradient(135deg, #c20c0b 0%, #8b0000 100%)',
-                                boxShadow: '0 4px 20px rgba(194,12,11,0.45), inset 0 1px 0 rgba(255,255,255,0.12)',
-                            }}
+                            className="px-5 py-2.5 bg-gradient-to-r from-[#c20c0b] to-red-600 text-white rounded-xl font-semibold text-sm shadow-lg shadow-red-500/25 hover:shadow-red-500/40 transition-all duration-300 hover:scale-[1.03] flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-red-500/25"
                         >
                             <Zap size={15} /> Place Order
                         </button>
                         <button
                             data-testid="my-quotes-button"
                             onClick={() => handleSetCurrentPage('myQuotes')}
-                            className="px-5 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 transition-all duration-300 hover:scale-[1.02]"
-                            style={{
-                                background: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
-                                border: isDark ? '1px solid rgba(255,255,255,0.12)' : '1px solid rgba(0,0,0,0.1)',
-                                color: isDark ? 'rgba(255,255,255,0.8)' : 'rgba(80,30,20,0.8)',
-                                backdropFilter: 'blur(8px)',
-                            }}
-                            onMouseEnter={e => (e.currentTarget.style.background = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)')}
-                            onMouseLeave={e => (e.currentTarget.style.background = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)')}
+                            className="px-5 py-2.5 bg-white dark:bg-white/8 border border-gray-200 dark:border-white/10 text-gray-700 dark:text-white rounded-xl font-semibold text-sm hover:bg-gray-50 dark:hover:bg-white/12 transition-all duration-300 flex items-center gap-2"
                         >
                             My Quotes <ArrowRight size={15} />
                         </button>
                     </div>
-                </div>
 
-                {/* Search row — sits at the base of the section, overlaps the bottom fade */}
-                <div className="relative z-20 px-6 sm:px-8 lg:px-10 pb-6 flex gap-3">
-                    {makeSearchInput(searchContainerRef)}
-                    <button
-                        onClick={() => setShowFilterPanel(true)}
-                        className="flex-shrink-0 px-5 py-3.5 bg-white dark:bg-gray-900/80 dark:backdrop-blur-md border border-gray-200 dark:border-gray-700 rounded-2xl flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800 font-semibold shadow-lg text-gray-700 dark:text-white text-sm transition-all"
-                    >
-                        <SlidersHorizontal size={16} /> Filters
-                    </button>
+                    {/* Search bar */}
+                    <div className="flex gap-3">
+                        {makeSearchInput(searchContainerRef)}
+                        <button
+                            onClick={() => setShowFilterPanel(true)}
+                            className="flex-shrink-0 px-5 py-3.5 bg-white dark:bg-gray-900/80 dark:backdrop-blur-md border border-gray-200 dark:border-gray-700 rounded-2xl flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800 font-semibold shadow-lg text-gray-700 dark:text-white text-sm transition-all"
+                        >
+                            <SlidersHorizontal size={16} /> Filters
+                        </button>
+                    </div>
                 </div>
             </header>
 
