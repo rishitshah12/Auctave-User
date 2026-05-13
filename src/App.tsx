@@ -681,8 +681,16 @@ const AppContent: FC = () => {
                             if (cached._userId === session.user.id && Date.now() - (cached._ts || 0) < PROFILE_CACHE_TTL) {
                                 const { _userId, _ts, ...profile } = cached;
                                 currentProfile = profile as UserProfile;
-                                setUserProfile(currentProfile);
-                                console.log('Profile loaded from cache (skip DB fetch)');
+                                // Bail out if the profile object hasn't changed to prevent
+                                // needless AppContent re-renders (and AIChatSupport remounts)
+                                // when the auth callback fires multiple times with the same data.
+                                setUserProfile(prev =>
+                                    prev?.email === currentProfile?.email &&
+                                    prev?.name === currentProfile?.name &&
+                                    prev?.companyName === currentProfile?.companyName
+                                        ? prev
+                                        : currentProfile
+                                );
                             }
                         }
                     } catch { /* corrupt cache — will re-fetch below */ }
@@ -1026,11 +1034,22 @@ const AppContent: FC = () => {
                 if (error) throw error;
 
                 if (data && !signal.aborted) {
-                    console.log('[App.tsx] Raw quotes from DB:', data.map((q: any) => ({ id: q.id, files: q.files })));
                     const transformedQuotes: QuoteRequest[] = data.map(transformRawQuote);
-                    console.log('[App.tsx] Transformed quotes files:', transformedQuotes.map(q => ({ id: q.id, files: q.files })));
-                    setQuoteRequests(transformedQuotes);
                     sessionStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify(transformedQuotes));
+                    // Use functional update with bail-out: if every quote has the same id/status/modified_at
+                    // the data hasn't changed — return the previous reference so React skips the re-render.
+                    // This prevents AIChatSupport from remounting when the background refetch returns
+                    // identical data (e.g. second fetch triggered by activeOrgOwnerId change).
+                    setQuoteRequests(prev => {
+                        if (
+                            prev.length === transformedQuotes.length &&
+                            prev.every((q, i) => {
+                                const n = transformedQuotes[i];
+                                return n && q.id === n.id && q.status === n.status && q.modified_at === n.modified_at;
+                            })
+                        ) return prev;
+                        return transformedQuotes;
+                    });
 
                     // Fetch CRM order mapping for accepted quotes
                     if (!signal.aborted) {

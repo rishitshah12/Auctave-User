@@ -581,9 +581,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
     }, [quote]);
 
     const fetchSignedUrls = useCallback(async () => {
-        console.log('[QuoteDetailPage] fetchSignedUrls called, quote.files:', quote?.files);
         if (!quote?.files || quote.files.length === 0) {
-            console.log('[QuoteDetailPage] No files found in quote');
             setFileLinks([]);
             return;
         }
@@ -821,7 +819,6 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         );
     }
 
-    console.log('[QuoteDetailPage] Rendering with quote.files:', quote.files);
 
     const { factory, order, status, submittedAt, id, response_details } = quote;
 
