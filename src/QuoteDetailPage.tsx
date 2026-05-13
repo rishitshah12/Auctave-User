@@ -4590,7 +4590,7 @@ const PriceHistoryChart: FC<{ data: PriceChartData[] }> = ({ data }) => {
                     </span>
                 </div>
             </div>
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height={220}>
                 <BarChart
                     data={data}
                     margin={{ top: 10, right: 20, left: 10, bottom: 5 }}

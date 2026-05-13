@@ -290,6 +290,8 @@ const AppContent: FC = () => {
     // the render gate never re-evaluates when there is no stored session and no other
     // state changes when the INITIAL_SESSION event fires.
     const [authCallbackFired, setAuthCallbackFired] = useState(false);
+    // Ref mirror of authCallbackFired — readable inside async closures without stale-capture issues.
+    const authCallbackFiredRef = useRef(false);
     const [myQuotesFilter, setMyQuotesFilter] = useState<string>('All');
     // AI chat state persisted at AppContent level so it survives remounts caused by parent re-renders
     const [aiMessages, setAiMessages] = useState<AIChatMessage[]>([
@@ -898,18 +900,11 @@ const AppContent: FC = () => {
                     }
                     // ── End invite token processing ──────────────────────────────────────
 
-                    // Enforce Onboarding Flow via MasterController - ONLY if profile fetch succeeded
-                    // Skip onboarding redirect if fetch failed due to network/timeout issues
-                    if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY') && !profileFetchFailed) {
+                    // Enforce Onboarding Flow via MasterController - ONLY if profile fetch succeeded.
+                    // Guard with authCallbackFiredRef so repeat events (token refresh, realtime
+                    // reconnects) don't re-run navigation logic and spam the console.
+                    if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY') && !profileFetchFailed && !authCallbackFiredRef.current) {
                         const redirectRoute = masterController.getOnboardingRedirect(session.user, currentProfile);
-                        console.log('Onboarding redirect:', {
-                            event,
-                            redirectRoute,
-                            hasProfile: !!currentProfile,
-                            passwordSet: session.user.user_metadata?.password_set,
-                            isAdmin: isUserAdmin,
-                            email: session.user.email
-                        });
 
                         if (redirectRoute) {
                             if (!navigationHandled) {
@@ -1002,6 +997,8 @@ const AppContent: FC = () => {
                 // Clear timeout and set auth ready
                 clearTimeout(safetyTimer);
                 setIsAuthReady(true);
+                setAuthCallbackFired(true);
+                authCallbackFiredRef.current = true;
             }
         });
         // Cleanup subscription on unmount
@@ -3833,7 +3830,7 @@ User message: "${userMsg}"`;
                         className="fixed bottom-[90px] md:bottom-6 right-3 md:right-6 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl flex flex-col z-50 border border-gray-200 dark:border-white/10 overflow-hidden select-none"
                         style={{
                             width: `min(${panelSize.w}px, calc(100vw - 24px))`,
-                            height: `min(${panelSize.h}px, calc(100svh - 160px))`,
+                            height: `${panelSize.h}px`,
                         }}
                     >
                         {/* Resize handle */}
