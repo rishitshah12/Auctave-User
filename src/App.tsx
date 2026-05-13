@@ -297,12 +297,13 @@ const AppContent: FC = () => {
     ]);
     const [aiChatOpen, setAiChatOpen] = useState(false);
     const [aiActiveTab, setAiActiveTab] = useState<'ai' | 'quotes'>('ai');
-    // Quotes-chat state lifted here so AIChatSupport (inline component) survives AppContent re-renders
+    // Navigation states lifted so AIChatSupport (inline component) survives AppContent re-renders.
+    // IMPORTANT: only lift states that change INFREQUENTLY (user navigation).
+    // Never lift keystroke-level state (quotesMessage, quotesSending) — that would cause an
+    // AppContent re-render on every keypress, remounting the component and breaking the textarea.
     const [aiQuotesView, setAiQuotesView] = useState<'rfqs' | 'chat'>('rfqs');
     const [aiSelectedRFQ, setAiSelectedRFQ] = useState<QuoteRequest | null>(null);
     const [aiActiveLineItemId, setAiActiveLineItemId] = useState<number | null>(null);
-    const [aiQuotesMessage, setAiQuotesMessage] = useState('');
-    const [aiQuotesSending, setAiQuotesSending] = useState(false);
     // Tracks last-known status per quote id for visibilitychange change detection
     const prevQuoteStatusesRef = useRef<Map<string, string>>(new Map());
     // Timestamp of when the tab was hidden (for the 30s poll gate)
@@ -1659,8 +1660,6 @@ const AppContent: FC = () => {
             setAiQuotesView('rfqs');
             setAiSelectedRFQ(null);
             setAiActiveLineItemId(null);
-            setAiQuotesMessage('');
-            setAiQuotesSending(false);
 
             // Navigate to login page
             setCurrentPage('login');
@@ -3434,18 +3433,20 @@ const AppContent: FC = () => {
         }, []);
         const chatEndRef = useRef<HTMLDivElement>(null);
 
-        // ── My Quotes State (lifted to AppContent so re-renders don't reset them) ──
+        // ── My Quotes State ───────────────────────────────────────────────────
+        // Navigation states (view, selection) are lifted to AppContent so they
+        // survive AppContent re-renders without being reset.
         const quotesView = aiQuotesView;
         const setQuotesView = setAiQuotesView;
-        const [quotesSearch, setQuotesSearch] = useState('');
         const selectedRFQ = aiSelectedRFQ;
         const setSelectedRFQ = setAiSelectedRFQ;
         const activeLineItemId = aiActiveLineItemId;
         const setActiveLineItemId = setAiActiveLineItemId;
-        const quotesMessage = aiQuotesMessage;
-        const setQuotesMessage = setAiQuotesMessage;
-        const quotesSending = aiQuotesSending;
-        const setQuotesSending = setAiQuotesSending;
+        // Keystroke-level states stay LOCAL — lifting them would trigger AppContent
+        // re-renders on every keypress, remounting this component and breaking the textarea.
+        const [quotesSearch, setQuotesSearch] = useState('');
+        const [quotesMessage, setQuotesMessage] = useState('');
+        const [quotesSending, setQuotesSending] = useState(false);
         const [attachFiles, setAttachFiles] = useState<File[]>([]);
         const [attachPreviews, setAttachPreviews] = useState<string[]>([]);
         const [orderDetailsExpanded, setOrderDetailsExpanded] = useState(false);
