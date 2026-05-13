@@ -864,12 +864,11 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                 `}</style>
                 <div className="relative overflow-hidden rounded-3xl p-8 shadow-2xl" style={{
                     background: [
-                        'radial-gradient(ellipse at 15% 60%, rgba(194,12,11,0.07) 0%, transparent 45%)',
-                        'radial-gradient(ellipse at 90% 90%, rgba(201,165,78,0.05) 0%, transparent 40%)',
-                        'linear-gradient(#0e0c0b, #0e0c0b)',
+                        'radial-gradient(ellipse at 8% 55%, rgba(194,12,11,0.09) 0%, transparent 48%)',
+                        'linear-gradient(140deg, #1f1513 0%, #161522 55%, #101018 100%)',
                     ].join(', '),
-                    border: '1px solid rgba(255,255,255,0.06)',
-                    boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
+                    border: '1px solid rgba(255,255,255,0.07)',
+                    boxShadow: '0 20px 56px rgba(0,0,0,0.4)',
                 }}>
                     {/* Grain texture for tactile depth */}
                     <div className="absolute inset-0 pointer-events-none" style={{
@@ -923,29 +922,8 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                                 {userProfile?.companyName ? `${userProfile.companyName} · ` : ''}Discover top factories, get instant quotes, and scale production.
                             </p>
 
-                            {/* Quick stats row */}
-                            <div className="flex items-center gap-4 mt-3 mb-5">
-                                {allFactories.length > 0 && (
-                                    <span className="text-xs font-medium" style={{ color: 'rgba(255,180,140,0.5)' }}>
-                                        <span className="font-semibold" style={{ color: 'rgba(255,180,140,0.8)' }}>{allFactories.length}</span> factories
-                                    </span>
-                                )}
-                                {quoteRequests.length > 0 && (
-                                    <>
-                                        <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'rgba(194,12,11,0.5)', display: 'inline-block' }} />
-                                        <span className="text-xs font-medium" style={{ color: 'rgba(255,180,140,0.5)' }}>
-                                            <span className="font-semibold" style={{ color: 'rgba(255,180,140,0.8)' }}>{quoteRequests.filter(q => q.status === 'Accepted').length}</span> active orders
-                                        </span>
-                                        <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'rgba(194,12,11,0.5)', display: 'inline-block' }} />
-                                        <span className="text-xs font-medium" style={{ color: 'rgba(255,180,140,0.5)' }}>
-                                            <span className="font-semibold" style={{ color: 'rgba(255,180,140,0.8)' }}>{quoteRequests.length}</span> quotes
-                                        </span>
-                                    </>
-                                )}
-                            </div>
-
                             {/* CTAs */}
-                            <div className="flex gap-3">
+                            <div className="flex gap-3 mt-5">
                                 <button
                                     data-testid="place-order-button"
                                     onClick={() => handleSetCurrentPage('orderForm')}
