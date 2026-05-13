@@ -306,6 +306,7 @@ const AppContent: FC = () => {
     const [aiQuotesView, setAiQuotesView] = useState<'rfqs' | 'chat'>('rfqs');
     const [aiSelectedRFQ, setAiSelectedRFQ] = useState<QuoteRequest | null>(null);
     const [aiActiveLineItemId, setAiActiveLineItemId] = useState<number | null>(null);
+    const [aiPanelSize, setAiPanelSize] = useState({ w: 390, h: 620 });
     // Tracks last-known status per quote id for visibilitychange change detection
     const prevQuoteStatusesRef = useRef<Map<string, string>>(new Map());
     // Timestamp of when the tab was hidden (for the 30s poll gate)
@@ -1676,6 +1677,7 @@ const AppContent: FC = () => {
             setAiQuotesView('rfqs');
             setAiSelectedRFQ(null);
             setAiActiveLineItemId(null);
+            setAiPanelSize({ w: 390, h: 620 });
 
             // Navigate to login page
             setCurrentPage('login');
@@ -3466,7 +3468,8 @@ const AppContent: FC = () => {
         const [attachFiles, setAttachFiles] = useState<File[]>([]);
         const [attachPreviews, setAttachPreviews] = useState<string[]>([]);
         const [orderDetailsExpanded, setOrderDetailsExpanded] = useState(false);
-        const [panelSize, setPanelSize] = useState({ w: 390, h: 620 });
+        const panelSize = aiPanelSize;
+        const setPanelSize = setAiPanelSize;
 
         const messagesEndRef = useRef<HTMLDivElement>(null);
         const quotesInputRef = useRef<HTMLTextAreaElement>(null);
