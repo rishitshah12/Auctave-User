@@ -253,21 +253,23 @@ const Dashboard: FC<{ quoteRequests: QuoteRequest[]; handleSetCurrentPage: (page
 // ── Animated greeting icons ────────────────────────────────────────────────────
 const GREETING_ANIM_CSS = `
     @keyframes grt-spin   { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
-    @keyframes grt-ray    { 0%,100% { opacity:.4; transform:scaleY(.7) } 50% { opacity:1; transform:scaleY(1.3) } }
-    @keyframes grt-glow   { 0%,100% { opacity:.85 } 50% { opacity:1 } }
-    @keyframes grt-cloud  { 0%,100% { transform:translateX(0px) } 50% { transform:translateX(3px) } }
-    @keyframes grt-twinkle{ 0%,100% { opacity:.15; transform:scale(.55) } 50% { opacity:1; transform:scale(1) } }
-    @keyframes grt-rock   { 0%,100% { transform:rotate(-7deg) } 50% { transform:rotate(7deg) } }
+    @keyframes grt-ray    { 0%,100% { opacity:.35 } 50% { opacity:1 } }
+    @keyframes grt-glow   { 0%,100% { opacity:.8 } 50% { opacity:1 } }
+    @keyframes grt-cloud  { 0%,100% { transform:translateX(0px) } 50% { transform:translateX(5px) } }
+    @keyframes grt-twinkle{ 0%,100% { opacity:.15;transform:scale(.55) } 50% { opacity:1;transform:scale(1) } }
+    @keyframes grt-rock   { 0%,100% { transform:rotate(-6deg) } 50% { transform:rotate(6deg) } }
 `;
 
 const GreetingSun: React.FC = () => (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style={{ display:'inline-block', verticalAlign:'middle', flexShrink:0 }}>
+    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" style={{ display:'inline-block', verticalAlign:'middle', flexShrink:0 }}>
+        {/* Outer rotating ring of rays — each ray in its own <g> for rotation so the opacity animation doesn't clobber the rotate */}
         <g style={{ animation:'grt-spin 10s linear infinite', transformOrigin:'12px 12px' }}>
             {[0,45,90,135,180,225,270,315].map((angle, i) => (
-                <rect key={angle} x="11.3" y="2" width="1.4" height="2.8" rx="0.7"
-                    fill="#fbbf24"
-                    style={{ transformOrigin:'12px 12px', transform:`rotate(${angle}deg)`, animation:`grt-ray 1.6s ease-in-out ${(i*0.2).toFixed(1)}s infinite` }}
-                />
+                <g key={angle} style={{ transformOrigin:'12px 12px', transform:`rotate(${angle}deg)` }}>
+                    <rect x="11.3" y="2" width="1.4" height="2.8" rx="0.7" fill="#fbbf24"
+                        style={{ animation:`grt-ray 1.6s ease-in-out ${(i*0.2).toFixed(1)}s infinite` }}
+                    />
+                </g>
             ))}
         </g>
         <circle cx="12" cy="12" r="5" fill="url(#grt-sun-g)" style={{ animation:'grt-glow 2.5s ease-in-out infinite' }} />
@@ -280,34 +282,25 @@ const GreetingSun: React.FC = () => (
 );
 
 const GreetingAfternoon: React.FC = () => (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style={{ display:'inline-block', verticalAlign:'middle', flexShrink:0 }}>
-        {[0,60,120,180,240,300].map((angle, i) => (
-            <rect key={angle} x="16.4" y="0.5" width="1.2" height="2.2" rx="0.6"
-                fill="#fbbf24"
-                style={{ transformOrigin:'17px 7px', transform:`rotate(${angle}deg)`, animation:`grt-ray 1.9s ease-in-out ${(i*0.32).toFixed(2)}s infinite` }}
-            />
-        ))}
-        <circle cx="17" cy="7" r="3.5" fill="url(#grt-aft-g)" style={{ animation:'grt-glow 2.5s ease-in-out infinite' }} />
-        <g style={{ animation:'grt-cloud 3.5s ease-in-out infinite' }}>
-            <circle cx="7.5" cy="16" r="3" fill="#9ca3af" />
-            <circle cx="11.5" cy="14.8" r="3.5" fill="#9ca3af" />
-            <circle cx="15.2" cy="16" r="2.4" fill="#9ca3af" />
-            <rect x="4.5" y="16" width="13.2" height="4" rx="2" fill="#9ca3af" />
+    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" style={{ display:'inline-block', verticalAlign:'middle', flexShrink:0 }}>
+        {/* Static sun — top right, glows gently */}
+        <circle cx="17" cy="7" r="4.5" fill="#fbbf24" style={{ animation:'grt-glow 2.5s ease-in-out infinite' }} />
+        {/* Lazily drifting cloud */}
+        <g style={{ animation:'grt-cloud 4s ease-in-out infinite' }}>
+            <circle cx="6.5"  cy="17"   r="3.2" fill="#9ca3af" />
+            <circle cx="10.5" cy="15.5" r="3.8" fill="#9ca3af" />
+            <circle cx="15"   cy="17"   r="2.8" fill="#9ca3af" />
+            <rect x="3.3" y="17" width="14.5" height="4.2" rx="2.1" fill="#9ca3af" />
         </g>
-        <defs>
-            <radialGradient id="grt-aft-g" cx="35%" cy="35%">
-                <stop offset="0%" stopColor="#fde68a" /><stop offset="100%" stopColor="#f59e0b" />
-            </radialGradient>
-        </defs>
     </svg>
 );
 
 const GreetingMoon: React.FC = () => (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style={{ display:'inline-block', verticalAlign:'middle', flexShrink:0 }}>
+    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" style={{ display:'inline-block', verticalAlign:'middle', flexShrink:0 }}>
         <g style={{ animation:'grt-rock 5s ease-in-out infinite', transformOrigin:'12px 12px' }}>
             <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="url(#grt-moon-g)" />
         </g>
-        <circle cx="18.5" cy="4.5" r=".9" fill="#c4b5fd" style={{ animation:'grt-twinkle 1.6s ease-in-out 0s infinite' }} />
+        <circle cx="18.5" cy="4.5" r=".9"  fill="#c4b5fd" style={{ animation:'grt-twinkle 1.6s ease-in-out 0s infinite' }} />
         <circle cx="21"   cy="9"   r=".65" fill="#ddd6fe" style={{ animation:'grt-twinkle 1.6s ease-in-out .55s infinite' }} />
         <circle cx="16"   cy="2.8" r=".55" fill="#ede9fe" style={{ animation:'grt-twinkle 1.6s ease-in-out 1.1s infinite' }} />
         <defs>
@@ -1047,7 +1040,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                 {/* Greeting row with notification bell */}
                 <div className="flex items-start justify-between mb-4">
                     <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-0.5 flex items-center gap-2">
+                        <p className="text-base font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-0.5 flex items-center gap-2">
                             <GreetingIcon />{greeting.text}
                         </p>
                         <h1 className="text-[26px] font-black text-gray-900 dark:text-white leading-tight tracking-tight">
@@ -1115,7 +1108,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                 <div className="relative z-10 px-6 sm:px-8 lg:px-10 pt-8 pb-6">
                     {/* Greeting row + profile */}
                     <div className="flex items-start justify-between mb-3">
-                        <p className="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest flex items-center gap-2">
+                        <p className="text-base font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest flex items-center gap-2">
                             <GreetingIcon />{greeting.text}
                         </p>
                         <ProfileDropdown />
