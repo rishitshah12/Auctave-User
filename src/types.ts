@@ -268,6 +268,13 @@ export interface CrmOrder {
     riskScoreUpdatedAt?: string;
     deliveryDate?: string;
     source_quote_id?: string;
+    // Shipping / logistics tracking (populated by admin when order is Shipped)
+    trackingNumber?: string;
+    containerNumber?: string;
+    shippingCarrier?: string;
+    estimatedDelivery?: string;
+    // Auto-stamped by DB trigger: maps status → ISO timestamp of when it was reached
+    statusChangedAt?: Partial<Record<'Pending' | 'In Production' | 'Quality Check' | 'Shipped' | 'Completed', string>>;
 }
 
 

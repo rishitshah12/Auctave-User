@@ -57,6 +57,8 @@ import { ToastProvider, useToast } from './ToastContext';
 import { NotificationProvider, useNotifications } from './NotificationContext';
 import { OrgProvider, useOrg, useOrgPermissions } from './OrgContext';
 import { TeamSettingsPage } from './TeamSettingsPage';
+import { OrderTrackingPage } from './OrderTrackingPage';
+import { BillingPage } from './BillingPage';
 import { notificationService } from './notificationService';
 import { getCache, setCache, getCacheStale, TTL_FACTORIES, TTL_FACTORY_DETAIL } from './sessionCache';
 import { transformRawQuote } from './services/quoteMapper';
@@ -3347,67 +3349,6 @@ const AppContent: FC = () => {
         );
     };
 
-    // Component for tracking order status
-    const OrderTrackingPage: FC = () => {
-        // Mock tracking data
-        const trackingData: { [key: string]: any[] } = {
-            "PO-2024-001": [ { status: 'In Production', date: 'June 15, 2025', isComplete: true, icon: <PackageCheck/> }, { status: 'Quality Checked', date: 'June 20, 2025', isComplete: true, icon: <CheckCircle/> }, { status: 'Transport to Origin Port', date: 'June 22, 2025', isComplete: true, icon: <Truck/> }, { status: 'In Transit', date: 'June 25, 2025', isComplete: false, isInProgress: true, icon: <Ship/> }, { status: 'Reached Destination Port', date: 'Est. July 10, 2025', isComplete: false, icon: <Anchor/> }, { status: 'Delivered', date: 'Est. July 12, 2025', isComplete: false, icon: <Warehouse/> }, ],
-            "PO-2024-002": [ { status: 'In Production', date: 'June 18, 2025', isComplete: true, icon: <PackageCheck/> }, { status: 'Quality Checked', date: 'June 24, 2025', isComplete: false, isInProgress: true, icon: <CheckCircle/> }, { status: 'Transport to Origin Port', date: 'Est. June 26, 2025', isComplete: false, icon: <Truck/> }, { status: 'In Transit', date: 'Est. June 28, 2025', isComplete: false, icon: <Ship/> }, { status: 'Reached Destination Port', date: 'Est. July 15, 2025', isComplete: false, icon: <Anchor/> }, { status: 'Delivered', date: 'Est. July 17, 2025', isComplete: false, icon: <Warehouse/> }, ]
-        };
-        const [activeOrderKey, setActiveOrderKey] = useState(Object.keys(trackingData)[0]);
-        const activeOrderTracking = trackingData[activeOrderKey];
-        return (
-            <MainLayout {...layoutProps}>
-                <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-2">Order Tracking</h1>
-                <p className="text-gray-500 dark:text-gray-200 mb-6">Follow your shipment from production to delivery.</p>
-                <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-lg border border-gray-200 dark:border-white/10">
-                    <div className="p-4 border-b border-gray-200 dark:border-white/10">
-                        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
-                            {Object.keys(trackingData).map(orderKey => (
-                                <button key={orderKey} onClick={() => setActiveOrderKey(orderKey)} className={`flex-shrink-0 py-2 px-4 font-semibold text-sm rounded-lg transition-colors ${activeOrderKey === orderKey ? 'bg-red-100 text-[var(--color-primary)]' : 'text-gray-500 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
-                                    {orderKey}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                    <div className="p-6 sm:p-8">
-                        <div className="relative pl-8">
-                            {/* Vertical line */}
-                            <div className="absolute left-12 top-0 bottom-0 w-0.5 bg-gray-200 dark:bg-white/10"></div>
-                            {activeOrderTracking.map((item, index) => {
-                                const isLast = index === activeOrderTracking.length - 1;
-                                const isComplete = item.isComplete;
-                                const isInProgress = item.isInProgress;
-                                return (
-                                    <div key={index} className={`relative flex items-start ${isLast ? '' : 'pb-12'}`}>
-                                        {/* Dot */}
-                                        <div className="absolute left-12 top-1 -ml-[9px] h-5 w-5 rounded-full bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600">
-                                            {isComplete && <div className="w-full h-full rounded-full bg-purple-600 border-2 border-white dark:border-gray-800"></div>}
-                                            {isInProgress && <div className="w-full h-full rounded-full bg-white dark:bg-gray-800 border-2 border-purple-600 animate-pulse"></div>}
-                                        </div>
-                                        {/* Content */}
-                                        <div className="flex items-center gap-4 ml-8">
-                                            <div className={`p-3 rounded-full ${
-                                                isComplete ? 'bg-red-100 text-[var(--color-primary)]' :
-                                                isInProgress ? 'bg-blue-100 text-blue-600' :
-                                                'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500'
-                                            }`}>
-                                                {item.icon}
-                                            </div>
-                                            <div>
-                                                <h4 className={`font-semibold ${isComplete || isInProgress ? 'text-gray-800 dark:text-white' : 'text-gray-500 dark:text-gray-500'}`}>{item.status}</h4>
-                                                <p className="text-sm text-gray-500 dark:text-gray-200">{item.date}</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )
-                            })}
-                        </div>
-                    </div>
-                </div>
-            </MainLayout>
-        );
-    };
 
     // Component for the AI Chatbot + My Quotes chat
     const AIChatSupport: FC = () => {
@@ -4565,85 +4506,6 @@ User message: "${userMsg}"`;
     };
 
     // Component for billing and escrow management
-    const BillingPage: FC = () => {
-        const billingData = [
-            { id: 'ESC-001', orderId: 'PO-2024-001', product: '5000 Classic Tees', totalAmount: 21250, amountReleased: 10625, amountHeld: 10625, status: 'Partially Paid' },
-            { id: 'ESC-002', orderId: 'PO-2024-002', product: '10000 Hoodies', totalAmount: 120000, amountReleased: 60000, amountHeld: 60000, status: 'Awaiting Milestone' },
-            { id: 'ESC-003', orderId: 'PO-2024-003', product: '2500 Jackets', totalAmount: 45000, amountReleased: 0, amountHeld: 45000, status: 'Funded' },
-        ];
-
-        const totalHeld = billingData.reduce((acc, item) => acc + item.amountHeld, 0);
-        const totalReleased = billingData.reduce((acc, item) => acc + item.amountReleased, 0);
-
-        const getStatusColor = (status: string) => {
-            switch (status) {
-                case 'Partially Paid': return 'bg-blue-100 text-blue-800';
-                case 'Awaiting Milestone': return 'bg-yellow-100 text-yellow-800';
-                case 'Funded': return 'bg-green-100 text-green-800';
-                default: return 'bg-gray-100 text-gray-800';
-            }
-        };
-
-        return (
-            <MainLayout {...layoutProps}>
-                <div className="flex justify-between items-center mb-6">
-                    <div>
-                        <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Billing & Escrow</h1>
-                        <p className="text-gray-500 dark:text-gray-200 mt-1">Manage and track your order payments.</p>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                      <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10">
-                          <h3 className="text-sm font-medium text-gray-500">Total in Escrow</h3>
-                          <p className="text-3xl font-bold text-gray-800 dark:text-white mt-2">${totalHeld.toLocaleString()}</p>
-                      </div>
-                      <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10">
-                          <h3 className="text-sm font-medium text-gray-500">Total Released</h3>
-                          <p className="text-3xl font-bold text-gray-800 dark:text-white mt-2">${totalReleased.toLocaleString()}</p>
-                      </div>
-                      <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md p-6 rounded-xl shadow-md border border-gray-200 dark:border-white/10">
-                          <h3 className="text-sm font-medium text-gray-500">Next Payout</h3>
-                          <p className="text-3xl font-bold text-gray-800 dark:text-white mt-2">$10,625</p>
-                          <p className="text-xs text-gray-400">on July 12, 2025 for PO-2024-001</p>
-                      </div>
-                </div>
-
-                <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden">
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                            <thead className="bg-gray-50 dark:bg-gray-700/50">
-                                <tr>
-                                    {['Order ID', 'Product', 'Total Value', 'Amount Released', 'Amount in Escrow', 'Status', ''].map(header => (
-                                        <th key={header} scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{header}</th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white dark:bg-gray-900/40 divide-y divide-gray-200 dark:divide-gray-700">
-                                {billingData.map(item => (
-                                    <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-[var(--color-primary)] hover:underline cursor-pointer">{item.orderId}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 dark:text-white">{item.product}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-200">${item.totalAmount.toLocaleString()}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-semibold">${item.amountReleased.toLocaleString()}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 dark:text-white font-bold">${item.amountHeld.toLocaleString()}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(item.status)}`}>
-                                                {item.status}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            <button className="text-[var(--color-primary)] hover:text-[var(--color-primary-hover)]">View Details</button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </MainLayout>
-        );
-    };
 
     // Render the main application structure
     return (
@@ -4707,13 +4569,13 @@ User message: "${userMsg}"`;
 
                     <Route path="/billing" element={
                         <ProtectedRoute isAuthReady={isAuthReady && authCallbackFired} user={user}>
-                            <BillingPage />
+                            <BillingPage layoutProps={layoutProps} />
                         </ProtectedRoute>
                     } />
 
                     <Route path="/tracking" element={
                         <ProtectedRoute isAuthReady={isAuthReady && authCallbackFired} user={user}>
-                            <OrderTrackingPage />
+                            <OrderTrackingPage layoutProps={layoutProps} />
                         </ProtectedRoute>
                     } />
 

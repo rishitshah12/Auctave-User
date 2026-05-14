@@ -12,7 +12,7 @@ import {
     Search, Building2, Mail, Users, Edit, ChevronRight, ShieldCheck,
     Flag, Clock, TrendingUp, CheckCircle, ChevronDown, FileText,
     Download, Save, MapPin, PencilLine, Zap, MessageSquare,
-    CalendarDays, User, AlertTriangle, ChevronUp, Send
+    CalendarDays, User, AlertTriangle, ChevronUp, Send, Ship, Hash
 } from 'lucide-react';
 import { DashboardView, ListView, BoardView, GanttChartView, TNAView, OrderDetailsView } from './CRMPage';
 import CrmOrderCard from './CrmOrderCard';
@@ -2290,6 +2290,10 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                 factory_id: factoryMode === 'list' ? (editingOrder.factory_id || null) : null,
                 custom_factory_name: factoryMode === 'manual' ? custom_factory_name : null,
                 custom_factory_location: factoryMode === 'manual' ? custom_factory_location : null,
+                tracking_number: editingOrder.tracking_number || null,
+                container_number: editingOrder.container_number || null,
+                shipping_carrier: editingOrder.shipping_carrier || null,
+                estimated_delivery: editingOrder.estimated_delivery || null,
                 updated_at: new Date().toISOString()
             };
             const { error } = await crmService.update(editingOrder.id, updates);
@@ -3084,6 +3088,65 @@ export const AdminCRMPage: FC<AdminCRMPageProps> = ({ supabase, ...props }) => {
                                                             </div>
                                                         </div>
                                                     )}
+                                                </div>
+                                            </div>
+
+                                            {/* Shipping & Logistics */}
+                                            <div className="pb-6 border-b border-gray-100 dark:border-white/10">
+                                                <div className="flex items-center gap-2 mb-3">
+                                                    <Ship size={14} className="text-blue-500" />
+                                                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Shipping &amp; Logistics</span>
+                                                    <span className="text-xs text-gray-400 dark:text-gray-500 ml-1">— shown on client tracking page when Shipped</span>
+                                                </div>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                    <div>
+                                                        <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">Carrier</label>
+                                                        <select
+                                                            value={editingOrder.shipping_carrier || ''}
+                                                            onChange={e => setEditingOrder({ ...editingOrder, shipping_carrier: e.target.value })}
+                                                            className="w-full p-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-white text-sm focus:ring-2 focus:ring-[#c20c0b]/20 focus:border-[#c20c0b] focus:outline-none"
+                                                        >
+                                                            <option value="">— Select carrier —</option>
+                                                            {['Maersk', 'MSC', 'CMA CGM', 'Hapag-Lloyd', 'Evergreen', 'Cosco', 'Yang Ming', 'ONE'].map(c => (
+                                                                <option key={c} value={c}>{c}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">Est. Delivery Date</label>
+                                                        <input
+                                                            type="date"
+                                                            value={editingOrder.estimated_delivery ? editingOrder.estimated_delivery.split('T')[0] : ''}
+                                                            onChange={e => setEditingOrder({ ...editingOrder, estimated_delivery: e.target.value })}
+                                                            className="w-full p-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-white text-sm focus:ring-2 focus:ring-[#c20c0b]/20 focus:border-[#c20c0b] focus:outline-none"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">Tracking / B/L Number</label>
+                                                        <div className="relative">
+                                                            <Hash size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                                                            <input
+                                                                type="text"
+                                                                value={editingOrder.tracking_number || ''}
+                                                                onChange={e => setEditingOrder({ ...editingOrder, tracking_number: e.target.value })}
+                                                                placeholder="e.g. MAEU123456789"
+                                                                className="w-full pl-8 pr-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-white text-sm font-mono focus:ring-2 focus:ring-[#c20c0b]/20 focus:border-[#c20c0b] focus:outline-none"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">Container Number</label>
+                                                        <div className="relative">
+                                                            <Package size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                                                            <input
+                                                                type="text"
+                                                                value={editingOrder.container_number || ''}
+                                                                onChange={e => setEditingOrder({ ...editingOrder, container_number: e.target.value })}
+                                                                placeholder="e.g. MSKU1234567"
+                                                                className="w-full pl-8 pr-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-white text-sm font-mono focus:ring-2 focus:ring-[#c20c0b]/20 focus:border-[#c20c0b] focus:outline-none"
+                                                            />
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
 
