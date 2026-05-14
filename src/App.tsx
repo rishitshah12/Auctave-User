@@ -675,6 +675,25 @@ const AppContent: FC = () => {
                         return;
                     }
 
+                    // Admin early navigation: email + user_metadata are available right now,
+                    // no profile DB fetch needed to determine where to send an admin.
+                    // This fires before the profile fetch so the dashboard renders immediately.
+                    if (isUserAdmin && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') && !navigationHandled && !authCallbackFiredRef.current) {
+                        navigationHandled = true;
+                        if (!session.user.user_metadata?.password_set) {
+                            setCurrentPage('createPassword');
+                            localStorage.setItem('garment_erp_last_page', 'createPassword');
+                        } else {
+                            const savedPage = localStorage.getItem('garment_erp_last_page');
+                            const pageFromUrl = PATH_TO_PAGE[window.location.pathname];
+                            const targetPage = event === 'INITIAL_SESSION'
+                                ? ((pageFromUrl && pageFromUrl !== 'login') ? pageFromUrl : 'adminDashboard')
+                                : ((savedPage && savedPage !== 'login') ? savedPage : 'adminDashboard');
+                            setCurrentPage(targetPage);
+                            localStorage.setItem('garment_erp_last_page', targetPage);
+                        }
+                    }
+
                     let currentProfile: UserProfile | null = null;
                     let profileFetchFailed = false; // Track if fetch failed due to network/timeout
 
@@ -714,7 +733,7 @@ const AppContent: FC = () => {
                                     .eq('id', session.user.id)
                                     .single();
 
-                                const timeoutDuration = attempt === 0 ? 8000 : 5000; // 8s for 1st attempt, 5s for retries
+                                const timeoutDuration = attempt === 0 ? 3000 : 3000; // 3s per attempt
 
                                 const profileTimeoutPromise = new Promise((_, reject) => {
                                     setTimeout(() => reject(new Error(`Profile fetch timeout (attempt ${attempt + 1})`)), timeoutDuration);
