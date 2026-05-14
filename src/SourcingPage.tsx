@@ -250,67 +250,6 @@ const Dashboard: FC<{ quoteRequests: QuoteRequest[]; handleSetCurrentPage: (page
     );
 });
 
-// ── Animated greeting icons ────────────────────────────────────────────────────
-const GREETING_ANIM_CSS = `
-    @keyframes grt-spin   { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
-    @keyframes grt-ray    { 0%,100% { opacity:.35 } 50% { opacity:1 } }
-    @keyframes grt-glow   { 0%,100% { opacity:.8 } 50% { opacity:1 } }
-    @keyframes grt-cloud  { 0%,100% { transform:translateX(0px) } 50% { transform:translateX(5px) } }
-    @keyframes grt-twinkle{ 0%,100% { opacity:.15;transform:scale(.55) } 50% { opacity:1;transform:scale(1) } }
-    @keyframes grt-rock   { 0%,100% { transform:rotate(-6deg) } 50% { transform:rotate(6deg) } }
-`;
-
-const GreetingSun: React.FC = () => (
-    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" style={{ display:'inline-block', verticalAlign:'middle', flexShrink:0 }}>
-        {/* Outer rotating ring of rays — each ray in its own <g> for rotation so the opacity animation doesn't clobber the rotate */}
-        <g style={{ animation:'grt-spin 10s linear infinite', transformOrigin:'12px 12px' }}>
-            {[0,45,90,135,180,225,270,315].map((angle, i) => (
-                <g key={angle} style={{ transformOrigin:'12px 12px', transform:`rotate(${angle}deg)` }}>
-                    <rect x="11.3" y="2" width="1.4" height="2.8" rx="0.7" fill="#fbbf24"
-                        style={{ animation:`grt-ray 1.6s ease-in-out ${(i*0.2).toFixed(1)}s infinite` }}
-                    />
-                </g>
-            ))}
-        </g>
-        <circle cx="12" cy="12" r="5" fill="url(#grt-sun-g)" style={{ animation:'grt-glow 2.5s ease-in-out infinite' }} />
-        <defs>
-            <radialGradient id="grt-sun-g" cx="35%" cy="35%">
-                <stop offset="0%" stopColor="#fde68a" /><stop offset="100%" stopColor="#f59e0b" />
-            </radialGradient>
-        </defs>
-    </svg>
-);
-
-const GreetingAfternoon: React.FC = () => (
-    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" style={{ display:'inline-block', verticalAlign:'middle', flexShrink:0 }}>
-        {/* Static sun — top right, glows gently */}
-        <circle cx="17" cy="7" r="4.5" fill="#fbbf24" style={{ animation:'grt-glow 2.5s ease-in-out infinite' }} />
-        {/* Lazily drifting cloud */}
-        <g style={{ animation:'grt-cloud 4s ease-in-out infinite' }}>
-            <circle cx="6.5"  cy="17"   r="3.2" fill="#9ca3af" />
-            <circle cx="10.5" cy="15.5" r="3.8" fill="#9ca3af" />
-            <circle cx="15"   cy="17"   r="2.8" fill="#9ca3af" />
-            <rect x="3.3" y="17" width="14.5" height="4.2" rx="2.1" fill="#9ca3af" />
-        </g>
-    </svg>
-);
-
-const GreetingMoon: React.FC = () => (
-    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" style={{ display:'inline-block', verticalAlign:'middle', flexShrink:0 }}>
-        <g style={{ animation:'grt-rock 5s ease-in-out infinite', transformOrigin:'12px 12px' }}>
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="url(#grt-moon-g)" />
-        </g>
-        <circle cx="18.5" cy="4.5" r=".9"  fill="#c4b5fd" style={{ animation:'grt-twinkle 1.6s ease-in-out 0s infinite' }} />
-        <circle cx="21"   cy="9"   r=".65" fill="#ddd6fe" style={{ animation:'grt-twinkle 1.6s ease-in-out .55s infinite' }} />
-        <circle cx="16"   cy="2.8" r=".55" fill="#ede9fe" style={{ animation:'grt-twinkle 1.6s ease-in-out 1.1s infinite' }} />
-        <defs>
-            <radialGradient id="grt-moon-g" cx="30%" cy="30%">
-                <stop offset="0%" stopColor="#ede9fe" /><stop offset="100%" stopColor="#8b5cf6" />
-            </radialGradient>
-        </defs>
-    </svg>
-);
-
 export const SourcingPage: FC<SourcingPageProps> = (props) => {
     const { pageKey, user, userProfile, handleSelectFactory, toggleMenu, selectedGarmentCategory, setSelectedGarmentCategory, handleSetCurrentPage, handleSignOut, showToast, quoteRequests = [], setGlobalLoading } = props;
     const { notifications } = useNotifications();
@@ -919,12 +858,11 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
 
     const getGreeting = () => {
         const hour = new Date().getHours();
-        if (hour < 12) return { text: 'Good Morning', type: 'morning' as const };
-        if (hour < 17) return { text: 'Good Afternoon', type: 'afternoon' as const };
-        return { text: 'Good Evening', type: 'evening' as const };
+        if (hour < 12) return { text: 'Good Morning', emoji: '☀️' };
+        if (hour < 17) return { text: 'Good Afternoon', emoji: '🌤️' };
+        return { text: 'Good Evening', emoji: '🌙' };
     };
     const greeting = getGreeting();
-    const GreetingIcon = greeting.type === 'morning' ? GreetingSun : greeting.type === 'afternoon' ? GreetingAfternoon : GreetingMoon;
     const firstName = userProfile?.name ? userProfile.name.split(' ')[0] : 'User';
 
     const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
@@ -1034,14 +972,13 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
 
     return (
         <MainLayout {...props}>
-            <style>{GREETING_ANIM_CSS}</style>
             {/* ── MOBILE HEADER: greeting → search ─────────────────── */}
             <header className="sm:hidden mb-5">
                 {/* Greeting row with notification bell */}
                 <div className="flex items-start justify-between mb-4">
                     <div className="flex-1 min-w-0">
-                        <p className="text-base font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-0.5 flex items-center gap-2">
-                            <GreetingIcon />{greeting.text}
+                        <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-0.5 flex items-center gap-1.5">
+                            <span>{greeting.emoji}</span>{greeting.text}
                         </p>
                         <h1 className="text-[26px] font-black text-gray-900 dark:text-white leading-tight tracking-tight">
                             Hey, <span className="bg-gradient-to-r from-[#c20c0b] to-orange-500 bg-clip-text text-transparent">{firstName}!</span>
@@ -1108,8 +1045,8 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                 <div className="relative z-10 px-6 sm:px-8 lg:px-10 pt-8 pb-6">
                     {/* Greeting row + profile */}
                     <div className="flex items-start justify-between mb-3">
-                        <p className="text-base font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest flex items-center gap-2">
-                            <GreetingIcon />{greeting.text}
+                        <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest flex items-center gap-1.5">
+                            <span>{greeting.emoji}</span>{greeting.text}
                         </p>
                         <ProfileDropdown />
                     </div>
