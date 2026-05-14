@@ -952,11 +952,10 @@ const AppContent: FC = () => {
                         console.log('Profile fetch failed, keeping user logged in');
                     }
 
-                    // Force redirect away from login if still on login page after 2 seconds.
-                    // Only for initial auth events, not TOKEN_REFRESHED which fires on session refresh.
-                    // IMPORTANT: re-verify the live session inside the timeout — do NOT use the stale
-                    // closure `session` variable, which remains truthy even after the user has signed out,
-                    // and would otherwise silently redirect a logged-out user back into the admin panel.
+                    // Safety fallback: if still on the login page 500ms after a successful
+                    // auth event, force-redirect. This fires after navigation has had time to
+                    // settle but avoids the old 2-second delay. Re-verify the live session
+                    // inside the timeout — do NOT use the stale closure `session` variable.
                     if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
                         setTimeout(async () => {
                             const { data: { session: liveSession } } = await supabase.auth.getSession();
@@ -972,7 +971,7 @@ const AppContent: FC = () => {
                                 const forcedPage = liveIsAdmin ? 'adminDashboard' : 'sourcing';
                                 setCurrentPage(forcedPage);
                             }
-                        }, 2000);
+                        }, 500);
                     }
                 } else if (event === 'SIGNED_OUT') {
                     // Explicitly handle sign out event
@@ -1001,10 +1000,11 @@ const AppContent: FC = () => {
                 clearTimeout(safetyTimer);
                 setIsAuthReady(true);
                 setAuthCallbackFired(true);
-                // TOKEN_REFRESHED returns early and never runs navigation logic, so
-                // don't mark the callback as "fired" — otherwise a token refresh that
-                // races with INITIAL_SESSION would block the navigation guard.
-                if (event !== 'TOKEN_REFRESHED') {
+                // Only lock the navigation guard when there is a real session.
+                // A null-session INITIAL_SESSION (user not logged in yet) must NOT
+                // block the subsequent SIGNED_IN event's navigation. TOKEN_REFRESHED
+                // also skips this because it returns early before navigation logic runs.
+                if (event !== 'TOKEN_REFRESHED' && session?.user) {
                     authCallbackFiredRef.current = true;
                 }
             }
