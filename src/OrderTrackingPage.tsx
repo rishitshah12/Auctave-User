@@ -60,12 +60,15 @@ function mapRawOrder(raw: any): CrmOrder & { id: string } {
     return {
         ...raw,
         id: raw.id,
+        // DB column is product_name; fall back to product for older rows
         customer: raw.customer ?? raw.client_name ?? '',
-        product: raw.product ?? raw.product_name ?? '',
+        product: raw.product_name ?? raw.product ?? '',
         factoryId: raw.factory_id ?? '',
         status: raw.status,
         createdAt: raw.created_at,
         deliveryDate: raw.delivery_date,
+        shippingPort: raw.shipping_port,
+        portOfDischarge: raw.port_of_discharge,
         trackingNumber: raw.tracking_number,
         containerNumber: raw.container_number,
         shippingCarrier: raw.shipping_carrier,
@@ -177,7 +180,6 @@ const StageTracker: FC<{ order: CrmOrder & { id: string } }> = ({ order }) => {
                     {STAGES.map((stage, idx) => {
                         const isCompleted = idx < currentRank;
                         const isActive    = idx === currentRank;
-                        const isPending   = idx > currentRank;
                         const timestamp   = order.statusChangedAt?.[stage.key];
 
                         return (
@@ -342,7 +344,7 @@ export const OrderTrackingPage: FC<OrderTrackingPageProps> = ({ layoutProps }) =
         try {
             const { data, error: err } = await supabase
                 .from('crm_orders')
-                .select('id, status, product, customer, factory_id, created_at, delivery_date, tracking_number, container_number, shipping_carrier, estimated_delivery, status_changed_at, tasks, documents, client_id')
+                .select('*')
                 .eq('client_id', user.id)
                 .order('created_at', { ascending: false });
 
@@ -351,19 +353,21 @@ export const OrderTrackingPage: FC<OrderTrackingPageProps> = ({ layoutProps }) =
             const mapped = (data ?? []).map(mapRawOrder);
             setOrders(mapped);
             setLastRefreshed(new Date());
-
-            // Auto-select first order
-            if (mapped.length > 0 && !selectedId) {
-                setSelectedId(mapped[0].id);
-            }
         } catch (e: any) {
             setError(e.message ?? 'Failed to load orders');
         } finally {
             setLoading(false);
         }
-    }, [user?.id, selectedId]);
+    }, [user?.id]); // no selectedId — changing selection must not trigger a re-fetch
 
     useEffect(() => { fetchOrders(); }, [fetchOrders]);
+
+    // Auto-select the first order after load; never overrides a user-chosen selection
+    useEffect(() => {
+        if (orders.length > 0 && !selectedId) {
+            setSelectedId(orders[0].id);
+        }
+    }, [orders, selectedId]);
 
     // ── Real-time subscription ─────────────────────────────────────────────────
     useEffect(() => {
