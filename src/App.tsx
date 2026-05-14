@@ -1301,7 +1301,7 @@ const AppContent: FC = () => {
 
                 const prev = prevCrmRef.current.get(updated.id);
                 const newTasksJson = JSON.stringify(updated.tasks || []);
-                const orderLabel = updated.order_name || updated.product_name || 'your order';
+                const orderLabel = updated.product_name || 'your order';
 
                 // Order status, task, and risk notifications are handled server-side
                 // by trg_notify_crm_order_update. Only track state for milestone
@@ -1438,7 +1438,7 @@ const AppContent: FC = () => {
                 const updated = payload.new as any;
                 const prev = prevAdminCrmRef.current.get(updated.id);
                 const newTasksJson = JSON.stringify(updated.tasks || []);
-                const orderLabel = updated.order_name || updated.product_name || 'an order';
+                const orderLabel = updated.product_name || 'an order';
 
                 // Risk score escalation — not in DB trigger, keep here
                 const newRiskScore = updated.risk_score;
@@ -1477,12 +1477,12 @@ const AppContent: FC = () => {
             const today = new Date().toISOString().split('T')[0];
             const { data } = await supabase
                 .from('crm_orders')
-                .select('id, order_name, product_name, tasks')
+                .select('id, product_name, tasks')
                 .in('status', ['Pending', 'In Production', 'Quality Check']);
             if (!data) return;
 
             data.forEach((order: any) => {
-                const orderLabel = order.order_name || order.product_name || 'an order';
+                const orderLabel = order.product_name || 'an order';
                 (order.tasks || []).forEach((task: any) => {
                     if (
                         task.status !== 'COMPLETE' &&
