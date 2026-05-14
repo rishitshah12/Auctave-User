@@ -649,12 +649,15 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
         <>
             {/* Backdrop */}
             <div
-                className={`fixed inset-0 bg-black/60 backdrop-blur-sm z-50 transition-opacity duration-300 ${showFilterPanel ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                className={`fixed inset-0 bg-black/30 z-50 transition-opacity duration-400 ${showFilterPanel ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
                 onClick={() => setShowFilterPanel(false)}
             />
 
             {/* Panel */}
-            <div className={`fixed top-0 right-0 h-screen w-full max-w-sm bg-white dark:bg-gray-900 shadow-2xl z-50 flex flex-col transform transition-all duration-300 ease-in-out ${showFilterPanel ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 pointer-events-none'}`}>
+            <div
+                className={`fixed top-0 right-0 h-screen w-full max-w-md bg-white dark:bg-gray-900 shadow-2xl z-50 flex flex-col transition-all duration-500 ${showFilterPanel ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 pointer-events-none'}`}
+                style={{ transitionTimingFunction: showFilterPanel ? 'cubic-bezier(0.22,1,0.36,1)' : 'cubic-bezier(0.4,0,1,1)' }}
+            >
 
                 {/* Header */}
                 <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
