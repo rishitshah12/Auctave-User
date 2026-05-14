@@ -1001,7 +1001,12 @@ const AppContent: FC = () => {
                 clearTimeout(safetyTimer);
                 setIsAuthReady(true);
                 setAuthCallbackFired(true);
-                authCallbackFiredRef.current = true;
+                // TOKEN_REFRESHED returns early and never runs navigation logic, so
+                // don't mark the callback as "fired" — otherwise a token refresh that
+                // races with INITIAL_SESSION would block the navigation guard.
+                if (event !== 'TOKEN_REFRESHED') {
+                    authCallbackFiredRef.current = true;
+                }
             }
         });
         // Cleanup subscription on unmount
