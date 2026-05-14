@@ -675,6 +675,12 @@ const AppContent: FC = () => {
                         return;
                     }
 
+                    // Unblock the loading spinner immediately — session is confirmed valid.
+                    // React 19 batches this with setUser/setIsAdmin above into one render,
+                    // so the dashboard appears without waiting for the profile DB fetch below.
+                    clearTimeout(safetyTimer);
+                    setIsAuthReady(true);
+
                     // Admin early navigation: email + user_metadata are available right now,
                     // no profile DB fetch needed to determine where to send an admin.
                     // This fires before the profile fetch so the dashboard renders immediately.
