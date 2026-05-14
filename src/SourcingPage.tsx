@@ -897,7 +897,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                     </div>
 
                     {/* Heading */}
-                    <h1 className="text-5xl lg:text-6xl font-black text-gray-900 dark:text-white leading-tight tracking-tight mb-2">
+                    <h1 className="text-4xl lg:text-5xl font-black text-gray-900 dark:text-white leading-tight tracking-tight mb-2">
                         Hey, <span className="bg-gradient-to-r from-[#c20c0b] to-orange-500 bg-clip-text text-transparent">{firstName}!</span>
                     </h1>
 
