@@ -290,6 +290,17 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
         setFilters(initialFilters);
     };
 
+    const activeFilterCount = useMemo(() =>
+        (filters.rating > 0 ? 1 : 0) +
+        (filters.maxMoq < 10000 ? 1 : 0) +
+        filters.tags.length +
+        filters.categories.length +
+        (filters.location ? 1 : 0) +
+        filters.certifications.length +
+        (filters.minTrustTier ? 1 : 0),
+        [filters]
+    );
+
     // Close profile dropdown on outside click
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -636,54 +647,192 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
 
     const FilterPanel: FC = () => (
         <>
-            <div className={`fixed inset-0 bg-black/75 backdrop-blur-sm z-50 transition-opacity duration-500 ${showFilterPanel ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => setShowFilterPanel(false)}></div>
-            <div className={`fixed top-0 right-0 h-full w-full max-w-md bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl shadow-2xl z-50 transform transition-transform duration-500 ease-in-out ${showFilterPanel ? 'translate-x-0' : 'translate-x-[120%]'}`}>
-                <div className="flex flex-col h-full text-gray-800 dark:text-gray-200">
-                    <div className="flex items-center justify-between p-6 border-b dark:border-gray-700">
-                        <h3 className="text-xl font-bold dark:text-white">Filters</h3>
-                        <button onClick={() => setShowFilterPanel(false)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"><X size={24} /></button>
+            {/* Backdrop */}
+            <div
+                className={`fixed inset-0 bg-black/60 backdrop-blur-sm z-50 transition-opacity duration-300 ${showFilterPanel ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                onClick={() => setShowFilterPanel(false)}
+            />
+
+            {/* Panel */}
+            <div className={`fixed top-0 right-0 h-full w-full max-w-sm bg-white dark:bg-gray-900 shadow-2xl z-50 flex flex-col transform transition-transform duration-300 ease-in-out ${showFilterPanel ? 'translate-x-0' : 'translate-x-full'}`}>
+
+                {/* Header */}
+                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
+                    <div className="flex items-center gap-2.5">
+                        <SlidersHorizontal size={18} className="text-[#c20c0b]" />
+                        <h3 className="text-lg font-bold text-gray-900 dark:text-white">Filters</h3>
+                        {activeFilterCount > 0 && (
+                            <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-[#c20c0b] text-white text-[11px] font-bold">{activeFilterCount}</span>
+                        )}
                     </div>
-                    <div className="flex-grow p-6 space-y-6 overflow-y-auto">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-white mb-2">Minimum Rating</label>
-                            <div className="flex justify-center space-x-2">{[1, 2, 3, 4, 5].map(star => <Star key={star} size={32} onClick={() => setFilters(f => ({ ...f, rating: star }))} className={`cursor-pointer transition-colors ${filters.rating >= star ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`} />)}</div>
-                        </div>
-                        <div>
-                            <label htmlFor="moq" className="block text-sm font-medium text-gray-700 dark:text-white">Max. MOQ: {filters.maxMoq.toLocaleString()} units</label>
-                            <input type="range" id="moq" min="0" max="10000" step="100" value={filters.maxMoq} onChange={e => setFilters(f => ({ ...f, maxMoq: parseInt(e.target.value) }))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#c20c0b]" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-white mb-2">Product Categories</label>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">{garmentCategories.map(cat => <button key={cat} onClick={() => { const newCategories = filters.categories.includes(cat) ? filters.categories.filter(c => c !== cat) : [...filters.categories, cat]; setFilters(f => ({ ...f, categories: newCategories })); }} className={`text-sm p-2 rounded-md transition-colors ${filters.categories.includes(cat) ? 'bg-[#c20c0b] text-white' : 'bg-gray-100 dark:bg-gray-700 dark:text-white'}`}>{cat}</button>)}</div>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-white mb-2">Certifications</label>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">{allCertifications.map(cert => <button key={cert} onClick={() => { const newCerts = filters.certifications.includes(cert) ? filters.certifications.filter(c => c !== cert) : [...filters.certifications, cert]; setFilters(f => ({ ...f, certifications: newCerts })); }} className={`text-sm p-2 rounded-md transition-colors ${filters.certifications.includes(cert) ? 'bg-[#c20c0b] text-white' : 'bg-gray-100 dark:bg-gray-700 dark:text-white'}`}>{cert}</button>)}</div>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-white mb-2">Minimum Trust Tier</label>
-                            <div className="flex gap-2 flex-wrap">
-                                {(['bronze', 'silver', 'gold'] as const).map(tier => {
-                                    const tierColors: Record<string, string> = { bronze: 'bg-orange-500', silver: 'bg-slate-500', gold: 'bg-yellow-500' };
-                                    const isActive = filters.minTrustTier === tier;
-                                    return (
-                                        <button key={tier} onClick={() => setFilters(f => ({ ...f, minTrustTier: f.minTrustTier === tier ? '' : tier }))}
-                                            className={`text-sm px-3 py-1.5 rounded-md capitalize transition-colors font-medium ${isActive ? `${tierColors[tier]} text-white` : 'bg-gray-100 dark:bg-gray-700 dark:text-white'}`}>
-                                            {tier}+
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                        <div>
-                            <label htmlFor="location" className="block text-sm font-medium text-gray-700 dark:text-white">Location</label>
-                            <input type="text" id="location" value={filters.location} onChange={e => setFilters(f => ({ ...f, location: e.target.value }))} placeholder="e.g., Dhaka, Bangladesh" className="mt-1 w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#c20c0b] bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
-                        </div>
-                         <div className="pt-6 border-t dark:border-gray-700 grid grid-cols-2 gap-4">
-                            <button data-testid="clear-all-filters-button" onClick={clearFilters} className="w-full flex items-center justify-center gap-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white py-3 rounded-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition-all"><Trash2 size={16} /> Clear All</button>
-                            <button data-testid="apply-filters-button" onClick={() => setShowFilterPanel(false)} className="w-full bg-[#c20c0b] text-white py-3 rounded-lg font-semibold hover:bg-[#a50a09] transition-all shadow-md">Apply Filters</button>
+                    <button onClick={() => setShowFilterPanel(false)} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                        <X size={18} />
+                    </button>
+                </div>
+
+                {/* Scrollable body */}
+                <div className="flex-1 overflow-y-auto px-5 py-5 space-y-7">
+
+                    {/* Quick Filters */}
+                    <div>
+                        <p className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">Quick Filters</p>
+                        <div className="flex flex-wrap gap-2">
+                            {quickFilters.map(filter => {
+                                const isActive = isQuickFilterActive(filter.type, filter.value);
+                                return (
+                                    <button
+                                        key={filter.name}
+                                        onClick={() => handleQuickFilter(filter.type, filter.value)}
+                                        className={`px-3.5 py-1.5 rounded-full text-sm font-semibold border transition-all duration-200 ${isActive
+                                            ? 'bg-[#c20c0b] text-white border-[#c20c0b] shadow-sm shadow-red-500/20'
+                                            : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-[#c20c0b] hover:text-[#c20c0b] dark:hover:border-red-500 dark:hover:text-red-400'}`}
+                                    >
+                                        {filter.name}
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
+
+                    {/* Minimum Rating */}
+                    <div>
+                        <div className="flex items-center justify-between mb-3">
+                            <p className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Minimum Rating</p>
+                            {filters.rating > 0 && <button onClick={() => setFilters(f => ({ ...f, rating: 0 }))} className="text-[11px] text-[#c20c0b] font-semibold hover:underline">{filters.rating}.0+ ×</button>}
+                        </div>
+                        <div className="flex gap-2">
+                            {[1, 2, 3, 4, 5].map(star => (
+                                <button
+                                    key={star}
+                                    onClick={() => setFilters(f => ({ ...f, rating: f.rating === star ? 0 : star }))}
+                                    className={`flex-1 flex flex-col items-center gap-1.5 py-2.5 rounded-xl border-2 transition-all duration-200 ${filters.rating >= star ? 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20' : 'border-gray-100 dark:border-gray-800 hover:border-yellow-300 dark:hover:border-yellow-700'}`}
+                                >
+                                    <Star size={18} className={filters.rating >= star ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300 dark:text-gray-600'} />
+                                    <span className={`text-[11px] font-bold ${filters.rating >= star ? 'text-yellow-500' : 'text-gray-400 dark:text-gray-600'}`}>{star}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Max MOQ */}
+                    <div>
+                        <div className="flex items-center justify-between mb-3">
+                            <p className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Max Order Quantity</p>
+                            <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">{filters.maxMoq.toLocaleString()} units</span>
+                        </div>
+                        <input
+                            type="range" min="0" max="10000" step="100"
+                            value={filters.maxMoq}
+                            onChange={e => setFilters(f => ({ ...f, maxMoq: parseInt(e.target.value) }))}
+                            className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full appearance-none cursor-pointer accent-[#c20c0b]"
+                        />
+                        <div className="flex justify-between mt-1.5">
+                            <span className="text-[11px] text-gray-400">0</span>
+                            <span className="text-[11px] text-gray-400">10,000</span>
+                        </div>
+                    </div>
+
+                    {/* Product Categories */}
+                    <div>
+                        <div className="flex items-center justify-between mb-3">
+                            <p className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Categories</p>
+                            {filters.categories.length > 0 && <button onClick={() => setFilters(f => ({ ...f, categories: [] }))} className="text-[11px] text-[#c20c0b] font-semibold hover:underline">{filters.categories.length} selected ×</button>}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {garmentCategories.map(cat => (
+                                <button
+                                    key={cat}
+                                    onClick={() => setFilters(f => ({ ...f, categories: f.categories.includes(cat) ? f.categories.filter(c => c !== cat) : [...f.categories, cat] }))}
+                                    className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${filters.categories.includes(cat)
+                                        ? 'bg-[#c20c0b] text-white border-[#c20c0b]'
+                                        : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-gray-400 dark:hover:border-gray-500'}`}
+                                >
+                                    {cat}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Certifications */}
+                    <div>
+                        <div className="flex items-center justify-between mb-3">
+                            <p className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Certifications</p>
+                            {filters.certifications.length > 0 && <button onClick={() => setFilters(f => ({ ...f, certifications: [] }))} className="text-[11px] text-[#c20c0b] font-semibold hover:underline">{filters.certifications.length} selected ×</button>}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {allCertifications.map(cert => (
+                                <button
+                                    key={cert}
+                                    onClick={() => setFilters(f => ({ ...f, certifications: f.certifications.includes(cert) ? f.certifications.filter(c => c !== cert) : [...f.certifications, cert] }))}
+                                    className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${filters.certifications.includes(cert)
+                                        ? 'bg-[#c20c0b] text-white border-[#c20c0b]'
+                                        : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-gray-400 dark:hover:border-gray-500'}`}
+                                >
+                                    {cert}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Trust Tier */}
+                    <div>
+                        <p className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">Minimum Trust Tier</p>
+                        <div className="grid grid-cols-3 gap-2">
+                            {(['bronze', 'silver', 'gold'] as const).map(tier => {
+                                const config = {
+                                    bronze: { gradient: 'from-orange-400 to-orange-600', icon: '🥉', label: 'Bronze' },
+                                    silver: { gradient: 'from-slate-400 to-slate-500', icon: '🥈', label: 'Silver' },
+                                    gold: { gradient: 'from-yellow-400 to-yellow-600', icon: '🥇', label: 'Gold' },
+                                };
+                                const isActive = filters.minTrustTier === tier;
+                                return (
+                                    <button
+                                        key={tier}
+                                        onClick={() => setFilters(f => ({ ...f, minTrustTier: f.minTrustTier === tier ? '' : tier }))}
+                                        className={`flex flex-col items-center gap-1.5 py-3 rounded-xl border-2 transition-all duration-200 font-semibold text-sm ${isActive
+                                            ? `bg-gradient-to-b ${config[tier].gradient} text-white border-transparent shadow-md`
+                                            : 'border-gray-100 dark:border-gray-800 text-gray-600 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600 bg-gray-50 dark:bg-gray-800/60'}`}
+                                    >
+                                        <span className="text-xl">{config[tier].icon}</span>
+                                        <span>{config[tier].label}+</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Location */}
+                    <div>
+                        <p className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">Location</p>
+                        <div className="relative">
+                            <Globe size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                            <input
+                                type="text"
+                                value={filters.location}
+                                onChange={e => setFilters(f => ({ ...f, location: e.target.value }))}
+                                placeholder="e.g., Dhaka, Bangladesh"
+                                className="w-full pl-9 pr-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#c20c0b]/30 focus:border-[#c20c0b] bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 text-sm transition-colors"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Footer */}
+                <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-800 flex gap-3 flex-shrink-0">
+                    <button
+                        data-testid="clear-all-filters-button"
+                        onClick={clearFilters}
+                        className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 font-semibold text-sm hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                    >
+                        <Trash2 size={14} /> Clear All
+                    </button>
+                    <button
+                        data-testid="apply-filters-button"
+                        onClick={() => setShowFilterPanel(false)}
+                        className="flex-1 py-2.5 rounded-xl bg-[#c20c0b] text-white font-semibold text-sm hover:bg-[#a50a09] transition-colors shadow-md shadow-red-500/20"
+                    >
+                        Show Results
+                    </button>
                 </div>
             </div>
         </>
@@ -850,8 +999,11 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                 {/* Search + Filter row */}
                 <div className="flex gap-2">
                     {makeSearchInput(searchContainerMobileRef)}
-                    <button onClick={() => setShowFilterPanel(true)} className="flex-shrink-0 w-[50px] h-[50px] bg-white dark:bg-gray-900/80 border border-gray-200 dark:border-gray-700 rounded-2xl flex items-center justify-center shadow-sm text-gray-600 dark:text-white active:scale-95 transition-transform">
+                    <button onClick={() => setShowFilterPanel(true)} className="relative flex-shrink-0 w-[50px] h-[50px] bg-white dark:bg-gray-900/80 border border-gray-200 dark:border-gray-700 rounded-2xl flex items-center justify-center shadow-sm text-gray-600 dark:text-white active:scale-95 transition-transform">
                         <SlidersHorizontal size={18} />
+                        {activeFilterCount > 0 && (
+                            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#c20c0b] text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white dark:ring-gray-900">{activeFilterCount}</span>
+                        )}
                     </button>
                 </div>
             </header>
@@ -931,9 +1083,12 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                         {makeSearchInput(searchContainerRef)}
                         <button
                             onClick={() => setShowFilterPanel(true)}
-                            className="flex-shrink-0 px-5 py-3.5 bg-white dark:bg-gray-900/80 dark:backdrop-blur-md border border-gray-200 dark:border-gray-700 rounded-2xl flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800 font-semibold shadow-lg text-gray-700 dark:text-white text-sm transition-all"
+                            className="relative flex-shrink-0 px-5 py-3.5 bg-white dark:bg-gray-900/80 dark:backdrop-blur-md border border-gray-200 dark:border-gray-700 rounded-2xl flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800 font-semibold shadow-lg text-gray-700 dark:text-white text-sm transition-all"
                         >
                             <SlidersHorizontal size={16} /> Filters
+                            {activeFilterCount > 0 && (
+                                <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-[#c20c0b] text-white text-[11px] font-bold">{activeFilterCount}</span>
+                            )}
                         </button>
                     </div>
                 </div>
@@ -999,17 +1154,6 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                     <h2 className="text-lg font-bold text-gray-800 dark:text-white">Browse Categories</h2>
                 </div>
                 <CategoryCarousel />
-            </section>
-
-            {/* Quick Filters: Sticky bar with easy-access filters (Rating, Sustainable, etc.) */}
-            <section className="mb-4 sm:mb-6 sticky top-14 md:top-0 bg-white/90 dark:bg-gray-900/80 backdrop-blur-md py-2 sm:py-3 z-20 -mx-3 px-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 transition-colors border-b border-gray-100 dark:border-gray-800/50">
-                <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide max-w-7xl mx-auto">
-                    <button onClick={() => setShowFilterPanel(true)} className="flex-shrink-0 px-4 py-2 border rounded-xl text-sm font-semibold transition-all duration-200 bg-white dark:bg-gray-900/50 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-white flex items-center gap-2 hover:scale-[1.03]"><SlidersHorizontal size={16} />Filters</button>
-                    {quickFilters.map(filter => {
-                        const isActive = isQuickFilterActive(filter.type, filter.value);
-                        return (<button key={filter.name} data-testid={`quick-filter-${filter.name}`} onClick={() => handleQuickFilter(filter.type, filter.value)} className={`flex-shrink-0 px-4 py-2 border rounded-xl text-sm font-semibold transition-all duration-200 hover:scale-[1.03] ${isActive ? 'bg-[#c20c0b] text-white border-[#c20c0b] shadow-md shadow-red-500/20' : 'bg-white dark:bg-gray-900/50 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-white'}`}>{filter.name}</button>)
-                    })}
-                </div>
             </section>
 
             {/* Factory Grid: The main content area displaying the list of factories */}
