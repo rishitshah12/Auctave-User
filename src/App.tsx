@@ -56,6 +56,8 @@ import { theme } from './theme';
 import { ToastProvider, useToast } from './ToastContext';
 import { NotificationProvider, useNotifications } from './NotificationContext';
 import { OrgProvider, useOrg, useOrgPermissions } from './OrgContext';
+import { WalkthroughProvider, useWalkthrough } from './walkthrough/WalkthroughContext';
+import { TourEngine } from './walkthrough/TourEngine';
 import { TeamSettingsPage } from './TeamSettingsPage';
 import { OrderTrackingPage } from './OrderTrackingPage';
 import { BillingPage } from './BillingPage';
@@ -228,6 +230,8 @@ const AppContent: FC = () => {
     const { showToast } = useToast();
     // Access addNotification from context
     const { addNotification } = useNotifications();
+    // Walkthrough system
+    const { triggerWelcomeModal } = useWalkthrough();
     // React Router — replaces manual window.history.pushState calls
     const navigate = useNavigate();
 
@@ -1836,6 +1840,8 @@ const AppContent: FC = () => {
         setIsNewUserSignup(false);
         if (user) localStorage.removeItem(`garment_new_signup_${user.id}`);
         handleSetCurrentPage(isAdmin ? 'adminDashboard' : 'sourcing');
+        // Show welcome modal after hello splash fades (3s delay)
+        if (!isAdmin) setTimeout(() => triggerWelcomeModal(), 3200);
 
         // Persist to DB in the background while the platform is already loading
         // Include avatar_url: use explicitly set value, or fall back to Google/OAuth picture
@@ -4704,6 +4710,14 @@ User message: "${userMsg}"`;
             )}
             {/* Hello splash overlay — shown after onboarding, sits above everything */}
             {helloSplash && <HelloSplashOverlay data={helloSplash} />}
+            {/* Guided walkthrough engine — checklist, tours, welcome modal */}
+            {user && userProfile && !isAdmin && (
+                <TourEngine
+                    userName={userProfile.name}
+                    currentPage={currentPage}
+                    onNavigate={handleSetCurrentPage}
+                />
+            )}
         </div>
         </OrgProvider>
     );
@@ -4713,7 +4727,9 @@ const App: FC = () => {
     return (
         <NotificationProvider>
             <ToastProvider>
-                <AppContent />
+                <WalkthroughProvider>
+                    <AppContent />
+                </WalkthroughProvider>
             </ToastProvider>
         </NotificationProvider>
     );

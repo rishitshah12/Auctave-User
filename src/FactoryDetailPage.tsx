@@ -760,7 +760,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                                 <h4 className="font-bold text-gray-900 dark:text-white">Interested in this factory?</h4>
                                 <p className="text-sm text-gray-500 dark:text-gray-200">Select products from the catalog and request a quote.</p>
                             </div>
-                            <button data-testid="request-quote-button" onClick={() => setShowProductSelector(true)} className="px-6 py-3 bg-[#c20c0b] text-white font-bold rounded-xl hover:bg-[#a50a09] transition-colors shadow-md flex items-center justify-center gap-2">Request Quote <ChevronRight size={18} /></button>
+                            <button data-testid="request-quote-button" data-tour-id="factory-rfq-btn" onClick={() => setShowProductSelector(true)} className="px-6 py-3 bg-[#c20c0b] text-white font-bold rounded-xl hover:bg-[#a50a09] transition-colors shadow-md flex items-center justify-center gap-2">Request Quote <ChevronRight size={18} /></button>
                         </div>
                     </div>
                 </div>

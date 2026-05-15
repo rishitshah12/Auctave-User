@@ -20,6 +20,7 @@ import CrmOrderCard from './CrmOrderCard';
 import CrmOrderDetail from './CrmOrderDetail';
 import { supabase } from './supabaseClient';
 import { useOrg } from './OrgContext';
+import { PageDiscoveryCard } from './walkthrough/components/PageDiscoveryCard';
 
 interface CrmDashboardProps {
     callGeminiAPI: (prompt: string) => Promise<string>;
@@ -661,6 +662,7 @@ export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user
 
     return (
         <div className="space-y-6">
+            <PageDiscoveryCard page="crm" />
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
                 <div>
@@ -685,7 +687,7 @@ export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user
             </div>
 
             {/* Tabs */}
-            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide" data-tour-id="crm-tna-btn">
                 {tabs.map(tab => (
                     <button
                         key={tab.key}
@@ -736,7 +738,7 @@ export default function CrmDashboard({ callGeminiAPI, handleSetCurrentPage, user
                     </p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6" data-tour-id="crm-order-list">
                     {filteredOrders.map(([orderId, order], index) => (
                         <div key={orderId} data-testid={`crm-order-card-${orderId}`}>
                         <CrmOrderCard

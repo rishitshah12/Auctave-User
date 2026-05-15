@@ -2417,7 +2417,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
 
                     {/* TIMELINE TAB */}
                     {activeTab === 'timeline' && (
-                        <div className="animate-fade-in space-y-4">
+                        <div className="animate-fade-in space-y-4" data-tour-id="quote-negotiation">
 
                             {/* Negotiation Summary Bar */}
                             {negotiationHistory.length > 0 && (() => {

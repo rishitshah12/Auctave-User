@@ -3653,7 +3653,7 @@ Keep it professional and brief. Use bullet points, not paragraphs (except Execut
                 </div>
             </header>
 
-            <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg p-4 sm:p-6 border border-gray-200 dark:border-white/10">
+            <div className="bg-white dark:bg-gray-900/40 dark:backdrop-blur-md rounded-2xl shadow-lg p-4 sm:p-6 border border-gray-200 dark:border-white/10" data-tour-id="crm-order-list">
                 <div className="border-b border-gray-200 dark:border-white/10 pb-4 mb-2 space-y-3">
                     {/* Row 1: Order Tabs + AI Button */}
                     <div className="flex flex-wrap items-center justify-between gap-y-2 gap-x-3">
@@ -3754,7 +3754,7 @@ Keep it professional and brief. Use bullet points, not paragraphs (except Execut
                             </div>
                         ) : <div />}
                         {/* View tabs */}
-                        <div className="flex items-center border border-gray-200 dark:border-gray-700 rounded-xl p-1 bg-gray-50 dark:bg-gray-800/50 shadow-sm">
+                        <div className="flex items-center border border-gray-200 dark:border-gray-700 rounded-xl p-1 bg-gray-50 dark:bg-gray-800/50 shadow-sm" data-tour-id="crm-tna-btn">
                             {currentViews.map(view => (
                                 <button
                                     key={view.name}

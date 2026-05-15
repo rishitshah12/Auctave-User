@@ -14,6 +14,7 @@ import { OrderFormData, QuoteRequest, LineItem } from '../src/types';
 import { formatFriendlyDate, getStatusColor, getStatusGradientBorder } from './utils';
 import { useToast } from './ToastContext';
 import { useOrgPermissions } from './OrgContext';
+import { PageDiscoveryCard } from './walkthrough/components/PageDiscoveryCard';
 
 // Define the properties (props) that this component expects to receive from its parent (App.tsx).
 interface OrderFormPageProps {
@@ -1514,6 +1515,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
         // Wrap the page content in the MainLayout to ensure consistent navigation and styling.
         <MainLayout {...props}>
             <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <PageDiscoveryCard page="orderForm" />
 
                 {/* Landing Page - Shown First */}
                 {showLandingPage ? (
@@ -1959,7 +1961,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                         </div>
 
                                         {/* Gamified Category Selection */}
-                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 mb-5 sm:mb-8">
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 mb-5 sm:mb-8" data-tour-id="order-form-categories">
                                             {CATEGORY_OPTIONS.map((cat) => (
                                                 <button
                                                     key={cat.id}
@@ -2254,7 +2256,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                             </div>
 
                                             {/* Quantity Section - Redesigned */}
-                                            <div className="md:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                                            <div className="md:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm" data-tour-id="order-form-qty">
                                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3">
                                                     <label className="block text-sm font-bold text-gray-700 dark:text-white">
                                                         Total Quantity <span className="text-red-500">*</span>
@@ -2640,7 +2642,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
 
                                     {/* Section 3: Attachments */}
                                     {currentStep === 3 && (
-                                    <div className="animate-slide-in">
+                                    <div className="animate-slide-in" data-tour-id="order-form-files">
                                             <div className="text-center mb-8">
                                                 <h3 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">Visuals & Docs</h3>
                                                 <p className="text-gray-500 dark:text-gray-400">Upload samples, tech packs, or reference images.</p>
@@ -3059,6 +3061,7 @@ export const OrderFormPage: FC<OrderFormPageProps> = (props) => {
                                 ) : (
                                     <button
                                         type="button"
+                                        data-tour-id="order-submit-btn"
                                         onClick={onSubmitButtonClick}
                                         disabled={isSubmitting || !canEdit}
                                         className={`px-8 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center gap-2 ${

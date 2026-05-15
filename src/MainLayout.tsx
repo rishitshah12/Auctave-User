@@ -57,10 +57,12 @@ const NavItem: FC<{
     badge?: number;
     onClick: () => void;
     title?: string;
-}> = ({ icon, label, isActive, badge = 0, onClick, title }) => (
+    tourId?: string;
+}> = ({ icon, label, isActive, badge = 0, onClick, title, tourId }) => (
     <button
         onClick={onClick}
         title={title}
+        data-tour-id={tourId}
         className={`relative w-full flex flex-col items-center gap-[5px] py-[9px] px-1 rounded-xl transition-all duration-150 group ${
             isActive ? 'bg-white/20 shadow-inner' : 'hover:bg-white/[0.12]'
         }`}
@@ -429,10 +431,10 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'> & { onOpenNotif
     const initials: string = displayName.split(' ').filter(Boolean).map((w: string) => w[0]).slice(0, 2).join('').toUpperCase();
 
     const clientMenuItems = [
-        { label: 'Sourcing',   shortLabel: 'Sourcing',  page: 'sourcing',   icon: <Search className="h-[22px] w-[22px]" /> },
-        { label: 'My Quotes',  shortLabel: 'Quotes',    page: 'myQuotes',   icon: <FileQuestion className="h-[22px] w-[22px]" /> },
-        { label: 'CRM Portal', shortLabel: 'CRM',       page: 'crm',        icon: <List className="h-[22px] w-[22px]" /> },
-        { label: 'Tracking',   shortLabel: 'Tracking',  page: 'tracking',   icon: <Truck className="h-[22px] w-[22px]" /> },
+        { label: 'Sourcing',   shortLabel: 'Sourcing',  page: 'sourcing',   icon: <Search className="h-[22px] w-[22px]" />,       tourId: 'nav-sourcing' },
+        { label: 'My Quotes',  shortLabel: 'Quotes',    page: 'myQuotes',   icon: <FileQuestion className="h-[22px] w-[22px]" />, tourId: 'nav-myquotes' },
+        { label: 'CRM Portal', shortLabel: 'CRM',       page: 'crm',        icon: <List className="h-[22px] w-[22px]" />,         tourId: 'nav-crm' },
+        { label: 'Tracking',   shortLabel: 'Tracking',  page: 'tracking',   icon: <Truck className="h-[22px] w-[22px]" />,        tourId: 'nav-tracking' },
         { label: 'Billing',    shortLabel: 'Billing',   page: 'billing',    icon: <DollarSign className="h-[22px] w-[22px]" /> },
         { label: 'Place Order',shortLabel: 'Order',     page: 'orderForm',  icon: <Plus className="h-[22px] w-[22px]" /> },
         { label: 'Settings',   shortLabel: 'Settings',  page: 'settings',   icon: <Settings className="h-[22px] w-[22px]" /> },
@@ -483,6 +485,7 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'> & { onOpenNotif
 
         {/* Sidebar */}
         <aside
+            data-tour-id="sidebar-nav"
             className={`fixed top-2 bottom-2 left-2 w-[68px] flex flex-col z-50 rounded-2xl overflow-hidden transition-transform duration-300 ease-in-out ${
                 isMenuOpen ? 'translate-x-0' : '-translate-x-[80px]'
             } md:translate-x-0`}
@@ -526,6 +529,7 @@ const SideMenu: FC<Omit<MainLayoutProps, 'children' | 'pageKey'> & { onOpenNotif
                         isActive={currentPage === item.page}
                         badge={unreadByPage[item.page] || 0}
                         onClick={() => { handleSetCurrentPage(item.page); if (isMenuOpen) toggleMenu(); setSideMoreOpen(false); }}
+                        tourId={(item as any).tourId}
                     />
                 ))}
 

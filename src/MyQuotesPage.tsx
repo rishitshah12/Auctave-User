@@ -9,6 +9,7 @@ import {
 import { formatFriendlyDate, getStatusColor, getStatusGradientBorder, getStatusHoverShadow } from './utils';
 import { useToast } from './ToastContext';
 import { useOrgPermissions } from './OrgContext';
+import { PageDiscoveryCard } from './walkthrough/components/PageDiscoveryCard';
 
 interface MyQuotesPageProps {
     quoteRequests: QuoteRequest[];
@@ -483,6 +484,7 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
             <div
                 key={quote.id}
                 data-testid={`quote-card-${quote.id}`}
+                data-tour-id={index === 0 ? 'quote-card-first' : undefined}
                 onClick={() => {
                     if (isSelectMode && quote.status !== 'Draft') { toggleSelectId(quote.id); return; }
                     quote.status === 'Draft' ? handleResumeDraft(quote) : handleCardClick(quote);
@@ -1043,9 +1045,11 @@ export const MyQuotesPage: FC<MyQuotesPageProps> = ({ quoteRequests, handleSetCu
                 </div>
             )}
 
+            <PageDiscoveryCard page="myQuotes" />
+
             {/* Quotes Grid */}
             {isLoading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6" data-tour-id="quotes-list">
                     {[1, 2, 3].map(i => (
                         <div key={i} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 h-64 animate-pulse"></div>
                     ))}

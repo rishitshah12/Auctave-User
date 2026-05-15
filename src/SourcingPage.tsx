@@ -17,6 +17,7 @@ import { supabase } from '../src/supabaseClient';
 import { MainLayout } from '../src/MainLayout';
 import { FactoryCard } from '../src/FactoryCard';
 import { useNotifications } from '../src/NotificationContext';
+import { PageDiscoveryCard } from './walkthrough/components/PageDiscoveryCard';
 
 interface SourcingPageProps {
     pageKey: number;
@@ -1082,9 +1083,10 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                     </div>
 
                     {/* Search bar */}
-                    <div className="flex gap-3">
+                    <div className="flex gap-3" data-tour-id="sourcing-search">
                         {makeSearchInput(searchContainerRef)}
                         <button
+                            data-tour-id="sourcing-filters"
                             onClick={() => setShowFilterPanel(true)}
                             className="relative flex-shrink-0 px-5 py-3.5 bg-white dark:bg-gray-900/80 dark:backdrop-blur-md border border-gray-200 dark:border-gray-700 rounded-2xl flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800 font-semibold shadow-lg text-gray-700 dark:text-white text-sm transition-all"
                         >
@@ -1096,6 +1098,8 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                     </div>
                 </div>
             </header>
+
+            <PageDiscoveryCard page="sourcing" />
 
             {/* Promotional Banners */}
             <section className="mb-5 sm:mb-8">
@@ -1170,7 +1174,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                         {!isFiltering && `${filteredFactories.length} ${filteredFactories.length === 1 ? 'factory' : 'factories'}`}
                     </span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6" data-tour-id="factory-card-first">
                     {/* Conditional Rendering: Show Skeletons while loading, Cards if data exists, or 'No Results' message */}
                     {isFiltering ? (
                         Array.from({ length: 6 }).map((_, index) => <SkeletonCard key={index} />)
