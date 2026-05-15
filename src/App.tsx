@@ -253,9 +253,14 @@ const AppContent: FC = () => {
     // State to indicate if the authentication check has completed.
     // Initialized synchronously from localStorage: if no valid session is stored,
     // we skip the loading spinner entirely and show the login form immediately.
+    // Exception: when the URL contains OAuth callback params (?code= or #access_token=),
+    // Supabase needs to exchange them for a session — keep false so the preloader shows
+    // instead of the login page flashing before onAuthStateChange fires.
     const [isAuthReady, setIsAuthReady] = useState<boolean>(() => {
+        const hasOAuthCallback = window.location.search.includes('code=') || window.location.hash.includes('access_token=');
+        if (hasOAuthCallback) return false;
         try {
-            const raw = localStorage.getItem('sb-nhvbnfpzykdokqcnljth-auth-token');
+            const raw = localStorage.getItem('supabase.auth.token');
             if (!raw) return true; // No session → show login immediately
             const session = JSON.parse(raw);
             const expiresAt = session?.expires_at ?? 0;
