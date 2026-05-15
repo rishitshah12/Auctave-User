@@ -121,20 +121,20 @@ export const TourTooltip: React.FC<TourTooltipProps> = ({
   // Mobile: fixed to bottom above the bottom nav using JS (no CSS class dependency)
   const mobileStyle: React.CSSProperties = {
     bottom: 'calc(env(safe-area-inset-bottom) + 92px)',
-    left: 12,
-    right: 12,
+    left: 10,
+    right: 10,
     top: 'auto',
     width: 'auto',
     maxWidth: 'none',
-    borderRadius: 20,
+    borderRadius: 22,
   };
 
   const desktopStyle: React.CSSProperties = {
     top: pos.top,
     left: pos.left,
-    width: 440,
-    maxWidth: 480,
-    borderRadius: 22,
+    width: 600,          // 50% larger than previous 440px → 600px desktop
+    maxWidth: 640,
+    borderRadius: 24,
   };
 
   return (
@@ -155,18 +155,18 @@ export const TourTooltip: React.FC<TourTooltipProps> = ({
         ...(isMobile ? mobileStyle : desktopStyle),
       }}
     >
-      {/* Gradient accent bar */}
-      <div style={{ height: 4, background: 'linear-gradient(90deg, #c20c0b 0%, #7c3aed 60%, #2563eb 100%)', position: 'relative' }}>
-        <div style={{ position: 'absolute', inset: 0, background: 'inherit', filter: 'blur(6px)', opacity: 0.6 }} />
+      {/* Gradient accent bar — pure red brand */}
+      <div style={{ height: 5, background: 'linear-gradient(90deg, #c20c0b 0%, #350e4a 100%)', position: 'relative' }}>
+        <div style={{ position: 'absolute', inset: 0, background: 'inherit', filter: 'blur(8px)', opacity: 0.5 }} />
       </div>
 
-      <div style={{ padding: isMobile ? '18px 18px 20px' : '24px 28px 26px' }}>
+      <div style={{ padding: isMobile ? '20px 20px 22px' : '30px 36px 32px' }}>
 
         {/* Tour label + close */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
           <span style={{
-            fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
-            background: 'linear-gradient(90deg, #c20c0b, #7c3aed)',
+            fontSize: 11.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
+            background: 'linear-gradient(90deg, #c20c0b, #350e4a)',
             WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
           }}>
             {tour.title}
@@ -174,42 +174,42 @@ export const TourTooltip: React.FC<TourTooltipProps> = ({
           <button
             onClick={onExit}
             style={{
-              width: 30, height: 30, borderRadius: 9,
+              width: 32, height: 32, borderRadius: 10,
               background: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
               border: `1px solid ${cardBorder}`,
               cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: body, flexShrink: 0,
             }}
           >
-            <X size={14} />
+            <X size={15} />
           </button>
         </div>
 
         {/* Title */}
         <h3 style={{
-          margin: '0 0 10px',
-          fontSize: isMobile ? 19 : 22,
-          fontWeight: 800, color: heading, lineHeight: 1.25, letterSpacing: '-0.02em',
+          margin: '0 0 14px',
+          fontSize: isMobile ? 21 : 26,
+          fontWeight: 800, color: heading, lineHeight: 1.2, letterSpacing: '-0.025em',
         }}>
           {step.title}
         </h3>
 
         {/* Body */}
-        <p style={{ margin: '0 0 16px', fontSize: isMobile ? 14 : 15, lineHeight: 1.7, color: body }}>
+        <p style={{ margin: '0 0 20px', fontSize: isMobile ? 14.5 : 17, lineHeight: 1.7, color: body }}>
           {step.body}
         </p>
 
         {/* Action prompt */}
         {step.action && (
           <div style={{
-            display: 'flex', alignItems: 'flex-start', gap: 10,
-            background: isDark ? 'rgba(37,99,235,0.08)' : 'rgba(37,99,235,0.05)',
-            border: `1px solid ${isDark ? 'rgba(37,99,235,0.2)' : 'rgba(37,99,235,0.15)'}`,
-            borderLeft: '3px solid #2563eb', borderRadius: '0 10px 10px 0',
-            padding: '10px 13px', marginBottom: 12,
+            display: 'flex', alignItems: 'flex-start', gap: 12,
+            background: isDark ? 'rgba(194,12,11,0.08)' : 'rgba(194,12,11,0.05)',
+            border: `1px solid ${isDark ? 'rgba(194,12,11,0.2)' : 'rgba(194,12,11,0.15)'}`,
+            borderLeft: '3px solid #c20c0b', borderRadius: '0 12px 12px 0',
+            padding: isMobile ? '10px 13px' : '12px 16px', marginBottom: 14,
           }}>
-            <MousePointerClick size={14} color="#2563eb" style={{ flexShrink: 0, marginTop: 2 }} />
-            <span style={{ fontSize: 13.5, color: isDark ? '#93c5fd' : '#1d4ed8', fontWeight: 500, lineHeight: 1.5 }}>
+            <MousePointerClick size={15} color="#c20c0b" style={{ flexShrink: 0, marginTop: 2 }} />
+            <span style={{ fontSize: isMobile ? 13.5 : 14.5, color: isDark ? '#fca5a5' : '#9b1212', fontWeight: 500, lineHeight: 1.55 }}>
               {step.action.label}
             </span>
           </div>
@@ -218,33 +218,33 @@ export const TourTooltip: React.FC<TourTooltipProps> = ({
         {/* Tip */}
         {step.tip && (
           <div style={{
-            display: 'flex', alignItems: 'flex-start', gap: 10,
-            background: isDark ? 'rgba(124,58,237,0.08)' : 'rgba(124,58,237,0.05)',
-            border: `1px solid ${isDark ? 'rgba(124,58,237,0.2)' : 'rgba(124,58,237,0.15)'}`,
-            borderLeft: '3px solid #7c3aed', borderRadius: '0 10px 10px 0',
-            padding: '10px 13px', marginBottom: 12,
+            display: 'flex', alignItems: 'flex-start', gap: 12,
+            background: isDark ? 'rgba(53,14,74,0.25)' : 'rgba(53,14,74,0.05)',
+            border: `1px solid ${isDark ? 'rgba(53,14,74,0.4)' : 'rgba(53,14,74,0.15)'}`,
+            borderLeft: '3px solid #350e4a', borderRadius: '0 12px 12px 0',
+            padding: isMobile ? '10px 13px' : '12px 16px', marginBottom: 14,
           }}>
-            <Lightbulb size={14} color="#7c3aed" style={{ flexShrink: 0, marginTop: 2 }} />
-            <span style={{ fontSize: 13.5, color: isDark ? '#c4b5fd' : '#5b21b6', fontWeight: 500, lineHeight: 1.5 }}>
+            <Lightbulb size={15} color="#350e4a" style={{ flexShrink: 0, marginTop: 2 }} />
+            <span style={{ fontSize: isMobile ? 13.5 : 14.5, color: isDark ? '#d8b4fe' : '#350e4a', fontWeight: 500, lineHeight: 1.55 }}>
               {step.tip}
             </span>
           </div>
         )}
 
         {/* Footer: dots + nav */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 18, gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: isMobile ? 18 : 26, gap: 12 }}>
 
           {/* Step dots */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
             {tour.steps.map((_, i) => {
               const isCurrent = i === stepIndex;
               const isDone = i < stepIndex;
               return (
                 <div key={i} style={{
-                  height: 7,
-                  width: isCurrent ? 22 : 7,
+                  height: isMobile ? 7 : 9,
+                  width: isCurrent ? (isMobile ? 22 : 28) : (isMobile ? 7 : 9),
                   borderRadius: 99,
-                  background: isCurrent ? 'linear-gradient(90deg,#c20c0b,#7c3aed)' : isDone ? dotDone : dotFuture,
+                  background: isCurrent ? 'linear-gradient(90deg,#c20c0b,#350e4a)' : isDone ? dotDone : dotFuture,
                   transition: 'width 0.3s cubic-bezier(0.22,1,0.36,1), background 0.3s ease',
                 }} />
               );
@@ -252,16 +252,20 @@ export const TourTooltip: React.FC<TourTooltipProps> = ({
           </div>
 
           {/* Nav */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
             {!isFirst && (
               <button
                 onClick={onPrev}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 4,
-                  padding: '8px 14px', borderRadius: 10,
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  padding: isMobile ? '9px 14px' : '11px 18px',
+                  borderRadius: 11,
                   border: `1px solid ${cardBorder}`,
-                  cursor: 'pointer', fontSize: 14, fontWeight: 600,
-                  color: body, background: 'none',
+                  cursor: 'pointer',
+                  fontSize: isMobile ? 14 : 15,
+                  fontWeight: 600,
+                  color: body,
+                  background: 'none',
                 }}
               >
                 <ChevronLeft size={15} /> Back
@@ -271,22 +275,22 @@ export const TourTooltip: React.FC<TourTooltipProps> = ({
             <button
               onClick={isLast ? onComplete : onNext}
               style={{
-                display: 'flex', alignItems: 'center', gap: 7,
-                padding: isMobile ? '9px 18px' : '10px 22px',
-                borderRadius: 11, border: 'none', cursor: 'pointer',
-                fontSize: isMobile ? 14 : 15, fontWeight: 700, color: '#fff',
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: isMobile ? '10px 20px' : '13px 28px',
+                borderRadius: 12, border: 'none', cursor: 'pointer',
+                fontSize: isMobile ? 14.5 : 16, fontWeight: 700, color: '#fff',
                 whiteSpace: 'nowrap',
                 background: isLast
                   ? 'linear-gradient(135deg,#059669,#047857)'
-                  : 'linear-gradient(135deg,#c20c0b 0%,#7c3aed 100%)',
+                  : 'linear-gradient(135deg,#c20c0b,#350e4a)',
                 boxShadow: isLast
-                  ? '0 4px 20px rgba(5,150,105,0.4)'
-                  : '0 4px 20px rgba(194,12,11,0.35)',
+                  ? '0 6px 24px rgba(5,150,105,0.45)'
+                  : '0 6px 24px rgba(194,12,11,0.4)',
               }}
             >
               {isLast
-                ? <><CheckCircle2 size={16} /> All done!</>
-                : <>Continue <ArrowRight size={15} /></>
+                ? <><CheckCircle2 size={17} /> All done!</>
+                : <>Continue <ArrowRight size={16} /></>
               }
             </button>
           </div>
