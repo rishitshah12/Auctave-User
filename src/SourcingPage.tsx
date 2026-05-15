@@ -1001,9 +1001,9 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                 </div>
 
                 {/* Search + Filter row */}
-                <div className="flex gap-2">
+                <div className="flex gap-2" data-tour-id="sourcing-search">
                     {makeSearchInput(searchContainerMobileRef)}
-                    <button onClick={() => setShowFilterPanel(true)} className="relative flex-shrink-0 w-[50px] h-[50px] bg-white dark:bg-gray-900/80 border border-gray-200 dark:border-gray-700 rounded-2xl flex items-center justify-center shadow-sm text-gray-600 dark:text-white active:scale-95 transition-transform">
+                    <button data-tour-id="sourcing-filters" onClick={() => setShowFilterPanel(true)} className="relative flex-shrink-0 w-[50px] h-[50px] bg-white dark:bg-gray-900/80 border border-gray-200 dark:border-gray-700 rounded-2xl flex items-center justify-center shadow-sm text-gray-600 dark:text-white active:scale-95 transition-transform">
                         <SlidersHorizontal size={18} />
                         {activeFilterCount > 0 && (
                             <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#c20c0b] text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white dark:ring-gray-900">{activeFilterCount}</span>

@@ -10,42 +10,41 @@ export const submitRFQTour: Tour = {
     {
       id: 'intro',
       title: 'How RFQs work on ZUSHI',
-      body: 'An RFQ (Request for Quotation) is how you officially ask a factory for pricing. The more detail you provide, the more accurate the quote. Let\'s walk through it.',
+      body: 'An RFQ (Request for Quotation) is how you officially ask a factory for pricing. The more detail you provide, the more accurate the quote. Let\'s walk through the form.',
       placement: 'center',
     },
     {
+      // Target exists on form step 1 — always in DOM when orderForm page loads
       id: 'order-form-categories',
       target: 'order-form-categories',
-      title: 'Define your product',
-      body: 'Start by selecting your product category. Then add details: fabric type, weight (GSM), quantity, and any style specifications or tech pack references.',
-      placement: 'right',
+      title: 'Choose your product category',
+      body: 'Start by selecting what you\'re making — T-shirts, denim, activewear, and more. Each category unlocks relevant fabric and style options on the next steps.',
+      placement: 'bottom',
       highlightPadding: 10,
       navigateTo: 'orderForm',
     },
     {
+      // order-form-qty lives on step 2 of the form which isn't rendered at step 1.
+      // No target — show as a centered explanatory step instead.
       id: 'order-form-qty',
-      target: 'order-form-qty',
       title: 'Set your order quantity',
-      body: 'Enter your target quantity — either as individual units or by container (20ft / 40ft). ZUSHI will automatically flag factories whose MOQ matches your order size.',
-      placement: 'bottom',
-      highlightPadding: 8,
+      body: 'On the next form step you\'ll enter your target quantity — either as individual units or by container (20ft / 40ft). ZUSHI flags factories whose MOQ matches your order.',
+      placement: 'center',
     },
     {
+      // order-form-files lives on step 3 — not rendered at step 1.
       id: 'order-form-files',
-      target: 'order-form-files',
       title: 'Attach your tech pack',
-      body: 'Upload your design files, tech pack, or reference images. Factories use these to give you an accurate quote. PDF, AI, and image files are all supported.',
-      placement: 'bottom',
-      highlightPadding: 8,
-      tip: 'No tech pack yet? Our AI assistant can help generate basic spec sheets from your description',
+      body: 'You can upload your design files, tech pack, or reference images so the factory can quote accurately. PDF, AI, and image files are all supported.',
+      placement: 'center',
+      tip: 'No tech pack yet? Our AI assistant can help generate basic spec sheets from your description.',
     },
     {
+      // Submit button is only rendered on form step 5 — not in DOM at step 1.
       id: 'order-submit',
-      target: 'order-submit-btn',
       title: 'Send it off',
-      body: 'Once submitted, the factory receives your RFQ instantly. You\'ll get a notification when they respond — typically within 24–48 hours.',
-      placement: 'top',
-      highlightPadding: 10,
+      body: 'Once you\'ve filled in all the details, hit Submit. The factory receives your RFQ instantly and you\'ll get a notification with their quote — typically within 24–48 hours.',
+      placement: 'center',
     },
   ],
 };

@@ -14,34 +14,36 @@ export const reviewQuotesTour: Tour = {
       placement: 'center',
     },
     {
+      // quotes-list data-tour-id is on the loading skeleton grid — always in DOM on myQuotes page
       id: 'quotes-list',
       target: 'quotes-list',
       title: 'All your quote requests in one place',
-      body: 'This page shows every RFQ you\'ve submitted with their current status: Pending, Quoted, Negotiating, or Accepted. Color coding shows urgency.',
+      body: 'Every RFQ you\'ve submitted appears here with its current status: Pending, Quoted, Negotiating, or Accepted. Color coding shows which ones need your attention first.',
       placement: 'right',
       highlightPadding: 8,
       navigateTo: 'myQuotes',
     },
     {
+      // quote-card-first is the first rendered card — in DOM if any quotes exist
       id: 'quote-card',
       target: 'quote-card-first',
       title: 'Open a quote to review it',
-      body: 'Click any quote to see the factory\'s full response: unit pricing, payment terms, lead time, sample cost, and any notes from the factory.',
+      body: 'Tap any quote card to see the factory\'s full response: unit pricing, payment terms, lead time, sample cost, and notes. All history is preserved.',
       placement: 'right',
       highlightPadding: 10,
       allowInteraction: true,
       action: {
-        label: 'Click on a quote to open it',
+        label: 'Tap on a quote card to open it',
       },
     },
     {
+      // quote-negotiation lives inside QuoteDetailPage which requires clicking into a quote first.
+      // That interaction was covered in the previous step — this step explains what they'll find.
       id: 'quote-negotiation',
-      target: 'quote-negotiation',
-      title: 'Negotiate directly',
-      body: 'Not happy with the pricing or terms? Use the negotiation panel to counter-offer. All back-and-forth is logged with timestamps so nothing gets lost.',
-      placement: 'left',
-      highlightPadding: 8,
-      tip: 'ZUSHI\'s AI assistant can suggest a counter-offer based on market rates',
+      title: 'Negotiate directly inside the quote',
+      body: 'Inside the quote detail you\'ll see the full offer. If the price or terms aren\'t right, use the negotiation panel to counter-offer. Every message is timestamped and logged.',
+      placement: 'center',
+      tip: 'The AI assistant can suggest a counter-offer based on current market rates.',
     },
   ],
 };

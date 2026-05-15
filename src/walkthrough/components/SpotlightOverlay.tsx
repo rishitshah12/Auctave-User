@@ -11,24 +11,32 @@ interface SpotlightOverlayProps {
   children?: React.ReactNode;
 }
 
-// Finds the first element with the given tour-id that is actually visible in the viewport.
-// querySelectorAll lets sidebar (desktop) and bottom-nav (mobile) share the same id.
-function getTargetRect(tourId: string, padding: number): Rect | null {
+// Find the first element with this tour-id that is NOT hidden by CSS.
+// Intentionally does NOT reject elements below the fold — we'll scroll to those.
+// Only rejects elements that are horizontally off-screen (e.g. sidebar translateX(-80px) on mobile).
+function findVisibleElement(tourId: string): Element | null {
   const els = Array.from(document.querySelectorAll(`[data-tour-id="${tourId}"]`));
   for (const el of els) {
     const r = el.getBoundingClientRect();
     if (r.width === 0 || r.height === 0) continue;
-    if (r.right < 0 || r.bottom < 0 || r.left > window.innerWidth || r.top > window.innerHeight) continue;
+    // Skip elements off-screen HORIZONTALLY (sidebar on mobile)
+    if (r.right < 0 || r.left > window.innerWidth) continue;
+    // Skip CSS-hidden elements
     const s = window.getComputedStyle(el);
     if (s.display === 'none' || s.visibility === 'hidden' || s.opacity === '0') continue;
-    return {
-      x: Math.max(0, r.left - padding),
-      y: Math.max(0, r.top - padding),
-      width: Math.min(r.width + padding * 2, window.innerWidth),
-      height: Math.min(r.height + padding * 2, window.innerHeight),
-    };
+    return el;
   }
   return null;
+}
+
+function rectFromElement(el: Element, padding: number): Rect {
+  const r = el.getBoundingClientRect();
+  return {
+    x: Math.max(0, r.left - padding),
+    y: Math.max(0, r.top - padding),
+    width:  Math.min(r.width  + padding * 2, window.innerWidth),
+    height: Math.min(r.height + padding * 2, window.innerHeight),
+  };
 }
 
 export const SpotlightOverlay: React.FC<SpotlightOverlayProps> = ({
@@ -36,20 +44,30 @@ export const SpotlightOverlay: React.FC<SpotlightOverlayProps> = ({
 }) => {
   const [rect, setRect] = useState<Rect | null>(null);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
-  const frameRef = useRef<number | undefined>(undefined);
+  const frameRef  = useRef<number | undefined>(undefined);
+  const timerRef  = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     const update = () => {
       setIsMobile(window.innerWidth < 768);
-      if (targetId) {
-        const r = getTargetRect(targetId, padding);
-        setRect(r);
-        if (r) {
-          const el = document.querySelectorAll(`[data-tour-id="${targetId}"]`);
-          el[0]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
+
+      if (!targetId) { setRect(null); return; }
+
+      const el = findVisibleElement(targetId);
+      if (!el) { setRect(null); return; }
+
+      const r = el.getBoundingClientRect();
+      const inViewport = r.top < window.innerHeight && r.bottom > 0;
+
+      if (inViewport) {
+        // Element is (at least partially) visible — measure immediately
+        setRect(rectFromElement(el, padding));
       } else {
-        setRect(null);
+        // Element is below (or above) the fold — scroll first, then re-measure
+        el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+        timerRef.current = setTimeout(() => {
+          setRect(rectFromElement(el, padding));
+        }, 480); // Wait for smooth scroll to settle
       }
     };
 
@@ -62,15 +80,16 @@ export const SpotlightOverlay: React.FC<SpotlightOverlayProps> = ({
 
     window.addEventListener('resize', update);
     window.addEventListener('scroll', update, true);
+
     return () => {
       ro.disconnect();
       window.removeEventListener('resize', update);
       window.removeEventListener('scroll', update, true);
-      if (frameRef.current) cancelAnimationFrame(frameRef.current);
+      if (frameRef.current)  cancelAnimationFrame(frameRef.current);
+      if (timerRef.current)  clearTimeout(timerRef.current);
     };
   }, [targetId, padding]);
 
-  // Mobile: stop overlay before the bottom nav (74px + safe area) so nav stays tappable
   const overlayBottom = isMobile ? 'calc(env(safe-area-inset-bottom) + 74px)' : 0;
 
   const overlay = (
@@ -86,15 +105,15 @@ export const SpotlightOverlay: React.FC<SpotlightOverlayProps> = ({
       {rect ? (
         <>
           {/* Top */}
-          <div style={{ position:'absolute', top:0, left:0, right:0, height:rect.y, background:'rgba(0,0,0,0.75)', pointerEvents: allowInteraction?'none':'all' }} onClick={onClickOutside} />
+          <div style={{ position:'absolute', top:0, left:0, right:0, height: rect.y, background:'rgba(0,0,0,0.75)', pointerEvents: allowInteraction?'none':'all' }} onClick={onClickOutside} />
           {/* Bottom */}
-          <div style={{ position:'absolute', top:rect.y+rect.height, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.75)', pointerEvents: allowInteraction?'none':'all' }} onClick={onClickOutside} />
+          <div style={{ position:'absolute', top: rect.y+rect.height, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.75)', pointerEvents: allowInteraction?'none':'all' }} onClick={onClickOutside} />
           {/* Left */}
-          <div style={{ position:'absolute', top:rect.y, left:0, width:rect.x, height:rect.height, background:'rgba(0,0,0,0.75)', pointerEvents: allowInteraction?'none':'all' }} onClick={onClickOutside} />
+          <div style={{ position:'absolute', top: rect.y, left:0, width: rect.x, height: rect.height, background:'rgba(0,0,0,0.75)', pointerEvents: allowInteraction?'none':'all' }} onClick={onClickOutside} />
           {/* Right */}
-          <div style={{ position:'absolute', top:rect.y, left:rect.x+rect.width, right:0, height:rect.height, background:'rgba(0,0,0,0.75)', pointerEvents: allowInteraction?'none':'all' }} onClick={onClickOutside} />
+          <div style={{ position:'absolute', top: rect.y, left: rect.x+rect.width, right:0, height: rect.height, background:'rgba(0,0,0,0.75)', pointerEvents: allowInteraction?'none':'all' }} onClick={onClickOutside} />
 
-          {/* Apple-style halo ring */}
+          {/* Apple halo ring */}
           <div
             style={{
               position: 'absolute',
@@ -104,23 +123,20 @@ export const SpotlightOverlay: React.FC<SpotlightOverlayProps> = ({
               boxShadow: allowInteraction
                 ? '0 0 0 2.5px rgba(255,255,255,1), 0 0 0 7px rgba(255,255,255,0.35), 0 0 32px 12px rgba(255,255,255,0.15)'
                 : '0 0 0 2.5px rgba(255,255,255,0.95), 0 0 0 6px rgba(255,255,255,0.3), 0 0 24px 8px rgba(255,255,255,0.1)',
-              transition: 'all 0.28s cubic-bezier(0.22,1,0.36,1)',
+              transition: 'all 0.3s cubic-bezier(0.22,1,0.36,1)',
               animation: allowInteraction ? 'tour-halo-pulse 2.2s ease-in-out infinite' : undefined,
             }}
           />
         </>
       ) : (
-        /* No visible target — full dark backdrop */
+        /* No visible target — full dark backdrop (center steps or inaccessible elements) */
         <div
-          style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.75)', backdropFilter:'blur(4px)', WebkitBackdropFilter:'blur(4px)', pointerEvents:'all' }}
+          style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.78)', backdropFilter:'blur(4px)', WebkitBackdropFilter:'blur(4px)', pointerEvents:'all' }}
           onClick={onClickOutside}
         />
       )}
 
-      {/* Tooltip — must restore pointer events */}
-      <div style={{ pointerEvents: 'all' }}>
-        {children}
-      </div>
+      <div style={{ pointerEvents: 'all' }}>{children}</div>
     </div>
   );
 
