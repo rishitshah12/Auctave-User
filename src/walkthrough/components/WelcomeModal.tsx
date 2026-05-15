@@ -200,7 +200,7 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({ userName }) => {
           </div>
 
           <p style={{ margin: '16px 0 0', fontSize: 12, color: sub, textAlign: 'center' }}>
-            Your guided checklist is available anytime in the bottom-right corner
+            Find all guided tours anytime in Settings → Help Center
           </p>
         </div>
       </div>

@@ -2,7 +2,6 @@ import React, { useEffect, useRef } from 'react';
 import { useWalkthrough } from './WalkthroughContext';
 import { SpotlightOverlay } from './components/SpotlightOverlay';
 import { TourTooltip } from './components/TourTooltip';
-import { ChecklistWidget } from './components/ChecklistWidget';
 import { WelcomeModal } from './components/WelcomeModal';
 
 // CSS always injected — handles animations + mobile-responsive positioning
@@ -15,6 +14,13 @@ const TOUR_STYLES = `
       box-shadow: 0 0 0 3px rgba(255,255,255,0.7), 0 0 0 10px rgba(255,255,255,0.15), 0 0 40px 16px rgba(255,255,255,0.06);
     }
   }
+
+  /* Card entrance — fires on every step change via React key */
+  @keyframes zushi-card-in {
+    from { opacity: 0; transform: translateY(12px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
   @keyframes tour-fade-in {
     from { opacity: 0; transform: translateY(-8px); }
     to   { opacity: 1; transform: translateY(0); }
@@ -34,13 +40,13 @@ const TOUR_STYLES = `
       right: 12px !important;
       left: 12px !important;
       width: auto !important;
-      max-width: 400px !important;
+      max-width: 420px !important;
     }
     .zushi-checklist-pill {
       bottom: calc(env(safe-area-inset-bottom) + 86px) !important;
       right: 12px !important;
     }
-    /* Tooltip on mobile: anchor above nav, full width */
+    /* Tooltip on mobile: anchor above nav, edge-to-edge with margin */
     .zushi-tooltip {
       bottom: calc(env(safe-area-inset-bottom) + 90px) !important;
       top: auto !important;
@@ -48,7 +54,7 @@ const TOUR_STYLES = `
       right: 12px !important;
       width: auto !important;
       max-width: none !important;
-      border-radius: 16px !important;
+      border-radius: 20px !important;
     }
     /* Spotlight overlay: don't cover the bottom nav so it stays tappable */
     .zushi-overlay-root {
@@ -110,10 +116,7 @@ export const TourEngine: React.FC<TourEngineProps> = ({ userName, onNavigate }) 
           />
         </SpotlightOverlay>
       ) : (
-        <>
-          <ChecklistWidget />
-          <WelcomeModal userName={userName} />
-        </>
+        <WelcomeModal userName={userName} />
       )}
     </>
   );

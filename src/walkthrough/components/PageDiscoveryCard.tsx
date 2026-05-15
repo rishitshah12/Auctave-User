@@ -66,7 +66,6 @@ export const PageDiscoveryCard: React.FC<PageDiscoveryCardProps> = ({ page }) =>
   const config = PAGE_CONFIGS[page];
   if (!config) return null;
   if (isPageVisited(page) || dismissed) return null;
-  if (state.dismissedChecklist) return null;
 
   const dismiss = () => {
     setDismissed(true);

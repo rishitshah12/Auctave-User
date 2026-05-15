@@ -58,6 +58,7 @@ import { NotificationProvider, useNotifications } from './NotificationContext';
 import { OrgProvider, useOrg, useOrgPermissions } from './OrgContext';
 import { WalkthroughProvider, useWalkthrough } from './walkthrough/WalkthroughContext';
 import { TourEngine } from './walkthrough/TourEngine';
+import { ALL_TOURS } from './walkthrough/tours';
 import { TeamSettingsPage } from './TeamSettingsPage';
 import { OrderTrackingPage } from './OrderTrackingPage';
 import { BillingPage } from './BillingPage';
@@ -2765,7 +2766,7 @@ const AppContent: FC = () => {
 
     // Component for user settings
     const SettingsPage: FC = () => {
-        const { openChecklist, resetTours, state: walkthroughState, startTour } = useWalkthrough();
+        const { resetTours, state: walkthroughState, startTour, isTourComplete } = useWalkthrough();
         const [location, setLocation] = useState(userProfile?.country || 'Your Location');
         const handleLocationSave = () => {
             showToast(`Location updated to ${location}`);
@@ -3271,49 +3272,96 @@ const AppContent: FC = () => {
                             )}
                         </div>
 
-                        {/* Logout — mobile only */}
-                        <div className="sm:hidden">
-                            {/* ── Help & Platform Tour ──────────────────────────── */}
-                            <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-md border border-gray-200 dark:border-white/10 overflow-hidden transition-colors">
-                                <div className="p-4 sm:p-6">
-                                    <div className="flex items-center gap-3 sm:gap-4 mb-4">
-                                        <div className="bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 p-2.5 sm:p-3 rounded-lg shrink-0">
+                        {/* ── Help Center ──────────────────────────────────── */}
+                        {!isAdmin && (
+                        <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-md border border-gray-200 dark:border-white/10 overflow-hidden transition-colors">
+                            <div className="p-4 sm:p-6">
+                                {/* Header */}
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 p-2.5 rounded-lg shrink-0">
                                             <BookOpen size={18} />
                                         </div>
                                         <div>
-                                            <h3 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-white leading-snug">Platform Walkthrough</h3>
-                                            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5 leading-tight">
-                                                {walkthroughState.completedTours.length} of 5 tours completed
+                                            <h3 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-white leading-snug">Help Center</h3>
+                                            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                                                {walkthroughState.completedTours.length} of {ALL_TOURS.length} tours completed
                                             </p>
                                         </div>
-                                    </div>
-                                    <div className="flex flex-col sm:flex-row gap-2">
-                                        <button
-                                            onClick={() => { startTour('platform-overview'); handleSetCurrentPage('sourcing'); }}
-                                            className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-gradient-to-r from-[#c20c0b] to-[#350e4a] text-white text-sm font-semibold rounded-lg shadow-sm hover:opacity-90 transition-opacity"
-                                        >
-                                            <Activity size={15} />
-                                            Start Platform Tour
-                                        </button>
-                                        <button
-                                            onClick={() => { openChecklist(); handleSetCurrentPage('sourcing'); }}
-                                            className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-white text-sm font-semibold rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                                        >
-                                            <CheckCheck size={15} />
-                                            View All Tours
-                                        </button>
                                     </div>
                                     {walkthroughState.completedTours.length > 0 && (
                                         <button
                                             onClick={resetTours}
-                                            className="mt-2 w-full text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors py-1"
+                                            className="text-xs text-gray-400 dark:text-gray-500 hover:text-[#c20c0b] dark:hover:text-red-400 transition-colors shrink-0"
                                         >
-                                            Reset tour progress
+                                            Reset
                                         </button>
                                     )}
                                 </div>
-                            </div>
 
+                                {/* Progress bar */}
+                                <div className="h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full mb-5 overflow-hidden">
+                                    <div
+                                        className="h-full rounded-full transition-all duration-700"
+                                        style={{
+                                            width: `${(walkthroughState.completedTours.length / ALL_TOURS.length) * 100}%`,
+                                            background: 'linear-gradient(90deg, #c20c0b, #350e4a)',
+                                        }}
+                                    />
+                                </div>
+
+                                {/* Tour list */}
+                                <div className="space-y-2">
+                                    {ALL_TOURS.map((tour) => {
+                                        const done = isTourComplete(tour.id);
+                                        const TOUR_ICONS_MAP: Record<string, React.ReactNode> = {
+                                            'platform-overview': <MapIcon size={16} />,
+                                            'find-factory':      <Building size={16} />,
+                                            'submit-rfq':        <FileText size={16} />,
+                                            'review-quotes':     <MessageSquare size={16} />,
+                                            'track-production':  <Truck size={16} />,
+                                        };
+                                        return (
+                                            <div
+                                                key={tour.id}
+                                                className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
+                                            >
+                                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                                                    done
+                                                        ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'
+                                                        : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                                                }`}>
+                                                    {TOUR_ICONS_MAP[tour.id]}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className={`text-sm font-semibold leading-tight ${
+                                                        done ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-800 dark:text-white'
+                                                    }`}>
+                                                        {tour.title}
+                                                    </p>
+                                                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{done ? 'Completed' : tour.duration}</p>
+                                                </div>
+                                                {done ? (
+                                                    <CheckCircle size={18} className="text-emerald-500 shrink-0" />
+                                                ) : (
+                                                    <button
+                                                        onClick={() => { startTour(tour.id); handleSetCurrentPage('sourcing'); }}
+                                                        className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-[#c20c0b] to-[#350e4a] text-white text-xs font-bold rounded-lg hover:opacity-90 transition-opacity"
+                                                    >
+                                                        <Activity size={12} />
+                                                        Start
+                                                    </button>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                        )}
+
+                        {/* Logout — mobile only */}
+                        <div className="sm:hidden">
                             <button
                                 onClick={() => handleSignOut()}
                                 className="w-full flex items-center gap-3 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"

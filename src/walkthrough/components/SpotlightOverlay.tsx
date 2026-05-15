@@ -9,23 +9,41 @@ interface Rect {
 }
 
 interface SpotlightOverlayProps {
-  targetId?: string;        // data-tour-id value; undefined = no spotlight (centered step)
+  targetId?: string;
   padding?: number;
   allowInteraction?: boolean;
   onClickOutside?: () => void;
-  children?: React.ReactNode; // tooltip rendered alongside
+  children?: React.ReactNode;
 }
 
+// Finds the first element with the given tour-id that is actually visible in the viewport.
+// Uses querySelectorAll so both sidebar (desktop) and bottom nav (mobile) can share the same id.
 function getTargetRect(tourId: string, padding: number): Rect | null {
-  const el = document.querySelector(`[data-tour-id="${tourId}"]`);
-  if (!el) return null;
-  const r = el.getBoundingClientRect();
-  return {
-    x: r.left - padding,
-    y: r.top - padding,
-    width: r.width + padding * 2,
-    height: r.height + padding * 2,
-  };
+  const els = Array.from(document.querySelectorAll(`[data-tour-id="${tourId}"]`));
+
+  for (const el of els) {
+    const r = el.getBoundingClientRect();
+
+    // Skip zero-size elements
+    if (r.width === 0 || r.height === 0) continue;
+
+    // Skip elements fully outside the viewport
+    if (r.right < 0 || r.bottom < 0 || r.left > window.innerWidth || r.top > window.innerHeight) continue;
+
+    // Skip elements that are invisible (opacity:0, visibility:hidden, display:none)
+    const style = window.getComputedStyle(el);
+    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') continue;
+
+    // This element is visible — return its rect with padding
+    return {
+      x: Math.max(0, r.left - padding),
+      y: Math.max(0, r.top - padding),
+      width: Math.min(r.width + padding * 2, window.innerWidth),
+      height: Math.min(r.height + padding * 2, window.innerHeight),
+    };
+  }
+
+  return null;
 }
 
 export const SpotlightOverlay: React.FC<SpotlightOverlayProps> = ({
@@ -43,10 +61,10 @@ export const SpotlightOverlay: React.FC<SpotlightOverlayProps> = ({
       if (targetId) {
         const r = getTargetRect(targetId, padding);
         setRect(r);
-        // scroll into view if needed
-        const el = document.querySelector(`[data-tour-id="${targetId}"]`);
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+        // Scroll visible element into view if partially hidden
+        if (r) {
+          const el = document.querySelector(`[data-tour-id="${targetId}"]`);
+          el?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
         }
       } else {
         setRect(null);
@@ -83,8 +101,7 @@ export const SpotlightOverlay: React.FC<SpotlightOverlayProps> = ({
         pointerEvents: 'none',
       }}
     >
-      {/* Dark quadrant overlays — 4-quadrant approach so target stays interactive */}
-      {rect && (
+      {rect ? (
         <>
           {/* Top */}
           <div
@@ -95,7 +112,6 @@ export const SpotlightOverlay: React.FC<SpotlightOverlayProps> = ({
               background: 'rgba(0,0,0,0.72)',
               backdropFilter: 'blur(1px)',
               pointerEvents: allowInteraction ? 'none' : 'all',
-              transition: 'height 0.25s ease',
             }}
             onClick={onClickOutside}
           />
@@ -108,7 +124,6 @@ export const SpotlightOverlay: React.FC<SpotlightOverlayProps> = ({
               background: 'rgba(0,0,0,0.72)',
               backdropFilter: 'blur(1px)',
               pointerEvents: allowInteraction ? 'none' : 'all',
-              transition: 'top 0.25s ease',
             }}
             onClick={onClickOutside}
           />
@@ -123,7 +138,6 @@ export const SpotlightOverlay: React.FC<SpotlightOverlayProps> = ({
               background: 'rgba(0,0,0,0.72)',
               backdropFilter: 'blur(1px)',
               pointerEvents: allowInteraction ? 'none' : 'all',
-              transition: 'all 0.25s ease',
             }}
             onClick={onClickOutside}
           />
@@ -138,12 +152,11 @@ export const SpotlightOverlay: React.FC<SpotlightOverlayProps> = ({
               background: 'rgba(0,0,0,0.72)',
               backdropFilter: 'blur(1px)',
               pointerEvents: allowInteraction ? 'none' : 'all',
-              transition: 'all 0.25s ease',
             }}
             onClick={onClickOutside}
           />
 
-          {/* Apple-style halo ring — white inner ring + soft outer glow */}
+          {/* Apple-style halo ring */}
           <div
             style={{
               position: 'absolute',
@@ -153,7 +166,7 @@ export const SpotlightOverlay: React.FC<SpotlightOverlayProps> = ({
               height: rect.height,
               borderRadius: 12,
               boxShadow: allowInteraction
-                ? '0 0 0 2px rgba(255,255,255,0.95), 0 0 0 6px rgba(255,255,255,0.35), 0 0 28px 10px rgba(255,255,255,0.12), 0 0 0 2px rgba(255,255,255,0.95)'
+                ? '0 0 0 2px rgba(255,255,255,0.95), 0 0 0 6px rgba(255,255,255,0.35), 0 0 28px 10px rgba(255,255,255,0.12)'
                 : '0 0 0 2px rgba(255,255,255,0.9), 0 0 0 5px rgba(255,255,255,0.3), 0 0 20px 8px rgba(255,255,255,0.1)',
               pointerEvents: 'none',
               transition: 'all 0.28s cubic-bezier(0.22,1,0.36,1)',
@@ -161,14 +174,12 @@ export const SpotlightOverlay: React.FC<SpotlightOverlayProps> = ({
             }}
           />
         </>
-      )}
-
-      {/* No target: full dark overlay for centered steps — leaves bottom nav visible on mobile */}
-      {!rect && targetId === undefined && (
+      ) : (
+        // No visible target — show full-screen dark overlay (centered steps, or off-screen targets)
         <div
           style={{
             position: 'absolute',
-            top: 0, left: 0, right: 0, bottom: 0,
+            inset: 0,
             background: 'rgba(0,0,0,0.72)',
             backdropFilter: 'blur(4px)',
             pointerEvents: 'all',
@@ -177,7 +188,7 @@ export const SpotlightOverlay: React.FC<SpotlightOverlayProps> = ({
         />
       )}
 
-      {/* Tooltip rendered here (pointer-events reset inside) */}
+      {/* Tooltip — pointer events restored */}
       <div style={{ pointerEvents: 'all' }}>
         {children}
       </div>

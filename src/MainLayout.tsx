@@ -637,6 +637,13 @@ const BottomNavBar: FC<{
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
 
+    // Mobile tour-id map — shared with sidebar so querySelectorAll finds the visible one
+    const MOBILE_TOUR_IDS: Record<string, string> = {
+        sourcing: 'nav-sourcing',
+        myQuotes: 'nav-myquotes',
+        tracking: 'nav-tracking',
+    };
+
     const clientMainItems = [
         { label: 'Sourcing', page: 'sourcing',  icon: <Search className="h-[22px] w-[22px]" /> },
         { label: 'Quotes',   page: 'myQuotes',  icon: <FileQuestion className="h-[22px] w-[22px]" />, badge: unreadByPage['myQuotes'] },
@@ -689,6 +696,7 @@ const BottomNavBar: FC<{
                 <div className="flex items-end gap-3">
                     {/* ── Pill nav ── */}
                     <div
+                        data-tour-id="sidebar-nav"
                         className="flex-1 rounded-full overflow-hidden"
                         style={{
                             background: isDark ? 'rgba(12,12,18,0.97)' : 'rgba(255,255,255,0.97)',
@@ -705,6 +713,7 @@ const BottomNavBar: FC<{
                                 return (
                                     <button
                                         key={item.page}
+                                        data-tour-id={MOBILE_TOUR_IDS[item.page]}
                                         onClick={() => { handleSetCurrentPage(item.page); setMoreOpen(false); }}
                                         className="relative flex flex-col items-center justify-center gap-[3px] flex-1 h-full active:opacity-60 transition-opacity"
                                     >
