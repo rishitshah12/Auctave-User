@@ -9,6 +9,7 @@ interface WalkthroughState {
   dismissedChecklist: boolean;
   visitedPages: string[];
   showWelcomeModal: boolean;
+  tourBarDismissed: boolean;
 }
 
 const DEFAULT_STATE: WalkthroughState = {
@@ -16,6 +17,7 @@ const DEFAULT_STATE: WalkthroughState = {
   dismissedChecklist: false,
   visitedPages: [],
   showWelcomeModal: false,
+  tourBarDismissed: false,
 };
 
 function storageKey(userId?: string) {
@@ -69,6 +71,8 @@ interface WalkthroughContextType {
   isTourComplete: (tourId: string) => boolean;
   completionPct: number;
   resetTours: () => void;
+  resetOneTour: (tourId: string) => void;
+  dismissTourBar: () => void;
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -171,10 +175,24 @@ export const WalkthroughProvider: React.FC<{ children: ReactNode; userId?: strin
     return state.completedTours.includes(tourId);
   }, [state.completedTours]);
 
-  // Reset all tour progress — useful from Settings
+  // Reset all tour progress
   const resetTours = useCallback(() => {
     setState(DEFAULT_STATE);
     setActiveTour(null);
+  }, []);
+
+  // Reset a single tour (lets user redo it)
+  const resetOneTour = useCallback((tourId: string) => {
+    setState(prev => ({
+      ...prev,
+      completedTours: prev.completedTours.filter(id => id !== tourId),
+    }));
+    setActiveTour(null);
+  }, []);
+
+  // Dismiss the help guide bar permanently
+  const dismissTourBar = useCallback(() => {
+    setState(prev => ({ ...prev, tourBarDismissed: true }));
   }, []);
 
   const completionPct = Math.round(
@@ -209,6 +227,8 @@ export const WalkthroughProvider: React.FC<{ children: ReactNode; userId?: strin
       isTourComplete,
       completionPct,
       resetTours,
+      resetOneTour,
+      dismissTourBar,
     }}>
       {children}
     </WalkthroughContext.Provider>

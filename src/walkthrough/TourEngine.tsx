@@ -4,62 +4,19 @@ import { SpotlightOverlay } from './components/SpotlightOverlay';
 import { TourTooltip } from './components/TourTooltip';
 import { WelcomeModal } from './components/WelcomeModal';
 
-// CSS always injected — handles animations + mobile-responsive positioning
+// Only animation keyframes — all positioning is handled in JS, no CSS overrides needed
 const TOUR_STYLES = `
   @keyframes tour-halo-pulse {
-    0%, 100% {
-      box-shadow: 0 0 0 2px rgba(255,255,255,0.9), 0 0 0 6px rgba(255,255,255,0.3), 0 0 24px 8px rgba(255,255,255,0.1);
-    }
-    50% {
-      box-shadow: 0 0 0 3px rgba(255,255,255,0.7), 0 0 0 10px rgba(255,255,255,0.15), 0 0 40px 16px rgba(255,255,255,0.06);
-    }
+    0%, 100% { box-shadow: 0 0 0 2.5px rgba(255,255,255,0.95), 0 0 0 6px rgba(255,255,255,0.3), 0 0 24px 8px rgba(255,255,255,0.1); }
+    50%       { box-shadow: 0 0 0 3px rgba(255,255,255,0.7), 0 0 0 10px rgba(255,255,255,0.15), 0 0 40px 16px rgba(255,255,255,0.06); }
   }
-
-  /* Card entrance — fires on every step change via React key */
   @keyframes zushi-card-in {
     from { opacity: 0; transform: translateY(12px) scale(0.97); }
     to   { opacity: 1; transform: translateY(0) scale(1); }
   }
-
   @keyframes tour-fade-in {
     from { opacity: 0; transform: translateY(-8px); }
     to   { opacity: 1; transform: translateY(0); }
-  }
-
-  /* Desktop default — sidebar on left, no bottom nav */
-  .zushi-checklist {
-    bottom: 24px !important;
-    right: 20px !important;
-    width: 328px !important;
-  }
-
-  /* Mobile — clear the pill bottom nav: 58px height + 16px offset + 12px gap + safe area */
-  @media (max-width: 767px) {
-    .zushi-checklist {
-      bottom: calc(env(safe-area-inset-bottom) + 86px) !important;
-      right: 12px !important;
-      left: 12px !important;
-      width: auto !important;
-      max-width: 420px !important;
-    }
-    .zushi-checklist-pill {
-      bottom: calc(env(safe-area-inset-bottom) + 86px) !important;
-      right: 12px !important;
-    }
-    /* Tooltip on mobile: anchor above nav, edge-to-edge with margin */
-    .zushi-tooltip {
-      bottom: calc(env(safe-area-inset-bottom) + 90px) !important;
-      top: auto !important;
-      left: 12px !important;
-      right: 12px !important;
-      width: auto !important;
-      max-width: none !important;
-      border-radius: 20px !important;
-    }
-    /* Spotlight overlay: don't cover the bottom nav so it stays tappable */
-    .zushi-overlay-root {
-      bottom: calc(env(safe-area-inset-bottom) + 74px) !important;
-    }
   }
 `;
 

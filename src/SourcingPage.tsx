@@ -17,7 +17,7 @@ import { supabase } from '../src/supabaseClient';
 import { MainLayout } from '../src/MainLayout';
 import { FactoryCard } from '../src/FactoryCard';
 import { useNotifications } from '../src/NotificationContext';
-import { PageDiscoveryCard } from './walkthrough/components/PageDiscoveryCard';
+import { TourLauncherBar } from './walkthrough/components/TourLauncherBar';
 
 interface SourcingPageProps {
     pageKey: number;
@@ -1099,7 +1099,7 @@ export const SourcingPage: FC<SourcingPageProps> = (props) => {
                 </div>
             </header>
 
-            <PageDiscoveryCard page="sourcing" />
+            <TourLauncherBar />
 
             {/* Promotional Banners */}
             <section className="mb-5 sm:mb-8">
