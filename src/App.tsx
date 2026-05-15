@@ -2765,6 +2765,7 @@ const AppContent: FC = () => {
 
     // Component for user settings
     const SettingsPage: FC = () => {
+        const { openChecklist, resetTours, state: walkthroughState, startTour } = useWalkthrough();
         const [location, setLocation] = useState(userProfile?.country || 'Your Location');
         const handleLocationSave = () => {
             showToast(`Location updated to ${location}`);
@@ -3272,6 +3273,47 @@ const AppContent: FC = () => {
 
                         {/* Logout — mobile only */}
                         <div className="sm:hidden">
+                            {/* ── Help & Platform Tour ──────────────────────────── */}
+                            <div className="bg-white/80 backdrop-blur-md dark:bg-gray-900/40 dark:backdrop-blur-md rounded-xl shadow-md border border-gray-200 dark:border-white/10 overflow-hidden transition-colors">
+                                <div className="p-4 sm:p-6">
+                                    <div className="flex items-center gap-3 sm:gap-4 mb-4">
+                                        <div className="bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 p-2.5 sm:p-3 rounded-lg shrink-0">
+                                            <BookOpen size={18} />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-white leading-snug">Platform Walkthrough</h3>
+                                            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5 leading-tight">
+                                                {walkthroughState.completedTours.length} of 5 tours completed
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col sm:flex-row gap-2">
+                                        <button
+                                            onClick={() => { startTour('platform-overview'); handleSetCurrentPage('sourcing'); }}
+                                            className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-gradient-to-r from-[#c20c0b] to-[#350e4a] text-white text-sm font-semibold rounded-lg shadow-sm hover:opacity-90 transition-opacity"
+                                        >
+                                            <Activity size={15} />
+                                            Start Platform Tour
+                                        </button>
+                                        <button
+                                            onClick={() => { openChecklist(); handleSetCurrentPage('sourcing'); }}
+                                            className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-white text-sm font-semibold rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                                        >
+                                            <CheckCheck size={15} />
+                                            View All Tours
+                                        </button>
+                                    </div>
+                                    {walkthroughState.completedTours.length > 0 && (
+                                        <button
+                                            onClick={resetTours}
+                                            className="mt-2 w-full text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors py-1"
+                                        >
+                                            Reset tour progress
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
                             <button
                                 onClick={() => handleSignOut()}
                                 className="w-full flex items-center gap-3 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
@@ -4714,7 +4756,6 @@ User message: "${userMsg}"`;
             {user && userProfile && !isAdmin && (
                 <TourEngine
                     userName={userProfile.name}
-                    currentPage={currentPage}
                     onNavigate={handleSetCurrentPage}
                 />
             )}
@@ -4723,13 +4764,30 @@ User message: "${userMsg}"`;
     );
 };
 
+// Thin wrapper so WalkthroughProvider can receive the authenticated userId
+const AppWithWalkthrough: FC = () => {
+    const [userId, setUserId] = useState<string | undefined>(undefined);
+    useEffect(() => {
+        supabase.auth.getSession().then(({ data }) => {
+            setUserId(data.session?.user?.id);
+        });
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+            setUserId(session?.user?.id);
+        });
+        return () => subscription.unsubscribe();
+    }, []);
+    return (
+        <WalkthroughProvider userId={userId}>
+            <AppContent />
+        </WalkthroughProvider>
+    );
+};
+
 const App: FC = () => {
     return (
         <NotificationProvider>
             <ToastProvider>
-                <WalkthroughProvider>
-                    <AppContent />
-                </WalkthroughProvider>
+                <AppWithWalkthrough />
             </ToastProvider>
         </NotificationProvider>
     );

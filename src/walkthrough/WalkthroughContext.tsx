@@ -18,20 +18,22 @@ const DEFAULT_STATE: WalkthroughState = {
   showWelcomeModal: false,
 };
 
-const STORAGE_KEY = 'zushi_walkthrough_v1';
+function storageKey(userId?: string) {
+  return userId ? `zushi_walkthrough_v1_${userId}` : 'zushi_walkthrough_v1';
+}
 
-function loadState(): WalkthroughState {
+function loadState(userId?: string): WalkthroughState {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(storageKey(userId));
     return raw ? { ...DEFAULT_STATE, ...JSON.parse(raw) } : DEFAULT_STATE;
   } catch {
     return DEFAULT_STATE;
   }
 }
 
-function saveState(s: WalkthroughState) {
+function saveState(s: WalkthroughState, userId?: string) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+    localStorage.setItem(storageKey(userId), JSON.stringify(s));
   } catch {}
 }
 
@@ -45,32 +47,28 @@ interface ActiveTour {
 // ─── Context contract ─────────────────────────────────────────────────────────
 
 interface WalkthroughContextType {
-  // state
   state: WalkthroughState;
   activeTour: ActiveTour | null;
   currentStep: TourStep | null;
 
-  // tour controls
   startTour: (tourId: string) => void;
   nextStep: () => void;
   prevStep: () => void;
   exitTour: () => void;
   completeTour: () => void;
 
-  // checklist
   dismissChecklist: () => void;
+  openChecklist: () => void;
 
-  // welcome modal
   triggerWelcomeModal: () => void;
   dismissWelcomeModal: () => void;
 
-  // page visits
   markPageVisited: (page: string) => void;
   isPageVisited: (page: string) => boolean;
 
-  // helpers
   isTourComplete: (tourId: string) => boolean;
   completionPct: number;
+  resetTours: () => void;
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -85,14 +83,20 @@ export const useWalkthrough = (): WalkthroughContextType => {
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
-export const WalkthroughProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [state, setState] = useState<WalkthroughState>(loadState);
+export const WalkthroughProvider: React.FC<{ children: ReactNode; userId?: string }> = ({ children, userId }) => {
+  const [state, setState] = useState<WalkthroughState>(() => loadState(userId));
   const [activeTour, setActiveTour] = useState<ActiveTour | null>(null);
 
-  // persist on every change
+  // Re-load when userId changes (user switches account / logs in)
   useEffect(() => {
-    saveState(state);
-  }, [state]);
+    setState(loadState(userId));
+    setActiveTour(null);
+  }, [userId]);
+
+  // Persist every state change under the user-specific key
+  useEffect(() => {
+    saveState(state, userId);
+  }, [state, userId]);
 
   const currentStep = activeTour
     ? activeTour.tour.steps[activeTour.stepIndex] ?? null
@@ -108,7 +112,7 @@ export const WalkthroughProvider: React.FC<{ children: ReactNode }> = ({ childre
     setActiveTour(prev => {
       if (!prev) return null;
       const next = prev.stepIndex + 1;
-      if (next >= prev.tour.steps.length) return null; // exit at end
+      if (next >= prev.tour.steps.length) return null;
       return { ...prev, stepIndex: next };
     });
   }, []);
@@ -138,6 +142,12 @@ export const WalkthroughProvider: React.FC<{ children: ReactNode }> = ({ childre
     setState(prev => ({ ...prev, dismissedChecklist: true }));
   }, []);
 
+  // Restore checklist from Settings — undoes dismiss
+  const openChecklist = useCallback(() => {
+    setState(prev => ({ ...prev, dismissedChecklist: false }));
+    setActiveTour(null);
+  }, []);
+
   const triggerWelcomeModal = useCallback(() => {
     setState(prev => ({ ...prev, showWelcomeModal: true }));
   }, []);
@@ -161,11 +171,17 @@ export const WalkthroughProvider: React.FC<{ children: ReactNode }> = ({ childre
     return state.completedTours.includes(tourId);
   }, [state.completedTours]);
 
+  // Reset all tour progress — useful from Settings
+  const resetTours = useCallback(() => {
+    setState(DEFAULT_STATE);
+    setActiveTour(null);
+  }, []);
+
   const completionPct = Math.round(
     (state.completedTours.length / ALL_TOURS.length) * 100
   );
 
-  // Keyboard: Escape exits tour
+  // Escape exits active tour
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && activeTour) exitTour();
@@ -185,12 +201,14 @@ export const WalkthroughProvider: React.FC<{ children: ReactNode }> = ({ childre
       exitTour,
       completeTour,
       dismissChecklist,
+      openChecklist,
       triggerWelcomeModal,
       dismissWelcomeModal,
       markPageVisited,
       isPageVisited,
       isTourComplete,
       completionPct,
+      resetTours,
     }}>
       {children}
     </WalkthroughContext.Provider>

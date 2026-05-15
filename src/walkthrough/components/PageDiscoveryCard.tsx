@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { X, Play } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Play, Search, MessageSquare, BarChart2, Truck, ClipboardList } from 'lucide-react';
 import { useWalkthrough } from '../WalkthroughContext';
 
 interface PageConfig {
-  emoji: string;
+  icon: React.ReactNode;
   title: string;
   body: string;
   tourId?: string;
@@ -12,33 +12,33 @@ interface PageConfig {
 
 const PAGE_CONFIGS: Record<string, PageConfig> = {
   sourcing: {
-    emoji: '🔍',
+    icon: <Search size={18} />,
     title: 'Sourcing — Find your manufacturing partner',
-    body: 'Browse 500+ verified factories by category, MOQ, lead time, and certifications. Use filters to narrow down or search by product type.',
+    body: 'Browse verified factories by category, MOQ, lead time, and certifications. Use filters to narrow down or search by product type.',
     tourId: 'find-factory',
     tourLabel: 'Tour this page',
   },
   myQuotes: {
-    emoji: '💬',
+    icon: <MessageSquare size={18} />,
     title: 'My Quotes — All your RFQs in one place',
     body: 'Every quote request you submit appears here. Track status, review factory responses, negotiate pricing, and accept quotes to create production orders.',
     tourId: 'review-quotes',
     tourLabel: 'Tour this page',
   },
   crm: {
-    emoji: '📊',
+    icon: <BarChart2 size={18} />,
     title: 'CRM Portal — Real-time production visibility',
     body: 'Monitor every active order through the full production lifecycle. The TNA view shows milestones, risk flags, and responsible parties at a glance.',
     tourId: 'track-production',
     tourLabel: 'Show me around',
   },
   tracking: {
-    emoji: '🚢',
+    icon: <Truck size={18} />,
     title: 'Tracking — Live shipment status',
     body: 'Once your goods are dispatched, track them here by container number or shipment ID. See vessel name, port updates, and estimated arrival.',
   },
   orderForm: {
-    emoji: '📋',
+    icon: <ClipboardList size={18} />,
     title: 'Place Order — Start an RFQ',
     body: 'Define your product specifications — category, fabric, quantity, and attach your tech pack. We\'ll route your RFQ to matching verified factories.',
     tourId: 'submit-rfq',
@@ -52,8 +52,16 @@ interface PageDiscoveryCardProps {
 
 export const PageDiscoveryCard: React.FC<PageDiscoveryCardProps> = ({ page }) => {
   const { isPageVisited, markPageVisited, startTour, state } = useWalkthrough();
-  const [isDark] = useState(() => document.documentElement.classList.contains('dark'));
+  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
   const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    const observer = new MutationObserver(() =>
+      setIsDark(document.documentElement.classList.contains('dark'))
+    );
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
 
   const config = PAGE_CONFIGS[page];
   if (!config) return null;
@@ -70,10 +78,11 @@ export const PageDiscoveryCard: React.FC<PageDiscoveryCardProps> = ({ page }) =>
     if (config.tourId) startTour(config.tourId);
   };
 
-  const bg = isDark ? 'rgba(12,6,18,0.92)' : 'rgba(255,255,255,0.95)';
-  const border = isDark ? 'rgba(194,12,11,0.25)' : 'rgba(194,12,11,0.15)';
+  const bg = isDark ? 'rgba(14,7,22,0.94)' : '#ffffff';
+  const border = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(194,12,11,0.12)';
   const text = isDark ? '#f0e8f4' : '#1a0a1e';
-  const sub = isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.5)';
+  const sub = isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.52)';
+  const iconBg = isDark ? 'rgba(194,12,11,0.15)' : 'rgba(194,12,11,0.08)';
 
   return (
     <div
@@ -88,20 +97,29 @@ export const PageDiscoveryCard: React.FC<PageDiscoveryCardProps> = ({ page }) =>
         WebkitBackdropFilter: 'blur(16px)',
         display: 'flex',
         alignItems: 'flex-start',
-        gap: 12,
+        gap: 13,
         boxShadow: isDark
-          ? '0 4px 24px rgba(0,0,0,0.4)'
-          : '0 4px 24px rgba(0,0,0,0.08)',
+          ? '0 4px 24px rgba(0,0,0,0.45)'
+          : '0 2px 16px rgba(0,0,0,0.07)',
         animation: 'tour-fade-in 0.3s ease',
       }}
     >
-      <span style={{ fontSize: 22, flexShrink: 0, marginTop: 1 }}>{config.emoji}</span>
+      {/* Icon */}
+      <div style={{
+        width: 36, height: 36, flexShrink: 0, borderRadius: 9,
+        background: iconBg,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: '#c20c0b',
+        marginTop: 1,
+      }}>
+        {config.icon}
+      </div>
 
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: text, marginBottom: 4 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: text, marginBottom: 5, lineHeight: 1.3 }}>
           {config.title}
         </div>
-        <div style={{ fontSize: 12.5, lineHeight: 1.55, color: sub }}>
+        <div style={{ fontSize: 13.5, lineHeight: 1.6, color: sub }}>
           {config.body}
         </div>
       </div>
@@ -112,32 +130,32 @@ export const PageDiscoveryCard: React.FC<PageDiscoveryCardProps> = ({ page }) =>
             onClick={handleTour}
             style={{
               display: 'flex', alignItems: 'center', gap: 5,
-              padding: '5px 10px',
-              borderRadius: 7,
+              padding: '6px 12px',
+              borderRadius: 8,
               border: 'none',
               cursor: 'pointer',
-              fontSize: 11.5,
+              fontSize: 12.5,
               fontWeight: 700,
               color: '#fff',
               background: 'linear-gradient(135deg, #c20c0b, #350e4a)',
               whiteSpace: 'nowrap',
             }}
           >
-            <Play size={10} style={{ marginLeft: 1 }} />
+            <Play size={11} style={{ marginLeft: 1 }} />
             {config.tourLabel || 'Tour'}
           </button>
         )}
         <button
           onClick={dismiss}
           style={{
-            width: 24, height: 24, borderRadius: 6,
+            width: 26, height: 26, borderRadius: 7,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             background: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)',
             border: 'none', cursor: 'pointer',
             color: sub,
           }}
         >
-          <X size={12} />
+          <X size={13} />
         </button>
       </div>
     </div>

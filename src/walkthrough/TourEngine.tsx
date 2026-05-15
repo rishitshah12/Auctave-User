@@ -4,27 +4,65 @@ import { SpotlightOverlay } from './components/SpotlightOverlay';
 import { TourTooltip } from './components/TourTooltip';
 import { ChecklistWidget } from './components/ChecklistWidget';
 import { WelcomeModal } from './components/WelcomeModal';
-import { PageDiscoveryCard } from './components/PageDiscoveryCard';
 
-// CSS animations always injected — PageDiscoveryCard uses tour-fade-in even with no active tour
+// CSS always injected — handles animations + mobile-responsive positioning
 const TOUR_STYLES = `
-  @keyframes tour-pulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(194,12,11,0.4); }
-    50% { box-shadow: 0 0 0 10px rgba(194,12,11,0); }
+  @keyframes tour-halo-pulse {
+    0%, 100% {
+      box-shadow: 0 0 0 2px rgba(255,255,255,0.9), 0 0 0 6px rgba(255,255,255,0.3), 0 0 24px 8px rgba(255,255,255,0.1);
+    }
+    50% {
+      box-shadow: 0 0 0 3px rgba(255,255,255,0.7), 0 0 0 10px rgba(255,255,255,0.15), 0 0 40px 16px rgba(255,255,255,0.06);
+    }
   }
   @keyframes tour-fade-in {
     from { opacity: 0; transform: translateY(-8px); }
     to   { opacity: 1; transform: translateY(0); }
   }
+
+  /* Desktop default — sidebar on left, no bottom nav */
+  .zushi-checklist {
+    bottom: 24px !important;
+    right: 20px !important;
+    width: 328px !important;
+  }
+
+  /* Mobile — clear the pill bottom nav: 58px height + 16px offset + 12px gap + safe area */
+  @media (max-width: 767px) {
+    .zushi-checklist {
+      bottom: calc(env(safe-area-inset-bottom) + 86px) !important;
+      right: 12px !important;
+      left: 12px !important;
+      width: auto !important;
+      max-width: 400px !important;
+    }
+    .zushi-checklist-pill {
+      bottom: calc(env(safe-area-inset-bottom) + 86px) !important;
+      right: 12px !important;
+    }
+    /* Tooltip on mobile: anchor above nav, full width */
+    .zushi-tooltip {
+      bottom: calc(env(safe-area-inset-bottom) + 90px) !important;
+      top: auto !important;
+      left: 12px !important;
+      right: 12px !important;
+      width: auto !important;
+      max-width: none !important;
+      border-radius: 16px !important;
+    }
+    /* Spotlight overlay: don't cover the bottom nav so it stays tappable */
+    .zushi-overlay-root {
+      bottom: calc(env(safe-area-inset-bottom) + 74px) !important;
+    }
+  }
 `;
 
 interface TourEngineProps {
   userName?: string;
-  currentPage?: string;
   onNavigate?: (page: string) => void;
 }
 
-export const TourEngine: React.FC<TourEngineProps> = ({ userName, currentPage, onNavigate }) => {
+export const TourEngine: React.FC<TourEngineProps> = ({ userName, onNavigate }) => {
   const {
     activeTour,
     currentStep,
@@ -53,13 +91,6 @@ export const TourEngine: React.FC<TourEngineProps> = ({ userName, currentPage, o
     <>
       {/* Always-present global CSS */}
       <style>{TOUR_STYLES}</style>
-
-      {/* Page discovery card — inline hint shown on first visit to each page */}
-      {!activeTour && currentPage && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100, pointerEvents: 'none' }}>
-          {/* Actual card is rendered by the page itself via PageDiscoveryCard component */}
-        </div>
-      )}
 
       {activeTour && currentStep ? (
         <SpotlightOverlay

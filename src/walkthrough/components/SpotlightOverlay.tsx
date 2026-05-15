@@ -75,6 +75,7 @@ export const SpotlightOverlay: React.FC<SpotlightOverlayProps> = ({
 
   const overlay = (
     <div
+      className="zushi-overlay-root"
       style={{
         position: 'fixed',
         inset: 0,
@@ -142,7 +143,7 @@ export const SpotlightOverlay: React.FC<SpotlightOverlayProps> = ({
             onClick={onClickOutside}
           />
 
-          {/* Highlight ring around target */}
+          {/* Apple-style halo ring — white inner ring + soft outer glow */}
           <div
             style={{
               position: 'absolute',
@@ -150,37 +151,24 @@ export const SpotlightOverlay: React.FC<SpotlightOverlayProps> = ({
               left: rect.x,
               width: rect.width,
               height: rect.height,
-              borderRadius: 10,
-              boxShadow: '0 0 0 2px rgba(194,12,11,0.8), 0 0 0 4px rgba(194,12,11,0.25)',
+              borderRadius: 12,
+              boxShadow: allowInteraction
+                ? '0 0 0 2px rgba(255,255,255,0.95), 0 0 0 6px rgba(255,255,255,0.35), 0 0 28px 10px rgba(255,255,255,0.12), 0 0 0 2px rgba(255,255,255,0.95)'
+                : '0 0 0 2px rgba(255,255,255,0.9), 0 0 0 5px rgba(255,255,255,0.3), 0 0 20px 8px rgba(255,255,255,0.1)',
               pointerEvents: 'none',
-              transition: 'all 0.25s ease',
+              transition: 'all 0.28s cubic-bezier(0.22,1,0.36,1)',
+              animation: allowInteraction ? 'tour-halo-pulse 2.2s ease-in-out infinite' : undefined,
             }}
           />
-
-          {/* Pulsing ring for interaction steps */}
-          {allowInteraction && (
-            <div
-              style={{
-                position: 'absolute',
-                top: rect.y,
-                left: rect.x,
-                width: rect.width,
-                height: rect.height,
-                borderRadius: 10,
-                pointerEvents: 'none',
-                animation: 'tour-pulse 1.8s ease-in-out infinite',
-              }}
-            />
-          )}
         </>
       )}
 
-      {/* No target: full dark overlay for centered steps */}
+      {/* No target: full dark overlay for centered steps — leaves bottom nav visible on mobile */}
       {!rect && targetId === undefined && (
         <div
           style={{
             position: 'absolute',
-            inset: 0,
+            top: 0, left: 0, right: 0, bottom: 0,
             background: 'rgba(0,0,0,0.72)',
             backdropFilter: 'blur(4px)',
             pointerEvents: 'all',
