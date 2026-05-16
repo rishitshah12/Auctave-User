@@ -3866,15 +3866,14 @@ User message: "${userMsg}"`;
             case 'adminRFQ': pageContent = <AdminRFQPage {...layoutProps} initialQuoteId={adminRFQInitialId} />; break;
             case 'adminLoginSettings': pageContent = <AdminLoginSettingsPage {...layoutProps} />; break;
             case 'adminUserAnalytics': pageContent = <AdminUserAnalyticsPage {...layoutProps} handleSetCurrentPage={handleSetCurrentPage} />; break;
-            default: pageContent = <SourcingPage
-                {...layoutProps}
-                userProfile={userProfile}
-                handleSelectFactory={handleSelectFactory}
-                selectedGarmentCategory={selectedGarmentCategory}
-                setSelectedGarmentCategory={setSelectedGarmentCategory}
-                showToast={showToast}
-                quoteRequests={quoteRequests}
-            />;
+            // These pages have dedicated <Route> elements — returning null prevents
+            // the default case from flashing SourcingPage during the URL update.
+            case 'settings':
+            case 'billing':
+            case 'tracking':
+            case 'profile':
+                return null;
+            default: return null;
         }
         return <>{pageContent}</>;
     };
@@ -4044,8 +4043,8 @@ User message: "${userMsg}"`;
                     font-family: 'Inter', sans-serif;
                 }
                 .font-inter { font-family: 'Inter', sans-serif; }
-                @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-                .animate-fade-in { animation: fade-in 0.5s ease-out forwards; }
+                @keyframes fade-in { from { transform: translateY(5px); } to { transform: translateY(0); } }
+                .animate-fade-in { animation: fade-in 0.12s ease-out forwards; }
                 @keyframes card-enter { from { opacity: 0; transform: scale(0.95) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
                 .animate-card-enter { opacity: 0; animation: card-enter 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards; }
                 .scrollbar-hide::-webkit-scrollbar { display: none; }

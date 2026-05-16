@@ -1,4 +1,4 @@
-import React, { FC, ReactNode, useState, useEffect, useRef } from 'react';
+import React, { FC, ReactNode, useState, useEffect, useLayoutEffect, useRef } from 'react';
 import {
     Search, DollarSign, Plus, X,
     List, Truck, LogOut, Settings, Flame, FileQuestion,
@@ -798,7 +798,7 @@ export const MainLayout: FC<MainLayoutProps> = (props) => {
         return () => document.removeEventListener('open-notifications', handler);
     }, []);
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         const el = contentRef.current;
         if (!el) return;
         el.classList.remove('animate-fade-in');
