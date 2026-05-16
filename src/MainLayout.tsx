@@ -790,12 +790,22 @@ const BottomNavBar: FC<{
 export const MainLayout: FC<MainLayoutProps> = (props) => {
     const [isNotifOpen, setIsNotifOpen] = useState(false);
     const { notifications } = useNotifications();
+    const contentRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         const handler = () => setIsNotifOpen(true);
         document.addEventListener('open-notifications', handler);
         return () => document.removeEventListener('open-notifications', handler);
     }, []);
+
+    useEffect(() => {
+        const el = contentRef.current;
+        if (!el) return;
+        el.classList.remove('animate-fade-in');
+        void el.offsetHeight;
+        el.classList.add('animate-fade-in');
+        el.scrollTop = 0;
+    }, [props.currentPage]);
 
     const totalUnread = notifications.filter(n => !n.isRead).length;
 
@@ -833,7 +843,7 @@ export const MainLayout: FC<MainLayoutProps> = (props) => {
                 {/* Main Content */}
                 <main className="flex-1 flex flex-col overflow-hidden">
                     <div
-                        key={props.pageKey}
+                        ref={contentRef}
                         className="flex-1 w-full max-w-7xl mx-auto px-3 py-3 sm:p-6 lg:p-8 pb-24 md:pb-8 animate-fade-in"
                     >
                         {props.children}

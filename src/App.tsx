@@ -553,8 +553,6 @@ const AppContent: FC = () => {
             pageEnterTimeRef.current = Date.now();
             trackedPageRef.current = page;
         }
-        // Increment pageKey to force re-render of components if needed
-        setPageKey(prevKey => prevKey + 1);
         // If navigating to specific detail pages, set the selected data
         if (page === 'quoteRequest' || page === 'factoryDetail' || page === 'factoryCatalog') {
             setSelectedFactory(data as Factory);
