@@ -4396,6 +4396,14 @@ User message: "${userMsg}"`;
             return <KnittingPreloader fullScreen />;
         }
 
+        // Once a session is established but currentPage is still 'login' (the initial
+        // default), we're in the gap between SIGNED_IN firing and the async profile
+        // fetch deciding the target page. Keep the preloader visible so the LoginPage
+        // never flashes for an already-authenticated user.
+        if (user && currentPage === 'login') {
+            return <KnittingPreloader fullScreen />;
+        }
+
         // Route guards: prevent protected pages from flashing for unauthenticated deep links.
         // ROUTE_MAP misses unknown page names — those fall through to the switch default safely.
         const routeMeta = ROUTE_MAP.get(currentPage as PageName);
