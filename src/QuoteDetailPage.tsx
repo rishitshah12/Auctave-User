@@ -560,6 +560,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
                     return {
                         ...prev,
                         status: raw.status ?? prev.status,
+                        order: raw.order_details ?? prev.order,
                         files: (raw.files || []).length >= (prev.files || []).length ? raw.files : prev.files,
                         negotiation_details: {
                             ...prev.negotiation_details,
@@ -1255,6 +1256,7 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
         const updatedHistory = [...(quote.negotiation_details?.history || []), newHistoryItem];
 
         const negotiationPayload = {
+            ...(quote.negotiation_details || {}),
             counterPrice,
             message: details,
             submittedAt: new Date().toISOString(),
@@ -1262,8 +1264,9 @@ export const QuoteDetailPage: FC<QuoteDetailPageProps> = ({
             history: updatedHistory
         };
 
-        // Optimistic update: Update UI immediately before API call
+        // Optimistic update: update parent list state and local detail state immediately
         updateQuoteStatus(id, 'In Negotiation', { order: updatedOrderDetails, negotiation_details: negotiationPayload });
+        setQuote(prev => prev ? { ...prev, status: 'In Negotiation', order: updatedOrderDetails, negotiation_details: negotiationPayload } : null);
         setIsNegotiationModalOpen(false);
         showToast('Negotiation submitted. The quote is now marked as "In Negotiation".');
 
