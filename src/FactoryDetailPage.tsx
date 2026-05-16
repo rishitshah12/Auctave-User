@@ -193,7 +193,7 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
         catalogProducts.filter(p => selectedCatalogIds.has(p.id)).forEach(product => {
             inputs[product.id] = rfqInputs[product.id] || {
                 qty: product.moq ? String(product.moq) : '',
-                targetPrice: product.priceRange ? product.priceRange.replace(/[^0-9.]/g, '') : '',
+                targetPrice: product.priceRange ? (product.priceRange.match(/[\d.]+/)?.[0] ?? '') : '',
                 comments: '',
             };
         });
@@ -1038,7 +1038,10 @@ export const FactoryDetailPage: FC<FactoryDetailPageProps> = (props) => {
                                                                     type="text"
                                                                     placeholder={product.priceRange ? product.priceRange.replace(/[^0-9.-]/g, '') : '0.00'}
                                                                     value={input.targetPrice}
-                                                                    onChange={e => update('targetPrice', e.target.value)}
+                                                                    onChange={e => {
+                                                                        const val = e.target.value;
+                                                                        if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) update('targetPrice', val);
+                                                                    }}
                                                                     className="w-full pl-7 pr-3 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-white/12 bg-white dark:bg-[#1c1b22] text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-[#c20c0b]/25 focus:border-[#c20c0b]/50 transition-all"
                                                                 />
                                                             </div>

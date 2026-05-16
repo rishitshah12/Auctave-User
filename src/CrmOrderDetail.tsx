@@ -986,29 +986,42 @@ export default function CrmOrderDetail({
         const completedTasks = tasks.filter(t => t.status === 'COMPLETE').length;
         const inProgressTasks = tasks.filter(t => t.status === 'IN PROGRESS');
         const todoTasks = tasks.filter(t => t.status === 'TO DO');
-        const overdueTasks = tasks.filter(t => t.plannedEndDate && new Date(t.plannedEndDate) < new Date() && t.status !== 'COMPLETE');
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const overdueTasks = tasks.filter(t => t.plannedEndDate && new Date(t.plannedEndDate) < today && t.status !== 'COMPLETE');
         const progressPct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-        const taskDetails = tasks.map(t => `- ${t.name}: ${t.status} (Due: ${t.plannedEndDate || 'N/A'})`).join('\n');
-        const prompt = `You are a garment production project manager writing a structured order report. Be concise, data-driven, and actionable.
+        const taskDetails = tasks.map(t => {
+            const due = t.plannedEndDate || 'N/A';
+            const daysOverdue = t.plannedEndDate && t.status !== 'COMPLETE'
+                ? Math.max(0, Math.floor((today.getTime() - new Date(t.plannedEndDate).getTime()) / 86400000))
+                : 0;
+            const overdueLabel = daysOverdue > 0 ? ` — ${daysOverdue}d overdue` : '';
+            const priority = t.priority ? ` [${t.priority}]` : '';
+            const progress = t.progress != null ? ` ${t.progress}%` : '';
+            return `- ${t.name}${priority}: ${t.status}${progress} (Due: ${due}${overdueLabel})`;
+        }).join('\n');
+        const prompt = `You are a senior garment production project manager writing a concise order health report. Be data-driven and avoid unnecessary alarm — small delays in a long production cycle are normal.
 
 Order: ${localOrder.product} (ID: ${orderId})
 Customer: ${localOrder.customer}
 Products: ${localOrder.products?.map(p => p.name).join(', ') || localOrder.product}
 Progress: ${completedTasks}/${totalTasks} tasks complete (${progressPct}%)
 In Progress: ${inProgressTasks.map(t => t.name).join(', ') || 'None'}
-Overdue: ${overdueTasks.map(t => `${t.name} (due ${t.plannedEndDate})`).join(', ') || 'None'}
+Overdue: ${overdueTasks.map(t => {
+    const d = Math.floor((today.getTime() - new Date(t.plannedEndDate!).getTime()) / 86400000);
+    return `${t.name} (${d}d overdue, priority: ${t.priority || 'Normal'})`;
+}).join(', ') || 'None'}
 Next Up: ${todoTasks.slice(0, 3).map(t => t.name).join(', ') || 'None'}
 
-All Tasks:
+All Tasks (with priority, progress, and days overdue where applicable):
 ${taskDetails}
 
 Reply using EXACTLY this format with these section headers (use ### for headers):
 
 ### Executive Summary
-One paragraph: overall health, completion percentage, and timeline assessment.
+One paragraph: overall health, completion percentage, and honest timeline assessment.
 
 ### Current Progress
-- List each in-progress task with its due date
+- List each in-progress task with its due date and progress %
 - If nothing is in progress, say so
 
 ### Upcoming Milestones
@@ -1016,9 +1029,12 @@ One paragraph: overall health, completion percentage, and timeline assessment.
 - If none, say "All tasks are either in progress or complete"
 
 ### Risk Assessment
-- List specific risks (overdue tasks, tight timelines, bottlenecks)
-- Rate overall risk as LOW / MEDIUM / HIGH
-- If no risks, say "LOW — No immediate risks identified"
+Use this calibrated scale — do NOT over-alarm on minor delays:
+- LOW: No overdue tasks, or only 1-3 day delays on low/medium priority tasks (normal buffer)
+- MEDIUM: 4-7 day delays, or any delay on High/Urgent priority tasks, or 2+ tasks delayed
+- HIGH: 8+ day delays on critical tasks, or 3+ tasks significantly delayed, or cascading bottleneck
+List specific risks with days overdue. Rate overall risk as LOW / MEDIUM / HIGH with a one-sentence justification.
+If no meaningful risks: "LOW — Order is progressing normally within acceptable tolerances"
 
 ### Recommended Actions
 - 2-3 specific actionable next steps the team should take

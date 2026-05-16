@@ -7,6 +7,7 @@ export function calculateOrderRiskScore(tasks: CrmTask[]): 'green' | 'amber' | '
     today.setHours(0, 0, 0, 0);
 
     let worstScore: 'green' | 'amber' | 'red' = 'green';
+    let amberCount = 0;
 
     for (const task of tasks) {
         if (task.status === 'COMPLETE') continue;
@@ -16,10 +17,24 @@ export function calculateOrderRiskScore(tasks: CrmTask[]): 'green' | 'amber' | '
         dueDate.setHours(0, 0, 0, 0);
 
         const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+        if (daysOverdue <= 0) continue;
 
-        if (daysOverdue >= 7) return 'red';
-        if (daysOverdue >= 1) worstScore = 'amber';
+        // Higher-priority tasks have tighter buffers
+        const isCritical = task.priority === 'Urgent' || task.priority === 'High';
+        // Urgent/High: amber at 2 days, red at 8 days
+        // Medium/Low/unset: amber at 4 days, red at 12 days
+        const amberThreshold = isCritical ? 2 : 4;
+        const redThreshold = isCritical ? 8 : 12;
+
+        if (daysOverdue >= redThreshold) return 'red';
+        if (daysOverdue >= amberThreshold) {
+            amberCount++;
+            worstScore = 'amber';
+        }
     }
+
+    // 3+ tasks in amber signals a systemic delay — escalate to red
+    if (amberCount >= 3) return 'red';
 
     return worstScore;
 }
